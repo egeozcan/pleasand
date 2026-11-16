@@ -15,7 +15,10 @@
 var P_MAX = 120, P_BREATH = 300;
 /* things a buried peasant cannot dig up through */
 var P_HARD = new Uint8Array(32);
-[MAT.STONE, MAT.GLASS, MAT.ICE, MAT.CLONER, MAT.FAUCET, MAT.DRAIN, MAT.TORCH].forEach(function (v) { P_HARD[v] = 1; });
+[MAT.STONE, MAT.GLASS, MAT.ICE, MAT.CLONER, MAT.FAUCET, MAT.DRAIN, MAT.TORCH, MAT.METAL].forEach(function (v) { P_HARD[v] = 1; });
+/* how warm a peasant likes it. above P_SWEAT they complain, above P_SCALD they run, above
+   P_IGNITE they are on fire. below P_CHILL they get colder and colder until they are ice */
+var P_SWEAT = 50, P_SCALD = 90, P_IGNITE = 230, P_CHILL = -8, P_FREEZE = 900;
 
 var P_NAMES = ["GARY", "DOUG", "BARB", "KEVIN", "BRENDA", "OTTO", "PIP", "GUNTHER", "BEA", "NIGEL", "URSULA", "PERCY",
   "AGATHA", "DAVE", "STEVE", "MILDRED", "HAROLD", "EDNA", "BOB", "GWEN", "TOBIAS", "OSWALD", "HILDA", "MERV", "IVY",
@@ -69,7 +72,13 @@ var P_SAY = {
           "i regret everything", "was it something i said", "i'll haunt you", "see you all soon", "the light! it's so bright"],
   crowned: ["i'm the king now?", "finally", "the crown is heavy", "bow, peasants", "i didn't want this"],
   cough: ["*cough*", "*cough cough*", "who's smoking", "my lungs", "*wheeze*"],
-  clone: ["am i... me?", "who are you", "i'm the real one", "there's two of me", "hello me", "is this legal"]
+  clone: ["am i... me?", "who are you", "i'm the real one", "there's two of me", "hello me", "is this legal"],
+  hot: ["is it hot in here", "phew", "i'm sweating", "who turned the sun up", "it's like a sauna", "so warm",
+        "i'm melting", "need a drink"],
+  scald: ["HOT HOT HOT", "OW OW OW", "MY FEET", "THE FLOOR IS HOT", "OUCH", "it burns!", "ow ow ow"],
+  cold: ["brrr", "b-b-b-brr", "so cold", "i can't feel my toes", "where's my coat", "winter is here", "*shiver*",
+         "my nose is frozen", "c-c-cold"],
+  float: ["i'm floating!", "salt water! i float!", "look, no hands", "it's like the dead sea", "so buoyant"]
 };
 
 var P_DEATH = {
@@ -83,7 +92,9 @@ var P_DEATH = {
   drain: ["{n} went down the drain", "{n} is in the sewers now", "{n} was flushed"],
   buried: ["{n} was buried alive. sandy", "{n} is part of the beach now", "{n} became a sandcastle"],
   zap: ["{n} got struck twice. impressive", "{n} conducted electricity. briefly", "{n} was fried. crispy"],
-  reentry: ["{n} came back from space. briefly", "{n} did not stick the landing", "{n} burned up on re-entry"]
+  reentry: ["{n} came back from space. briefly", "{n} did not stick the landing", "{n} burned up on re-entry"],
+  freeze: ["{n} froze solid", "{n} is a peasant-sicle now", "{n} chilled out. permanently", "{n} should have worn a coat",
+           "{n} is a statue now. a cold one"]
 };
 
 /* every few deaths, the village has something to say about it */
@@ -140,7 +151,7 @@ var P_XRAY = pPal(["#111111", "#111111", "#f8f8f0", "#000000", "#111111", "#f8f8
 var P_CHAR = pPal(["#2a2622", "#1e1a18", "#3a3430", "#ffffff", "#2e2a26", "#1e1a18", "#26221e", "#1a1614", "#ff6040", "#ffffff"]);
 var P_FIRE = SAND_PAL[MAT.FIRE];
 var P_SKIN32 = hex32("#f1c7a0");
-var P_WHITE = hex32("#f4f8ff"), P_GHOSTEYE = hex32("#202a40");
+var P_WHITE = hex32("#f4f8ff"), P_GHOSTEYE = hex32("#202a40"), P_FROST = hex32("#cfeaff");
 
 /* -------------------------------------------------------------------
    THE WORLD, AS A PEASANT SEES IT
@@ -192,7 +203,7 @@ function peasantSpawn(g, x, y, quiet) {
   if (hat === P_HATS[4]) cols[0] = skin;
   var p = {
     id: ++g.pid, name: name, short: short, x: x, y: y, vx: 0, vy: 0, dir: Math.random() < 0.5 ? -1 : 1,
-    state: "walk", stun: 0, idle: 0, panic: 0, fire: 0, lava: 0, acid: 0, breath: P_BREATH,
+    state: "walk", stun: 0, idle: 0, panic: 0, fire: 0, lava: 0, acid: 0, breath: P_BREATH, cold: 0, warm: 0,
     charred: 0, zap: 0, falling: false, fallY: y, anim: irnd(100), spin: 0, buried: 0, flyT: 0, immune: 0,
     say: "", sayT: 0, chat: 120 + irnd(900), voice: 170 + Math.random() * 280,
     hat: hat, pal: pPal(cols), dead: 0, spaceT: 0, fromSpace: 0
@@ -310,8 +321,14 @@ function pDie(g, p, cause) {
     }
   } else if (cause === "nuke") {
     sparks(g, p.x, p.y - 4, 12, 1, [P_WHITE], 10, 0.5);
+  } else if (cause === "freeze") {
+    /* an ice statue of them, where they stood */
+    for (y = fy - 8; y <= fy; y++) for (x = fx - 1; x <= fx + 1; x++) {
+      if ((y === fy - 8 || y === fy - 3) && x !== fx) continue;
+      if (x >= 0 && x < gw && y >= 0 && y < g.gh && AIRY[g.m[y * gw + x]]) { j = y * gw + x; sandSet(g, j, MAT.ICE); g.T[j] = -20; }
+    }
   }
-  if (cause !== "nuke") sparks(g, p.x, p.y - 4, 8, 0.8, [p.pal[4], p.pal[0]], 12, 0.6);
+  if (cause !== "nuke" && cause !== "freeze") sparks(g, p.x, p.y - 4, 8, 0.8, [p.pal[4], p.pal[0]], 12, 0.6);
   g.fx.die++;
   /* somebody nearby has feelings about it */
   var o = pOther(g, p, 80);
@@ -485,6 +502,7 @@ function pStep(g, p) {
     pIgnite(g, p);
     if (++p.lava > 30) { pDie(g, p, "lava"); return; }
   } else if (HOT[cf] || HOT[cm] || HOT[ch]) pIgnite(g, p);
+  if (pHeat(g, p, fx, fy)) return;
   if (cf === MAT.ACID || cm === MAT.ACID || ch === MAT.ACID || cb === MAT.ACID) {
     if (p.acid < 1 || Math.random() < 0.01) pSay(g, p, "acid", p.acid < 1);
     p.acid += 1;
@@ -492,7 +510,7 @@ function pStep(g, p) {
     if (Math.random() < 0.06) { j = (fy - irnd(5)) * gw + fx; if (j >= 0 && j < m.length && m[j] === MAT.ACID) m[j] = MAT.EMPTY; }
   } else if (p.acid > 0) p.acid = Math.max(0, p.acid - 0.3);
   var liquid = LIQUID[cm] || LIQUID[cf], sub = LIQUID[ch] && ch !== MAT.LAVA;
-  if (p.fire && (cm === MAT.WATER || cf === MAT.WATER || ch === MAT.WATER || cb === MAT.WATER)) {
+  if (p.fire && (WET[cm] || WET[cf] || WET[ch] || WET[cb])) {
     p.fire = 0; g.fx.hiss++;
     pSay(g, p, "phew", true);
     sparks(g, p.x, p.y - 8, 6, 0.4, [hex32("#c0d0e0")], 14, 0.6);
@@ -522,7 +540,7 @@ function pStep(g, p) {
     else if (!P_HARD[above] && (p.anim % 3) === 0) { p.y = fy - 1; if (++p.buried === 40) pSay(g, p, "buried", true); }
     else {
       if (++p.buried === 40) pSay(g, p, "buried", true);
-      if (p.buried > 260) pDie(g, p, "buried");
+      if (p.buried > 260) pDie(g, p, cf === MAT.ICE || above === MAT.ICE ? "freeze" : "buried");
     }
     return;
   }
@@ -538,6 +556,40 @@ function pStep(g, p) {
   if (p.falling) pLand(g, p);
   p.vy = 0; p.fallY = p.y;
   pWalk(g, p, liquid);
+}
+
+/* how warm it is where they are standing, and what they do about it. true if it killed them */
+function pHeat(g, p, fx, fy) {
+  if (fx < 0 || fx >= g.gw) return false;
+  var T = g.T, gw = g.gw, gh = g.gh, hi = -1e9, lo = 1e9, t, k, y;
+  for (k = 0; k < 3; k++) {
+    y = fy - (k === 0 ? 0 : (k === 1 ? 4 : 7));
+    if (y < 0 || y >= gh) continue;
+    t = T[y * gw + fx];
+    if (t > hi) hi = t;
+    if (t < lo) lo = t;
+  }
+  if (hi === -1e9) return false;
+  var feet = fy + 1 < gh && p.state !== "fly" ? T[(fy + 1) * gw + fx] : AMBIENT;
+  /* standing on something very cold chills you too, if more slowly than being in it */
+  if (feet < AMBIENT) lo = Math.min(lo, AMBIENT + (feet - AMBIENT) * 0.5);
+  /* too hot */
+  if (hi > P_IGNITE || feet > P_IGNITE + 120) pIgnite(g, p);
+  else if (!p.fire && (hi > P_SCALD || (feet > P_SCALD && SOLID[g.m[(fy + 1) * gw + fx]]))) {
+    p.panic = Math.max(p.panic, 30); p.idle = 0;
+    if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "scald", true);
+    /* hot ground: a little hop, as you would */
+    if (feet > P_SCALD && p.state === "walk" && p.vy >= 0 && Math.random() < 0.08) p.vy = -0.7;
+  } else if (!p.fire && hi > P_SWEAT) {
+    if (++p.warm > 120 && p.sayT <= 0 && Math.random() < 0.01) pSay(g, p, "hot");
+  } else p.warm = 0;
+  /* too cold. a fire nearby, or warm air, thaws them out again */
+  if (lo < P_CHILL && !p.fire) {
+    p.cold += Math.min(6, (P_CHILL - lo) / 12);
+    if (p.cold > 90 && p.sayT <= 0 && Math.random() < 0.012) pSay(g, p, "cold", true);
+    if (p.cold > P_FREEZE) { pDie(g, p, "freeze"); return true; }
+  } else if (p.cold > 0) p.cold = Math.max(0, p.cold - (hi > 30 || p.fire ? 4 : 0.6));
+  return false;
 }
 
 function pHeld(g, p) {
@@ -580,6 +632,11 @@ function pLand(g, p) {
 function pSwim(g, p, sub) {
   p.falling = false; p.fallY = p.y;
   p.vy += 0.02;
+  /* salt water holds you up. you can float in it, like in the dead sea */
+  if (pCell(g, Math.floor(p.x), Math.floor(p.y) - 4) === MAT.SALTWATER) {
+    p.vy -= 0.05;
+    if (p.sayT <= 0 && Math.random() < 0.004) pSay(g, p, "float");
+  }
   if (Math.random() < 0.07) p.vy -= 0.32;   /* flailing */
   p.vy = clamp(p.vy, -0.5, 0.3);
   if (!sub && p.vy < 0) p.vy *= 0.3;     /* at the surface: bob */
@@ -597,7 +654,7 @@ function pFly(g, p) {
   var wet = pCell(g, Math.floor(p.x), Math.floor(p.y) - 2);
   if (LIQUID[wet]) {
     if (!p.wet && p.vy > 0.8) {
-      var sc = wet === MAT.WATER ? SAND_DEEP[MAT.WATER][16 * 256] : SAND_PAL[wet][0];
+      var sc = SAND_DEEP[wet] ? SAND_DEEP[wet][16 * 256] : SAND_PAL[wet][0];
       for (var k = 0; k < 16; k++) partAdd(g, PK_DEBRIS, p.x + Math.random() * 4 - 2, p.y - 4, (Math.random() - 0.5) * 1.6, -0.8 - Math.random() * p.vy * 0.5, 60, sc, wet === MAT.LAVA ? MAT.FIRE : wet);
       g.fx.splash++;
     }
@@ -643,6 +700,9 @@ function pLeave(g, p) {
   achieve(g, "leave");
 }
 
+/* too hot to walk into */
+function pHotAt(g, x, y) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.T[y * g.gw + x] > P_SCALD; }
+
 /* walking. a few cells of step up, a couple of step down, turn at walls */
 function pStepX(g, p, sp) {
   var nx = p.x + p.dir * sp, nfx = Math.floor(nx), fx = Math.floor(p.x), fy = Math.floor(p.y), k;
@@ -666,7 +726,7 @@ function pWalk(g, p, wading) {
     /* look where you are going */
     if (!p.fire) {
       var ax = fx + p.dir * 4, a0 = pCell(g, ax, fy), a1 = pCell(g, ax, fy - 3), a2 = pCell(g, ax, fy + 1), a3 = pCell(g, ax, fy - 7);
-      if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID) {
+      if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3)) {
         p.dir = -p.dir; p.panic = Math.max(p.panic, 50);
         if (Math.random() < 0.3) pSay(g, p, "nope");
       } else if (!wading && (LIQUID[pCell(g, fx + p.dir * 3, fy + 1)] || LIQUID[pCell(g, fx + p.dir * 3, fy)] || LIQUID[pCell(g, fx + p.dir * 3, fy - 2)]) &&
@@ -679,12 +739,12 @@ function pWalk(g, p, wading) {
       var best = 999;
       for (var dx = -50; dx <= 50; dx += 2) {
         var c0 = pCell(g, fx + dx, fy + 1), c1 = pCell(g, fx + dx, fy + 3);
-        if ((c0 === MAT.WATER || c1 === MAT.WATER) && Math.abs(dx) < Math.abs(best)) best = dx;
+        if ((WET[c0] || WET[c1]) && Math.abs(dx) < Math.abs(best)) best = dx;
       }
       if (best !== 999) p.dir = best < 0 ? -1 : 1;
       else if (Math.random() < 0.3) p.dir = -p.dir;
     }
-    pStepX(g, p, p.fire ? 0.5 : (p.panic ? 0.4 : (wading ? 0.12 : 0.18)));
+    pStepX(g, p, (p.fire ? 0.5 : (p.panic ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1));
     if (!scared) {
       if (Math.random() < 0.003) p.idle = 40 + irnd(160);
       else if (Math.random() < 0.0015) p.dir = -p.dir;
@@ -733,11 +793,19 @@ function peasantsDraw(g) {
     for (c = 0; c < 10; c++) pal[c] = src[c];
     if (p.charred && p.zap <= 0) { pal[0] = p.pal[0] === p.pal[2] ? P_CHAR[2] : mix32(p.pal[0], P_CHAR[0]); }
     if (p.acid > 0) pal[2] = mix32(pal[2], SAND_PAL[MAT.ACID][irnd(256)]);
+    /* the cold creeps in: blue first, then frosted white */
+    if (p.cold > 60) { var fz = Math.min(0.75, p.cold / P_FREEZE); for (c = 0; c < 10; c++) if (c !== 3) pal[c] = blend32(pal[c], P_FROST, fz); }
+    if (g.thermal) {
+      /* in thermal vision a peasant is a warm blob, cooler if chilled, white-hot if burning */
+      var bt = p.fire ? 800 : 37 - p.cold / 10;
+      for (c = 0; c < 10; c++) pal[c] = thermCol(c === 0 || c === 1 ? bt - 6 : bt);
+      pal[3] = thermCol(bt - 12);
+    }
     if (p.fire) {
       pal[0] = P_FIRE[irnd(256)]; pal[4] = P_FIRE[irnd(256)]; pal[1] = P_FIRE[irnd(256)];
       if (Math.random() < 0.5) pal[6] = P_FIRE[irnd(256)];
     }
-    var ox = Math.floor(p.x);
+    var ox = Math.floor(p.x) + (p.cold > 200 && p.state === "walk" ? (p.anim >> 1) & 1 : 0);   /* shivering */
     if (p.state === "walk" && !p.falling) {
       /* a little shadow on whatever they are standing on */
       var sy = Math.floor(p.y) + 1;

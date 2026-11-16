@@ -9,8 +9,8 @@
 
 var UI_FONT = '"Menlo", "Consolas", "DejaVu Sans Mono", "Courier New", monospace';
 var GW = Math.floor((VW - PANEL) / CELL), GH = Math.floor((VH - PLAY_Y - BAR_H) / CELL);
-var ROW0 = PLAY_Y + 3, ROWH = 11, FUN_N = 4, FUN_GAP = 5;
-var SIZE_Y = 306, BTN_Y = 322, BTN2_Y = 338;
+var ROW0 = PLAY_Y + 3, ROWH = 10, FUN_N = 6, FUN_GAP = 5;
+var SIZE_Y = 326, BTN_Y = 341, BTN2_Y = 355, BTN3_Y = 369;
 var TIPS = [
   "tip: pick PEASANT, grab one, and throw it at the hut",
   "tip: peasants cannot swim. they will tell you about it",
@@ -20,7 +20,12 @@ var TIPS = [
   "tip: S is slow motion. try it on a nuke",
   "tip: throw a peasant hard enough, straight up, and it goes to space",
   "tip: gas pools under ceilings. a hut has a ceiling",
-  "tip: seeds on sand plus water make flowers. peasants like flowers"
+  "tip: seeds on sand plus water make flowers. peasants like flowers",
+  "tip: press T for thermal vision. peasants are 37 degrees. mostly",
+  "tip: boil salt water and you get your salt back",
+  "tip: hold HEAT on one end of a metal bar. watch the other end",
+  "tip: water on lava makes a crust. the lava under it is still lava",
+  "tip: COOL a cloud of steam and it snows"
 ];
 
 /* -------------------------------------------------------------------
@@ -55,6 +60,10 @@ var ICONS = {
                         { y: "#ffe860" }),
   firework: iconCanvas(["...r....", "..rrr...", "..www...", "..rrr...", "..www...", "..rrr...", "...y....", "..y.y..."],
                        { r: "#e8304a", w: "#f4f4f4", y: "#ffd040" }),
+  heat: iconCanvas(["...r....", "..rr....", "..rro...", ".rroor..", ".rooyor.", "rooyyoor", "rooyyoor", ".rooyor."],
+                   { r: "#e8401a", o: "#ff9a20", y: "#ffe070" }),
+  cool: iconCanvas(["...b....", ".b.b.b..", "..bbb...", "bbbwbbb.", "..bbb...", ".b.b.b..", "...b....", "........"],
+                   { b: "#8ad8ff", w: "#ffffff" }),
   nuke: iconCanvas(["......y.", ".....y..", "...kkk..", "..kgkkk.", ".kgkkkkk", ".kkkkkkk", ".kkkkkkk", "..kkkkk."],
                    { y: "#ffd040", k: "#3a3a2a", g: "#c8ff3a" })
 };
@@ -86,6 +95,7 @@ function gameInit(g) {
   g.zmark = new Uint8Array(n); g.zlist = new Int32Array(n + 8); g.zn = 0; g.zt = 0;
   g.pmark = new Uint32Array(n); g.pstack = new Int32Array(n); g.pgen = 0; g.pressList = new Int32Array(PRESS_TRIES); g.pressN = 0;
   partInit(g);
+  heatInit(g);
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
            pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0 };
@@ -109,6 +119,7 @@ function gameInit(g) {
   g.gc4 = document.createElement("canvas"); g.gc4.width = Math.ceil(GW / 4); g.gc4.height = Math.ceil(GH / 4);
   g.gc2x = g.gc2.getContext("2d"); g.gc4x = g.gc4.getContext("2d");
   g.dep = new Uint8Array(GW);
+  g.haze = new Int8Array(GH);
   g.wave = new Uint8Array(GW);
 
   /* the sky: a dusk gradient, two rows of far hills, a moon, and stars that twinkle */
@@ -147,7 +158,7 @@ function gameInit(g) {
     if (Math.random() < 0.3) g.stars.push({ i: i, b: b, p: Math.random() * 6.28, s: 1 + Math.random() * 3 });
   }
 
-  g.sel = 4; g.size = 5; g.paused = 0; g.slow = 0; g.lx = null; g.ax = null;
+  g.sel = FUN_N; g.size = 5; g.paused = 0; g.slow = 0; g.lx = null; g.ax = null;
   sandLandscape(g);
 }
 
@@ -171,6 +182,30 @@ function sandStroke(g, ax, ay, bx, by, v, solid) {
   for (var s = 0; s <= n; s++) sandDab(g, ax + dx * s / n, ay + dy * s / n, v, solid);
 }
 function curPick(g) { return PICK[g.sel]; }
+/* the cell under the cursor */
+function cellAt(g) { var p = sandCell(g); return Math.round(p.y) * g.gw + Math.round(p.x); }
+/* what a cell is called, for the readout */
+var MAT_NAME = [];
+PICK.forEach(function (p) { if (!p.tool) MAT_NAME[p.m] = p.name; });
+MAT_NAME[MAT.EMPTY] = "AIR"; MAT_NAME[MAT.STEAM] = "STEAM"; MAT_NAME[MAT.SMOKE] = "SMOKE";
+MAT_NAME[MAT.EMBER] = "EMBER"; MAT_NAME[MAT.FLOWER] = "FLOWER";
+/* a cell partway through melting, boiling or setting says so */
+var MAT_UP = [], MAT_DOWN = [];
+MAT_UP[MAT.WATER] = MAT_UP[MAT.SALTWATER] = "boiling"; MAT_UP[MAT.ICE] = MAT_UP[MAT.SNOW] = "melting";
+MAT_UP[MAT.STONE] = MAT_UP[MAT.GLASS] = MAT_UP[MAT.METAL] = "melting"; MAT_UP[MAT.SAND] = "fusing"; MAT_UP[MAT.ACID] = "boiling";
+MAT_DOWN[MAT.WATER] = MAT_DOWN[MAT.SALTWATER] = "freezing"; MAT_DOWN[MAT.STEAM] = "condensing"; MAT_DOWN[MAT.LAVA] = "setting";
+function cellReadout(g, j) {
+  var v = g.m[j], e = g.lat[j], name = MAT_NAME[v] || "", s;
+  if (v === MAT.LAVA && g.aux[j] === MAT.GLASS) name = "MOLTEN GLASS";
+  else if (v === MAT.LAVA && g.aux[j] === MAT.METAL) name = "MOLTEN METAL";
+  s = name + "  " + heatLabel(g.T[j]);
+  if (e > 0 && MAT_UP[v]) s += "  " + MAT_UP[v] + " " + Math.min(99, Math.round(e / HEAT_HI_L[v] * 100)) + "%";
+  else if (e < 0 && MAT_DOWN[v]) {
+    var L = v === MAT.LAVA ? HEAT_HI_L[g.aux[j] || MAT.STONE] : HEAT_LO_L[v];
+    s += "  " + MAT_DOWN[v] + " " + Math.min(99, Math.round(-e / L * 100)) + "%";
+  }
+  return s;
+}
 function sandBrush(g) { return g.btn === 2 ? MAT.EMPTY : curPick(g).m; }   /* right button always erases */
 function sandCell(g) { return { x: clamp(g.cx, 0, g.gw - 1), y: clamp(g.cy, 0, g.gh - 1) }; }
 function inPlay(g) { return g.mx >= PANEL && g.mx < VW && g.my >= PLAY_Y && g.my < PLAY_Y + GH * CELL; }
@@ -201,6 +236,9 @@ function toolHold(g) {
   if (t === "lightning") {
     g.toolT = 22;
     sandLightning(g, g.cx);
+  } else if (t === "heat" || t === "cool") {
+    g.toolT = 0;
+    heatBrush(g, g.cx, g.cy, t === "heat" ? 1 : -1);
   }
 }
 /* middle-click (or alt-click) picks up whatever is under the cursor */
@@ -276,8 +314,9 @@ function sandSounds(g) {
    ------------------------------------------------------------------- */
 function drawWorld(g) {
   var m = g.m, sh = g.sh, px = g.px, gp = g.gpx, gw = g.gw, gh = g.gh, dep = g.dep, bg = g.bg, wave = g.wave;
-  var x, y, i, v, row, d, hot = 0, W = MAT.WATER, t = g.t, k;
+  var x, y, i, v, row, d, hot = 0, W = MAT.WATER, t = g.t, k, T = g.T, tc, f;
   gp.fill(0);
+  if (g.thermal) return drawThermal(g);
   /* stars twinkle */
   for (k = 0; k < g.stars.length; k++) {
     var st = g.stars[k], b = st.b * (0.55 + 0.45 * Math.sin(t * st.s + st.p));
@@ -285,19 +324,37 @@ function drawWorld(g) {
   }
   /* where the light catches the waves this frame */
   for (x = 0; x < gw; x++) wave[x] = (Math.sin(x * 0.37 + t * 2.6) + Math.sin(x * 0.13 - t * 1.7)) > 1.25 ? 1 : 0;
+  /* heat haze: each row of hot air is nudged a pixel one way or the other, and it wobbles */
+  var haze = g.haze;
+  for (y = 0; y < gh; y++) haze[y] = Math.sin(y * 0.9 + t * 9) > 0 ? 1 : -1;
   var flick = (t * 8) | 0;
   for (y = 0; y < gh; y++) {
     row = y * gw;
     for (x = 0; x < gw; x++) {
-      i = row + x; v = m[i];
-      if (v === MAT.EMPTY) { px[i] = bg[i]; continue; }
+      i = row + x; v = m[i]; tc = T[i];
+      if (v === MAT.EMPTY) {
+        /* hot air shimmers and glows a little; cold air has a blue chill to it */
+        if (tc > 45) px[i] = blend32(bg[tc > 70 && x > 0 && x < gw - 1 ? i + haze[y] : i], HAZE_TINT, tc > 545 ? 0.33 : (tc - 45) * 0.00066);
+        else if (tc < 5) px[i] = blend32(bg[i], CHILL_TINT, tc < -45 ? 0.3 : (5 - tc) * 0.006);
+        else px[i] = bg[i];
+        continue;
+      }
       if (SAND_DEEP[v]) {
         /* how far down into this pool are we */
         d = (y > 0 && m[i - gw] === v) ? Math.min(15, dep[x] + 1) : 0;
         dep[x] = d;
-        px[i] = SAND_DEEP[v][((d === 0 && wave[x]) ? 16 << 8 : d << 8) | sh[i]];
+        /* boiling water seethes: bits of it catch the light at random */
+        px[i] = SAND_DEEP[v][(((d === 0 && wave[x]) || (g.lat[i] > 0 && Math.random() < 0.3)) ? 16 << 8 : d << 8) | sh[i]];
         if (v === MAT.ACID && d < 2) gp[i] = px[i];
-      } else if (v === MAT.FIRE || v === MAT.LAVA || v === MAT.EMBER) {
+      } else if (v === MAT.LAVA) {
+        /* lava is the colour of its own heat: dull and crusty near setting, orange when fresh,
+           yellow-white when it is hotter than that. molten glass and metal run paler */
+        px[i] = gp[i] = gp[i - gw] = gp[i + gw] = lavaCol(tc, g.aux[i], SAND_PAL[v][(Math.random() * 256) | 0]);
+        if (x > 0) gp[i - 1] = px[i];
+        if (x < gw - 1) gp[i + 1] = px[i];
+        hot++;
+        continue;
+      } else if (v === MAT.FIRE || v === MAT.EMBER) {
         /* the glow gets a little plus-sign per hot cell, so a lone spark still shows */
         px[i] = gp[i] = gp[i - gw] = gp[i + gw] = SAND_PAL[v][(Math.random() * 256) | 0];
         if (x > 0) gp[i - 1] = px[i];
@@ -325,6 +382,15 @@ function drawWorld(g) {
         px[i] = (y > 0 && m[i - gw] === MAT.EMPTY) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
         if (v === MAT.TORCH && y > 0) { gp[i] = SAND_PAL[MAT.FIRE][1]; hot++; }
       }
+      /* anything hot enough glows: dull red, cherry, orange, yellow, white. anything
+         well below freezing frosts over */
+      if (tc > 450) {
+        if (v !== MAT.FIRE && v !== MAT.EMBER && v !== MAT.TORCH && !AIRY[v]) {
+          f = glowMix(tc);
+          px[i] = blend32(px[i], glowCol(tc), f);
+          if (tc > 560) { gp[i] = blend32(0xff000000, px[i], f); hot++; }
+        }
+      } else if (tc < -5 && !AIRY[v]) px[i] = blend32(px[i], COLD_TINT, tc < -80 ? 0.45 : (-5 - tc) * 0.006);
     }
   }
   /* electrified water, for a moment */
@@ -345,6 +411,34 @@ function drawWorld(g) {
   }
   peasantsDraw(g);
   return hot;
+}
+
+/* molten things by temperature. a little flicker comes from the lava palette */
+var LAVA_GLASS = hex32("#ffe2a8"), LAVA_METAL = hex32("#fff6e8");
+var LAVA_COOL = hex32("#5a1206"), LAVA_WARM = hex32("#ff4a12"), LAVA_HOT = hex32("#ffe070");
+function lavaCol(t, a, flick) {
+  var c = t < 1250 ? blend32(LAVA_COOL, LAVA_WARM, clamp((t - 900) / 350, 0, 1))
+                   : blend32(LAVA_WARM, LAVA_HOT, clamp((t - 1250) / 600, 0, 1));
+  c = blend32(c, flick, 0.25);
+  if (a === MAT.GLASS) c = blend32(c, LAVA_GLASS, 0.35);
+  else if (a === MAT.METAL) c = blend32(c, LAVA_METAL, 0.3);
+  return c;
+}
+/* thermal vision: every cell the colour of its temperature, with a hint of what it is,
+   so you can still make out the shape of things */
+function drawThermal(g) {
+  var m = g.m, px = g.px, T = g.T, sh = g.sh, n = m.length, i, v, k, x, y;
+  for (i = 0; i < n; i++) {
+    v = m[i];
+    px[i] = v === MAT.EMPTY ? thermCol(T[i]) : blend32(thermCol(T[i]), SAND_PAL[v][sh[i]], 0.16);
+  }
+  for (k = 0; k < g.np; k++) {
+    x = g.ppx[k] | 0; y = g.ppy[k] | 0;
+    if (x < 0 || y < 0 || x >= g.gw || y >= g.gh || g.ppx[k] < 0 || g.ppy[k] < 0) continue;
+    px[y * g.gw + x] = g.pk[k] === PK_DEBRIS && g.pm[k] !== MAT.FIRE ? thermCol(AMBIENT) : thermCol(900);
+  }
+  peasantsDraw(g);
+  return 0;
 }
 
 function gameDraw(g, c) {
@@ -496,6 +590,12 @@ function drawCursor(g, c) {
     c.setLineDash([]);
     c.strokeStyle = "#ffe860";
     c.beginPath(); c.arc(cx, cy, 4, 0, 6.2832); c.stroke();
+  } else if (pk.tool === "heat" || pk.tool === "cool") {
+    var hc = pk.tool === "heat" ? "255,140,50" : "120,210,255", pulse = g.down && g.btn === 0 ? 0.5 + 0.4 * Math.sin(g.t * 20) : 0.8;
+    c.strokeStyle = "rgba(" + hc + "," + pulse.toFixed(2) + ")";
+    c.setLineDash([3, 2]);
+    c.beginPath(); c.arc(cx, cy, (g.size + 1.5) * CELL, 0, 6.2832); c.stroke();
+    c.setLineDash([]);
   } else if (pk.m === MAT.NUKE && g.btn !== 2) {
     c.strokeStyle = ((g.t * 4) | 0) & 1 ? "#c8ff3a" : "#ffd040";
     c.beginPath(); c.arc(cx, cy, 5, 0, 6.2832); c.stroke();
@@ -504,6 +604,14 @@ function drawCursor(g, c) {
     var v = g.btn === 2 ? MAT.EMPTY : pk.m;
     c.strokeStyle = v === MAT.EMPTY ? "#ffffff" : SAND_SHADES[v][0];
     c.beginPath(); c.arc(cx, cy, (g.size + 0.5) * CELL, 0, 6.2832); c.stroke();
+  }
+  /* with a heat tool, or the thermal view, the temperature rides along next to the cursor */
+  if (pk.tool === "heat" || pk.tool === "cool" || g.thermal) {
+    var tt = heatLabel(g.T[cellAt(g)]);
+    c.font = "bold 7px " + UI_FONT;
+    var tw = c.measureText(tt).width + 4, tx = Math.min(cx + 8, VW - tw - 2), ty = Math.max(cy - 14, PLAY_Y + 1);
+    rct(c, tx, ty, tw, 9, "rgba(6,8,14,0.7)");
+    txt(c, tt, tx + 2, ty + 7, 7, "#ffffff", "left", true);
   }
   c.restore();
 }
@@ -523,8 +631,8 @@ function drawPanel(g, c) {
   rct(c, 4, rowY(FUN_N) - 3, PANEL - 9, 1, "#26344e");
   for (k = 0; k < PICK.length; k++) {
     var pk = PICK[k], ry = rowY(k), fun = k < FUN_N;
-    if (k === g.sel) rct(c, 2, ry, PANEL - 5, ROWH - 1, fun ? "#5a3a14" : "#2a3d5e");
-    else if (k === hov) rct(c, 2, ry, PANEL - 5, ROWH - 1, "#17202f");
+    if (k === g.sel) rct(c, 2, ry, PANEL - 5, ROWH, fun ? "#5a3a14" : "#2a3d5e");
+    else if (k === hov) rct(c, 2, ry, PANEL - 5, ROWH, "#17202f");
     if (pk.tool || pk.m === MAT.FIREWORK || pk.m === MAT.NUKE) {
       c.imageSmoothingEnabled = false;
       c.drawImage(ICONS[pk.tool || (pk.m === MAT.NUKE ? "nuke" : "firework")], 5, ry + 1, 8, 8);
@@ -534,8 +642,8 @@ function drawPanel(g, c) {
       rct(c, 5, ry + 1, 8, 8, SAND_SHADES[pk.m][0]);
       if (SAND_SHADES[pk.m].length > 1) rct(c, 9, ry + 5, 4, 4, SAND_SHADES[pk.m][1]);
     }
-    txt(c, pk.name, 17, ry + 8, 7, k === g.sel ? "#ffffff" : (fun ? "#f0c060" : "#9aa6b8"), "left", k === g.sel || fun);
-    if (pk.key) txt(c, pk.key, PANEL - 7, ry + 8, 7, "#56698a", "right");
+    txt(c, pk.name, 17, ry + 7.5, 7, k === g.sel ? "#ffffff" : (fun ? "#f0c060" : "#9aa6b8"), "left", k === g.sel || fun);
+    if (pk.key) txt(c, pk.key, PANEL - 7, ry + 7.5, 7, "#56698a", "right");
   }
   /* size, and the buttons */
   var bh = g.my >= SIZE_Y && g.mx < PANEL;
@@ -548,8 +656,10 @@ function drawPanel(g, c) {
   button(c, 48, BTN_Y, 42, "CLEAR", false, r1 && g.mx >= 48);
   button(c, 4, BTN2_Y, 42, "SLOW-MO", g.slow, r2 && g.mx < 48);
   button(c, 48, BTN2_Y, 42, "NEW", false, r2 && g.mx >= 48);
-  var hl = ["WHEEL    size", "SHIFT    ruled line", "MIDCLICK pick up", "S slow  P pause", "R new village"];
-  for (k = 0; k < hl.length; k++) txt(c, hl[k], 5, 361 + k * 8.5, 6.5, "#4a5a78");
+  var r3 = g.my >= BTN3_Y && g.my < BTN3_Y + 12 && g.mx < PANEL;
+  button(c, 4, BTN3_Y, 86, g.thermal ? "THERMAL: ON" : "THERMAL (T)", g.thermal, r3);
+  var hl = ["WHEEL size  SHIFT line", "MID pick  S slow  R new"];
+  for (k = 0; k < hl.length; k++) txt(c, hl[k], 5, 389 + k * 8, 6.5, "#4a5a78");
 
   /* header */
   rct(c, 0, 0, VW, PLAY_Y, "#0a0d16");
@@ -569,7 +679,16 @@ function drawPanel(g, c) {
   if (hp) line = hp.name + "  " + pMood(hp);
   else if (g.mx < PANEL && hov < 0) line = TIPS[g.tip];
   else line = info.name + "  " + info.desc;
+  /* what is under the cursor, and how hot it is, on the right */
+  var rd = inPlay(g) && !hp ? cellReadout(g, cellAt(g)) : "";
+  c.font = "7px " + UI_FONT;
+  var rw = rd ? c.measureText(rd).width + 12 : 0, room = VW - PANEL - 10 - rw;
+  if (c.measureText(line).width > room) {
+    while (line.length > 8 && c.measureText(line + "...").width > room) line = line.slice(0, line.lastIndexOf(" "));
+    line += "...";
+  }
   txt(c, line, PANEL + 5, by + 10, 7, "#c8d0dc");
+  if (rd) txt(c, rd, VW - 6, by + 10, 7, "#ffd94a", "right", true);
 }
 /* how a peasant is doing, in a word or six */
 function pMood(p) {
@@ -580,7 +699,10 @@ function pMood(p) {
   if (p.breath < P_BREATH - 20) return "is drowning. slowly. " + Math.ceil(p.breath / 60) + "s of air left";
   if (p.zap > 0) return "is being electrocuted";
   if (p.stun > 0) return "is having a little lie down";
+  if (p.cold > 200) return "is freezing. needs a fire";
+  if (p.cold > 60) return "is chilly";
   if (p.panic > 0) return "is panicking";
+  if (p.warm > 0) return "is too warm";
   if (p.charred) return "is a bit crispy, but fine";
   if (p.idle > 0) return "is standing about";
   return "is going for a walk";
@@ -620,6 +742,7 @@ function drawOverlays(g, c) {
     txt(c, "they live here. be nice. (or don't)", cx, iy + 25, 7, "#9aa6b8", "center");
     c.globalAlpha = 1;
   }
+  if (g.thermal) drawThermalKey(c);
   if (g.paused) {
     rct(c, cx - 50, VH / 2 - 14, 100, 28, "rgba(0,0,0,0.75)");
     txt(c, "PAUSED", cx, VH / 2 + 1, 12, "#ffd94a", "center", true);
@@ -631,6 +754,21 @@ function drawOverlays(g, c) {
     var dbg = (g.fps | 0) + " fps  " + g.ms.toFixed(1) + " ms  particles " + g.np;
     txt(c, dbg, PANEL + 6, VH - BAR_H - 4, 7, "#7aff7a", "left", true);
   }
+}
+
+/* the colour key for thermal vision: the same stops the palette is built on, evenly spaced */
+var THERM_KEY = [-100, -40, 0, 20, 37, 100, 300, 700, 1200, 2000];
+function drawThermalKey(c) {
+  var x0 = PANEL + 6, y0 = VH - BAR_H - 16, w = 180, n = THERM_KEY.length - 1, k, px;
+  rct(c, x0 - 3, y0 - 3, w + 6, 17, "rgba(6,8,14,0.75)");
+  for (px = 0; px < w; px++) {
+    var f = px / w * n, s = Math.floor(f), t = lerp(THERM_KEY[s], THERM_KEY[Math.min(n, s + 1)], f - s), col = thermCol(t);
+    c.fillStyle = "rgb(" + (col & 255) + "," + ((col >> 8) & 255) + "," + ((col >> 16) & 255) + ")";
+    c.fillRect(x0 + px, y0, 1, 4);
+  }
+  [[1, "-40"], [2, "0"], [5, "100"], [7, "700"], [9, "2000\u00b0"]].forEach(function (l) {
+    txt(c, l[1], x0 + l[0] / n * w, y0 + 11, 6, "#c8d0dc", l[0] === n ? "right" : "center");
+  });
 }
 
 /* -------------------------------------------------------------------
@@ -665,7 +803,8 @@ function gameTap(g, x, y) {
   } else if (y >= BTN2_Y && y < BTN2_Y + 12) {
     if (x < 48) g.slow = g.slow ? 0 : 1;
     else sandLandscape(g);
-  } else g.tip = (g.tip + 1) % TIPS.length;
+  } else if (y >= BTN3_Y && y < BTN3_Y + 12) g.thermal = !g.thermal;
+  else g.tip = (g.tip + 1) % TIPS.length;
 }
 function gameWheel(g, d) {
   if (g.mx < PANEL) { var n = PICK.length; g.sel = (g.sel + n + d) % n; }   /* over the list: scroll the list */
@@ -684,6 +823,7 @@ function gameKey(g, k) {
   else if (k === ".") { if (g.paused) { sandStep(g); partStep(g); peasantsStep(g); } }
   else if (k === "r") sandLandscape(g);
   else if (k === "`") g.debug = !g.debug;
+  else if (k === "t") g.thermal = !g.thermal;
 }
 
 /* -------------------------------------------------------------------
