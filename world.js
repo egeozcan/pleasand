@@ -44,7 +44,11 @@ function mix32(a, b) { return ((((a & 0xfefefe) >>> 1) + ((b & 0xfefefe) >>> 1))
 var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STONE: 7, STEAM: 8,
             PLANT: 9, ICE: 10, GUNPOWDER: 11, ACID: 12, ASH: 13, FAUCET: 14, DRAIN: 15,
             SMOKE: 16, EMBER: 17, GLASS: 18, SALT: 19, CLONER: 20, GAS: 21, TORCH: 22,
-            SEED: 23, FLOWER: 24, FIREWORK: 25, NUKE: 26, SALTWATER: 27, METAL: 28, SNOW: 29, INERT: 30 };
+            SEED: 23, FLOWER: 24, FIREWORK: 25, NUKE: 26, SALTWATER: 27, METAL: 28, SNOW: 29, INERT: 30,
+            /* things only peasants make, out of the wood they chop: you will not find these in the picker */
+            PLANK: 31, DOOR: 32, LADDER: 33, STAIRS: 34, BED: 35, SAPLING: 36 };
+/* how many kinds of thing there may ever be: the size of every per-thing table */
+var NMAT = 64;
 
 /* the picker, top to bottom. the fun ones first, then the classics with their digit
    keys. STEAM, SMOKE, EMBER and FLOWER are not in it: you do not pour those, you earn them. */
@@ -89,11 +93,14 @@ var SAND_CLEAN = 200;   /* a fire whose shade is at least this leaves no ash */
 var SAND_VMAX = 12;     /* top speed: 1 + (12 >> 2) = 4 cells a tick */
 
 /* how heavy each thing is, and which things a falling thing may push past */
-var SAND_DENS = [0, 4, 2, 1, 9, 0.5, 6, 9, 0.1, 9, 9, 4.5, 2.5, 1.5, 9, 9, 0.2, 9, 9, 4.2, 9, 0.15, 9, 3, 9, 4.1, 5, 2.2, 9, 1.8, 9];
-var SAND_FREE = [0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0];
+var SAND_DENS = [0, 4, 2, 1, 9, 0.5, 6, 9, 0.1, 9, 9, 4.5, 2.5, 1.5, 9, 9, 0.2, 9, 9, 4.2, 9, 0.15, 9, 3, 9, 4.1, 5, 2.2, 9, 1.8, 9,
+                 9, 9, 9, 9, 9, 9];
+var SAND_FREE = [0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0,
+                 0, 0, 0, 0, 0, 0];
 /* the brush pours these, a few grains a frame, into empty space only. everything
    else is a solid and gets stamped down whole, over whatever was there. */
-var SAND_POUR = [0, 0.3, 0.35, 0.35, 0, 0.35, 0.35, 0, 0, 0, 0, 0.3, 0.35, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0.35, 0, 0.03, 0, 0.012, 0, 0.35, 0, 0.25, 0];
+var SAND_POUR = [0, 0.3, 0.35, 0.35, 0, 0.35, 0.35, 0, 0, 0, 0, 0.3, 0.35, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0.35, 0, 0.03, 0, 0.012, 0, 0.35, 0, 0.25, 0,
+                 0, 0, 0, 0, 0, 0];
 
 /* colours. several shades per thing; each grain is dealt one and keeps it */
 var SAND_SHADES = [
@@ -128,7 +135,14 @@ var SAND_SHADES = [
   ["#2a8aa8", "#257d9a", "#3396b4", "#2280a0"],
   ["#8a929e", "#7e8692", "#969ea9", "#737b87"],
   ["#eef4fb", "#e2eaf4", "#f8fbff", "#d8e2ee"],
-  ["#b9a6e8", "#c4b3f0", "#ad98e0", "#cdbff5"]
+  ["#b9a6e8", "#c4b3f0", "#ad98e0", "#cdbff5"],
+  /* sawn boards, a door, a ladder, stairs. a bed's shade picks its blanket: 0-4, and 5 is the pillow. a sapling */
+  ["#b8844c", "#ad7a44", "#c28e56", "#a67240"],
+  ["#6e4424", "#784a28", "#643c1e"],
+  ["#c8985c", "#ba8a52"],
+  ["#9c6a3a", "#a87444", "#925f32"],
+  ["#c84a4a", "#3a6ac0", "#4a9a4a", "#d8a840", "#9a5ac0", "#f4f0e6"],
+  ["#5aa040", "#6ab04a", "#4a8a36", "#6b4a1e"]
 ];
 
 /* every (thing, shade) pair is worked out once, up here, not sixty times a second */
@@ -151,17 +165,28 @@ var SAND_DEEP = [];
 });
 
 /* what peasants (and particles) may stand on: anything that is not air, gas, fire or liquid */
-var SOLID = new Uint8Array(32), LIQUID = new Uint8Array(32), HOT = new Uint8Array(32), AIRY = new Uint8Array(32);
+var SOLID = new Uint8Array(NMAT), LIQUID = new Uint8Array(NMAT), HOT = new Uint8Array(NMAT), AIRY = new Uint8Array(NMAT);
 [MAT.SAND, MAT.WOOD, MAT.STONE, MAT.PLANT, MAT.ICE, MAT.GUNPOWDER, MAT.ASH, MAT.FAUCET, MAT.DRAIN, MAT.EMBER,
- MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW, MAT.INERT].forEach(function (v) { SOLID[v] = 1; });
+ MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW, MAT.INERT,
+ MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING].forEach(function (v) { SOLID[v] = 1; });
+/* wood, and everything a peasant has made out of wood: it all burns the same way, down to embers */
+var WOODY = new Uint8Array(NMAT);
+[MAT.WOOD, MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS].forEach(function (v) { WOODY[v] = 1; });
+/* things that burn up like a plant does: in flames, not embers */
+var LEAFY = new Uint8Array(NMAT);
+[MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.BED, MAT.SAPLING].forEach(function (v) { LEAFY[v] = 1; });
+/* things that never move and never do anything on their own: the step skips them */
+var STILL = new Uint8Array(NMAT);
+[MAT.EMPTY, MAT.STONE, MAT.WOOD, MAT.GLASS, MAT.FLOWER, MAT.METAL, MAT.INERT,
+ MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED].forEach(function (v) { STILL[v] = 1; });
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER].forEach(function (v) { LIQUID[v] = 1; });
 /* water, as far as fire, plants, peasants and lightning are concerned */
-var WET = new Uint8Array(32); WET[MAT.WATER] = WET[MAT.SALTWATER] = 1;
+var WET = new Uint8Array(NMAT); WET[MAT.WATER] = WET[MAT.SALTWATER] = 1;
 [MAT.FIRE, MAT.LAVA, MAT.EMBER, MAT.TORCH].forEach(function (v) { HOT[v] = 1; });
 [MAT.EMPTY, MAT.FIRE, MAT.SMOKE, MAT.STEAM, MAT.GAS].forEach(function (v) { AIRY[v] = 1; });
 /* things that flow out of the way: liquids and gases. a grain can sink through these, or float up through
    them. two piles of grains never trade places, whatever they weigh: gunpowder poured on sand sits on it */
-var FLUID = new Uint8Array(32);
+var FLUID = new Uint8Array(NMAT);
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER, MAT.STEAM, MAT.SMOKE, MAT.GAS, MAT.FIRE].forEach(function (v) { FLUID[v] = 1; });
 
 /* -------------------------------------------------------------------
@@ -325,8 +350,8 @@ function sandIgnite(g, j) {
   else if (t === MAT.FIREWORK) sandLaunch(g, j);
   else if (t === MAT.NUKE) sandNuke(g, j);
   else if (t === MAT.OIL && r < 0.5) g.m[j] = MAT.FIRE;
-  else if ((t === MAT.PLANT || t === MAT.SEED || t === MAT.FLOWER) && r < 0.15) g.m[j] = MAT.FIRE;
-  else if (t === MAT.WOOD && r < 0.06) g.m[j] = MAT.EMBER;
+  else if (LEAFY[t] && r < 0.15) g.m[j] = MAT.FIRE;
+  else if (WOODY[t] && r < 0.06) g.m[j] = MAT.EMBER;
 }
 
 function partStep(g) {
@@ -546,7 +571,7 @@ function sandLightning(g, cx) {
     }
     else if (t === MAT.ICE || t === MAT.SNOW) heatForce(g, j, MAT.WATER);
     else if (t === MAT.EMPTY && Math.random() < 0.1) sandSet(g, j, MAT.FIRE);
-    else if (t === MAT.WOOD && Math.random() < 0.5) m[j] = MAT.EMBER;
+    else if (WOODY[t] && Math.random() < 0.5) m[j] = MAT.EMBER;
     else if (t !== MAT.EMPTY) sandIgnite(g, j);
     heatAccept(g, j);
   }
@@ -556,7 +581,7 @@ function sandLightning(g, cx) {
   peasantsZapNear(g, hit.x, hit.y, 7);
   ducksZapNear(g, hit.x, hit.y, 5);
 }
-var CONDUCTS = new Uint8Array(32);
+var CONDUCTS = new Uint8Array(NMAT);
 [MAT.WATER, MAT.SALTWATER, MAT.ACID, MAT.METAL].forEach(function (v) { CONDUCTS[v] = 1; });
 /* flood out through connected water (and metal), mark it, light it up for a moment */
 function sandConduct(g, start) {
@@ -588,11 +613,11 @@ function sandFire(g, i, x, y) {
     j = sandNb(g, x, y, k);
     if (j < 0) continue;
     n = m[j]; r = Math.random();
-    if (n === MAT.OIL || n === MAT.WOOD || n === MAT.PLANT || n === MAT.FLOWER || n === MAT.SEED) fed = true;
+    if (n === MAT.OIL || WOODY[n] || LEAFY[n]) fed = true;
     if (n === MAT.OIL && r < 0.3) m[j] = MAT.FIRE;
     else if (n === MAT.GAS) { m[j] = MAT.FIRE; g.sh[j] = SAND_CLEAN; g.fx.whoosh++; }
-    else if (n === MAT.WOOD && r < 0.03) m[j] = MAT.EMBER;
-    else if ((n === MAT.PLANT || n === MAT.FLOWER || n === MAT.SEED) && r < 0.08) m[j] = MAT.FIRE;
+    else if (WOODY[n] && r < 0.03) m[j] = MAT.EMBER;
+    else if (LEAFY[n] && r < 0.08) m[j] = MAT.FIRE;
     else if (n === MAT.GUNPOWDER) { sandBoom(g, j); return; }
     else if (n === MAT.FIREWORK) sandLaunch(g, j);
     else if (n === MAT.NUKE) { sandNuke(g, j); return; }
@@ -850,8 +875,8 @@ function sandLiquid(g, i, x, y) {
       j = sandNb(g, x, y, k);
       if (j < 0) continue;
       t = m[j]; r = Math.random();
-      if ((t === MAT.OIL && r < 0.1) || ((t === MAT.PLANT || t === MAT.FLOWER || t === MAT.SEED) && r < 0.05) ||
-          (t === MAT.WOOD && r < 0.02)) m[j] = t === MAT.WOOD ? MAT.EMBER : MAT.FIRE;
+      if ((t === MAT.OIL && r < 0.1) || (LEAFY[t] && r < 0.05) ||
+          (WOODY[t] && r < 0.02)) m[j] = WOODY[t] ? MAT.EMBER : MAT.FIRE;
       else if (t === MAT.GUNPOWDER) sandBoom(g, j);
       else if (t === MAT.FIREWORK) sandLaunch(g, j);
       else if (t === MAT.NUKE) sandNuke(g, j);
@@ -864,8 +889,8 @@ function sandLiquid(g, i, x, y) {
       t = m[j]; p = 0;
       if (t === MAT.STONE) p = 0.006;
       else if (t === MAT.METAL) p = 0.003;
-      else if (t === MAT.SAND || t === MAT.WOOD || t === MAT.PLANT || t === MAT.ICE || t === MAT.SEED ||
-               t === MAT.FLOWER || t === MAT.GUNPOWDER || t === MAT.ASH || t === MAT.SNOW) p = 0.04;
+      else if (t === MAT.SAND || WOODY[t] || LEAFY[t] || t === MAT.ICE ||
+               t === MAT.GUNPOWDER || t === MAT.ASH || t === MAT.SNOW) p = 0.04;
       if (p && Math.random() < p) {
         m[j] = MAT.EMPTY;
         if (Math.random() < 0.3) gone = true;   /* acid is used up eating things */
@@ -952,8 +977,8 @@ function sandStatic(g, i, x, y) {
         heatBecome(g, i, MAT.ASH); heatShare(g, i, j);
         g.score++; g.fx.hiss++; return;
       }
-      else if (t === MAT.WOOD && r < 0.015) m[j] = MAT.EMBER;
-      else if ((t === MAT.OIL && r < 0.3) || ((t === MAT.PLANT || t === MAT.FLOWER) && r < 0.1)) m[j] = MAT.FIRE;
+      else if (WOODY[t] && r < 0.015) m[j] = MAT.EMBER;
+      else if ((t === MAT.OIL && r < 0.3) || ((LEAFY[t] && t !== MAT.SEED) && r < 0.1)) m[j] = MAT.FIRE;
       else if (t === MAT.GUNPOWDER) { sandBoom(g, j); return; }
       else if (t === MAT.FIREWORK) sandLaunch(g, j);
       else if (t === MAT.NUKE) { sandNuke(g, j); return; }
@@ -993,12 +1018,14 @@ function sandStatic(g, i, x, y) {
         t = m[j];
         if (t !== MAT.EMPTY && t !== MAT.CLONER && t !== MAT.FAUCET && t !== MAT.DRAIN && t !== MAT.STONE &&
             t !== MAT.WOOD && t !== MAT.GLASS && t !== MAT.EMBER && t !== MAT.TORCH && t !== MAT.FLOWER && t !== MAT.METAL &&
-            t !== MAT.INERT) { g.aux[i] = t; break; }
+            t !== MAT.INERT && t < MAT.PLANK) { g.aux[i] = t; break; }
       }
     } else if (Math.random() < (a === MAT.NUKE ? 0.004 : 0.35)) {
       j = sandNb(g, x, y, irnd(4));
       if (j >= 0 && m[j] === MAT.EMPTY) { sandPlace(g, j, a); g.stamp[j] = g.tick; }
     }
+  } else if (v === MAT.SAPLING) {
+    saplingGrow(g, i, x, y);
   } else if (v === MAT.FAUCET) {
     j = i + g.gw;
     if (y + 1 < g.gh && m[j] === MAT.EMPTY && Math.random() < 0.5) sandPlace(g, j, MAT.WATER);
@@ -1008,7 +1035,8 @@ function sandStatic(g, i, x, y) {
       if (j < 0) continue;
       t = m[j];
       if (t === MAT.EMPTY || t === MAT.STONE || t === MAT.WOOD || t === MAT.ICE || t === MAT.TORCH ||
-          t === MAT.FAUCET || t === MAT.DRAIN || t === MAT.GLASS || t === MAT.CLONER || t === MAT.METAL || t === MAT.INERT) continue;
+          t === MAT.FAUCET || t === MAT.DRAIN || t === MAT.GLASS || t === MAT.CLONER || t === MAT.METAL || t === MAT.INERT ||
+          (STILL[t] && t !== MAT.FLOWER) || t === MAT.SAPLING) continue;
       if (Math.random() < 0.5) m[j] = MAT.EMPTY;
     }
   }
@@ -1025,7 +1053,7 @@ function sandStep(g) {
       x = flip ? gw - 1 - xi : xi;
       i = row + x;
       v = m[i];
-      if (v === MAT.EMPTY || v === MAT.STONE || v === MAT.WOOD || v === MAT.GLASS || v === MAT.FLOWER || v === MAT.METAL || v === MAT.INERT) continue;
+      if (STILL[v]) continue;
       if (st[i] === T) continue;
       if (v === MAT.FIRE) sandFire(g, i, x, y);
       else if (v === MAT.SMOKE) sandSmoke(g, i, x, y);
@@ -1058,6 +1086,7 @@ function sandClear(g) {
   /* and the bangs still in the air */
   g.bolts.length = 0; g.rings.length = 0; g.flash = 0; g.shake = 0; g.fwGlow = null; g.zn = 0; g.zt = 0;
   g.cloneSrc = {};
+  g.sites = []; if (g.bmark) g.bmark.fill(0);
 }
 
 function sandLandscape(g) {
@@ -1098,21 +1127,21 @@ function sandLandscape(g) {
   var pondOK = true;
   for (k = 0; k < huts.length; k++) if (x1 > huts[k] - 4 && x0 < huts[k] + hutW + 4) pondOK = false;
   if (pondOK) for (x = x0; x <= x1; x++) for (y = L; y < top[x]; y++) m[y * gw + x] = MAT.WATER;
-  /* huts: wooden walls, a door on one side, a thatched roof that will burn beautifully */
+  /* huts: wooden walls, a doorway at each end, a thatched roof that will burn beautifully */
   huts.forEach(function (hx) {
     var base = top[hx + 2], H = 15, door = Math.random() < 0.5;
-    for (y = base - H; y < base; y++) {
-      if (!(door && y > base - 12)) { m[y * gw + hx] = MAT.WOOD; m[y * gw + hx + 1] = MAT.WOOD; }
-      if (!(!door && y > base - 12)) { m[y * gw + hx + hutW - 1] = MAT.WOOD; m[y * gw + hx + hutW - 2] = MAT.WOOD; }
+    for (y = base - H; y <= base - 12; y++) {
+      m[y * gw + hx] = MAT.WOOD; m[y * gw + hx + 1] = MAT.WOOD;
+      m[y * gw + hx + hutW - 1] = MAT.WOOD; m[y * gw + hx + hutW - 2] = MAT.WOOD;
     }
     for (x = hx; x < hx + hutW; x++) m[(base - H) * gw + x] = MAT.WOOD;
     for (dy = 1; dy <= 9; dy++) for (dx = -3 + dy; dx <= hutW + 2 - dy; dx++) {
       var rx = hx + dx, ry = base - H - dy;
       if (rx >= 0 && rx < gw && ry >= 0) m[ry * gw + rx] = MAT.PLANT;
     }
-    /* a window */
-    m[(base - H + 5) * gw + hx + (door ? hutW - 1 : 0)] = MAT.GLASS;
-    m[(base - H + 6) * gw + hx + (door ? hutW - 1 : 0)] = MAT.GLASS;
+    /* a window, high up over one of the doorways */
+    m[(base - H + 1) * gw + hx + (door ? hutW - 1 : 0)] = MAT.GLASS;
+    m[(base - H + 2) * gw + hx + (door ? hutW - 1 : 0)] = MAT.GLASS;
   });
   /* a tree, somewhere dry and empty */
   for (tries = 0; tries < 40; tries++) {
@@ -1142,8 +1171,11 @@ function sandLandscape(g) {
       break;
     }
   }
-  /* one of them gets a house */
-  if (huts.length) peasantSpawn(g, huts[0] + hutW / 2, top[huts[0] + 2] - 1, true);
+  /* one of them gets a house. the other hut is empty: somebody will move in. neither has a door yet, or a bed */
+  if (huts.length) {
+    var owner = peasantSpawn(g, huts[0] + hutW / 2, top[huts[0] + 2] - 1, true);
+    huts.forEach(function (hx, n) { bHut(g, hx, hutW, top[hx + 2], 15, n ? null : owner); });
+  }
   /* and some ducks on the pond */
   duckPond(g, pondOK ? [x0, x1, L] : null);
   /* and one of them has noticed you */

@@ -139,8 +139,10 @@ function dDie(g, d, cause) {
 /* -------------------------------------------------------------------
    THE WORLD, AS A DUCK SEES IT
    ------------------------------------------------------------------- */
-function dBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pSolid(g, fx, fy) || pSolid(g, fx, fy - 2); }
-function dGround(g, x, y) { return pSolid(g, Math.floor(x), Math.floor(y) + 1); }
+/* a duck cannot open a door or climb a ladder: to a duck, everything solid is solid */
+function dSolid(g, x, y) { return SOLID[pCell(g, x, y)] === 1; }
+function dBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return dSolid(g, fx, fy) || dSolid(g, fx, fy - 2); }
+function dGround(g, x, y) { return dSolid(g, Math.floor(x), Math.floor(y) + 1); }
 /* is it unpleasant to be at (x, y): hot, fire, acid, a drain */
 function dNasty(g, x, y) {
   var c = pCell(g, x, y);
@@ -378,7 +380,7 @@ function dSwim(g, d) {
   if (d.state !== "swim") { d.state = "swim"; d.vy = 0; }
   /* float: feet in the water, the rest of the duck above it */
   while (depth < 5 && LIQUID[pCell(g, fx, fy - depth)]) depth++;
-  if (depth > 1) { if (!pSolid(g, fx, fy - 3)) d.y -= 0.2; else if (++d.stuck > 400) { dDie(g, d, "freeze"); return; } }
+  if (depth > 1) { if (!dSolid(g, fx, fy - 3)) d.y -= 0.2; else if (++d.stuck > 400) { dDie(g, d, "freeze"); return; } }
   else if (depth === 0) {
     if (dGround(g, d.x, d.y)) { d.state = "walk"; return; }
     if (LIQUID[pCell(g, fx, fy + 1)]) d.y = Math.min(fy + 0.99, d.y + 0.25);
@@ -413,7 +415,7 @@ function dFly(g, d) {
   nx = d.x + d.vx; ny = d.y + d.vy;
   if (nx < 1 || nx > g.gw - 2) { d.dir = -d.dir; d.vx = -d.vx; nx = d.x; }
   if (dBlocked(g, nx, d.y)) { d.vx = -d.vx * 0.5; d.dir = -d.dir; nx = d.x; if (d.flyT > 0) d.vy = -0.4; }
-  if (d.vy < 0 && pSolid(g, Math.floor(nx), Math.floor(ny) - 3)) { d.vy = 0.2; ny = d.y; }
+  if (d.vy < 0 && dSolid(g, Math.floor(nx), Math.floor(ny) - 3)) { d.vy = 0.2; ny = d.y; }
   else if (d.vy > 0) {
     /* touching down: on ground, or on water */
     var cy = Math.floor(d.y);

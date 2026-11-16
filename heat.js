@@ -41,14 +41,14 @@ var HEAT_FAST = 8;       /* extra passes for metal, which carries heat faster th
 var T_MAX = 4000, T_MIN = -273;
 
 /* per thing: heat capacity, conductivity, temperature it is made at */
-var HEAT_C = new Float32Array(32), HEAT_K = new Float32Array(32), HEAT_T0 = new Float32Array(32).fill(AMBIENT);
+var HEAT_C = new Float32Array(NMAT), HEAT_K = new Float32Array(NMAT), HEAT_T0 = new Float32Array(NMAT).fill(AMBIENT);
 /* above HI it melts / boils / catches, after soaking up HI_L. below LO it sets / freezes / condenses, after giving up LO_L */
-var HEAT_HI = new Float32Array(32).fill(1e9), HEAT_HI_L = new Float32Array(32);
-var HEAT_LO = new Float32Array(32).fill(-1e9), HEAT_LO_L = new Float32Array(32);
+var HEAT_HI = new Float32Array(NMAT).fill(1e9), HEAT_HI_L = new Float32Array(NMAT);
+var HEAT_LO = new Float32Array(NMAT).fill(-1e9), HEAT_LO_L = new Float32Array(NMAT);
 /* things that burn: as hot as their flame gets, and how much heat a tick they can put out getting there */
-var HEAT_SRC = new Float32Array(32), HEAT_POW = new Float32Array(32);
+var HEAT_SRC = new Float32Array(NMAT), HEAT_POW = new Float32Array(NMAT);
 /* lava sets at a temperature that depends on what it is made of */
-var LAVA_LO = new Float32Array(32).fill(950);
+var LAVA_LO = new Float32Array(NMAT).fill(950);
 LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
 
 (function () {
@@ -84,6 +84,9 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   def(MAT.DRAIN, 3.0, 0.1);
   def(MAT.CLONER, 3.0, 0.1);
   def(MAT.INERT, 1.0, 0);      /* carries no heat at all, and is never anything but room temperature */
+  def(MAT.PLANK, 2.0, 0.04); def(MAT.DOOR, 2.0, 0.04); def(MAT.LADDER, 2.0, 0.04); def(MAT.STAIRS, 2.0, 0.04);
+  def(MAT.BED, 1.5, 0.03);     /* straw and a blanket: warm to lie on */
+  def(MAT.SAPLING, 2.5, 0.06);
 
   function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
   function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
@@ -105,6 +108,8 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   /* things that catch, go off, or launch, the moment they are hot enough */
   hi(MAT.WOOD, 300, 0); hi(MAT.OIL, 250, 0); hi(MAT.PLANT, 220, 0); hi(MAT.FLOWER, 200, 0); hi(MAT.SEED, 200, 0);
   hi(MAT.GAS, 200, 0); hi(MAT.GUNPOWDER, 180, 0); hi(MAT.FIREWORK, 150, 0); hi(MAT.NUKE, 400, 0);
+  hi(MAT.PLANK, 300, 0); hi(MAT.DOOR, 300, 0); hi(MAT.LADDER, 300, 0); hi(MAT.STAIRS, 300, 0);
+  hi(MAT.BED, 200, 0); hi(MAT.SAPLING, 220, 0);
 
   HEAT_SRC[MAT.FIRE] = 750; HEAT_SRC[MAT.EMBER] = 700; HEAT_SRC[MAT.TORCH] = 1000;
   HEAT_POW[MAT.FIRE] = 200; HEAT_POW[MAT.EMBER] = 40; HEAT_POW[MAT.TORCH] = 400;
@@ -113,22 +118,23 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
 /* how much heat flows between two touching things, per degree of difference. two things
    in a row resist like two resistors in a row. kept small enough that it can never
    overshoot, even into the lightest neighbour */
-var HEAT_KP = new Float32Array(32 * 32), HEAT_IC = new Float32Array(32), HEAT_BK = new Float32Array(32);
+/* (indexed (a << 6) | b: NMAT is 64) */
+var HEAT_KP = new Float32Array(NMAT * NMAT), HEAT_IC = new Float32Array(NMAT), HEAT_BK = new Float32Array(NMAT);
 function heatTables() {
-  for (var a = 0; a < 32; a++) {
+  for (var a = 0; a < NMAT; a++) {
     HEAT_IC[a] = HEAT_C[a] ? 1 / HEAT_C[a] : 0;
     HEAT_BK[a] = Math.min(BORDER_K, HEAT_K[a] * 4, 0.24 * (HEAT_C[a] || 1));   /* through the edge of the room */
-    for (var b = 0; b < 32; b++) {
+    for (var b = 0; b < NMAT; b++) {
       var ka = HEAT_K[a], kb = HEAT_K[b], k = ka + kb > 0 ? 2 * ka * kb / (ka + kb) : 0;
       var cmin = Math.min(HEAT_C[a] || 1, HEAT_C[b] || 1);
-      HEAT_KP[a * 32 + b] = Math.min(k, 0.24 * cmin);
+      HEAT_KP[a * NMAT + b] = Math.min(k, 0.24 * cmin);
     }
   }
   /* water on anything very hot does not just conduct: it boils against it, violently, and
      the bubbles carry the heat off far faster. so water quenches lava, and a hot plate hisses */
   [MAT.WATER, MAT.SALTWATER].forEach(function (w) {
     [MAT.LAVA, MAT.METAL, MAT.STONE, MAT.TORCH, MAT.EMBER].forEach(function (h) {
-      HEAT_KP[w * 32 + h] = HEAT_KP[h * 32 + w] = Math.max(HEAT_KP[w * 32 + h], LAVA_QUENCH);
+      HEAT_KP[w * NMAT + h] = HEAT_KP[h * NMAT + w] = Math.max(HEAT_KP[w * NMAT + h], LAVA_QUENCH);
     });
   });
 }
@@ -163,7 +169,7 @@ function heatReset(g) {
    ------------------------------------------------------------------- */
 /* phase worth: a part that is just heat-per-degree bookkeeping, and a latent part, which varies a little from
    cell to cell (by shade, which goes wherever the cell goes) so a block does not all melt in the same tick */
-var HEAT_HS = new Float32Array(32), HEAT_HLAT = new Float32Array(32);
+var HEAT_HS = new Float32Array(NMAT), HEAT_HLAT = new Float32Array(NMAT);
 (function () {
   var C = HEAT_C, A = AMBIENT;
   /* ice is the zero of its family. water holds the heat that melted it; steam that, and what boiled it */
@@ -276,7 +282,7 @@ function heatUp(g, i, v) {
     case MAT.STONE: case MAT.GLASS: case MAT.METAL:
       m[i] = MAT.LAVA; g.aux[i] = v === MAT.STONE ? 0 : v; return 0;
     case MAT.SAND: m[i] = MAT.GLASS; g.aux[i] = 0; g.score++; return 0;
-    case MAT.WOOD: m[i] = MAT.EMBER; g.aux[i] = 0; return 0;
+    case MAT.WOOD: case MAT.PLANK: case MAT.DOOR: case MAT.LADDER: case MAT.STAIRS: m[i] = MAT.EMBER; g.aux[i] = 0; return 0;
     case MAT.ACID: m[i] = MAT.SMOKE; g.aux[i] = 0; return 0;
     case MAT.GAS: m[i] = MAT.FIRE; g.sh[i] = SAND_CLEAN; g.aux[i] = 0; g.fx.whoosh++; return 0;
     case MAT.GUNPOWDER: sandBoom(g, i); return 0;
@@ -351,7 +357,7 @@ function heatStep(g) {
       if (x < gw - 1) {
         j = i + 1; d = T[j] - t;
         if (d > 0.05 || d < -0.05) {
-          w = m[j]; f = KP[(v << 5) | w] * d;
+          w = m[j]; f = KP[(v << 6) | w] * d;
           t += f * IC[v]; T[j] -= f * IC[w];
         }
         if (v === METAL && m[j] === METAL) fast[nf++] = i;
@@ -359,7 +365,7 @@ function heatStep(g) {
       if (y < gh - 1) {
         j = i + gw; d = T[j] - t;
         if (d > 0.05 || d < -0.05) {
-          w = m[j]; f = KP[(v << 5) | w] * d;
+          w = m[j]; f = KP[(v << 6) | w] * d;
           t += f * IC[v]; T[j] -= f * IC[w];
         }
         if (v === METAL && m[j] === METAL) fast[nf++] = -i - 1;
@@ -371,7 +377,7 @@ function heatStep(g) {
   }
   /* metal gets a few more goes, between metal only, so a bar carries heat end to end */
   if (nf) {
-    var kk = KP[(METAL << 5) | METAL] * IC[METAL], p, q;
+    var kk = KP[METAL * NMAT + METAL] * IC[METAL], p, q;
     for (p = 0; p < HEAT_FAST; p++) {
       for (q = 0; q < nf; q++) {
         i = fast[q];

@@ -25,6 +25,19 @@ the pond, go to space if thrown hard enough, and have opinions about all of
 it. They have names. The game keeps count. There are ducks, too: they
 waddle, swim, dabble, fly, eat seeds, and sometimes bring ducklings.
 
+The peasants build. They chop wood, saw each log into four boards, and put up
+things you cannot paint yourself: **houses** (on a levelled plot, a plank floor,
+a door at each end that only peasants can open, water and sand cannot, a roof
+with a window that lights up when somebody is home, and a bed), **doors** and
+beds for the two old huts, **stairs** or a **ladder** up any wall too tall to
+jump, and **bridges** over gaps too wide to leap and ponds too wide to bother
+swimming. Anybody with wood helps with anybody's project; what is still to come
+shows as a faint blueprint. Then they live in it: they sleep in their beds (or
+on the ground, and complain), run home and hide when things go bang, go and
+stand by a fire when they are cold, light campfires and gather round them,
+climb ladders, put back what you burn down (and mourn what you burn right
+down), and plant saplings where they cut trees down, which grow into trees.
+
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
 and grown from there.
 
@@ -69,6 +82,11 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - Put a peasant on a hot plate. Or in the snow
 - Drop a peasant from the very top. Then throw one, gently, upward
 - Build a wall too tall to jump, or a gap too wide to leap, with a beam over it. Then a very tall cliff
+- Paint a lump of WOOD for them, then draw a stone cliff, a deep ditch and a wide pond, and watch the stairs, ladders and bridges go up
+- Set fire to a house. Then to most of a house
+- Pour sand on a house. Or water. Then let a peasant out through the door
+- Let off a firework near the houses, and watch everyone run home
+- Chill the village with COOL and watch them light a fire and huddle round it
 
 ## Files
 
@@ -76,4 +94,6 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - `world.js`: the grid, the materials and their rules, particles, explosions, lightning, the starting village
 - `heat.js`: temperature: conduction, convection, melting, boiling, freezing and burning points, and how hot things look
 - `peasants.js`: the villagers, what they say, how they die, and how they are drawn
+- `build.js`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
+- `ducks.js`: the ducks
 - `game.js`: rendering, the picker and HUD, input, and the main loop

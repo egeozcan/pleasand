@@ -29,7 +29,14 @@ var TIPS = [
   "tip: boil salt water and you get your salt back",
   "tip: hold HEAT on one end of a metal bar. watch the other end",
   "tip: water on lava makes a crust. the lava under it is still lava",
-  "tip: COOL a cloud of steam and it snows"
+  "tip: COOL a cloud of steam and it snows",
+  "tip: peasants build houses, stairs, ladders and bridges out of the wood they chop. give them trees",
+  "tip: draw a stone cliff too tall to jump. somebody will put stairs or a ladder up it",
+  "tip: dig a ditch too wide to leap. somebody will bridge it",
+  "tip: hover over a blueprint to see what is planned. the faint blue cells",
+  "tip: only peasants can make doors. water and sand cannot get through them. peasants can",
+  "tip: burn a house down and they will rebuild it. if most of it is gone, they will mourn it",
+  "tip: a lit window means somebody is home"
 ];
 
 /* -------------------------------------------------------------------
@@ -107,11 +114,13 @@ function gameInit(g) {
   heatInit(g);
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
-           pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0, quack: 0, peep: 0, squeak: 0 };
+           pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0, quack: 0, peep: 0, squeak: 0,
+           hammer: 0, saw: 0 };
   g.snd = {};
   g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0;
   g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = {}; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
   g.ducks = []; g.did = 0; g.heldDuck = null;
+  g.sites = []; g.sid = 0;
   g.held = null; g.cx = 0; g.cy = 0; g.pcx = 0; g.pcy = 0; g.cvx = 0; g.cvy = 0; g.toolT = 0;
   g.intro = 0; g.tip = irnd(TIPS.length);
 
@@ -200,6 +209,9 @@ var MAT_NAME = [];
 PICK.forEach(function (p) { if (!p.tool) MAT_NAME[p.m] = p.name; });
 MAT_NAME[MAT.EMPTY] = "AIR"; MAT_NAME[MAT.STEAM] = "STEAM"; MAT_NAME[MAT.SMOKE] = "SMOKE";
 MAT_NAME[MAT.EMBER] = "EMBER"; MAT_NAME[MAT.FLOWER] = "FLOWER";
+/* the things only peasants make */
+MAT_NAME[MAT.PLANK] = "PLANKS"; MAT_NAME[MAT.DOOR] = "DOOR"; MAT_NAME[MAT.LADDER] = "LADDER"; MAT_NAME[MAT.STAIRS] = "STAIRS";
+MAT_NAME[MAT.BED] = "BED"; MAT_NAME[MAT.SAPLING] = "SAPLING";
 /* a cell partway through melting, boiling or setting says so */
 var MAT_UP = [], MAT_DOWN = [];
 MAT_UP[MAT.WATER] = MAT_UP[MAT.SALTWATER] = "boiling"; MAT_UP[MAT.ICE] = MAT_UP[MAT.SNOW] = "melting";
@@ -209,6 +221,10 @@ function cellReadout(g, j) {
   var v = g.m[j], e = g.lat[j], name = MAT_NAME[v] || "", s;
   if (v === MAT.LAVA && g.aux[j] === MAT.GLASS) name = "MOLTEN GLASS";
   else if (v === MAT.LAVA && g.aux[j] === MAT.METAL) name = "MOLTEN METAL";
+  else if (v === MAT.PLANK && g.aux[j] === 1) name = "WINDOW";
+  /* part of something they built, or are building */
+  var site = bReadout(g, j);
+  if (site) name = name + " · " + site;
   s = name + "  " + heatLabel(g.T[j]);
   if (e > 0 && MAT_UP[v]) s += "  " + MAT_UP[v] + " " + Math.min(99, Math.round(e / HEAT_HI_L[v] * 100)) + "%";
   else if (e < 0 && MAT_DOWN[v]) {
@@ -325,6 +341,8 @@ function sandSounds(g) {
     if (ok("quack", 0.12)) SFX.quack();
     if (ok("peep", 0.08)) SFX.peep();
     if (ok("squeak", 0.15)) SFX.squeak();
+    if (ok("hammer", 0.09)) SFX.hammer();
+    if (ok("saw", 0.4)) SFX.saw();
   }
   for (var k in f) f[k] = 0;
 }
@@ -334,7 +352,7 @@ function sandSounds(g) {
    ------------------------------------------------------------------- */
 function drawWorld(g) {
   var m = g.m, sh = g.sh, px = g.px, gp = g.gpx, gw = g.gw, gh = g.gh, dep = g.dep, bg = g.bg, wave = g.wave;
-  var x, y, i, v, row, d, hot = 0, W = MAT.WATER, t = g.t, k, T = g.T, tc, f;
+  var x, y, i, v, row, d, hot = 0, W = MAT.WATER, t = g.t, k, T = g.T, tc, f, a;
   gp.fill(0);
   if (g.thermal) return drawThermal(g);
   /* stars twinkle */
@@ -385,7 +403,7 @@ function drawWorld(g) {
         px[i] = SAND_WET[sh[i]];
       } else if (v === MAT.CLONER) {
         /* a checkerboard of cloner purple and whatever it has memorised */
-        var a = g.aux[i];
+        a = g.aux[i];
         px[i] = (a && ((x + y + flick) & 1)) ? (a === CLONE_PEASANT ? P_SKIN32 : SAND_PAL[a][sh[i]]) : SAND_PAL[v][(x + y) & 1];
       } else if (v === MAT.NUKE) {
         /* blinks, faster as it gets closer */
@@ -398,6 +416,21 @@ function drawWorld(g) {
         if (g.aux[i] > 170) { gp[i] = px[i]; hot++; }
       } else if (v === MAT.FIREWORK) {
         px[i] = SAND_PAL[v][(y + (sh[i] & 1)) & 3];
+      } else if (v === MAT.PLANK) {
+        /* boards: a seam every third row, and the joints staggered. a window is a dark pane, until someone is home */
+        if (g.aux[i] === 1) px[i] = WIN_DARK;
+        else {
+          f = (y > 0 && m[i - gw] === MAT.EMPTY) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
+          px[i] = (y % 3 === 0 || (x + ((y / 3) | 0) * 5) % 7 === 0) ? blend32(f, 0xff000000, 0.22) : f;
+        }
+      } else if (v === MAT.DOOR) {
+        /* a dark plank door, with a frame at the top and a brass knob */
+        a = g.aux[i];
+        px[i] = a === 5 ? DOOR_KNOB : (a === 1 ? blend32(SAND_PAL[v][sh[i]], 0xff000000, 0.35) : SAND_PAL[v][sh[i]]);
+      } else if (v === MAT.LADDER) {
+        /* two rails, and a rung every third row between them; between the rungs you see through it */
+        a = g.aux[i];
+        px[i] = a !== 1 ? SAND_PAL[v][sh[i]] : (y % 3 === 0 ? SAND_LIT[v][sh[i]] : blend32(bg[i], 0xff000000, 0.3));
       } else if (v === MAT.INERT) {
         /* faintly magic: a slow shimmer runs through it, and now and then a cell glints */
         px[i] = SAND_PAL[v][(sh[i] + ((Math.sin(x * 0.21 + y * 0.17 + t * 1.6) * 40) | 0)) & 255];
@@ -433,10 +466,12 @@ function drawWorld(g) {
     px[i] = g.pc[k];
     if (pk !== PK_DEBRIS || g.pm[k] === MAT.FIRE) { gp[i] = g.pc[k]; hot++; }
   }
+  hot += bDraw(g);
   ducksDraw(g);
   peasantsDraw(g);
   return hot;
 }
+var WIN_DARK = hex32("#1e2638"), DOOR_KNOB = hex32("#e8c050");
 
 /* molten things by temperature. a little flicker comes from the lava palette */
 var LAVA_GLASS = hex32("#ffe2a8"), LAVA_METAL = hex32("#fff6e8");
@@ -711,7 +746,9 @@ function drawPanel(g, c) {
   for (k = 0; k < g.peasants.length; k++) { if (g.peasants[k].state === "space") space++; else alive++; }
   var nd = 0;
   for (k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead) nd++;
-  var hdr = "PEASANTS " + alive + "     RIP " + g.rip + (nd ? "     DUCKS " + nd : "") + (space ? "     IN SPACE " + space : "");
+  var nh = 0;
+  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done) nh++;
+  var hdr = "PEASANTS " + alive + "     RIP " + g.rip + (nh ? "     HOUSES " + nh : "") + (nd ? "     DUCKS " + nd : "") + (space ? "     IN SPACE " + space : "");
   txt(c, hdr, PANEL + (VW - PANEL) / 2, 10, 8, "#d8dde6", "center", true);
   txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
 
@@ -721,7 +758,7 @@ function drawPanel(g, c) {
   rct(c, PANEL, by, VW - PANEL, 1, "#26344e");
   var hp = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null, line;
   var hd = inPlay(g) && !hp ? duckAt(g, g.cx, g.cy, 1) : null;
-  if (hp) line = hp.name + "  " + pMood(hp);
+  if (hp) line = hp.name + "  " + pMood(g, hp);
   else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd);
   else if (g.mx < PANEL && hov < 0) line = TIPS[g.tip];
   else line = info.name + "  " + info.desc;
@@ -737,7 +774,7 @@ function drawPanel(g, c) {
   if (rd) txt(c, rd, VW - 6, by + 10, 7, "#ffd94a", "right", true);
 }
 /* how a peasant is doing, in a word or six */
-function pMood(p) {
+function pMood(g, p) {
   if (p.state === "held") return "is being held. does not like it";
   if (p.state === "fly") return "is airborne";
   if (p.fire) return "is on fire";
@@ -745,6 +782,8 @@ function pMood(p) {
   if (p.breath < P_BREATH - 20) return "is drowning. slowly. " + Math.ceil(p.breath / 60) + "s of air left";
   if (p.zap > 0) return "is being electrocuted";
   if (p.stun > 0) return "is having a little lie down";
+  if (p.sleep > 0) return p.inBed ? "is asleep in bed. zzz" : "is asleep on the ground. it is not comfy";
+  if (p.climb) return "is climbing a ladder";
   if (p.rope && p.rope.mode === "climb") return "is climbing a rope. like a ninja";
   if (p.rope && p.rope.mode === "swing") return "is swinging on a rope";
   if (p.rope) return "is abseiling";
@@ -756,6 +795,15 @@ function pMood(p) {
   if (p.cold > 60) return "is chilly";
   if (p.panic > 0) return "is panicking";
   if (p.warm > 0) return "is too warm";
+  if (p.task && p.task.kind === "build") {
+    var bs = bSite(g, p.task.site), bn = bs ? bLabel(bs) : "something", wl = Math.round(bWood(p) * 10) / 10;
+    var verb = !bs ? "building " : (bs.repair ? "fixing " : (bs.hut ? "putting doors on " : "building "));
+    return "is " + verb + bn + ". " + (wl > 0 ? wl + (wl === 1 ? " log" : " logs") + " of wood left" : "out of wood");
+  }
+  if (p.task && p.task.kind === "sleep") return "is off to bed. so tired";
+  if (p.task && p.task.kind === "warm") return "is warming up by the fire";
+  if (p.task && p.task.kind === "home") return "is going home";
+  if (p.task && p.task.kind === "plant") return "is planting a tree";
   if (p.task && p.task.kind === "chop") return "is chopping wood. " + (p.logs || 0) + " logs so far";
   if (p.task && p.task.kind === "eat") return "is eating a plant";
   if (p.task && p.task.kind === "light") return "is up to something";
@@ -765,8 +813,11 @@ function pMood(p) {
   if (p.bored > P_BORED_FIRE) return "is bored. dangerously bored";
   if (p.bored > P_BORED_CHOP) return "is bored";
   if (p.charred) return "is a bit crispy, but fine";
+  var home = bHome(g, p);
+  if (p.idle > 0 && home && bInside(home, p)) return p.hid && g.tick - p.hid < 900 ? "is hiding at home" : "is at home";
   if (p.idle > 0) return "is standing about";
-  return "is going for a walk";
+  if (p.logs > 0) return "is going for a walk. carrying " + p.logs + " log" + (p.logs > 1 ? "s" : "");
+  return home ? "is going for a walk. has a house" : "is going for a walk. has no house";
 }
 
 function drawOverlays(g, c) {
