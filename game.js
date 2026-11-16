@@ -84,6 +84,7 @@ function gameInit(g) {
   g.sh = new Uint8Array(n);
   g.vy = new Uint8Array(n);
   g.zmark = new Uint8Array(n); g.zlist = new Int32Array(n + 8); g.zn = 0; g.zt = 0;
+  g.pmark = new Uint32Array(n); g.pstack = new Int32Array(n); g.pgen = 0; g.pressList = new Int32Array(PRESS_TRIES); g.pressN = 0;
   partInit(g);
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,

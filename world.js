@@ -588,20 +588,86 @@ function sandGas(g, i, x, y) {
   if (m[j] === MAT.EMPTY) sandSwap(g, i, j);
 }
 
+/* where a liquid may go: empty air, or a lighter gas it can push past. never another
+   liquid: that would starve the lighter one of its turn to rise. */
+function sandFlows(g, v, j) {
+  var t = g.m[j];
+  return t === MAT.EMPTY || (!LIQUID[t] && sandCan(g, v, j));
+}
+
 /* a liquid slides along the surface it is lying on, up to a few cells at a time.
-   one cell a tick looks like treacle; this is what makes a puddle level out. */
+   one cell a tick looks like treacle; this is what makes a puddle level out.
+   it stops at the first hole it comes to and drops into it next tick, instead of
+   skating over the hole, or off the end of a ledge into thin air. */
 function sandSpread(g, i, x, y, range) {
-  var dd = Math.random() < 0.5 ? -1 : 1, t, s, nx, j, best, reach = 1 + irnd(range);
+  var gw = g.gw, v = g.m[i], dd = Math.random() < 0.5 ? -1 : 1, t, s, nx, j, best, reach = 1 + irnd(range);
   for (t = 0; t < 2; t++, dd = -dd) {
     best = -1;
     for (s = 1; s <= reach; s++) {
       nx = x + dd * s;
-      if (nx < 0 || nx >= g.gw) break;
-      j = y * g.gw + nx;
-      if (!sandEmpty(g, j)) break;
+      if (nx < 0 || nx >= gw) break;
+      j = y * gw + nx;
+      if (!sandFlows(g, v, j)) break;
       best = j;
+      if (y + 1 < g.gh && sandFlows(g, v, j + gw)) break;
     }
     if (best >= 0) { sandSwap(g, i, best); return true; }
+  }
+  return false;
+}
+
+/* down and to one side, for when straight down is blocked. without it a liquid
+   cannot find its way through a crack that runs diagonally. */
+function sandSlide(g, i, x, y) {
+  var v = g.m[i], dd = Math.random() < 0.5 ? -1 : 1, t, nx, j;
+  if (y + 1 >= g.gh) return false;
+  for (t = 0; t < 2; t++, dd = -dd) {
+    nx = x + dd;
+    if (nx < 0 || nx >= g.gw) continue;
+    j = (y + 1) * g.gw + nx;
+    if (sandFlows(g, v, j)) { sandSwap(g, i, j); return true; }
+  }
+  return false;
+}
+
+/* pressure. a cell-by-cell liquid only ever looks at its neighbours, so the two arms
+   of a U-bend never level out: the high side just sits there. so a few times a tick,
+   a resting cell on the surface of a pool feels its way down through the pool for a
+   free cell lower than itself, anywhere along the pool's edge, and goes there. the
+   high side drains, the low side fills, and they stop when they are level.
+   it only feels through liquid that is sitting still (a falling stream carries no
+   pressure), and only lands somewhere with something under it, so it does not
+   conjure spray out of thin air. the surface cells to try are picked at random,
+   during the step, from all of them. */
+var PRESS_TRIES = 12, PRESS_SCAN = 1500;
+function sandPressureCandidate(g, i) {
+  var n = ++g.pressN;
+  if (n <= PRESS_TRIES) g.pressList[n - 1] = i;
+  else { n = irnd(n); if (n < PRESS_TRIES) g.pressList[n] = i; }
+}
+function sandPressure(g, i) {
+  var gw = g.gw, gh = g.gh, m = g.m, v = m[i], x = i % gw, y = (i / gw) | 0;
+  var mark = g.pmark, stack = g.pstack, gen = ++g.pgen, sp = 0, seen = 0, j, jx, jy, k, nb, t;
+  /* left or right first is decided once per search, so it sweeps instead of wandering */
+  var side = Math.random() < 0.5 ? -1 : 1;
+  if (gen >= 0xffffffff) { mark.fill(0); g.pgen = gen = 1; }
+  mark[i] = gen; stack[sp++] = i;
+  while (sp > 0 && seen < PRESS_SCAN) {
+    j = stack[--sp]; seen++;
+    jx = j % gw; jy = (j / gw) | 0;
+    /* pushed up, sideways, then down, so down is searched first */
+    for (k = 0; k < 4; k++) {
+      if (k === 0) nb = jy > 0 ? j - gw : -1;
+      else if (k === 3) nb = jy < gh - 1 ? j + gw : -1;
+      else { var nx = jx + (k === 1 ? -side : side); nb = nx >= 0 && nx < gw ? j - jx + nx : -1; }
+      if (nb < 0 || mark[nb] === gen) continue;
+      mark[nb] = gen;
+      t = m[nb];
+      if (t === v) { if (!g.vy[nb]) stack[sp++] = nb; }
+      else if (t === MAT.EMPTY && ((nb / gw) | 0) > y && (nb + gw >= m.length || !AIRY[m[nb + gw]])) {
+        sandSwap(g, i, nb); g.vy[nb] = 0; return true;
+      }
+    }
   }
   return false;
 }
@@ -700,7 +766,10 @@ function sandLiquid(g, i, x, y) {
   if (y + 1 < g.gh && sandFall(g, i, x, y, v)) return;
   if (sandFloat(g, i, x, y)) return;
   if (v === MAT.LAVA && Math.random() > 0.35) return;
-  sandSpread(g, i, x, y, v === MAT.LAVA ? 1 : (v === MAT.WATER ? 7 : 4));
+  if (sandSlide(g, i, x, y)) return;
+  if (sandSpread(g, i, x, y, v === MAT.LAVA ? 1 : (v === MAT.WATER ? 7 : 4))) return;
+  /* nowhere to go. if it is on top, it may be under pressure from a higher pool. lava is too thick to care */
+  if (v !== MAT.LAVA && y > 0 && g.m[i - g.gw] === MAT.EMPTY) sandPressureCandidate(g, i);
 }
 
 /* a growing stalk: the tip carries a number, puts a new tip above itself (or a
@@ -835,8 +904,9 @@ function sandStatic(g, i, x, y) {
 }
 
 function sandStep(g) {
-  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v;
+  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k;
   g.parity ^= 1;
+  g.pressN = 0;
   /* bottom to top, alternating left and right, so nothing gets a free ride */
   for (y = gh - 1; y >= 0; y--) {
     var flip = ((y + g.parity) & 1) === 1, row = y * gw;
@@ -855,6 +925,12 @@ function sandStep(g) {
       else if (v === MAT.WATER || v === MAT.OIL || v === MAT.ACID || v === MAT.LAVA) sandLiquid(g, i, x, y);
       else sandStatic(g, i, x, y);
     }
+  }
+  /* the pressure tries, once everything else has had its go. a cell may have moved
+     or changed since it was picked, so check it is still a liquid on top */
+  for (k = Math.min(g.pressN, PRESS_TRIES) - 1; k >= 0; k--) {
+    i = g.pressList[k]; v = m[i];
+    if (LIQUID[v] && v !== MAT.LAVA && i >= gw && m[i - gw] === MAT.EMPTY) sandPressure(g, i);
   }
 }
 
