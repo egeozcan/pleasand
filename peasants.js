@@ -581,6 +581,7 @@ function pStep(g, p) {
     if (p.fire > 300) { pDie(g, p, "fire"); return; }
   }
   if (p.ropeCD > 0) p.ropeCD--;
+  if (p.ropeTries && (p.anim % 3000) === 0) p.ropeTries--;   /* failed climbs are forgotten, slowly */
   if (p.catchCD > 0) p.catchCD--;
   if (p.chuteCD > 0) p.chuteCD--;
   if (p.calmT > 0) p.calmT--;
@@ -700,7 +701,15 @@ function pSwim(g, p, sub) {
   /* salt water holds you up higher. you can float in it, like in the dead sea */
   var salt = pCell(g, fx, fy - 4) === MAT.SALTWATER, want = salt ? 4 : 6, err = depth - want, target;
   if (salt && p.sayT <= 0 && Math.random() < 0.004) pSay(g, p, "float");
-  if (sub) target = -0.3;                              /* head under: swim for the air */
+  var burns = pCell(g, fx, fy) === MAT.ACID || pCell(g, fx, fy - 4) === MAT.ACID;
+  if (burns && (p.anim % 15) === 0) {
+    /* the nearest bank: something solid at about head height, either side */
+    for (var bd = 2; bd <= 80; bd++) {
+      if (pSolid(g, fx + bd, fy - 6) || pSolid(g, fx + bd, fy - 4)) { p.dir = 1; break; }
+      if (pSolid(g, fx - bd, fy - 6) || pSolid(g, fx - bd, fy - 4)) { p.dir = -1; break; }
+    }
+  }
+  if (sub) target = burns ? -0.5 : -0.3;              /* head under: swim for the air. faster, if it stings */
   else if (err > 0) target = -Math.min(0.2, 0.05 * err);
   else if (err < 0) target = Math.min(0.2, -0.05 * err);
   else target = 0;
@@ -710,7 +719,7 @@ function pSwim(g, p, sub) {
   else if (p.vy > 0 && pGround(g, fx, fy)) p.vy = 0;
   else p.y = ny;
   /* the burning swim for it too, and the cold swim slower */
-  pStepX(g, p, (sub ? 0.1 : 0.14) * (p.cold > 200 ? 0.5 : 1), true);
+  pStepX(g, p, (sub ? 0.1 : 0.14) * (burns ? 1.8 : 1) * (p.cold > 200 ? 0.5 : 1), true);
   var gasping = sub && p.breath < P_BREATH - 40;
   if (p.sayT <= 0 && Math.random() < (gasping ? 0.02 : 0.004)) pSay(g, p, gasping ? "glub" : "swim");
 }
@@ -859,6 +868,13 @@ function pTrySwing(g, p, fx, fy) {
     if (c && (c.x - p.x) * dir >= 3 && (!h || (c.x - h.x) * dir > 0)) h = c;
   }
   if (!h) return false;
+  /* the bottom of the swing: hands straight under the hook, a rope's length down. nothing may be in the way of the
+     body there, not even water: a swing that dips into a pond stops dead in it, with them on the end */
+  var R = Math.sqrt((h.x - p.x) * (h.x - p.x) + (h.y - hy) * (h.y - hy)), low = Math.ceil(h.y + R + 7);
+  for (var cx = Math.floor(h.x) - 2; cx <= Math.floor(h.x) + 2; cx++) {
+    if (pNasty(g, cx, Math.floor(h.y))) return false;
+    for (var cy = Math.floor(h.y) + 1; cy <= low; cy++) { var cc = pCell(g, cx, cy); if ((!AIRY[cc] && !LIQUID[cc]) || cy >= g.gh) return false; }
+  }
   /* a swing reaches about as far past the hook as it started short of it, and letting go adds a bit */
   var reach = Math.round((h.x - p.x) * dir * 2) + 10;
   for (d = 3; d <= reach; d++) {
@@ -876,11 +892,7 @@ function pTrySwing(g, p, fx, fy) {
 function pTryAbseil(g, p, fx, fy) {
   var dir = p.dir, nfx = fx + dir, d, c, k;
   for (d = 7; d <= 30; d++) if (pGround(g, nfx, fy + d)) return false;   /* not that far: just drop */
-  for (d = 1; fy + d < g.gh + 1; d++) {
-    c = pCell(g, nfx, fy + d);
-    if (HOT[c] || c === MAT.ACID) { p.dir = -dir; pSay(g, p, "nope"); return true; }
-    if (!AIRY[c]) break;
-  }
+  if (pNasty(g, nfx, fy)) { p.dir = -dir; pSay(g, p, "nope"); return true; }
   if (p.ropeCD || Math.random() > 0.85) return false;
   /* tie it to the ground they are standing on, at the lip */
   for (k = 0; k <= 2; k++) {
@@ -907,6 +919,23 @@ function pTryCatch(g, p) {
   return true;
 }
 
+/* acid and lava: no place to hang about in */
+function pBad(c) { return c === MAT.ACID || c === MAT.LAVA; }
+/* climb the rope to wherever it is anchored, and get on top of that */
+function pRopeUp(g, p) {
+  var r = p.rope, y = r.cy;
+  while (y > 0 && pSolid(g, r.cx, y - 1)) y--;
+  r.mode = "climb"; r.goal = y - 1;
+  if (Math.abs(r.ax - p.x) > 0.5) p.dir = r.ax > p.x ? 1 : -1;
+}
+/* which way to swing to get clear of something nasty below: towards the nearer side that is not */
+function pEscapeDir(g, p) {
+  var fx = Math.floor(p.x), fy = Math.floor(p.y);
+  for (var d = 3; d <= 60; d += 3) {
+    if (!pNasty(g, fx + d, fy)) { p.dir = 1; return; }
+    if (!pNasty(g, fx - d, fy)) { p.dir = -1; return; }
+  }
+}
 /* one tick on the rope. true if that was their whole tick */
 function pRopeStep(g, p) {
   var r = p.rope, fx = Math.floor(p.x), fy = Math.floor(p.y);
@@ -923,16 +952,26 @@ function pRopeStep(g, p) {
     if (r.t > 30) { p.rope = null; p.ropeCD = 60; return false; }
     return pGround(g, fx, fy) && !p.swimming;
   }
-  var hy = pHands(p), dx, dy, d, wet = LIQUID[pCell(g, fx, fy - 4)];
+  var hy = pHands(p), dx, dy, d, wet = LIQUID[pCell(g, fx, fy - 4)] || LIQUID[pCell(g, fx, fy)];
+  /* in something that hurts (acid, lava): get out of it, up the rope, as fast as hands will go */
+  var hurts = pBad(pCell(g, fx, fy)) || pBad(pCell(g, fx, fy - 4)) || pBad(pCell(g, fx, fy - 7));
+  if (hurts && r.mode !== "climb") pRopeUp(g, p);
+  /* letting themselves down onto something that hurts: stop, and swing off to the side of it */
+  if (r.mode === "abseil" && !hurts && pNasty(g, fx, fy) && pDropBelow(g, fx, fy, 14) < 14) { r.mode = "escape"; r.esc = 0; pEscapeDir(g, p); }
   /* reel in, pay out */
-  if (r.mode === "climb") r.len = Math.max(1.5, r.len - P_REEL);
+  if (r.mode === "climb") r.len = Math.max(1.5, r.len - P_REEL * (hurts ? 3 : 1));
   else if (r.mode === "abseil") r.len = Math.min(P_ROPE * 3, r.len + P_ABSEIL);
-  else r.len = Math.max(4, r.len - 0.03);
+  else if (r.mode !== "escape") r.len = Math.max(4, r.len - 0.03);
   p.vy += wet ? P_GRAV * 0.3 : P_GRAV;
-  if (wet) { p.vx *= 0.9; p.vy *= 0.9; }
+  if (wet) {
+    p.vx *= 0.9; p.vy *= 0.9;
+    /* and they keep swimming while they hold on: head for the air, or tread water at the surface. a rope is
+       no reason to sink */
+    p.vy -= LIQUID[pCell(g, fx, fy - 7)] ? 0.06 : P_GRAV * 0.3;
+  }
   /* swinging: kick on the way forward, like on a playground swing */
   dx = p.x - r.ax; dy = hy - r.ay; d = Math.sqrt(dx * dx + dy * dy) || 1;
-  if (r.mode === "swing" && dy > 0 && p.vx * p.dir >= 0 && Math.abs(p.vx) < 1.4) {
+  if ((r.mode === "swing" || r.mode === "escape") && dy > 0 && p.vx * p.dir >= 0 && Math.abs(p.vx) < 1.4) {
     p.vx += p.dir * (dy / d) * 0.02; p.vy -= p.dir * (dx / d) * 0.02;   /* along the arc, forward */
   }
   if (r.mode === "abseil") p.vx *= 0.92;   /* abseiling is not swinging */
@@ -963,16 +1002,26 @@ function pRopeStep(g, p) {
   if (r.mode === "climb") {
     var h = p.y - r.goal;
     if (h <= 7 || r.len <= 1.5) {
-      /* near enough the top: let go and jump the rest */
-      p.rope = null; p.ropeCD = 60;
+      /* near enough the top: let go and jump the rest. if it does not work, wait a good while before the next go */
+      p.rope = null; p.ropeTries = (p.ropeTries || 0) + 1; p.ropeCD = Math.min(2400, 60 * p.ropeTries * p.ropeTries);
       pLeap(p, Math.sqrt(2 * P_GRAV * (Math.max(h, 0) + 2)), p.dir * 0.3);
       return true;
     }
   } else if (r.mode === "swing") {
     if (landed && Math.abs(p.x - r.x0) > 4) { p.rope = null; p.ropeCD = 60; p.vx = p.vy = 0; return true; }
+    /* dipped into the water: keep swimming, and haul themselves up out of it */
+    if (wet) r.len = Math.max(4, r.len - 0.15);
     /* past the hook, still going forward, and high enough to clear the far side: let go and fly.
        not high enough yet: swing back and kick harder */
     if ((p.x - r.ax) * p.dir > 2 && p.vx * p.dir > 0.15 && p.y <= r.goal + 1) { pRopeDrop(g, p); return true; }
+  } else if (r.mode === "escape" && wet && !hurts) {
+    p.rope = null; p.ropeCD = 120; return false;   /* came down in water after all: swim from here */
+  } else if (r.mode === "escape") {
+    /* swinging away from something nasty underneath: let go once there is somewhere better to land */
+    if (landed && !pNasty(g, fx, fy)) { p.rope = null; p.ropeCD = 90; p.vx = p.vy = 0; return true; }
+    if (p.vx * p.dir > 0.15 && !pNasty(g, fx, fy) && !pNasty(g, fx + p.dir * 2, fy)) { pRopeDrop(g, p); return true; }
+    /* nowhere to swing to: go up the rope instead */
+    if (++r.esc > 400) pRopeUp(g, p);
   } else if (landed || wet) {
     /* abseiled all the way down. untie, and off you go */
     p.rope = null; p.ropeCD = 90; p.vx = p.vy = 0;
@@ -1039,12 +1088,17 @@ function pDropBelow(g, x, y, max) {
   for (var d = 1; d <= max; d++) if (!AIRY[pCell(g, x, y + d)]) return d;
   return max;
 }
-/* is what is under column x, below row y, somewhere a peasant would rather not land */
+/* is what is under column x, below row y, somewhere a peasant would rather not land. a pond counts, if there is
+   acid or lava lying under the water close enough to the top to reach: you cannot see it from above, but they know */
 function pNasty(g, x, y) {
-  for (var d = 1; d <= 200; d++) {
-    var c = pCell(g, x, y + d);
+  var d, c, wet = 0;
+  for (d = 1; d <= 200; d++) {
+    c = pCell(g, x, y + d);
     if (c === MAT.FIRE) return true;
-    if (!AIRY[c]) return HOT[c] || c === MAT.ACID || c === MAT.DRAIN;
+    if (HOT[c] || c === MAT.ACID || c === MAT.DRAIN) return true;
+    if (LIQUID[c]) { if (++wet > 12) return false; continue; }
+    if (!AIRY[c]) return false;
+    if (wet) return false;
   }
   return false;
 }
@@ -1174,7 +1228,8 @@ function pWalk(g, p, wading) {
     /* look where you are going */
     if (!p.fire) {
       var ax = fx + p.dir * 4, a0 = pCell(g, ax, fy), a1 = pCell(g, ax, fy - 3), a2 = pCell(g, ax, fy + 1), a3 = pCell(g, ax, fy - 7);
-      if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3)) {
+      if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3) ||
+          (!p.fire && !SOLID[a2] && pNasty(g, ax, fy))) {
         /* a fire they lit themselves is not frightening. just hot */
         p.dir = -p.dir; p.task = null;
         if (!p.calmT) { p.panic = Math.max(p.panic, 50); p.bored = 0; if (Math.random() < 0.3) pSay(g, p, "nope"); }

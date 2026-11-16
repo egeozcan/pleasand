@@ -539,7 +539,11 @@ function sandLightning(g, cx) {
     if (t === MAT.INERT) continue;
     heatAdd(g, j, (t === MAT.METAL ? 1200 : 2600) * (1 - d2 / (R * R + 1)));
     if (t === MAT.SAND && Math.random() < 0.8) heatForce(g, j, MAT.GLASS);
-    else if (WET[t] || t === MAT.ACID || t === MAT.METAL) { if (wet < 0) wet = j; if (t !== MAT.METAL && Math.random() < 0.15) heatForce(g, j, t === MAT.SALTWATER ? MAT.SALT : MAT.STEAM); }
+    else if (WET[t] || t === MAT.ACID || t === MAT.METAL) {
+      /* some of the water flashes to steam. the current runs on through whatever is still water */
+      if (t !== MAT.METAL && Math.random() < 0.15) heatForce(g, j, t === MAT.SALTWATER ? MAT.SALT : MAT.STEAM);
+      else if (wet < 0) wet = j;
+    }
     else if (t === MAT.ICE || t === MAT.SNOW) heatForce(g, j, MAT.WATER);
     else if (t === MAT.EMPTY && Math.random() < 0.1) sandSet(g, j, MAT.FIRE);
     else if (t === MAT.WOOD && Math.random() < 0.5) m[j] = MAT.EMBER;
