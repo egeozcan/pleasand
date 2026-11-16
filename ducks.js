@@ -139,9 +139,37 @@ function dDie(g, d, cause) {
 /* -------------------------------------------------------------------
    THE WORLD, AS A DUCK SEES IT
    ------------------------------------------------------------------- */
-/* a duck cannot open a door or climb a ladder: to a duck, everything solid is solid */
+/* anything solid holds a duck up, leaves and all. but a duck pushes through leaves and flowers, squeezes through a
+   ladder, and slips through a door after whoever opened it: none of those are in a duck's way */
+var D_PASS = new Uint8Array(NMAT);
+[MAT.PLANT, MAT.FLOWER, MAT.DOOR, MAT.LADDER].forEach(function (v) { D_PASS[v] = 1; });
 function dSolid(g, x, y) { return SOLID[pCell(g, x, y)] === 1; }
-function dBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return dSolid(g, fx, fy) || dSolid(g, fx, fy - 2); }
+function dBody(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !D_PASS[c]; }
+function dBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return dBody(g, fx, fy) || dBody(g, fx, fy - 1) || dBody(g, fx, fy - 2); }
+/* wedged into something (a gap too low for a duck, sand poured on it, a plank laid over it): the nearest place close by
+   that a duck fits and could wriggle to (through open cells only: never through a wall), and better still one it can
+   stand in, and never one that would kill it. or null */
+var D_WRIG = new Int8Array(9 * 9);
+function dWriggle(g, d) {
+  var fx = Math.floor(d.x), fy = Math.floor(d.y), best = null, bs = 1e9, s, i, j, k, x, y;
+  var seen = D_WRIG, q = [40];   /* a 9x9 window round the duck; 40 is the middle */
+  seen.fill(0); seen[40] = 1;
+  for (i = 0; i < q.length; i++) {
+    x = fx + (q[i] % 9) - 4; y = fy + ((q[i] / 9) | 0) - 4;
+    if (i && !dBlocked(g, x, y) && !dNasty(g, x, y) && !dNasty(g, x, y + 1) && !dNasty(g, x, y - 2) && x >= 1 && x <= g.gw - 2 && y >= 3) {
+      s = Math.abs(x - fx) + Math.abs(y - fy) * 1.5 + (dGround(g, x, y) || LIQUID[pCell(g, x, y + 1)] ? 0 : 3);
+      if (s < bs) { bs = s; best = { x: x + 0.5, y: y }; }
+    }
+    for (k = 0; k < 4; k++) {
+      var nx = (q[i] % 9) + (k === 0 ? -1 : k === 1 ? 1 : 0), ny = ((q[i] / 9) | 0) + (k === 2 ? -1 : k === 3 ? 1 : 0);
+      if (nx < 0 || nx > 8 || ny < 0 || ny > 8) continue;
+      j = ny * 9 + nx;
+      if (seen[j] || dBody(g, fx + nx - 4, fy + ny - 4) || fy + ny - 4 >= g.gh) continue;
+      seen[j] = 1; q.push(j);
+    }
+  }
+  return best;
+}
 function dGround(g, x, y) { return dSolid(g, Math.floor(x), Math.floor(y) + 1); }
 /* is it unpleasant to be at (x, y): hot, fire, acid, a drain */
 function dNasty(g, x, y) {
@@ -279,9 +307,10 @@ function dStep(g, d) {
   } else if (tb > P_SCALD && (d.state === "walk" || d.state === "swim")) dTakeOff(g, d, true);
 
   /* inside something: climb out of the top, if there is a top */
-  if (SOLID[cb] && d.state !== "thrown") {
-    var above = pCell(g, fx, fy - 3);
-    if (!SOLID[above]) d.y = fy - 1;
+  if (dBlocked(g, d.x, d.y) && d.state !== "thrown") {
+    var above = pCell(g, fx, fy - 3), out = dWriggle(g, d);
+    if (out) { d.x = out.x; d.y = out.y; d.vy = 0; if (d.state === "fly") d.state = "walk"; }
+    else if (!SOLID[above] || D_PASS[above]) d.y = fy - 1;
     else if (!P_HARD[above] && (d.anim % 3) === 0) d.y = fy - 1;
     else if (++d.stuck > 300) { dDie(g, d, cb === MAT.ICE || above === MAT.ICE ? "freeze" : "buried"); return; }
     return;
@@ -319,15 +348,21 @@ function dHeading(g, d) {
   }
   if (--d.look <= 0) {
     d.look = 60 + irnd(60);
-    var fx = Math.floor(d.x), fy = Math.floor(d.y), best = 999, x, y;
-    /* seeds lying about. ducks love seeds */
+    var s, hit, best = 999;
+    /* seeds lying about, that it could waddle to. ducks love seeds */
     d.seed = null;
-    for (x = fx - 40; x <= fx + 40; x++) for (y = fy - 3; y <= fy + 1; y++) if (pCell(g, x, y) === MAT.SEED && Math.abs(x - fx) < Math.abs(best)) { best = x - fx; d.seed = { x: x, y: y }; }
+    for (s = -1; s <= 1; s += 2) {
+      hit = dScan(g, d, s, 40, function (x, y) {
+        for (var yy = y - 1; yy <= y + 1; yy++) for (var xx = x - 1; xx <= x + 1; xx++) if (pCell(g, xx, yy) === MAT.SEED) return { x: xx, y: yy };
+        return null;
+      });
+      if (hit && hit.n < Math.abs(best)) { best = hit.n * s; d.seed = hit.at; }
+    }
     if (!d.seed && d.state === "walk" && Math.random() < 0.6) {
-      /* water nearby: go and get in it */
-      for (x = 1; x <= 50 && best === 999; x++) {
-        if (WET[pCell(g, fx + x, fy + 1)] || WET[pCell(g, fx + x, fy + 2)]) best = x;
-        else if (WET[pCell(g, fx - x, fy + 1)] || WET[pCell(g, fx - x, fy + 2)]) best = -x;
+      /* water it could waddle to: go and get in it */
+      for (s = -1; s <= 1; s += 2) {
+        hit = dScan(g, d, s, 50, function (x, y) { return WET[pCell(g, x, y + 1)] || WET[pCell(g, x, y)] ? 1 : null; });
+        if (hit && hit.n < Math.abs(best)) best = hit.n * s;
       }
       if (best !== 999) d.dir = best < 0 ? -1 : 1;
     }
@@ -337,6 +372,24 @@ function dHeading(g, d) {
     else d.dir = d.seed.x + 0.5 < d.x ? -1 : 1;
   }
   return 0.1;
+}
+/* waddle along the ground from d, dir s, up to max columns, the way it would walk (a step or two up, any way down,
+   it flaps), and stop at a wall. the first place fn likes, as {n: how far, at: what fn said}, or null */
+function dScan(g, d, s, max, fn) {
+  var x = Math.floor(d.x), y = Math.floor(d.y), i, k, r;
+  for (i = 1; i <= max; i++) {
+    x += s;
+    if (x < 1 || x > g.gw - 2) return null;
+    for (k = 0; k <= 2; k++) if (!dBlocked(g, x, y - k)) break;
+    if (k > 2) return null;
+    y -= k;
+    for (k = 0; k < 40 && !dGround(g, x, y) && !LIQUID[pCell(g, x, y + 1)] && !LIQUID[pCell(g, x, y)] && y < g.gh - 1; k++) y++;
+    if (!dGround(g, x, y) && !LIQUID[pCell(g, x, y + 1)] && !LIQUID[pCell(g, x, y)]) return null;   /* a long way down: not a waddle */
+    if (dNasty(g, x, y) || dNasty(g, x, y + 1)) return null;
+    r = fn(x, y);
+    if (r) return { n: i, at: r };
+  }
+  return null;
 }
 /* any seed within reach of the beak gets eaten */
 function dPeck(g, d) {
@@ -380,7 +433,7 @@ function dSwim(g, d) {
   if (d.state !== "swim") { d.state = "swim"; d.vy = 0; }
   /* float: feet in the water, the rest of the duck above it */
   while (depth < 5 && LIQUID[pCell(g, fx, fy - depth)]) depth++;
-  if (depth > 1) { if (!dSolid(g, fx, fy - 3)) d.y -= 0.2; else if (++d.stuck > 400) { dDie(g, d, "freeze"); return; } }
+  if (depth > 1) { if (!dBody(g, fx, fy - 3)) d.y -= 0.2; else if (++d.stuck > 400) { dDie(g, d, "freeze"); return; } }
   else if (depth === 0) {
     if (dGround(g, d.x, d.y)) { d.state = "walk"; return; }
     if (LIQUID[pCell(g, fx, fy + 1)]) d.y = Math.min(fy + 0.99, d.y + 0.25);
@@ -403,7 +456,9 @@ function dFly(g, d) {
   if (d.flyT > 0) {
     /* cruising: towards the water it picked, at the height it picked */
     d.flyT--;
-    if (d.goal >= 0) { d.dir = d.goal > d.x ? 1 : -1; if (Math.abs(d.goal - d.x) < 3) d.flyT = 0; }
+    /* (going round something it flew into: away from it for a bit, then on again) */
+    if (d.detour > 0) d.detour--;
+    else if (d.goal >= 0) { d.dir = d.goal > d.x ? 1 : -1; if (Math.abs(d.goal - d.x) < 3) d.flyT = 0; }
     d.vx += (d.dir * 0.6 - d.vx) * 0.08;
     d.vy += (clamp((d.alt - d.y) * 0.03, -0.4, 0.4) + Math.sin(d.anim * 0.15) * 0.05 - d.vy) * 0.1;
   } else {
@@ -414,8 +469,12 @@ function dFly(g, d) {
   if (d.y < 6) d.vy = Math.abs(d.vy);
   nx = d.x + d.vx; ny = d.y + d.vy;
   if (nx < 1 || nx > g.gw - 2) { d.dir = -d.dir; d.vx = -d.vx; nx = d.x; }
-  if (dBlocked(g, nx, d.y)) { d.vx = -d.vx * 0.5; d.dir = -d.dir; nx = d.x; if (d.flyT > 0) d.vy = -0.4; }
-  if (d.vy < 0 && dSolid(g, Math.floor(nx), Math.floor(ny) - 3)) { d.vy = 0.2; ny = d.y; }
+  if (dBlocked(g, nx, d.y)) {
+    /* flew into something: back off and climb over it, or, with a ceiling overhead too, back off and dive under */
+    d.vx = -d.vx * 0.5; d.dir = -d.dir; nx = d.x;
+    if (d.flyT > 0) { d.vy = dBody(g, Math.floor(d.x), Math.floor(d.y) - 4) ? 0.4 : -0.5; d.detour = 30 + irnd(30); }
+  }
+  if (d.vy < 0 && dBody(g, Math.floor(nx), Math.floor(ny) - 3)) { d.vy = 0.2; ny = d.y; }
   else if (d.vy > 0) {
     /* touching down: on ground, or on water */
     var cy = Math.floor(d.y);

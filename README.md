@@ -23,11 +23,13 @@ to salt. Also a small village of
 peasants who walk about, chat, climb things, jump ledges and gaps, carry ninja ropes and parachutes (which mostly open), swim, catch fire, run for
 the pond, go to space if thrown hard enough, and have opinions about all of
 it. They have names. The game keeps count. There are ducks, too: they
-waddle, swim, dabble, fly, eat seeds, and sometimes bring ducklings.
+waddle, swim, dabble, fly, eat seeds, push through bushes and flowers, and
+sometimes bring ducklings.
 
 The peasants build. They chop wood, saw each log into four boards, and put up
 things you cannot paint yourself: **houses** (on a levelled plot, a plank floor,
-a door at each end that only peasants can open, water and sand cannot, a roof
+a door at each end that only peasants can open (water and sand cannot, though
+the odd duck slips through behind them), a roof
 with a window that lights up when somebody is home, and a bed), **doors** and
 beds for the two old huts, **stairs** or a **ladder** up any wall too tall to
 jump, and **bridges** over gaps too wide to leap and ponds too wide to bother
@@ -35,7 +37,8 @@ swimming. Anybody with wood helps with anybody's project; what is still to come
 shows as a faint blueprint. Then they live in it: they sleep in their beds (or
 on the ground, and complain), run home and hide when things go bang, go and
 stand by a fire when they are cold, light campfires and gather round them,
-climb ladders, put back what you burn down (and mourn what you burn right
+climb ladders, find their way round (up the stairs, over the bridge, down
+the ladder) to wherever they are going, put back what you burn down (and mourn what you burn right
 down), and plant saplings where they cut trees down, which grow into trees.
 
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
@@ -94,6 +97,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - `world.js`: the grid, the materials and their rules, particles, explosions, lightning, the starting village
 - `heat.js`: temperature: conduction, convection, melting, boiling, freezing and burning points, and how hot things look
 - `peasants.js`: the villagers, what they say, how they die, and how they are drawn
+- `paths.js`: how the villagers find their way: A* over everywhere a peasant could stand, using the moves a peasant really makes (steps, drops, leaps, jumps, ladders, ropes, swims)
 - `build.js`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
 - `ducks.js`: the ducks
 - `game.js`: rendering, the picker and HUD, input, and the main loop

@@ -494,18 +494,22 @@ function bTaskBuild(g, p, k) {
   }
   if (!bReach(g, p, e)) {
     k.act = 0;
-    if (!p.climb && pStuck(p, k, Math.abs(dx) + Math.max(0, fy - B_REACH_UP - y, y - fy - B_REACH_DOWN))) {
-      bFail(g, p, s, 1500, "walk"); return false;
-    }
     /* up a ladder to reach the rest of it */
     if (p.climb) { p.climb.dir = y > fy ? 1 : -1; return false; }
     if (y < fy - B_REACH_UP && Math.abs(dx) <= B_REACH_X + 2) {
       var lc = bLadderNear(g, fx, fy);
       if (lc >= 0) { bClimbStart(g, p, lc, -1); return true; }
     }
-    /* right under it, and cannot get up there: try from further in (off the ground and onto the floor) */
-    if (Math.abs(dx) <= 1.5) { k.idle += 3; p.dir = s.cx < p.x ? -1 : 1; return false; }
-    p.dir = dx < 0 ? -1 : 1;
+    /* find a way to somewhere the next piece is in reach from (paths.js) */
+    var left = pathGo(g, p, "b" + s.id + ":" + e.i, x, y, pathNear(x, y, 4, B_REACH_UP, B_REACH_DOWN));
+    if (left < 0) {
+      /* no way there that they can see. right under it: try from further in (off the ground and onto the floor) */
+      if (Math.abs(dx) <= 1.5) { k.idle += 3; p.dir = s.cx < p.x ? -1 : 1; }
+      else p.dir = dx < 0 ? -1 : 1;
+    }
+    if (pStuck(p, k, left > 0 ? left : Math.abs(dx) + Math.max(0, fy - B_REACH_UP - y, y - fy - B_REACH_DOWN))) {
+      bFail(g, p, s, 1500, "walk"); return false;
+    }
     return false;
   }
   var who = bInTheWay(g, e);
@@ -697,14 +701,15 @@ function bTaskSleep(g, p, k) {
   var h = bHome(g, p);
   if (++k.t > 1500 || !h || !h.bed || pCell(g, h.bed.x, h.bed.y) !== MAT.BED) { bNap(g, p); return true; }
   var bx = h.bed.x + 0.5, dx = bx - p.x, fy = Math.floor(p.y);
-  if (pStuck(p, k, Math.abs(dx) + Math.abs(fy - h.bed.y))) { bNap(g, p); return true; }
   if (Math.abs(dx) < 0.7 && Math.abs(fy - (h.bed.y - 1)) <= 1) {
     p.x = bx; p.sleep = B_SLEEP + irnd(500); p.tired = 0; p.inBed = true;
     p.task = null; p.taskDone = true;
     pSay(g, p, "sleep", true);
     return true;
   }
-  p.dir = dx < 0 ? -1 : 1;
+  var bed = h.bed, left = pathGo(g, p, "bed" + h.id, bed.x, bed.y - 1, function (x, y) { return x === bed.x && y === bed.y - 1; });
+  if (left < 0) p.dir = dx < 0 ? -1 : 1;
+  if (pStuck(p, k, left > 0 ? left : Math.abs(dx) + Math.abs(fy - h.bed.y))) { bNap(g, p); return true; }
   return false;
 }
 function bNap(g, p) {
@@ -751,8 +756,10 @@ function bTaskWarm(g, p, k) {
   if (k.t % 30 === 0 && !bHotNear(g, k.x, k.y, 3)) { p.task = null; return false; }   /* it went out */
   var side = p.x < k.x + 0.5 ? -1 : 1, want = k.x + 0.5 + side * 7, dx = want - p.x;
   if (Math.abs(dx) > 1.2) {
-    if (pStuck(p, k, Math.abs(dx))) { pGiveUp(g, p, k.x); return false; }
-    p.dir = dx < 0 ? -1 : 1; return false;
+    var wx = Math.round(want - 0.5), left = pathGo(g, p, "warm" + k.x + "," + side, wx, k.y, function (x, y) { return Math.abs(x - wx) <= 1 && Math.abs(y - k.y) <= 6; });
+    if (left < 0) p.dir = dx < 0 ? -1 : 1;
+    if (pStuck(p, k, left > 0 ? left : Math.abs(dx))) { pGiveUp(g, p, k.x); return false; }
+    return false;
   }
   p.dir = -side; p.idle = 0;
   if (p.cold > 0) p.cold = Math.max(0, p.cold - 3);   /* hands out to the flames */
@@ -778,9 +785,15 @@ function bTaskHome(g, p, k) {
     pSay(g, p, k.hide ? "safe" : "home");
     return true;
   }
-  if (pStuck(p, k, Math.abs((h.ix0 + h.ix1 + 1) / 2 - p.x))) { p.task = null; return false; }
-  p.dir = (h.ix0 + h.ix1 + 1) / 2 < p.x ? -1 : 1;
+  var left = bGoHome(g, p, h);
+  if (pStuck(p, k, left > 0 ? left : Math.abs((h.ix0 + h.ix1 + 1) / 2 - p.x))) { p.task = null; return false; }
   return false;
+}
+/* steer p for indoors at h: by a route if there is one, else straight for it */
+function bGoHome(g, p, h) {
+  var left = pathGo(g, p, "home" + h.id, Math.round(h.cx), h.F - 1, function (x, y) { return x >= h.ix0 && x <= h.ix1 && y >= h.F - 3 && y <= h.F - 1; });
+  if (left < 0) p.dir = (h.ix0 + h.ix1 + 1) / 2 < p.x ? -1 : 1;
+  return left;
 }
 /* things going bang: anyone with a house near enough runs for it, instead of just running. true if that is the plan */
 function bHide(g, p) {
@@ -791,7 +804,7 @@ function bHide(g, p) {
     pSay(g, p, "safe", true);
     return true;
   }
-  p.dir = (h.ix0 + h.ix1 + 1) / 2 < p.x ? -1 : 1;
+  bGoHome(g, p, h);
   return true;
 }
 
@@ -822,9 +835,11 @@ function bPlantOk(g, x, y) {
 function bTaskPlant(g, p, k) {
   if (++k.t > 900) { p.task = null; return false; }
   var dx = k.x + 0.5 - p.x;
-  if (Math.abs(dx) > 2.5 || Math.abs(dx) < 1) {
-    if (pStuck(p, k, Math.abs(Math.abs(dx) - 1.7))) { pGiveUp(g, p, k.x); return false; }
-    p.dir = (Math.abs(dx) < 1 ? -dx : dx) < 0 ? -1 : 1; k.act = 0; return false;
+  if (Math.abs(dx) > 2.5 || Math.abs(dx) < 1 || Math.abs(Math.floor(p.y) - k.y) > 1) {
+    var left = Math.abs(dx) < 1 ? -1 : pathGo(g, p, "plant" + k.x, k.x, k.y, function (x, y) { var d = Math.abs(x - k.x); return d >= 1 && d <= 2 && y === k.y; });
+    if (left < 0) p.dir = (Math.abs(dx) < 1 ? -dx : dx) < 0 ? -1 : 1;
+    if (pStuck(p, k, left > 0 ? left : Math.abs(Math.abs(dx) - 1.7))) { pGiveUp(g, p, k.x); return false; }
+    k.act = 0; return false;
   }
   if (!bPlantOk(g, k.x, k.y)) { p.task = null; return false; }
   p.dir = dx < 0 ? -1 : 1;
@@ -931,7 +946,7 @@ function bClimbStep(g, p) {
       var sd = s ? -p.dir : p.dir;
       if (bStepOff(g, cx, fy, sd)) { p.x = cx + 2 * sd + 0.5; p.dir = sd; p.climb = null; return; }
     }
-    if (pCell(g, cx, fy) === MAT.LADDER && !pSolid(g, cx, fy - 9)) p.y -= B_CLIMB;
+    if (pCell(g, cx, fy) === MAT.LADDER && !pBody(g, cx, fy - 9)) p.y -= B_CLIMB;
     else if (++c.stuck > 60) c.dir = 1;   /* nowhere to go up there: back down */
   } else {
     if (pGround(g, cx, fy) && !(pCell(g, cx, fy + 1) === MAT.LADDER)) { p.climb = null; return; }
@@ -989,12 +1004,13 @@ function bDraw(g) {
       if (g.m[w] === MAT.PLANK && g.aux[w] === 1) { px[w] = B_WIN_LIT; gp[w] = B_WIN_GLOW; lit++; }
     }
   }
-  /* doors swing open for whoever is going through */
-  for (k = 0; k < g.peasants.length; k++) {
-    var p = g.peasants[k];
-    if (p.dead || p.state !== "walk") continue;
+  /* doors swing open for whoever is going through: a peasant, or a duck slipping in behind */
+  var walkers = g.peasants.concat(g.ducks);
+  for (k = 0; k < walkers.length; k++) {
+    var p = walkers[k], duck = k >= g.peasants.length;
+    if (p.dead || (p.state !== "walk" && !(duck && p.state === "fly"))) continue;
     var fx = Math.floor(p.x), fy = Math.floor(p.y);
-    for (x = fx - 1; x <= fx + 1; x++) for (y = fy - 9; y <= fy; y++) {
+    for (x = fx - 1; x <= fx + 1; x++) for (y = fy - (duck ? 3 : 9); y <= fy; y++) {
       if (x < 0 || y < 0 || x >= gw || y >= g.gh) continue;
       j = y * gw + x;
       if (g.m[j] === MAT.DOOR) px[j] = (x === fx - p.dir || g.aux[j] === 1) ? B_DOOR_EDGE : B_DOOR_OPEN;

@@ -214,9 +214,11 @@ function pCell(g, x, y) {
 function pSolid(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c]; }
 /* is there something to stand on, under feet at row y */
 function pGround(g, x, y) { return pSolid(g, x, y + 1) || pSolid(g, x - 1, y + 1) || pSolid(g, x + 1, y + 1); }
-/* could a peasant with its feet here stand up straight */
-function pRoom(g, x, y) { return !pSolid(g, x, y) && !pSolid(g, x, y - 3) && !pSolid(g, x, y - 6) && !pSolid(g, x, y - 8); }
-function pBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pSolid(g, fx, fy) || pSolid(g, fx, fy - 4) || pSolid(g, fx, fy - 7); }
+/* could a peasant with its feet here stand up straight. leaves and flowers do not stop them: they push through */
+var P_LEAF = new Uint8Array(NMAT); P_LEAF[MAT.PLANT] = P_LEAF[MAT.FLOWER] = 1;
+function pBody(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c] && !P_LEAF[c]; }
+function pRoom(g, x, y) { return !pBody(g, x, y) && !pBody(g, x, y - 3) && !pBody(g, x, y - 6) && !pBody(g, x, y - 8); }
+function pBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pBody(g, fx, fy) || pBody(g, fx, fy - 4) || pBody(g, fx, fy - 7); }
 
 function peasantAt(g, x, y, pad) {
   pad = pad || 0;
@@ -598,11 +600,11 @@ function pStep(g, p) {
   if (p.planCD > 0) p.planCD--;
   if (p.eatCD > 0) p.eatCD--;
   if (p.plantCD > 0) p.plantCD--;
-  p.pose = null;
+  p.pose = null; p.navMove = null;
   if (p.state === "fly") { p.jumping = false; p.rope = null; p.chute = null; p.task = null; p.climb = null; p.sleep = 0; pFly(g, p); return; }
 
   /* buried in something: climb out the top, if there is a top */
-  if (SOLID[cf] && !P_PASS[cf]) {
+  if (SOLID[cf] && !P_PASS[cf] && !P_LEAF[cf]) {
     var above = pCell(g, fx, fy - 9);
     if (!SOLID[above] || P_PASS[above]) { p.y = fy - 1; p.buried = 0; }
     else if (!P_HARD[above] && (p.anim % 3) === 0) { p.y = fy - 1; if (++p.buried === 40) pSay(g, p, "buried", true); }
@@ -748,7 +750,7 @@ function pLeap(p, vy, jx) {
 function pJump(g, p) {
   var fx = Math.floor(p.x), target, cy;
   if (p.vy < 0) {
-    if (pSolid(g, fx, Math.floor(p.y + p.vy) - 9)) p.vy = 0;   /* bumped your head */
+    if (pBody(g, fx, Math.floor(p.y + p.vy) - 9)) p.vy = 0;   /* bumped your head (on anything but leaves) */
     else p.y += p.vy;
     p.fallY = p.y;
   } else {
@@ -773,9 +775,9 @@ function pJump(g, p) {
 function pTryJump(g, p, fx, fy) {
   if (p.cold > 400) return false;
   var nfx = fx + p.dir, k, j;
-  for (j = 9; j < 12; j++) if (pSolid(g, fx, fy - j)) return false;
+  for (j = 9; j < 12; j++) if (pBody(g, fx, fy - j)) return false;
   for (k = 4; k <= P_JUMP; k++) {
-    if (pSolid(g, fx, fy - k - 8)) return false;
+    if (pBody(g, fx, fy - k - 8)) return false;
     if (pRoom(g, nfx, fy - k)) break;
   }
   if (k > P_JUMP) return false;
@@ -796,12 +798,13 @@ function pTryGap(g, p, fx, fy) {
   return pTryAbseil(g, p, fx, fy);
 }
 function pTryLeap(g, p, fx, fy) {
+  if (p.fire || p.cold > 400) return false;   /* (as pTryGap: and a route that says leap does not change that) */
   var dir = p.dir, d, dy, x, k;
-  for (k = 0; k <= 8; k++) if (pSolid(g, fx, fy - 9 - k)) return false;    /* no room to jump */
+  for (k = 0; k <= 8; k++) if (pBody(g, fx, fy - 9 - k)) return false;    /* no room to jump */
   for (d = 3; d <= P_GAP; d++) {
     x = fx + dir * d;
     if (x < 1 || x > g.gw - 2) return false;
-    if (pSolid(g, x, fy - 9) || pSolid(g, x, fy - 12)) return false;        /* something in the way */
+    if (pBody(g, x, fy - 9) || pBody(g, x, fy - 12)) return false;          /* something in the way */
     for (dy = -3; dy <= 3; dy++) {
       if (pGround(g, x, fy + dy) && pRoom(g, x, fy + dy)) {
         /* time in the air for a jump that comes down dy lower, then just enough speed to get there */
@@ -870,7 +873,7 @@ function pTryClimb(g, p, fx, fy) {
   for (k = 4; k <= P_ROPE; k++) if (pRoom(g, nfx, fy - k)) break;
   if (k > P_ROPE) return false;
   /* the line runs straight up the face, so there must be room up there for it and for them */
-  for (j = 9; j <= k + 9; j++) if (pSolid(g, fx, fy - j)) return false;
+  for (j = 9; j <= k + 9; j++) if (pBody(g, fx, fy - j)) return false;
   var top = fy - k + 1;   /* the top solid cell of the wall */
   if (!pSolid(g, nfx, top) || pCell(g, nfx, top) === MAT.INERT) return false;
   pRopeThrow(g, p, "climb", dir > 0 ? nfx : nfx + 1, top, nfx, top, fy - k);
@@ -1009,7 +1012,7 @@ function pRopeStep(g, p) {
     var cy = fy;
     while (cy < Math.floor(ny) && !pFloor(g, Math.floor(nx), cy)) cy++;
     if (pFloor(g, Math.floor(nx), cy) && cy <= ny) { ny = cy; landed = true; p.vy = 0; }
-  } else if (pSolid(g, Math.floor(nx), Math.floor(ny) - 9)) { ny = p.y; p.vy = 0; }
+  } else if (pBody(g, Math.floor(nx), Math.floor(ny) - 9)) { ny = p.y; p.vy = 0; }
   if (pBlocked(g, nx, ny)) {
     if (!pBlocked(g, p.x, ny)) { nx = p.x; p.vx *= -0.2; }
     else if (!pBlocked(g, nx, p.y)) { ny = p.y; p.vy = 0; }
@@ -1223,18 +1226,26 @@ function pStepX(g, p, sp, swim) {
     if (k > 3) {
       /* a ladder up it: that is what it is for */
       if (!swim && bLadderUp(g, p, fx, fy)) return false;
-      /* swimmers always try to climb out; walkers sometimes just turn round */
-      if ((swim || Math.random() < 0.7) && pTryJump(g, p, fx, fy)) return false;
+      /* on a route, do what the route says (see paths.js). swimmers always try to climb out; walkers sometimes just
+         turn round */
+      var nm = p.navMove;
+      if ((swim || nm === "jump" || (!nm && Math.random() < 0.7)) && pTryJump(g, p, fx, fy)) return false;
       /* too tall to jump: build some stairs up it, or a ladder. or help with the ones going up */
-      if (!swim && bTryWall(g, p, fx, fy)) return false;
+      if (!swim && (!nm || nm === "rope") && bTryWall(g, p, fx, fy)) return false;
       /* too tall to jump: rope up it. swimmers always try; walkers now and then */
-      if (!p.ropeCD && (swim || p.task || Math.random() < 0.35) && pTryClimb(g, p, fx, fy)) return false;
+      if (!p.ropeCD && (swim || nm === "rope" || (!nm && (p.task || Math.random() < 0.35))) && pTryClimb(g, p, fx, fy)) return false;
+      if (nm) pathStale(p);   /* the route did not expect a wall here */
       p.dir = -p.dir; return false;
     }
     fy -= k;
     if (!pGround(g, nfx, fy)) for (k = 1; k <= 2; k++) if (pGround(g, nfx, fy + k) && pRoom(g, nfx, fy + k)) { fy += k; break; }
     if (!swim && !pGround(g, nfx, fy) && bLadderDown(g, p, nfx, Math.floor(p.y))) return false;
-    if (!swim && !pGround(g, nfx, fy) && pTryGap(g, p, fx, Math.floor(p.y))) return false;
+    if (!swim && !pGround(g, nfx, fy)) {
+      /* a route that goes over the edge (or leaps it) knows what is down there */
+      if (p.navMove === "leap" && pTryLeap(g, p, fx, Math.floor(p.y))) return false;
+      if (p.navMove === "leap") { pathStale(p); if (pTryGap(g, p, fx, Math.floor(p.y))) return false; }   /* the leap is not there any more */
+      else if (!((p.navMove === "drop" || p.navMove === "walk") && pathDropOk(g, p, nfx, fy)) && pTryGap(g, p, fx, Math.floor(p.y))) return false;
+    }
     /* about to wade into a pond: a bridge would be nice */
     if (!swim && !p.wade && (LIQUID[pCell(g, nfx, fy)] || LIQUID[pCell(g, nfx, fy + 1)]) && bTryBridge(g, p, fx, Math.floor(p.y), true)) return false;
     p.y = fy;
@@ -1515,7 +1526,7 @@ function pPickTask(g, p) {
   /* wood: when bored, or when there is something to build with it */
   var want = bWoodWanted(g, p);
   if ((p.logs || 0) < P_LOGS && !p.chopCD && (p.bored > P_BORED_CHOP || (want && Math.random() < 0.3) || Math.random() < 0.05)) {
-    t = pFind(g, p, P_WOOD, want ? 140 : (p.bored > P_BORED_CHOP ? 40 : 3), choppable, want ? 30 : 0);
+    t = pFind(g, p, P_WOOD, want ? 140 : (p.bored > P_BORED_CHOP ? 40 : 3), choppable, want ? 60 : 0);
     if (t) { p.task = { kind: "chop", x: t.x, y: t.y, t: 0, act: 0, n: 0, want: want }; return; }
     /* wood wanted, and not a tree left standing: somebody had better plant some */
     if (want && !p.plantCD) { p.wantPlant = true; p.plantCD = 2400; }
@@ -1547,7 +1558,7 @@ function pTask(g, p) {
     if (!t) { p.task = null; return false; }
     k.x = t.x; k.y = t.y; j = k.y * gw + k.x;
   }
-  if (k.y < fy - 10 || k.y > fy + 2) {
+  if ((k.kind === "light" || k.kind === "camp") && (k.y < fy - 10 || k.y > fy + 2)) {
     /* out of reach up or down: forget it once close enough to see that */
     if (Math.abs(k.x + 0.5 - p.x) < 6) { p.task = null; return false; }
   }
@@ -1561,10 +1572,17 @@ function pTask(g, p) {
   } else if (k.kind === "camp") {
     p.dir = dx < 0 ? -1 : 1;
   } else {
-    /* an axe reaches a bit further than a hand */
-    if (Math.abs(dx) > (k.kind === "chop" ? 5.5 : 3.2)) {
-      if (pStuck(p, k, Math.abs(dx))) { pGiveUp(g, p, k.x); return false; }
-      p.dir = dx < 0 ? -1 : 1; p.idle = 0; k.act = 0; return false;
+    /* an axe reaches a bit further than a hand. find a way to somewhere they can reach it from */
+    var rx = k.kind === "chop" ? 5 : 3;
+    if (Math.abs(dx) > rx + 0.5 || k.y < fy - 10 || k.y > fy + 2) {
+      var left = pathGo(g, p, k.kind + k.x + "," + k.y, k.x, k.y, pathNear(k.x, k.y, rx, 10, 2));
+      if (left < 0) {
+        /* no route: walk straight at it, and forget it once close enough to see it is out of reach */
+        if (Math.abs(dx) < 6 && (k.y < fy - 10 || k.y > fy + 2)) { pGiveUp(g, p, k.x); return false; }
+        p.dir = dx < 0 ? -1 : 1;
+      }
+      if (pStuck(p, k, left > 0 ? left : Math.abs(dx))) { pGiveUp(g, p, k.x); return false; }
+      p.idle = 0; k.act = 0; return false;
     }
     if (Math.abs(dx) > 0.5) p.dir = dx < 0 ? -1 : 1;
   }
