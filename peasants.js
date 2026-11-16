@@ -206,6 +206,8 @@ function pKing(g) {
   for (var k = 0; k < g.peasants.length; k++) if (g.peasants[k].hat === P_HATS[6] && !g.peasants[k].dead) return g.peasants[k];
   return null;
 }
+/* what a factory remembers about the peasant that touched it: enough to make more */
+function pRecipe(p) { return { short: p.short, hat: p.hat, pal: p.pal.slice(), voice: p.voice }; }
 /* a copy of somebody, from a peasant factory */
 function peasantClone(g, src, x, y) {
   var p = peasantSpawn(g, x, y, true);
@@ -254,8 +256,10 @@ function pSay(g, p, kind, force, other) {
   }
 }
 
-function feed(g, text, col) {
-  g.feed.push({ text: text, col: col || "#c8d0dc", t: 0 });
+function feed(g, text, col, key) {
+  /* a line with a key replaces the last line with the same key, instead of stacking */
+  if (key) for (var k = 0; k < g.feed.length; k++) if (g.feed[k].key === key) { g.feed.splice(k, 1); break; }
+  g.feed.push({ text: text, col: col || "#c8d0dc", t: 0, key: key });
   if (g.feed.length > 6) g.feed.shift();
 }
 function banner(g, title, sub) {
@@ -314,16 +318,18 @@ function pDie(g, p, cause) {
   if (o && Math.random() < 0.7) pSay(g, o, "mourn", true, p);
   var ms = P_MILESTONES[g.rip];
   if (ms) banner(g, ms[0], ms[1]);
-  /* the king is dead. long live the king */
-  if (p.hat === P_HATS[6]) {
-    var heir = pOther(g, p, 9999);
-    if (heir) {
-      heir.hat = P_HATS[6]; heir.pal[0] = hex32("#ffd040"); heir.pal[1] = hex32("#e83a4a");
-      heir.name = "KING " + heir.short;
-      banner(g, "THE KING IS DEAD", "long live " + heir.name);
-      pSay(g, heir, "crowned", true);
-    } else banner(g, "THE KING IS DEAD", "and there is nobody left to be king");
-  }
+  pSucceed(g, p, "THE KING IS DEAD");
+}
+/* the king is gone. long live the king */
+function pSucceed(g, p, title) {
+  if (p.hat !== P_HATS[6]) return;
+  var heir = pOther(g, p, 9999);
+  if (heir) {
+    heir.hat = P_HATS[6]; heir.pal[0] = hex32("#ffd040"); heir.pal[1] = hex32("#e83a4a");
+    heir.name = "KING " + heir.short;
+    banner(g, title, "long live " + heir.name);
+    pSay(g, heir, "crowned", true);
+  } else banner(g, title, "and there is nobody left to be king");
 }
 
 /* -------------------------------------------------------------------
@@ -436,6 +442,7 @@ function peasantsStep(g) {
         pSay(g, q, Math.random() < 0.5 ? "oof" : "thrown", true);
         g.fx.thud++;
         p.pins = (p.pins || 0) + 1;
+        if (p.pins >= 2) feed(g, (["", "", "DOUBLE!", "TRIPLE!", "QUADRUPLE!"][p.pins] || "PEASANT AVALANCHE!") + "  " + p.name + " knocked over " + p.pins, "#ffd94a", "bowl" + p.id);
         if (p.pins >= 3) achieve(g, "strike");
       }
     }
@@ -534,8 +541,8 @@ function pStep(g, p) {
 }
 
 function pHeld(g, p) {
-  p.x = clamp(g.cx, 1, g.gw - 2);
-  p.y = clamp(g.cy + 8, 9, g.gh - 1);
+  p.x = clamp((g.mx - PANEL) / CELL, 1, g.gw - 2);
+  p.y = clamp((g.my - PLAY_Y) / CELL + 8, 9, g.gh - 1);
   p.vx = g.cvx; p.vy = g.cvy; p.spin = 0; p.falling = false; p.fallY = p.y;
   p.idle = 0; p.stun = 0;
   if (p.sayT <= 0 && Math.random() < 0.02) pSay(g, p, "grab");
@@ -547,8 +554,11 @@ function peasantGrab(g, p, fresh) {
 function peasantThrow(g, p) {
   g.held = null;
   if (p.dead) return;
+  /* where the hand actually let go, and how fast it was going */
+  pHeld(g, p);
+  var v = cursorVel(g);
   p.state = "fly"; p.flyT = 0; p.immune = 4; p.fallY = p.y;
-  p.vx = clamp(g.cvx, -4.5, 4.5); p.vy = clamp(g.cvy, -4.5, 4.5);
+  p.vx = clamp(v[0], -4.5, 4.5); p.vy = clamp(v[1], -4.5, 4.5);
   if (Math.abs(p.vx) + Math.abs(p.vy) > 1.5) { pSay(g, p, "thrown", true); g.fx.whee++; }
 }
 
@@ -600,7 +610,7 @@ function pFly(g, p) {
   n = Math.ceil(spd * 2) || 1;
   for (s = 0; s < n; s++) {
     nx = p.x + p.vx / n; ny = p.y + p.vy / n;
-    if (nx < -4 || nx > gw + 4) { pLeave(g, p); return; }
+    if (nx < -4 || nx > gw + 4 || ny > g.gh + 12) { pLeave(g, p); return; }
     if (ny < -40) { pSpace(g, p); return; }
     if (!pBlocked(g, nx, ny)) { p.x = nx; p.y = ny; continue; }
     hx = pBlocked(g, nx, p.y); vt = pBlocked(g, p.x, ny);
@@ -613,6 +623,7 @@ function pFly(g, p) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y);
   var onGround = pGround(g, fx, fy);
   if (onGround && Math.abs(p.vy) < 0.6) { p.vx *= 0.8; p.vy = 0; }
+  if (p.flyT > 900 && (p.x < 0 || p.x >= gw)) { pLeave(g, p); return; }
   if ((onGround && Math.abs(p.vx) < 0.3 && Math.abs(p.vy) < 0.6) || p.flyT > 900) {
     p.state = "walk"; p.spin = 0; p.falling = false; p.fallY = p.y; p.vx = p.vy = 0;
     p.stun = 60; p.pins = 0;
@@ -628,6 +639,7 @@ function pSpace(g, p) {
 function pLeave(g, p) {
   p.dead = 1;
   feed(g, p.name + " left the village. by air", "#c8d0dc");
+  pSucceed(g, p, "THE KING HAS ABDICATED. AT SPEED");
   achieve(g, "leave");
 }
 
@@ -653,8 +665,8 @@ function pWalk(g, p, wading) {
   else {
     /* look where you are going */
     if (!p.fire) {
-      var ax = fx + p.dir * 4, ahead = [pCell(g, ax, fy), pCell(g, ax, fy - 3), pCell(g, ax, fy + 1), pCell(g, ax, fy - 7)];
-      if (HOT[ahead[0]] || HOT[ahead[1]] || HOT[ahead[2]] || HOT[ahead[3]] || ahead[2] === MAT.ACID || ahead[0] === MAT.ACID) {
+      var ax = fx + p.dir * 4, a0 = pCell(g, ax, fy), a1 = pCell(g, ax, fy - 3), a2 = pCell(g, ax, fy + 1), a3 = pCell(g, ax, fy - 7);
+      if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID) {
         p.dir = -p.dir; p.panic = Math.max(p.panic, 50);
         if (Math.random() < 0.3) pSay(g, p, "nope");
       } else if (!wading && (LIQUID[pCell(g, fx + p.dir * 3, fy + 1)] || LIQUID[pCell(g, fx + p.dir * 3, fy)] || LIQUID[pCell(g, fx + p.dir * 3, fy - 2)]) &&
@@ -726,6 +738,14 @@ function peasantsDraw(g) {
       if (Math.random() < 0.5) pal[6] = P_FIRE[irnd(256)];
     }
     var ox = Math.floor(p.x);
+    if (p.state === "walk" && !p.falling) {
+      /* a little shadow on whatever they are standing on */
+      var sy = Math.floor(p.y) + 1;
+      if (sy < g.gh) for (c = -2; c <= 2; c++) {
+        var si = sy * g.gw + ox + c;
+        if (ox + c >= 0 && ox + c < g.gw && SOLID[g.m[si]]) g.px[si] = mix32(g.px[si], c === -2 || c === 2 ? g.px[si] : 0xff000000);
+      }
+    }
     pBlit(g, p.hat.spr, ox, oy, flip, rot, pal, p.fire > 0);
     pBlit(g, body, ox, oy, flip, rot, pal, p.fire > 0);
   }

@@ -312,7 +312,7 @@ function partStep(g) {
         ix = Math.floor(x); iy = Math.floor(y);
         if (iy >= 0 && iy < gh) {
           j = iy * gw + ix;
-          if (AIRY[m[j]]) { sandSet(g, j, g.pm[q]); g.vy[j] = Math.min(SAND_VMAX, (vy * 3) | 0); }
+          if (AIRY[m[j]]) { sandSet(g, j, g.pm[q]); g.vy[j] = clamp((vy * 3) | 0, 0, SAND_VMAX); }
         }
       } else if (k === PK_SPARK) {
         sandIgnite(g, hit);
@@ -793,11 +793,16 @@ function sandStatic(g, i, x, y) {
     if (j >= 0 && Math.random() < 0.1) { m[j] = MAT.STEAM; g.fx.hiss++; }
   } else if (v === MAT.CLONER) {
     var a = g.aux[i];
-    if (!a) { var tp = peasantAt(g, x, y - 1, 1); if (tp) { g.aux[i] = CLONE_PEASANT; g.cloneSrc = tp; return; } }
+    if (!a && ((g.tick + i) & 7) === 0 && g.peasants.length) {
+      var tp = peasantAt(g, x, y - 1, 1);
+      if (tp) { g.aux[i] = CLONE_PEASANT; g.cloneSrc[i] = pRecipe(tp); return; }
+    }
     if (a === CLONE_PEASANT) {
-      /* a peasant factory: copies of whoever touched it last. rate-limited, because the village is small */
-      if (Math.random() < 0.004 && y > 9 && !SOLID[g.m[i - g.gw]] && g.cloneSrc) {
-        var np = peasantClone(g, g.cloneSrc, x + 0.5, y - 1);
+      /* a peasant factory: copies of whoever touched it first. rate-limited, because the village is small */
+      var src = g.cloneSrc[i];
+      if (!src) { g.aux[i] = 0; return; }
+      if (Math.random() < 0.004 && y > 9 && !SOLID[g.m[i - g.gw]]) {
+        var np = peasantClone(g, src, x + 0.5, y - 1);
         if (np) { pSay(g, np, "clone", false); achieve(g, "factory"); g.fx.pop++; }
       }
       return;
@@ -858,7 +863,12 @@ function sandStep(g) {
       lowest dip, a tree that is asking for it, a couple of huts, and
       the people who live in them
    ------------------------------------------------------------------- */
-function sandClear(g) { g.m.fill(0); g.aux.fill(0); g.vy.fill(0); g.np = 0; }
+function sandClear(g) {
+  g.m.fill(0); g.aux.fill(0); g.vy.fill(0); g.np = 0;
+  /* and the bangs still in the air */
+  g.bolts.length = 0; g.rings.length = 0; g.flash = 0; g.shake = 0; g.fwGlow = null; g.zn = 0; g.zt = 0;
+  g.cloneSrc = {};
+}
 
 function sandLandscape(g) {
   var gw = g.gw, gh = g.gh, m = g.m, x, y, top = [], ph = Math.random() * 6, lo = 0, k, dx, dy;
@@ -930,7 +940,7 @@ function sandLandscape(g) {
   }
   for (var i = 0; i < m.length; i++) g.sh[i] = irnd(256);
   /* and the villagers */
-  g.peasants.length = 0; g.ghosts.length = 0;
+  g.peasants.length = 0; g.ghosts.length = 0; g.held = null;
   for (k = 0; k < 7; k++) {
     for (tries = 0; tries < 20; tries++) {
       x = 6 + irnd(gw - 12);

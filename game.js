@@ -83,14 +83,14 @@ function gameInit(g) {
   g.aux = new Uint8Array(n);
   g.sh = new Uint8Array(n);
   g.vy = new Uint8Array(n);
-  g.zmark = new Uint8Array(n); g.zlist = new Int32Array(8000); g.zn = 0; g.zt = 0;
+  g.zmark = new Uint8Array(n); g.zlist = new Int32Array(n + 8); g.zn = 0; g.zt = 0;
   partInit(g);
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
            pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0 };
   g.snd = {};
   g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0;
-  g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = null; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
+  g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = {}; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
   g.held = null; g.cx = 0; g.cy = 0; g.pcx = 0; g.pcy = 0; g.cvx = 0; g.cvy = 0; g.toolT = 0;
   g.intro = 0; g.tip = irnd(TIPS.length);
 
@@ -228,10 +228,11 @@ function gameUpdate(g, dt) {
   g.intro += dt;
   /* where the cursor is, in cells, and how fast it is going (for throwing) */
   g.cx = (g.mx - PANEL) / CELL; g.cy = (g.my - PLAY_Y) / CELL;
-  g.cvx = lerp(g.cvx, g.cx - g.pcx, 0.45); g.cvy = lerp(g.cvy, g.cy - g.pcy, 0.45);
+  var cv2 = cursorVel(g); g.cvx = cv2[0]; g.cvy = cv2[1];
   g.pcx = g.cx; g.pcy = g.cy;
   sandPaint(g);
   toolHold(g);
+  ageBangs(g);
   if (g.helloT > 0 && --g.helloT === 0 && g.helloP && !g.helloP.dead) pSay(g, g.helloP, "hello", true);
   var step = !g.paused && (!g.slow || (g.frame++ & 3) === 0);
   if (step) {
@@ -297,7 +298,9 @@ function drawWorld(g) {
         if (v === MAT.ACID && d < 2) gp[i] = px[i];
       } else if (v === MAT.FIRE || v === MAT.LAVA || v === MAT.EMBER) {
         /* the glow gets a little plus-sign per hot cell, so a lone spark still shows */
-        px[i] = gp[i] = gp[i - 1] = gp[i + 1] = gp[i - gw] = gp[i + gw] = SAND_PAL[v][(Math.random() * 256) | 0];
+        px[i] = gp[i] = gp[i - gw] = gp[i + gw] = SAND_PAL[v][(Math.random() * 256) | 0];
+        if (x > 0) gp[i - 1] = px[i];
+        if (x < gw - 1) gp[i + 1] = px[i];
         hot++;
       } else if (v === MAT.SAND && ((y > 0 && m[i - gw] === W) || (y < gh - 1 && m[i + gw] === W) ||
                                     (x > 0 && m[i - 1] === W) || (x < gw - 1 && m[i + 1] === W))) {
@@ -352,7 +355,6 @@ function gameDraw(g, c) {
   /* the shaking part */
   var sx = 0, sy = 0;
   if (g.shake > 0.25) { sx = (Math.random() * 2 - 1) * g.shake; sy = (Math.random() * 2 - 1) * g.shake; }
-  g.shake *= 0.86;
   c.save();
   c.beginPath(); c.rect(PANEL, PLAY_Y, PW, PH); c.clip();
   c.translate(sx, sy);
@@ -382,7 +384,6 @@ function gameDraw(g, c) {
   if (g.flash > 0.01) {
     c.fillStyle = "rgba(255,250,235," + Math.min(1, g.flash).toFixed(3) + ")";
     c.fillRect(PANEL, PLAY_Y, PW, PH);
-    g.flash *= 0.88;
   }
   drawCursor(g, c);
   drawPanel(g, c);
@@ -390,46 +391,55 @@ function gameDraw(g, c) {
 }
 
 /* lightning bolts, shock rings, the glow of a firework */
+/* bangs age at a fixed 60 a second, in the update, so they last as long on any monitor */
+function ageBangs(g) {
+  var k;
+  g.shake *= 0.86; g.flash *= 0.88;
+  if (g.fwGlow) { g.fwGlow.t *= 0.93; if (g.fwGlow.t < 0.03) g.fwGlow = null; }
+  for (k = g.rings.length - 1; k >= 0; k--) {
+    var rg = g.rings[k];
+    rg.t += 1; rg.r += (rg.R - rg.r) * 0.18;
+    if (rg.t >= 22) g.rings.splice(k, 1);
+  }
+  for (k = g.bolts.length - 1; k >= 0; k--) { g.bolts[k].t *= 0.92; if (g.bolts[k].t <= 0.02) g.bolts.splice(k, 1); }
+  if (g.zt > 0) { g.zt -= 0.035; if (g.zt <= 0) g.zn = 0; }
+}
+function scrX(x) { return PANEL + (x + 0.5) * CELL; }
+function scrY(y) { return PLAY_Y + y * CELL; }
+function boltLine(c, L) {
+  c.beginPath(); c.moveTo(scrX(L[0][0]), scrY(L[0][1]));
+  for (var q = 1; q < L.length; q++) c.lineTo(scrX(L[q][0]), scrY(L[q][1]));
+  c.stroke();
+}
+/* lightning bolts, shock rings, the glow of a firework */
 function drawBangs(g, c) {
-  var k, j, X = function (x) { return PANEL + (x + 0.5) * CELL; }, Y = function (y) { return PLAY_Y + y * CELL; };
+  var k, j;
   c.save();
   c.globalCompositeOperation = "lighter";
   if (g.fwGlow) {
-    var f = g.fwGlow, cx = X(f.x), cy = Y(f.y), r = 90;
+    var f = g.fwGlow, cx = scrX(f.x), cy = scrY(f.y), r = 90;
     var gr = c.createRadialGradient(cx, cy, 0, cx, cy, r);
     var col = "rgba(" + (f.c & 255) + "," + ((f.c >> 8) & 255) + "," + ((f.c >> 16) & 255) + ",";
     gr.addColorStop(0, col + (0.35 * f.t).toFixed(3) + ")"); gr.addColorStop(1, col + "0)");
     c.fillStyle = gr; c.fillRect(cx - r, cy - r, r * 2, r * 2);
-    f.t *= 0.93; if (f.t < 0.03) g.fwGlow = null;
   }
-  for (k = g.rings.length - 1; k >= 0; k--) {
-    var rg = g.rings[k];
-    rg.t += 1; rg.r += (rg.R - rg.r) * 0.18;
-    var a = 1 - rg.t / 22;
-    if (a <= 0) { g.rings.splice(k, 1); continue; }
+  for (k = 0; k < g.rings.length; k++) {
+    var rg = g.rings[k], a = 1 - rg.t / 22;
     c.strokeStyle = "rgba(255,230,190," + (a * 0.5).toFixed(3) + ")";
     c.lineWidth = 2.5 * a + 0.5;
-    c.beginPath(); c.arc(X(rg.x), Y(rg.y), rg.r * CELL, 0, 6.2832); c.stroke();
+    c.beginPath(); c.arc(scrX(rg.x), scrY(rg.y), rg.r * CELL, 0, 6.2832); c.stroke();
   }
-  for (k = g.bolts.length - 1; k >= 0; k--) {
-    var b = g.bolts[k];
-    if (b.t <= 0.02) { g.bolts.splice(k, 1); continue; }
-    var lines = [b.pts].concat(b.forks), ba = b.t * (Math.random() < 0.2 ? 0.25 : 1);
+  c.lineJoin = "round";
+  for (k = 0; k < g.bolts.length; k++) {
+    var b = g.bolts[k], ba = b.t * (Math.random() < 0.2 ? 0.25 : 1);
     for (var pass = 0; pass < 2; pass++) {
       c.strokeStyle = pass ? "rgba(255,255,255," + ba.toFixed(3) + ")" : "rgba(120,160,255," + (ba * 0.5).toFixed(3) + ")";
       c.lineWidth = pass ? 1.4 : 6;
-      c.lineJoin = "round";
-      for (j = 0; j < lines.length; j++) {
-        var L = lines[j];
-        if (j && pass) c.lineWidth = 0.8;
-        c.beginPath(); c.moveTo(X(L[0][0]), Y(L[0][1]));
-        for (var q = 1; q < L.length; q++) c.lineTo(X(L[q][0]), Y(L[q][1]));
-        c.stroke();
-      }
+      boltLine(c, b.pts);
+      if (pass) c.lineWidth = 0.8;
+      for (j = 0; j < b.forks.length; j++) boltLine(c, b.forks[j]);
     }
-    b.t *= 0.92;
   }
-  if (g.zt > 0) { g.zt -= 0.035; if (g.zt <= 0) g.zn = 0; }
   c.restore();
 }
 
@@ -447,6 +457,21 @@ function drawCursor(g, c) {
     c.lineTo(PANEL + (p.x + 0.5) * CELL, PLAY_Y + (p.y + 0.5) * CELL);
     c.stroke();
     c.globalAlpha = 1; c.lineWidth = 1;
+  }
+  if (g.held && !g.held.dead && g.down) {
+    /* where they will go if you let go now */
+    var v = cursorVel(g), ax = clamp(v[0], -4.5, 4.5), ay = clamp(v[1], -4.5, 4.5);
+    if (ax * ax + ay * ay > 0.5) {
+      var px0 = g.held.x, py0 = g.held.y - 4;
+      c.fillStyle = "rgba(255,217,74,0.7)";
+      for (var st = 1; st <= 40; st++) {
+        px0 += ax; py0 += ay; ay += 0.1;
+        if (st % 3) continue;
+        if (px0 < 0 || px0 > g.gw || py0 > g.gh) break;
+        if (py0 >= 0 && SOLID[g.m[Math.floor(py0) * g.gw + Math.floor(px0)]]) break;
+        c.fillRect(scrX(px0) - 0.75, scrY(py0) - 0.75, 1.5, 1.5);
+      }
+    }
   }
   if (pk.tool === "peasant") {
     var h = (g.held && !g.held.dead) ? g.held : peasantAt(g, g.cx, g.cy, 2);
@@ -666,7 +691,8 @@ function gameKey(g, k) {
 var cv, ctx, vig, g, last = 0, acc = 0;
 
 function newGame() {
-  return { t: 0, mx: VW / 2, my: VH / 2, down: 0, btn: 0, keys: {}, frame: 0, fps: 60, ms: 0, debug: false };
+  return { t: 0, mx: VW / 2, my: VH / 2, down: 0, btn: 0, keys: {}, frame: 0, fps: 60, ms: 0, debug: false,
+           ptr: null, samp: [], score: 0 };
 }
 
 function frame(ts) {
@@ -738,51 +764,67 @@ function initInput() {
     g.keys.shift = e.shiftKey ? 1 : 0;
     g.keys.alt = e.altKey ? 1 : 0;
   });
-  window.addEventListener("blur", function () { g.keys = {}; if (g.down) { g.down = 0; sandRelease(g); } });
+  window.addEventListener("blur", function () { g.keys = {}; g.ptr = null; if (g.down) { g.down = 0; sandRelease(g); g.btn = 0; } });
   window.addEventListener("resize", resize);
 
-  cv.addEventListener("mousedown", function (e) {
+  /* one pointer at a time (mouse, pen or finger), captured so a drag that leaves the
+     canvas still ends cleanly, and cancelled cleanly if the browser takes it away */
+  function down(e) {
+    if (g.ptr != null) return;
     e.preventDefault();
     actx();
+    g.ptr = e.pointerId;
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     toGame(e.clientX, e.clientY);
     g.cx = g.pcx = (g.mx - PANEL) / CELL; g.cy = g.pcy = (g.my - PLAY_Y) / CELL;
+    g.samp.length = 0; cursorSample(g);
     g.keys.shift = e.shiftKey ? 1 : 0;
     g.keys.alt = e.altKey ? 1 : 0;
-    g.down = 1; g.btn = e.button;
+    g.down = 1; g.btn = e.pointerType === "mouse" ? e.button : 0;
     gameTap(g, g.mx, g.my);
-  });
-  window.addEventListener("mouseup", function () {
+  }
+  function up(e) {
+    if (e.pointerId !== g.ptr) return;
+    toGame(e.clientX, e.clientY);
+    cursorSample(g);
+    g.ptr = null;
     if (!g.down) return;
     g.down = 0;
     sandRelease(g);
     g.btn = 0;
+  }
+  cv.addEventListener("pointerdown", down);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
+  window.addEventListener("pointermove", function (e) {
+    if (g.ptr != null && e.pointerId !== g.ptr) return;
+    toGame(e.clientX, e.clientY);
+    cursorSample(g);
   });
-  window.addEventListener("mousemove", function (e) { toGame(e.clientX, e.clientY); });
   cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   cv.addEventListener("wheel", function (e) {
     if (!e.deltaY) return;
     e.preventDefault();
     gameWheel(g, e.deltaY > 0 ? 1 : -1);
   }, { passive: false });
-  cv.addEventListener("touchstart", function (e) {
-    e.preventDefault();
-    actx();
-    var t = e.touches[0];
-    toGame(t.clientX, t.clientY);
-    g.cx = g.pcx = (g.mx - PANEL) / CELL; g.cy = g.pcy = (g.my - PLAY_Y) / CELL;
-    g.down = 1; g.btn = 0;
-    gameTap(g, g.mx, g.my);
-  }, { passive: false });
-  cv.addEventListener("touchmove", function (e) {
-    e.preventDefault();
-    var t = e.touches[0];
-    toGame(t.clientX, t.clientY);
-  }, { passive: false });
-  cv.addEventListener("touchend", function (e) {
-    e.preventDefault();
-    g.down = 0;
-    sandRelease(g);
-  }, { passive: false });
+}
+
+/* where the cursor has been lately, so a throw uses the flick, not the last tick */
+function cursorSample(g) {
+  var s = g.samp, t = performance.now();
+  s.push([t, (g.mx - PANEL) / CELL, (g.my - PLAY_Y) / CELL]);
+  while (s.length > 12 || (s.length > 2 && t - s[0][0] > 150)) s.shift();
+}
+/* cursor speed in cells per tick, measured over the last ~80ms */
+function cursorVel(g) {
+  var s = g.samp, n = s.length;
+  if (n < 2) return [0, 0];
+  var b = s[n - 1], a = s[0], now = performance.now();
+  if (now - b[0] > 90) return [0, 0];   /* it has stopped */
+  for (var k = n - 2; k >= 0; k--) { a = s[k]; if (b[0] - a[0] > 80) break; }
+  var dt = (b[0] - a[0]) / (1000 / 60);
+  if (dt < 0.5) return [0, 0];
+  return [(b[1] - a[1]) / dt, (b[2] - a[2]) / dt];
 }
 
 function boot() {
