@@ -646,9 +646,27 @@ function sandFire(g, i, x, y) {
 }
 
 /* steam rises. it turns back into water when it has cooled off enough: that is in heat.js */
+/* a bubble: a gas with a liquid over it swaps up through it (or up past it on a slant), every tick, by itself. left to
+   the liquid to fall into it, it never gets the chance: the liquid beside it flows into it sideways first, every tick,
+   and a bubble shuttled from side to side is a bubble that never gets to the top */
+function sandBubble(g, i, x, y) {
+  var m = g.m, gw = g.gw, j = i - gw, dd, k, nx;
+  if (y === 0) return false;
+  if (LIQUID[m[j]] && g.stamp[j] !== g.tick) { sandSwap(g, i, j); return true; }
+  dd = Math.random() < 0.5 ? -1 : 1;
+  for (k = 0; k < 2; k++, dd = -dd) {
+    nx = x + dd;
+    if (nx < 0 || nx >= gw) continue;
+    j = i - gw + dd;
+    if (LIQUID[m[j]] && LIQUID[m[i - gw]] && g.stamp[j] !== g.tick) { sandSwap(g, i, j); return true; }
+  }
+  return false;
+}
+
 function sandSteam(g, i, x, y) {
   var j, t, nx, dd;
   if (y === 0) return;
+  if (sandBubble(g, i, x, y)) return;
   j = sandNb(g, x, y, 0);
   if (j >= 0 && sandEmpty(g, j)) { sandSwap(g, i, j); return; }
   dd = Math.random() < 0.5 ? -1 : 1;
@@ -677,6 +695,7 @@ function sandSmoke(g, i, x, y) {
     return;
   }
   if (Math.random() < 0.03 || (y === 0 && Math.random() < 0.3)) { g.m[i] = MAT.EMPTY; return; }
+  if (sandBubble(g, i, x, y)) return;
   if (y === 0 || Math.random() < 0.3) return;
   dd = Math.random() < 0.5 ? -1 : 1;
   j = sandNb(g, x, y, 0);
@@ -694,6 +713,7 @@ function sandSmoke(g, i, x, y) {
 function sandGas(g, i, x, y) {
   var m = g.m, j, r, nx = x, ny = y;
   if (sandHotNb(g, x, y) >= 0) { m[i] = MAT.FIRE; g.sh[i] = SAND_CLEAN; g.fx.whoosh++; return; }
+  if (sandBubble(g, i, x, y)) return;
   if (Math.random() < 0.4) return;
   r = Math.random();
   if (r < 0.35) ny--; else if (r < 0.45) ny++; else nx += r < 0.725 ? -1 : 1;
@@ -703,10 +723,14 @@ function sandGas(g, i, x, y) {
 }
 
 /* where a liquid may go: empty air, or a lighter gas it can push past. never another
-   liquid: that would starve the lighter one of its turn to rise. */
+   liquid: that would starve the lighter one of its turn to rise. and never a bubble: a gas in the liquid (liquid over
+   it, or liquid both sides of it, as steam coming off the top of a pond has) is on its way up. shoved sideways every
+   tick by the liquid round it, it would never get there */
 function sandFlows(g, v, j) {
-  var t = g.m[j];
-  return t === MAT.EMPTY || (!LIQUID[t] && sandCan(g, v, j));
+  var t = g.m[j], m = g.m, gw = g.gw, x = j % gw;
+  if (t === MAT.EMPTY) return true;
+  if (LIQUID[t] || !sandCan(g, v, j)) return false;
+  return !((j >= gw && LIQUID[m[j - gw]]) || (x > 0 && x < gw - 1 && LIQUID[m[j - 1]] && LIQUID[m[j + 1]]));
 }
 
 /* a liquid slides along the surface it is lying on, up to a few cells at a time.
