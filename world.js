@@ -158,6 +158,10 @@ var SOLID = new Uint8Array(32), LIQUID = new Uint8Array(32), HOT = new Uint8Arra
 var WET = new Uint8Array(32); WET[MAT.WATER] = WET[MAT.SALTWATER] = 1;
 [MAT.FIRE, MAT.LAVA, MAT.EMBER, MAT.TORCH].forEach(function (v) { HOT[v] = 1; });
 [MAT.EMPTY, MAT.FIRE, MAT.SMOKE, MAT.STEAM, MAT.GAS].forEach(function (v) { AIRY[v] = 1; });
+/* things that flow out of the way: liquids and gases. a grain can sink through these, or float up through
+   them. two piles of grains never trade places, whatever they weigh: gunpowder poured on sand sits on it */
+var FLUID = new Uint8Array(32);
+[MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER, MAT.STEAM, MAT.SMOKE, MAT.GAS, MAT.FIRE].forEach(function (v) { FLUID[v] = 1; });
 
 /* -------------------------------------------------------------------
    2. CELL PLUMBING
@@ -185,11 +189,12 @@ function sandHotNb(g, x, y) {
   return -1;
 }
 /* can something of kind src move into cell j. empty space always takes it; a lighter
-   thing can be pushed aside, but only if it has not already had its turn this tick. */
+   thing can be pushed aside, but only if it has not already had its turn this tick,
+   and only if one of the two flows: grains part a liquid, they do not part other grains */
 function sandCan(g, src, j) {
   var t = g.m[j];
   return t === MAT.EMPTY ||
-         (g.stamp[j] !== g.tick && SAND_FREE[t] === 1 && SAND_DENS[t] < SAND_DENS[src]);
+         (g.stamp[j] !== g.tick && SAND_FREE[t] === 1 && SAND_DENS[t] < SAND_DENS[src] && (FLUID[t] || FLUID[src]));
 }
 /* index of a touching cell holding water of either kind, or -1 */
 function sandWet(g, x, y) {
@@ -211,13 +216,24 @@ function sandSwap(g, i, j) {
   t = g.aux[j]; g.aux[j] = g.aux[i]; g.aux[i] = t;
   t = g.T[j]; g.T[j] = g.T[i]; g.T[i] = t;
   t = g.lat[j]; g.lat[j] = g.lat[i]; g.lat[i] = t;
+  t = g.hm[j]; g.hm[j] = g.hm[i]; g.hm[i] = t;
+  t = g.ha[j]; g.ha[j] = g.ha[i]; g.ha[i] = t;
+  t = g.hs[j]; g.hs[j] = g.hs[i]; g.hs[i] = t;
   g.stamp[j] = g.tick;
   if (m[i] !== MAT.EMPTY) g.stamp[i] = g.tick;
 }
-/* put a brand new thing in a cell, at the temperature it is made at */
+/* a new thing in a cell, made out of what the world was already doing there (a flame licking into the
+   air, a plant growing, a puff of smoke). it has exactly the heat the cell had: see heat.js */
 function sandSet(g, j, v) {
+  var q = heatQ(g, j);
+  g.m[j] = v; g.vy[j] = 0; g.aux[j] = 0; g.sh[j] = irnd(256);
+  heatSetQ(g, j, q);
+}
+/* a new thing from outside: painted, poured, dropped from a faucet or a cloner. it comes at its own temperature */
+function sandPlace(g, j, v) {
   g.m[j] = v; g.vy[j] = 0; g.aux[j] = 0; g.sh[j] = irnd(256);
   g.T[j] = HEAT_T0[v]; g.lat[j] = 0;
+  heatAccept(g, j);
 }
 
 /* falling, with speed. it gains a little every tick it keeps falling and loses it all
@@ -239,7 +255,7 @@ function sandFall(g, i, x, y, v) {
 /* -------------------------------------------------------------------
    3. PARTICLES: things in the air that are not on the grid
    ------------------------------------------------------------------- */
-var PK_DEBRIS = 0, PK_SPARK = 1, PK_ROCKET = 2;
+var PK_DEBRIS = 0, PK_SPARK = 1, PK_ROCKET = 2, PK_GLINT = 3;   /* a glint: looks like a spark, lights nothing */
 var PMAX = 5000;
 var FW_COLORS = ["#ff4060", "#40c0ff", "#ffd040", "#60ff80", "#c070ff", "#ffffff", "#ff8a30", "#ff70d0"].map(function (h) { return hex32(h); });
 var SPARK_HOT = ["#ffd060", "#ffb020", "#ff7a1a", "#fff0a0"].map(function (h) { return hex32(h); });
@@ -249,26 +265,49 @@ function partInit(g) {
   g.ppx = new Float32Array(PMAX); g.ppy = new Float32Array(PMAX);
   g.pvx = new Float32Array(PMAX); g.pvy = new Float32Array(PMAX);
   g.pl = new Int16Array(PMAX); g.pk = new Uint8Array(PMAX); g.pm = new Uint8Array(PMAX);
-  g.pc = new Uint32Array(PMAX);
+  g.pc = new Uint32Array(PMAX); g.pt = new Float32Array(PMAX); g.ps = new Uint8Array(PMAX);
 }
 function partAdd(g, kind, x, y, vx, vy, life, col, mat) {
   if (g.np >= PMAX) return -1;
   var q = g.np++;
   g.ppx[q] = x; g.ppy[q] = y; g.pvx[q] = vx; g.pvy[q] = vy;
-  g.pl[q] = life; g.pk[q] = kind; g.pm[q] = mat || 0; g.pc[q] = col;
+  g.pl[q] = life; g.pk[q] = kind; g.pm[q] = mat || 0; g.pc[q] = col; g.ps[q] = irnd(256);
+  /* a grain carries its heat (a spark or a rocket, none to speak of). a new one is at its own temperature */
+  g.pt[q] = kind === PK_DEBRIS ? HEAT_C[mat || 0] * (HEAT_T0[mat || 0] - AMBIENT) + heatH0(mat || 0, 0, g.ps[q]) : 0;
   return q;
 }
 function partKill(g, q) {
   var l = --g.np;
   if (q === l) return;
   g.ppx[q] = g.ppx[l]; g.ppy[q] = g.ppy[l]; g.pvx[q] = g.pvx[l]; g.pvy[q] = g.pvy[l];
-  g.pl[q] = g.pl[l]; g.pk[q] = g.pk[l]; g.pm[q] = g.pm[l]; g.pc[q] = g.pc[l];
+  g.pl[q] = g.pl[l]; g.pk[q] = g.pk[l]; g.pm[q] = g.pm[l]; g.pc[q] = g.pc[l]; g.pt[q] = g.pt[l]; g.ps[q] = g.ps[l];
 }
-/* turn a cell into a flying grain of itself */
+/* a grain that ends up somewhere other than a free cell to land in leaves its heat in the cell it is in, or the
+   nearest one that will take heat (inert will not). off the edge of the room, the heat goes with it. false if
+   there is nowhere at all to leave it, yet: then the grain hangs on to it */
+function partDrop(g, q, x, y) {
+  var ix = Math.floor(x), iy = Math.floor(y), gw = g.gw, r, dx, dy, j;
+  if (g.pk[q] !== PK_DEBRIS || !g.pt[q] || ix < 0 || iy < 0 || ix >= gw || iy >= g.gh) return true;
+  for (r = 0; r <= 6; r++) for (dy = -r; dy <= r; dy++) for (dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    var nx = ix + dx, ny = iy + dy;
+    if (nx < 0 || ny < 0 || nx >= gw || ny >= g.gh) continue;
+    j = ny * gw + nx;
+    if (g.m[j] === MAT.INERT) continue;
+    heatSync(g, j);
+    heatSetQ(g, j, heatQ(g, j) + g.pt[q]);
+    return true;
+  }
+  return false;
+}
+/* turn a cell into a flying grain of itself. it takes all its heat with it, and its shade; the air that
+   rushes in behind it is room air, with no heat of its own to speak of */
 function sandFling(g, j, vx, vy) {
-  var v = g.m[j];
-  if (partAdd(g, PK_DEBRIS, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, vx, vy, 240, SAND_PAL[v][g.sh[j]], v) < 0) return false;
-  g.m[j] = MAT.EMPTY;
+  var v = g.m[j], q = partAdd(g, PK_DEBRIS, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, vx, vy, 240, SAND_PAL[v][g.sh[j]], v);
+  if (q < 0) return false;
+  g.pt[q] = heatQ(g, j); g.ps[q] = g.sh[j];
+  g.m[j] = MAT.EMPTY; g.aux[j] = 0; g.T[j] = AMBIENT; g.lat[j] = 0;
+  heatAccept(g, j);
   return true;
 }
 function sparks(g, x, y, n, speed, cols, life, up) {
@@ -295,10 +334,11 @@ function partStep(g) {
     k = g.pk[q]; x = g.ppx[q]; y = g.ppy[q]; vx = g.pvx[q]; vy = g.pvy[q];
     if (--g.pl[q] <= 0) {
       if (k === PK_ROCKET) fwBurst(g, x, y);
-      partKill(g, q); continue;
+      if (partDrop(g, q, x, y)) { partKill(g, q); continue; }
+      g.pl[q] = 1; q++; continue;   /* sealed in inert, for now: it keeps its heat until there is somewhere to put it */
     }
     if (k === PK_DEBRIS) { vy += 0.11; vx *= 0.995; }
-    else if (k === PK_SPARK) { vy += 0.03; vx *= 0.96; vy *= 0.96; }
+    else if (k === PK_SPARK || k === PK_GLINT) { vy += 0.03; vx *= 0.96; vy *= 0.96; }
     else {
       /* a rocket: accelerates up, wobbles, leaves a trail */
       vy = Math.max(-2.6, vy - 0.07); vx += (Math.random() - 0.5) * 0.12;
@@ -318,17 +358,22 @@ function partStep(g) {
       }
       x = nx; y = ny;
     }
-    if (hit === -2) { partKill(g, q); continue; }
+    if (hit === -2) { partKill(g, q); continue; }   /* off the edge: gone, heat and all */
     if (hit >= 0) {
       if (k === PK_DEBRIS) {
         /* land in the last free cell it passed through */
         ix = Math.floor(x); iy = Math.floor(y);
-        if (iy >= 0 && iy < gh) {
-          j = iy * gw + ix;
-          if (AIRY[m[j]]) { sandSet(g, j, g.pm[q]); g.vy[j] = clamp((vy * 3) | 0, 0, SAND_VMAX); }
-        }
+        j = iy >= 0 && iy < gh ? iy * gw + ix : -1;
+        if (j >= 0 && AIRY[m[j]]) {
+          /* it lands: the cell becomes it, with its heat and the heat of whatever air it pushed out */
+          var qa = heatQ(g, j);
+          m[j] = g.pm[q]; g.aux[j] = 0; g.sh[j] = g.ps[q]; g.vy[j] = clamp((vy * 3) | 0, 0, SAND_VMAX);
+          heatSetQ(g, j, qa + g.pt[q]);
+        } else if (!partDrop(g, q, x, y)) { g.pvx[q] = g.pvy[q] = 0; q++; continue; }
       } else if (k === PK_SPARK) {
         sandIgnite(g, hit);
+      } else if (k === PK_GLINT) {
+        /* nothing: it was only ever for show */
       } else {
         fwBurst(g, x, y);
       }
@@ -380,14 +425,14 @@ function sandBoom(g, i, R, P) {
     if (SAND_FREE[t] && t !== MAT.STEAM && t !== MAT.SMOKE && t !== MAT.GAS && !inner && room && r < 0.6) {
       d = Math.sqrt(d2) || 1;
       var sp = P * (0.5 + Math.random() * 0.8) * (1.2 - d / R * 0.5);
-      if (WET[t] && r < 0.2) heatBecome(g, j, t === MAT.WATER ? MAT.STEAM : MAT.SALT);
+      if (WET[t] && r < 0.2) heatForce(g, j, t === MAT.WATER ? MAT.STEAM : MAT.SALT);
       else sandFling(g, j, dx / d * sp + (Math.random() - 0.5) * 0.4, dy / d * sp - P * 0.6);
       continue;
     }
     if (t === MAT.GLASS) { if (r < 0.5) m[j] = MAT.SAND; }
-    else if (t === MAT.WATER) heatBecome(g, j, MAT.STEAM);
-    else if (t === MAT.SALTWATER) heatBecome(g, j, MAT.SALT);
-    else if (t === MAT.ICE || t === MAT.SNOW) heatBecome(g, j, MAT.WATER);
+    else if (t === MAT.WATER) heatForce(g, j, MAT.STEAM);
+    else if (t === MAT.SALTWATER) heatForce(g, j, MAT.SALT);
+    else if (t === MAT.ICE || t === MAT.SNOW) heatForce(g, j, MAT.WATER);
     else if (t === MAT.SMOKE || t === MAT.STEAM || t === MAT.GAS) { m[j] = t === MAT.GAS ? MAT.FIRE : t; }
     else if (t === MAT.SAND || t === MAT.ASH || t === MAT.SALT || t === MAT.SNOW) { if (r < 0.5) m[j] = MAT.EMPTY; }
     else if (r < 0.85) m[j] = MAT.FIRE;
@@ -399,6 +444,11 @@ function sandBoom(g, i, R, P) {
       var a = -Math.random() * 3.1416, s = P * (0.6 + Math.random() * 0.9);
       partAdd(g, PK_DEBRIS, x0 + 0.5, y0 - 1, Math.cos(a) * s, Math.sin(a) * s, 80, SPARK_HOT[0], MAT.FIRE);
     }
+  }
+  /* the bang's heat is the bang's: whatever it left in its blast is what is there now */
+  for (dy = -R; dy <= R; dy++) for (dx = -R; dx <= R; dx++) {
+    x = x0 + dx; y = y0 + dy;
+    if (x >= 0 && y >= 0 && x < gw && y < g.gh && dx * dx + dy * dy <= R2 + R) heatAccept(g, y * gw + x);
   }
   g.shake = Math.min(big ? 18 : 6, g.shake + (big ? 18 : 0.7));
   g.flash = Math.max(g.flash, big ? 1 : 0.08);
@@ -485,12 +535,13 @@ function sandLightning(g, cx) {
     j = yy * gw + xx; t = m[j];
     if (t === MAT.INERT) continue;
     heatAdd(g, j, (t === MAT.METAL ? 1200 : 2600) * (1 - d2 / (R * R + 1)));
-    if (t === MAT.SAND && Math.random() < 0.8) heatBecome(g, j, MAT.GLASS);
-    else if (WET[t] || t === MAT.ACID || t === MAT.METAL) { if (wet < 0) wet = j; if (t !== MAT.METAL && Math.random() < 0.15) heatBecome(g, j, t === MAT.SALTWATER ? MAT.SALT : MAT.STEAM); }
-    else if (t === MAT.ICE || t === MAT.SNOW) heatBecome(g, j, MAT.WATER);
+    if (t === MAT.SAND && Math.random() < 0.8) heatForce(g, j, MAT.GLASS);
+    else if (WET[t] || t === MAT.ACID || t === MAT.METAL) { if (wet < 0) wet = j; if (t !== MAT.METAL && Math.random() < 0.15) heatForce(g, j, t === MAT.SALTWATER ? MAT.SALT : MAT.STEAM); }
+    else if (t === MAT.ICE || t === MAT.SNOW) heatForce(g, j, MAT.WATER);
     else if (t === MAT.EMPTY && Math.random() < 0.1) sandSet(g, j, MAT.FIRE);
     else if (t === MAT.WOOD && Math.random() < 0.5) m[j] = MAT.EMBER;
     else if (t !== MAT.EMPTY) sandIgnite(g, j);
+    heatAccept(g, j);
   }
   sparks(g, hit.x + 0.5, hit.y, 30, 1.6, [hex32("#ffffff"), hex32("#c8e0ff"), hex32("#80b0ff")], 10, 0.8);
   /* water conducts: every peasant in the same pond gets it too. so does metal */
@@ -536,7 +587,7 @@ function sandFire(g, i, x, y) {
     else if (n === MAT.GUNPOWDER) { sandBoom(g, j); return; }
     else if (n === MAT.FIREWORK) sandLaunch(g, j);
     else if (n === MAT.NUKE) { sandNuke(g, j); return; }
-    else if (WET[n] && r < 0.1) { heatBecome(g, i, MAT.STEAM); return; }
+    else if (WET[n] && r < 0.1) { heatBecome(g, i, MAT.SMOKE); g.fx.hiss++; return; }   /* put out: just hot smoke now */
   }
   /* a clean flame (off a torch, or out of a gas cloud) burns longer, climbs faster,
      and leaves no ash. fire's shade is free, since fire flickers: it holds the flag */
@@ -544,8 +595,8 @@ function sandFire(g, i, x, y) {
   if (Math.random() < (fed ? 0.04 : (clean ? 0.11 : 0.15))) {
     r = Math.random();
     m[i] = (r < 0.3 && !clean && g.sh[i] < 128) ? MAT.ASH : (r < 0.45 ? MAT.SMOKE : MAT.EMPTY);
-    /* most of a flame's heat leaves with the flame. what is left is warm air, and it rises */
-    g.aux[i] = 0; if (g.T[i] > 180) g.T[i] = 180;
+    /* the flame's heat stays where it was, as hot air (or smoke), and rises */
+    g.aux[i] = 0;
     return;
   }
   /* licks upward into empty air, wavering as it goes */
@@ -702,7 +753,8 @@ function sandPressure(g, i) {
 /* a light thing under a heavier one swaps places with it: that is floating */
 function sandFloat(g, i, x, y) {
   var j = sandNb(g, x, y, 0), v = g.m[i];
-  if (j >= 0 && g.stamp[j] !== g.tick && SAND_FREE[g.m[j]] === 1 && SAND_DENS[g.m[j]] > SAND_DENS[v] && Math.random() < 0.5) {
+  if (j >= 0 && g.stamp[j] !== g.tick && SAND_FREE[g.m[j]] === 1 && SAND_DENS[g.m[j]] > SAND_DENS[v] &&
+      (FLUID[g.m[j]] || FLUID[v]) && Math.random() < 0.5) {
     sandSwap(g, i, j); return true;
   }
   return false;
@@ -736,7 +788,7 @@ function sandPowder(g, i, x, y) {
     if (j >= 0 && Math.random() < 0.08) { m[j] = MAT.EMPTY; m[i] = MAT.EMPTY; g.score++; return; }
     /* one grain to one cell of water, and then it is full up */
     j = sandHas(g, x, y, MAT.WATER);
-    if (j >= 0 && Math.random() < 0.02) { m[j] = MAT.SALTWATER; g.lat[j] = 0; m[i] = MAT.EMPTY; return; }
+    if (j >= 0 && Math.random() < 0.02) { m[j] = MAT.SALTWATER; m[i] = MAT.EMPTY; return; }
   } else if (v === MAT.SEED && y + 1 < g.gh) {
     /* a seed sitting on soil, with water touching it, sprouts. the number it is
        given is how tall it is going to get. */
@@ -768,17 +820,22 @@ function sandLiquid(g, i, x, y) {
       if (j >= 0 && m[j] === MAT.WATER && g.stamp[j] !== g.tick) { sandSwap(g, i, j); return; }
     }
   } else if (v === MAT.LAVA) {
-    /* water on lava chills a thin skin of it at once, much thinner than a cell. so a cell of
-       lava that water lands on may skin over: it becomes stone, still glowing hot, and that
-       water flashes to steam. the crust then goes on boiling the water above it, and keeps
-       the lava below it molten for a good while. */
+    /* water on lava flashes to steam, and every bit of the heat it takes to boil it comes out of the
+       lava. enough water and the top of the lava cools past setting and crusts over, and the crust goes
+       on boiling the water above it while the lava under it stays molten for a good while */
     j = sandWet(g, x, y);
     if (j >= 0 && Math.random() < 0.12) {
-      heatBecome(g, j, m[j] === MAT.WATER ? MAT.STEAM : MAT.SALT);
-      m[i] = g.aux[i] === MAT.GLASS || g.aux[i] === MAT.METAL ? g.aux[i] : MAT.STONE;
-      g.aux[i] = 0; g.lat[i] = 0; g.vy[i] = 0; if (g.T[i] > 1000) g.T[i] = 1000;
-      g.score++; g.fx.hiss++;
-      return;
+      /* what it takes to bring this water to the boil and boil it. both brought up to date first */
+      heatSync(g, i); heatSync(g, j);
+      var w = m[j], qw = heatQ(g, j);
+      var need = HEAT_C[w] * (HEAT_HI[w] - AMBIENT) + heatLat(g, j, HEAT_HI_L[w]) + heatH0(w, 0, g.sh[j]) - qw;
+      if (need > 0 && g.T[i] - need * HEAT_IC[v] > HEAT_HI[w]) {
+        g.T[i] -= need * HEAT_IC[v];
+        g.T[j] = HEAT_HI[w]; g.lat[j] = 0; heatAccept(g, j);
+        var paid = heatUp(g, j, w);
+        heatSetQ(g, j, qw + need - paid);
+        g.score++; g.fx.hiss++;
+      }
     }
     for (k = 0; k < 4; k++) {
       j = sandNb(g, x, y, k);
@@ -881,9 +938,10 @@ function sandStatic(g, i, x, y) {
       if (j < 0) continue;
       t = m[j]; r = Math.random();
       if (WET[t]) {
-        /* doused: the water boils off (salt water leaves its salt), the ember goes out */
-        heatBecome(g, j, t === MAT.WATER ? MAT.STEAM : MAT.SALT);
-        m[i] = MAT.ASH; g.T[i] = 120; g.score++; g.fx.hiss++; return;
+        /* doused: the ember goes out, and its heat goes into the water, all at once. a lot of
+           embers will boil it */
+        heatBecome(g, i, MAT.ASH); heatShare(g, i, j);
+        g.score++; g.fx.hiss++; return;
       }
       else if (t === MAT.WOOD && r < 0.015) m[j] = MAT.EMBER;
       else if ((t === MAT.OIL && r < 0.3) || ((t === MAT.PLANT || t === MAT.FLOWER) && r < 0.1)) m[j] = MAT.FIRE;
@@ -930,11 +988,11 @@ function sandStatic(g, i, x, y) {
       }
     } else if (Math.random() < (a === MAT.NUKE ? 0.004 : 0.35)) {
       j = sandNb(g, x, y, irnd(4));
-      if (j >= 0 && m[j] === MAT.EMPTY) { sandSet(g, j, a); g.stamp[j] = g.tick; }
+      if (j >= 0 && m[j] === MAT.EMPTY) { sandPlace(g, j, a); g.stamp[j] = g.tick; }
     }
   } else if (v === MAT.FAUCET) {
     j = i + g.gw;
-    if (y + 1 < g.gh && m[j] === MAT.EMPTY && Math.random() < 0.5) sandSet(g, j, MAT.WATER);
+    if (y + 1 < g.gh && m[j] === MAT.EMPTY && Math.random() < 0.5) sandPlace(g, j, MAT.WATER);
   } else if (v === MAT.DRAIN) {
     for (k = 0; k < 4; k++) {
       j = sandNb(g, x, y, k);
@@ -987,7 +1045,7 @@ function sandStep(g) {
    ------------------------------------------------------------------- */
 function sandClear(g) {
   g.m.fill(0); g.aux.fill(0); g.vy.fill(0); g.np = 0;
-  g.T.fill(AMBIENT); g.lat.fill(0);
+  g.T.fill(AMBIENT); g.lat.fill(0); heatAcceptAll(g);
   /* and the bangs still in the air */
   g.bolts.length = 0; g.rings.length = 0; g.flash = 0; g.shake = 0; g.fwGlow = null; g.zn = 0; g.zt = 0;
   g.cloneSrc = {};

@@ -9,7 +9,10 @@ it, carries no heat and ignores everything but the eraser), plus fireworks, a
 nuke and lightning.
 
 Every pixel has a temperature. Heat flows from hot to cold, fast through metal
-and slowly through wood, ash and air; hot air and hot water rise. Things melt,
+and slowly through wood, ash and air; hot air and hot water rise, cold air sinks.
+Heat is never made or lost on the way: it only gets out (or in) at the edges of
+the room, so a fire leaves the air warm until its plume has found the top. Only
+burning things, bangs, lightning, torches and the HEAT brush add any. Things melt,
 boil, freeze, set and catch fire at their own temperatures, and soak up (or
 give back) latent heat while they do it, so a pond takes a while to boil and
 lava stays runny under its crust. Ice melts, water boils, steam rains (or
@@ -17,7 +20,7 @@ snows, if you chill it hard), stone runs as lava past 1150 and lava sets again
 below 950, sand sinters into glass, glass and metal melt and set, wood, oil,
 plants and gas catch on their own when hot enough, and salt water boils down
 to salt. Also a small village of
-peasants who walk about, chat, climb things, jump ledges and gaps, carry ninja ropes, swim, catch fire, run for
+peasants who walk about, chat, climb things, jump ledges and gaps, carry ninja ropes and parachutes (which mostly open), swim, catch fire, run for
 the pond, go to space if thrown hard enough, and have opinions about all of
 it. They have names. The game keeps count.
 
@@ -60,6 +63,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - Dissolve salt in a pond, then boil it off
 - COOL a cloud of steam
 - Put a peasant on a hot plate. Or in the snow
+- Drop a peasant from the very top. Then throw one, gently, upward
 - Build a wall too tall to jump, or a gap too wide to leap, with a beam over it. Then a very tall cliff
 
 ## Files

@@ -6,19 +6,29 @@
    cold, at a rate set by how well both of them carry it (metal: very
    well, air and ash: hardly at all) and lands according to how much it
    takes to warm each one (water: a lot, air: almost nothing). nothing
-   is made or lost on the way, except by air, which slowly gives
-   everything back to the room, and by the things that make heat: fire,
-   embers and torches.
+   is made or lost on the way. heat only leaves (or comes in) at the
+   edges of the room, which touch an outside that is always AMBIENT.
 
-   warm air rises. so does warm water, and warm lava. that is how a pot
-   over a fire boils from the bottom up, and why a plume climbs off a torch.
+   what puts heat in: things that burn (fire and embers give off heat
+   while they last, from the fuel they are burning; a torch never runs
+   out, which is what a torch is for), bangs, lightning, the HEAT brush,
+   and anything you paint, pour or clone, which arrives at its own
+   temperature. what takes it out: the edges, and the COOL brush.
+   when a thing turns into another thing it keeps its temperature.
+
+   warm air rises and cold air sinks, carrying its heat with it. so does
+   warm water, and warm lava. that is how a pot over a fire boils from
+   the bottom up, why a plume climbs off a torch, and why a hot room
+   loses its heat out of the top.
 
    past its melting, boiling or burning point, a cell does not change at
    once. it sits at that temperature and soaks up heat until it has had
    enough (latent heat, kept in g.lat), and only then becomes the next
    thing: ice melts, water boils, stone runs, wood catches. cool it back
-   down and it gives that heat back and goes the other way: steam rains,
-   lava crusts over, molten glass sets.
+   down and it gives exactly that heat back and goes the other way:
+   steam rains, lava crusts over, molten glass sets. how much a cell
+   soaks up varies a little from cell to cell, so a block does not all
+   go at once, but each cell gives back what it took.
 
    lava is all molten things. what it sets into is in its aux: stone by
    default, or glass, or metal, if that is what was melted.
@@ -26,8 +36,7 @@
 "use strict";
 
 var AMBIENT = 20;
-var AIR_COOL = 0.02;     /* how fast air forgets it was warm */
-var AIR_HOT = 0.12, AIR_HOT_N = 600;   /* and how much faster when it is very hot: it glows the heat away */
+var BORDER_K = 0.12;     /* how well the edges of the room let heat out to the outside (or in from it) */
 var HEAT_FAST = 8;       /* extra passes for metal, which carries heat faster than one pass a tick can */
 var T_MAX = 4000, T_MIN = -273;
 
@@ -36,8 +45,8 @@ var HEAT_C = new Float32Array(32), HEAT_K = new Float32Array(32), HEAT_T0 = new 
 /* above HI it melts / boils / catches, after soaking up HI_L. below LO it sets / freezes / condenses, after giving up LO_L */
 var HEAT_HI = new Float32Array(32).fill(1e9), HEAT_HI_L = new Float32Array(32);
 var HEAT_LO = new Float32Array(32).fill(-1e9), HEAT_LO_L = new Float32Array(32);
-/* things that make their own heat, and keep themselves at least this hot */
-var HEAT_SRC = new Float32Array(32);
+/* things that burn: as hot as their flame gets, and how much heat a tick they can put out getting there */
+var HEAT_SRC = new Float32Array(32), HEAT_POW = new Float32Array(32);
 /* lava sets at a temperature that depends on what it is made of */
 var LAVA_LO = new Float32Array(32).fill(950);
 LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
@@ -82,31 +91,33 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   lo(MAT.WATER, 0, 640); hi(MAT.WATER, 100, 1200);
   /* salt water freezes colder and boils hotter, and leaves its salt behind either way */
   lo(MAT.SALTWATER, -21, 640); hi(MAT.SALTWATER, 103, 1200);
-  hi(MAT.ICE, 0, 640); hi(MAT.SNOW, 0, 320);
-  /* steam gives back less than boiling took (it loses some to the sky on the way up), so
-     clouds rain in a reasonable time. losing heat is safe; making it never is */
-  lo(MAT.STEAM, 100, 500);
+  hi(MAT.ICE, 0, 640); hi(MAT.SNOW, 0, 640);
+  /* steam gives back all that boiling took. clouds rain when they have lost it, which they
+     mostly do up against the top of the room, where the heat gets out */
+  lo(MAT.STEAM, 100, 1200);
   /* rock: stone runs at 1150 and lava sets at 950 (or wherever LAVA_LO says). lava gives
      back exactly what melting took, whatever it was melted from: see heatStep */
   hi(MAT.STONE, 1150, 4500); lo(MAT.LAVA, 950, 4500);
-  hi(MAT.SAND, 800, 300);      /* sinters into glass, well short of melting */
+  hi(MAT.SAND, 800, 0);        /* sinters into glass, well short of melting. one way, so nothing to soak up */
   hi(MAT.GLASS, 1400, 450);
   hi(MAT.METAL, 1500, 500);
-  hi(MAT.ACID, 200, 800);      /* boils off into fumes */
+  hi(MAT.ACID, 200, 0);        /* boils off into fumes, which never come back as acid */
   /* things that catch, go off, or launch, the moment they are hot enough */
   hi(MAT.WOOD, 300, 0); hi(MAT.OIL, 250, 0); hi(MAT.PLANT, 220, 0); hi(MAT.FLOWER, 200, 0); hi(MAT.SEED, 200, 0);
   hi(MAT.GAS, 200, 0); hi(MAT.GUNPOWDER, 180, 0); hi(MAT.FIREWORK, 150, 0); hi(MAT.NUKE, 400, 0);
 
   HEAT_SRC[MAT.FIRE] = 750; HEAT_SRC[MAT.EMBER] = 700; HEAT_SRC[MAT.TORCH] = 1000;
+  HEAT_POW[MAT.FIRE] = 200; HEAT_POW[MAT.EMBER] = 40; HEAT_POW[MAT.TORCH] = 400;
 })();
 
 /* how much heat flows between two touching things, per degree of difference. two things
    in a row resist like two resistors in a row. kept small enough that it can never
    overshoot, even into the lightest neighbour */
-var HEAT_KP = new Float32Array(32 * 32), HEAT_IC = new Float32Array(32);
+var HEAT_KP = new Float32Array(32 * 32), HEAT_IC = new Float32Array(32), HEAT_BK = new Float32Array(32);
 function heatTables() {
   for (var a = 0; a < 32; a++) {
     HEAT_IC[a] = HEAT_C[a] ? 1 / HEAT_C[a] : 0;
+    HEAT_BK[a] = Math.min(BORDER_K, HEAT_K[a] * 4, 0.24 * (HEAT_C[a] || 1));   /* through the edge of the room */
     for (var b = 0; b < 32; b++) {
       var ka = HEAT_K[a], kb = HEAT_K[b], k = ka + kb > 0 ? 2 * ka * kb / (ka + kb) : 0;
       var cmin = Math.min(HEAT_C[a] || 1, HEAT_C[b] || 1);
@@ -129,21 +140,96 @@ function heatInit(g) {
   g.T = new Float32Array(n).fill(AMBIENT);
   g.lat = new Float32Array(n);
   g.fastList = new Int32Array(n);
+  /* what each cell was, the last time its heat was counted: see heatStep */
+  g.hm = new Uint8Array(n); g.ha = new Uint8Array(n); g.hs = new Uint8Array(n);
 }
 /* everything at the temperature it would have been made at */
 function heatReset(g) {
   for (var i = 0; i < g.m.length; i++) g.T[i] = HEAT_T0[g.m[i]];
   g.lat.fill(0);
+  heatAcceptAll(g);
 }
 
-/* turn a cell into something else on the spot, keeping its temperature, but nudged into
-   the range the new thing can exist at, so it does not turn straight back (steam made by
-   an explosion out of cold water is at least boiling hot, say) */
+/* -------------------------------------------------------------------
+   THE BOOKS. a cell's heat is how much warmer than the room it is, times
+   how much heat it holds per degree, plus anything it has soaked up on
+   the way to melting (or given up on the way to setting), plus what
+   being this phase of itself is worth: water holds the heat that melted
+   it, steam the heat that boiled it, lava the heat that melted the rock.
+   when a cell turns into something else, that number stays the same and
+   the new thing's temperature is worked out from it. so a melt and a set,
+   a boil and a rain, give back exactly what they took, and nothing that
+   changes into anything else makes or loses heat by doing it.
+   ------------------------------------------------------------------- */
+/* phase worth: a part that is just heat-per-degree bookkeeping, and a latent part, which varies a little from
+   cell to cell (by shade, which goes wherever the cell goes) so a block does not all melt in the same tick */
+var HEAT_HS = new Float32Array(32), HEAT_HLAT = new Float32Array(32);
+(function () {
+  var C = HEAT_C, A = AMBIENT;
+  /* ice is the zero of its family. water holds the heat that melted it; steam that, and what boiled it */
+  HEAT_HS[MAT.WATER] = (C[MAT.ICE] - C[MAT.WATER]) * (HEAT_HI[MAT.ICE] - A);
+  HEAT_HLAT[MAT.WATER] = HEAT_HI_L[MAT.ICE];
+  HEAT_HS[MAT.STEAM] = HEAT_HS[MAT.WATER] + (C[MAT.WATER] - C[MAT.STEAM]) * (HEAT_HI[MAT.WATER] - A);
+  HEAT_HLAT[MAT.STEAM] = HEAT_HLAT[MAT.WATER] + HEAT_HI_L[MAT.WATER];
+  HEAT_HS[MAT.SNOW] = (C[MAT.ICE] - C[MAT.SNOW]) * (HEAT_HI[MAT.ICE] - A);
+  HEAT_HS[MAT.SALTWATER] = (C[MAT.ICE] - C[MAT.SALTWATER]) * (HEAT_LO[MAT.SALTWATER] - A);
+  HEAT_HLAT[MAT.SALTWATER] = HEAT_LO_L[MAT.SALTWATER];
+})();
+function heatF(sh) { return 0.7 + (sh & 63) / 105; }
+function heatLat(g, i, L) { return L * heatF(g.sh[i]); }
+/* what being v (with aux, and shade sh) is worth. lava is worth the heat it took to melt whatever it sets back into */
+function heatH0(v, aux, sh) {
+  if (v === MAT.LAVA) {
+    var x = aux === MAT.GLASS || aux === MAT.METAL ? aux : MAT.STONE;
+    return (HEAT_C[x] - HEAT_C[MAT.LAVA]) * (HEAT_HI[x] - AMBIENT) + HEAT_HI_L[x] * heatF(sh);
+  }
+  return HEAT_HS[v] + HEAT_HLAT[v] * heatF(sh);
+}
+/* the heat in cell j, counted as if it were v / aux / sh (what it is now, unless told otherwise) */
+function heatQ(g, j, v, aux, sh) {
+  /* by default, as it was when last counted: if it has changed since, its temperature has not caught up yet */
+  if (v === undefined) { v = g.hm[j]; aux = g.ha[j]; sh = g.hs[j]; }
+  return HEAT_C[v] * (g.T[j] - AMBIENT) + g.lat[j] + heatH0(v, aux, sh);
+}
+/* give cell j (whatever it is now) exactly q of heat, and write it into the books */
+function heatSetQ(g, j, q) {
+  var v = g.m[j];
+  g.T[j] = AMBIENT + (q - heatH0(v, g.aux[j], g.sh[j])) * HEAT_IC[v];
+  g.lat[j] = 0;
+  heatAccept(g, j);
+}
+/* this cell is what it is now, at the temperature it is now. for things that bring their own heat: a brush, a
+   bang, a bolt, paint, a faucet. and for the books once a change has been paid for */
+function heatAccept(g, j) { g.hm[j] = g.m[j]; g.ha[j] = g.aux[j]; g.hs[j] = g.sh[j]; }
+function heatAcceptAll(g) { g.hm.set(g.m); g.ha.set(g.aux); g.hs.set(g.sh); }
+/* anything that changed since it was last counted (a flame catching, acid eating, a peasant chewing) gets its new
+   temperature from the heat it had */
+function heatRecount(g, i) {
+  var q = heatQ(g, i, g.hm[i], g.ha[i], g.hs[i]);
+  heatSetQ(g, i, q);
+}
+/* bring one cell's books up to date now, rather than at the next heat step */
+function heatSync(g, j) { if (g.m[j] !== g.hm[j]) heatRecount(g, j); }
+/* turn a cell into something else on the spot, keeping its heat */
 function heatBecome(g, j, v) {
+  var q = heatQ(g, j);
+  g.m[j] = v; g.aux[j] = 0;
+  heatSetQ(g, j, q);
+}
+/* the same, by force, for a bang or a bolt: the energy it takes to get the new thing into the
+   range it can exist at (steam out of cold water is at least boiling hot) comes from the bang */
+function heatForce(g, j, v) {
   var t = g.T[j], lo = v === MAT.LAVA ? LAVA_LO[0] : HEAT_LO[v], hi = HEAT_HI[v];
   g.m[j] = v; g.aux[j] = 0; g.lat[j] = 0;
   if (t < lo) g.T[j] = lo + 1; else if (t > hi) g.T[j] = hi - 1;
-  if (HEAT_SRC[v] && g.T[j] < HEAT_SRC[v]) g.T[j] = HEAT_SRC[v];
+  heatAccept(g, j);
+}
+/* two cells come to the same temperature at once, as when an ember is dropped in water. neither changes what it is */
+function heatShare(g, i, j) {
+  heatSync(g, i); heatSync(g, j);
+  var ci = HEAT_C[g.m[i]] || 1, cj = HEAT_C[g.m[j]] || 1;
+  var q = ci * (g.T[i] - AMBIENT) + g.lat[i] + cj * (g.T[j] - AMBIENT) + g.lat[j];
+  g.T[i] = g.T[j] = AMBIENT + q / (ci + cj); g.lat[i] = g.lat[j] = 0;
 }
 /* pour some heat into a cell (or take some out), as an explosion, a bolt or a brush does */
 function heatAdd(g, j, dt) {
@@ -164,60 +250,72 @@ function heatRoom(g, i) {
   return -1;
 }
 
-/* past the top of its range: melt, boil, catch */
+/* cell i pushes some of itself out into cell j as a new v (salt out of freezing brine, steam off boiling brine), as
+   hot as i is. returns how much more heat j holds now than before: i pays it, once it has finished changing */
+function heatSpawn(g, i, j, v) {
+  var before = heatQ(g, j);
+  g.m[j] = v; g.vy[j] = 0; g.aux[j] = 0; g.sh[j] = g.sh[i]; g.T[j] = g.T[i]; g.lat[j] = 0;
+  heatAccept(g, j);
+  return heatQ(g, j) - before;
+}
+
+/* past the top of its range: melt, boil, catch. returns any heat spent on things it pushed out */
 function heatUp(g, i, v) {
-  var m = g.m, j;
+  var m = g.m, j, paid = 0;
   g.lat[i] = 0;
   switch (v) {
-    case MAT.WATER: m[i] = MAT.STEAM; g.aux[i] = 0; if (Math.random() < 0.05) g.fx.hiss++; return;
+    case MAT.WATER: m[i] = MAT.STEAM; g.aux[i] = 0; if (Math.random() < 0.05) g.fx.hiss++; return 0;
     case MAT.SALTWATER:
       /* the water goes up as steam, the salt stays where it was */
       j = heatRoom(g, i);
-      if (j >= 0) { sandSet(g, j, MAT.STEAM); g.T[j] = g.T[i]; }
       m[i] = MAT.SALT; g.aux[i] = 0;
+      if (j >= 0) paid = heatSpawn(g, i, j, MAT.STEAM);
       if (Math.random() < 0.05) g.fx.hiss++;
-      return;
-    case MAT.ICE: case MAT.SNOW: m[i] = MAT.WATER; g.aux[i] = 0; return;
+      return paid;
+    case MAT.ICE: case MAT.SNOW: m[i] = MAT.WATER; g.aux[i] = 0; return 0;
     case MAT.STONE: case MAT.GLASS: case MAT.METAL:
-      m[i] = MAT.LAVA; g.aux[i] = v === MAT.STONE ? 0 : v; return;
-    case MAT.SAND: m[i] = MAT.GLASS; g.aux[i] = 0; g.score++; return;
-    case MAT.WOOD: m[i] = MAT.EMBER; g.aux[i] = 0; return;
-    case MAT.ACID: m[i] = MAT.SMOKE; g.aux[i] = 0; return;
-    case MAT.GAS: m[i] = MAT.FIRE; g.sh[i] = SAND_CLEAN; g.aux[i] = 0; g.fx.whoosh++; return;
-    case MAT.GUNPOWDER: sandBoom(g, i); return;
-    case MAT.FIREWORK: sandLaunch(g, i); return;
-    case MAT.NUKE: sandNuke(g, i); return;
-    default: m[i] = MAT.FIRE; g.aux[i] = 0; g.sh[i] &= 127;   /* oil, plants, seeds, flowers: burn, and leave ash */
+      m[i] = MAT.LAVA; g.aux[i] = v === MAT.STONE ? 0 : v; return 0;
+    case MAT.SAND: m[i] = MAT.GLASS; g.aux[i] = 0; g.score++; return 0;
+    case MAT.WOOD: m[i] = MAT.EMBER; g.aux[i] = 0; return 0;
+    case MAT.ACID: m[i] = MAT.SMOKE; g.aux[i] = 0; return 0;
+    case MAT.GAS: m[i] = MAT.FIRE; g.sh[i] = SAND_CLEAN; g.aux[i] = 0; g.fx.whoosh++; return 0;
+    case MAT.GUNPOWDER: sandBoom(g, i); return 0;
+    case MAT.FIREWORK: sandLaunch(g, i); return 0;
+    case MAT.NUKE: sandNuke(g, i); return 0;
+    default: m[i] = MAT.FIRE; g.aux[i] = 0; g.sh[i] &= 127; return 0;   /* oil, plants, seeds, flowers: burn, and leave ash */
   }
 }
 
-/* past the bottom of its range: freeze, condense, set */
-function heatDown(g, i, v, raw) {
-  var m = g.m, j;
+/* past the bottom of its range: freeze, condense, set. returns any heat spent on things it pushed out */
+function heatDown(g, i, v) {
+  var m = g.m, j, paid = 0, gw = g.gw;
   g.lat[i] = 0;
-  if (v === MAT.WATER) { m[i] = MAT.ICE; g.aux[i] = 0; g.vy[i] = 0; }
-  /* steam left to cool by itself only ever dips just under 100 before it condenses. if it
-     was chilled hard enough to be pulled far below that in one go, it skips water and snows */
-  else if (v === MAT.STEAM) { m[i] = raw < 40 ? MAT.SNOW : MAT.WATER; g.aux[i] = 0; g.vy[i] = 0; if (raw < 40) g.T[i] = Math.min(raw, -5); }
+  /* water freezes. falling water, with nothing under it, freezes as it falls: snow */
+  if (v === MAT.WATER) { m[i] = i + gw < m.length && m[i + gw] === MAT.EMPTY ? MAT.SNOW : MAT.ICE; g.aux[i] = 0; g.vy[i] = 0; }
+  else if (v === MAT.STEAM) { m[i] = MAT.WATER; g.aux[i] = 0; g.vy[i] = 0; }
   else if (v === MAT.LAVA) { j = g.aux[i]; m[i] = j === MAT.GLASS || j === MAT.METAL ? j : MAT.STONE; g.aux[i] = 0; g.vy[i] = 0; }
   else if (v === MAT.SALTWATER) {
     /* the ice that forms pushes its salt out, into the air or the fresh water next to it */
-    var x = i % g.gw, y = (i / g.gw) | 0, k, t;
+    var x = i % gw, y = (i / gw) | 0, k, t;
     for (k = 0; k < 4; k++) {
       j = sandNb(g, x, y, k);
       if (j < 0) continue;
       t = m[j];
-      if (t === MAT.EMPTY) { sandSet(g, j, MAT.SALT); g.T[j] = g.T[i]; break; }
-      if (t === MAT.WATER) { m[j] = MAT.SALTWATER; break; }
+      if (t === MAT.EMPTY) { paid = heatSpawn(g, i, j, MAT.SALT); break; }
+      if (t === MAT.WATER) { var q = heatQ(g, j); m[j] = MAT.SALTWATER; heatSetQ(g, j, q); break; }
     }
     /* no room to push it out: it freezes where it is, as ice with salt crystals in it */
     m[i] = k === 4 && Math.random() < 0.3 ? MAT.SALT : MAT.ICE; g.aux[i] = 0; g.vy[i] = 0;
   }
+  return paid;
 }
 
 function heatStep(g) {
-  var m = g.m, T = g.T, lat = g.lat, gw = g.gw, gh = g.gh, KP = HEAT_KP, IC = HEAT_IC, SRC = HEAT_SRC;
-  var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL;
+  var m = g.m, T = g.T, lat = g.lat, gw = g.gw, gh = g.gh, KP = HEAT_KP, IC = HEAT_IC, SRC = HEAT_SRC, POW = HEAT_POW, BK = HEAT_BK, C = HEAT_C;
+  var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL, hm = g.hm;
+
+  /* 0. anything that turned into something else since it was last counted gets its new temperature from its heat */
+  for (i = 0; i < m.length; i++) if (m[i] !== hm[i]) heatRecount(g, i);
 
   /* 1. make heat, lose heat, move heat */
   for (y = 0; y < gh; y++) {
@@ -225,22 +323,25 @@ function heatStep(g) {
     for (x = 0; x < gw; x++) {
       i = row + x; v = m[i]; t = T[i];
       if (SRC[v]) {
-        /* a torch is always exactly as hot as it is. fire and embers are at least that hot,
-           and a clean flame (gas, torch) burns hotter than a smoky one */
-        if (v === MAT.TORCH) t = SRC[v];
-        else { d = v === MAT.FIRE && g.sh[i] >= SAND_CLEAN ? 900 : SRC[v]; if (t < d) t = d; }
+        /* burning: heat from the fuel, a limited amount a tick, up to the flame's own temperature.
+           a clean flame (gas, torch) burns hotter than a smoky one */
+        d = v === MAT.FIRE && g.sh[i] >= SAND_CLEAN ? 900 : SRC[v];
+        if (t < d) { f = (d - t) * C[v]; t += (f < POW[v] ? f : POW[v]) * IC[v]; }
       } else if (v === E) {
-        if (t !== AMBIENT) {
-          /* the hotter it is, the faster it sheds it */
-          d = t - AMBIENT; if (d < 0) d = -d;
-          t += (AMBIENT - t) * (AIR_COOL + (d > AIR_HOT_N ? AIR_HOT : d * (AIR_HOT / AIR_HOT_N)));
-          if (t < AMBIENT + 0.05 && t > AMBIENT - 0.05) t = AMBIENT;
-          /* warm air rises, and drifts a little as it goes */
-          if (y > 0) {
-            up = i - gw;
-            if (x > 0 && x < gw - 1 && Math.random() < 0.3) up += Math.random() < 0.5 ? -1 : 1;
-            if (m[up] === E && t > T[up] + 0.5 && Math.random() < 0.7) { d = T[up]; T[up] = t; t = d; }
-          }
+        /* warm air rises and cold air sinks, swapping places with the air it passes, drifting a little as it goes */
+        if (y > 0) {
+          up = i - gw;
+          if (x > 0 && x < gw - 1 && Math.random() < 0.3) up += Math.random() < 0.5 ? -1 : 1;
+          if (m[up] === E && t > T[up] + 0.5 && Math.random() < 0.7) { d = T[up]; T[up] = t; t = d; }
+        }
+        if (y < gh - 1) {
+          up = i + gw;
+          if (m[up] === E && t < T[up] - 0.5 && Math.random() < 0.7) { d = T[up]; T[up] = t; t = d; }
+        }
+        /* and it stirs sideways a little, so a cold pool spreads out and warm air finds its way over to it */
+        if (x < gw - 1) {
+          up = i + 1;
+          if (m[up] === E && (t > T[up] + 0.5 || t < T[up] - 0.5) && Math.random() < 0.3) { d = T[up]; T[up] = t; t = d; }
         }
       } else if (LIQUID[v] && y > 0 && m[i - gw] === v && t > T[i - gw] + 1 && Math.random() < (v === MAT.LAVA ? 0.01 : 0.25)) {
         /* and so does warm water, in water. lava churns too, but it is far too thick to hurry */
@@ -263,6 +364,8 @@ function heatStep(g) {
         }
         if (v === METAL && m[j] === METAL) fast[nf++] = -i - 1;
       }
+      /* the edges of the room touch the outside */
+      if (x === 0 || x === gw - 1 || y === 0 || y === gh - 1) t += BK[v] * (AMBIENT - t) * IC[v];
       T[i] = t;
     }
   }
@@ -280,32 +383,42 @@ function heatStep(g) {
   }
 
   /* 2. anything out of its range changes, once it has soaked up (or given up) enough */
-  var HI = HEAT_HI, LO = HEAT_LO, HL = HEAT_HI_L, LL = HEAT_LO_L, C = HEAT_C, sh = g.sh, aux = g.aux, e, lo, hi, L;
+  var HI = HEAT_HI, LO = HEAT_LO, HL = HEAT_HI_L, LL = HEAT_LO_L, aux = g.aux, e, lo, hi, L, q, paid;
   for (i = 0; i < m.length; i++) {
     v = m[i]; t = T[i]; e = lat[i];
     hi = HI[v]; lo = LO[v];
     if (v === MAT.LAVA) { w = aux[i] & 31; lo = LAVA_LO[w]; }
     if (t > hi) {
       L = HL[v];
-      if (L <= 0) { heatUp(g, i, v); continue; }
+      if (L <= 0) {
+        /* catches, sinters, fizzes off: all at once, and the new thing has the old one's heat. a bang
+           counts its own */
+        q = heatQ(g, i); heatUp(g, i, v);
+        if (m[i] !== v && v !== MAT.GUNPOWDER && v !== MAT.NUKE) heatSetQ(g, i, q);
+        continue;
+      }
       e += (t - hi) * C[v]; T[i] = hi;
-      /* a little give, cell to cell, so a block does not all go in the same tick */
-      if (e >= L * (0.7 + (sh[i] & 63) / 105)) heatUp(g, i, v);
-      else lat[i] = e;
+      if (e >= heatLat(g, i, L)) {
+        /* soaked up enough: changes. the books carry it all over, including any it soaked up past what it took */
+        lat[i] = e; q = heatQ(g, i);
+        paid = heatUp(g, i, v); heatSetQ(g, i, q - paid);
+      } else lat[i] = e;
     } else if (t < lo) {
       L = v === MAT.LAVA ? HL[w || MAT.STONE] : LL[v];
-      if (L <= 0) { heatDown(g, i, v, t); continue; }
+      if (L <= 0) { q = heatQ(g, i); heatDown(g, i, v); if (m[i] !== v) heatSetQ(g, i, q); continue; }
       e -= (lo - t) * C[v]; T[i] = lo;
-      if (-e >= L * (0.7 + (sh[i] & 63) / 105)) heatDown(g, i, v, t);
-      else lat[i] = e;
+      if (-e >= heatLat(g, i, L)) {
+        lat[i] = e; q = heatQ(g, i);
+        paid = heatDown(g, i, v); heatSetQ(g, i, q - paid);
+      } else lat[i] = e;
     } else if (e > 0) {
       /* was partway to melting, and is cooling off again: it gives back what it took first */
-      if (HL[v] > 0 && t < hi) { e -= (hi - t) * C[v]; if (e < 0) { T[i] = hi + e * HEAT_IC[v]; e = 0; } else T[i] = hi; }
-      else if (!(HL[v] > 0)) e = 0;
+      if (HL[v] > 0 && t < hi) { e -= (hi - t) * C[v]; if (e < 0) { T[i] = hi + e * IC[v]; e = 0; } else T[i] = hi; }
+      else if (!(HL[v] > 0)) { T[i] = t + e * IC[v]; e = 0; }   /* turned into something that does not melt: it is just heat now */
       lat[i] = e;
     } else if (e < 0) {
-      if (LL[v] > 0 && t > lo) { e += (t - lo) * C[v]; if (e > 0) { T[i] = lo + e * HEAT_IC[v]; e = 0; } else T[i] = lo; }
-      else if (!(LL[v] > 0)) e = 0;
+      if (LL[v] > 0 && t > lo) { e += (t - lo) * C[v]; if (e > 0) { T[i] = lo + e * IC[v]; e = 0; } else T[i] = lo; }
+      else if (!(LL[v] > 0)) { T[i] = t + e * IC[v]; e = 0; }
       lat[i] = e;
     }
   }

@@ -176,8 +176,8 @@ function sandDab(g, cx, cy, v, solid) {
     if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) continue;
     j = y * g.gw + x;
     if (g.m[j] === MAT.INERT && v !== MAT.EMPTY) continue;   /* only erasing moves it */
-    if (!pour) sandSet(g, j, v);
-    else if (g.m[j] === MAT.EMPTY && (solid || Math.random() < pour)) sandSet(g, j, v);
+    if (!pour) sandPlace(g, j, v);
+    else if (g.m[j] === MAT.EMPTY && (solid || Math.random() < pour)) sandPlace(g, j, v);
   }
 }
 function sandStroke(g, ax, ay, bx, by, v, solid) {
@@ -412,7 +412,7 @@ function drawWorld(g) {
     x = g.ppx[k] | 0; y = g.ppy[k] | 0;
     if (x < 0 || y < 0 || x >= gw || y >= gh || g.ppx[k] < 0 || g.ppy[k] < 0) continue;
     var pk = g.pk[k], l = g.pl[k];
-    if (pk === PK_SPARK && l < 14 && (l & 1)) continue;   /* fading sparks twinkle out */
+    if ((pk === PK_SPARK || pk === PK_GLINT) && l < 14 && (l & 1)) continue;   /* fading sparks twinkle out */
     i = y * gw + x;
     px[i] = g.pc[k];
     if (pk !== PK_DEBRIS || g.pm[k] === MAT.FIRE) { gp[i] = g.pc[k]; hot++; }
@@ -710,12 +710,22 @@ function pMood(p) {
   if (p.rope && p.rope.mode === "climb") return "is climbing a rope. like a ninja";
   if (p.rope && p.rope.mode === "swing") return "is swinging on a rope";
   if (p.rope) return "is abseiling";
+  if (p.chute && p.chute.fail) return "is falling. the parachute did not open";
+  if (p.chute) return "is parachuting";
   if (p.jumping) return "is jumping";
   if (p.swimming) return "is swimming";
   if (p.cold > 200) return "is freezing. needs a fire";
   if (p.cold > 60) return "is chilly";
   if (p.panic > 0) return "is panicking";
   if (p.warm > 0) return "is too warm";
+  if (p.task && p.task.kind === "chop") return "is chopping wood. " + (p.logs || 0) + " logs so far";
+  if (p.task && p.task.kind === "eat") return "is eating a plant";
+  if (p.task && p.task.kind === "light") return "is up to something";
+  if (p.task && p.task.kind === "camp") return "is making a campfire";
+  if (p.calmT > 0) return "is admiring their fire";
+  if (p.hunger > P_HUNGRY) return "is hungry";
+  if (p.bored > P_BORED_FIRE) return "is bored. dangerously bored";
+  if (p.bored > P_BORED_CHOP) return "is bored";
   if (p.charred) return "is a bit crispy, but fine";
   if (p.idle > 0) return "is standing about";
   return "is going for a walk";
@@ -801,7 +811,7 @@ function gameTap(g, x, y) {
     } else if (pk.tool === "lightning") g.toolT = 0;
     else if (pk.m === MAT.NUKE) {
       var c = sandCell(g), j = Math.round(c.y) * g.gw + Math.round(c.x);
-      sandSet(g, j, MAT.NUKE);
+      sandPlace(g, j, MAT.NUKE);
     }
     return;
   }

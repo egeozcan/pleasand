@@ -5,9 +5,9 @@
    numbers that walks over the grid, reads the cells it is standing in,
    and reacts. they climb small steps, jump up ledges and over gaps, and
    carry a ninja rope for walls too tall to jump, gaps too wide to leap
-   and cliffs too high to fall off. they wade and swim (and drown only if
-   they cannot find the surface), catch fire, and have opinions about all
-   of it.
+   and cliffs too high to fall off, and a parachute that mostly opens.
+   they wade and swim (and drown only if they cannot find the surface),
+   catch fire, and have opinions about all of it.
 
    a peasant is 5 cells wide and 9 tall, drawn straight into the pixel
    buffer so it sits in the world like everything else. its feet are at
@@ -20,6 +20,14 @@ var P_MAX = 120, P_BREATH = 300;
 var P_GRAV = 0.09, P_JUMP = 10, P_GAP = 12;
 /* the ninja rope: how far it reaches, how fast the hook flies, how fast they climb and let themselves down */
 var P_ROPE = 45, P_HOOK_V = 4, P_REEL = 0.22, P_ABSEIL = 0.35;
+/* the parachute: too fast to open it above P_CHUTE_V, not worth it with less than P_CHUTE_H below,
+   comes down at P_CHUTE_SINK under a good canopy, and does not open at all one time in P_CHUTE_FAIL */
+var P_CHUTE_V = 1.6, P_CHUTE_H = 30, P_CHUTE_SINK = 0.35, P_CHUTE_FAIL = 0.15;
+/* chores and mischief: hungry enough to go looking for food, bored enough to go and chop wood, bored enough
+   to light something (if it is no bigger than P_LIGHT_MAX cells), and how many logs they can carry */
+var P_HUNGRY = 2500, P_BORED_CHOP = 1200, P_BORED_FIRE = 2700, P_LIGHT_MAX = 40, P_LOGS = 4;
+/* bites per meal, cells per chopping session, and how long before they will chop again */
+var P_BITES = 5, P_CHOPS = 3, P_CHOP_CD = 2400;
 /* things a buried peasant cannot dig up through */
 var P_HARD = new Uint8Array(32);
 [MAT.STONE, MAT.GLASS, MAT.ICE, MAT.CLONER, MAT.FAUCET, MAT.DRAIN, MAT.TORCH, MAT.METAL, MAT.INERT].forEach(function (v) { P_HARD[v] = 1; });
@@ -93,7 +101,20 @@ var P_SAY = {
   swing: ["WHEEEE", "tarzan!", "AAAH-AH-AAAAH", "like a monkey", "swingin'"],
   abseil: ["abseiling!", "going down", "safety first", "nice and slow", "don't look down"],
   caught: ["PHEW", "got it!", "that was close", "rope! rope!", "ninja reflexes"],
-  snap: ["MY ROPE!", "uh oh", "noooo", "it snapped!", "cheap rope"]
+  snap: ["MY ROPE!", "uh oh", "noooo", "it snapped!", "cheap rope"],
+  chute: ["PARACHUTE!", "geronimo!", "deploying!", "pop!", "this is the life", "nice view up here"],
+  touchdown: ["touchdown", "nailed it", "smooth", "and stick the landing", "ten out of ten"],
+  chutefail: ["IT WON'T OPEN", "uh oh", "MUMMY", "should've packed it myself", "PULL THE OTHER ONE", "not good not good",
+              "REFUND!"],
+  chuteburn: ["MY PARACHUTE!", "IT'S ON FIRE", "not the chute!"],
+  chop: ["chop chop", "hup!", "nice wood", "for the fire", "*thwack*", "i'm a lumberjack"],
+  timber: ["TIMBER!", "TIMBERRR", "look out below!", "i didn't think that through"],
+  eat: ["nom", "nom nom", "crunchy", "tastes green", "salad!", "mmm, leaves", "needs salt", "five a day"],
+  hungry: ["i'm starving", "so hungry", "anyone got a sandwich", "is that a plant? i'd eat that", "my tummy"],
+  bored: ["so bored", "nothing ever happens here", "i'm bored", "*sigh*", "what if... fire?",
+          "i could set something on fire", "entertain me"],
+  light: ["hehehe", "oops", "let's see what happens", "pretty", "it was like that when i got here", "ooh", "fire!"],
+  camp: ["campfire!", "cozy", "who brought marshmallows", "ahh, warm", "gather round"]
 };
 
 var P_DEATH = {
@@ -107,6 +128,8 @@ var P_DEATH = {
   drain: ["{n} went down the drain", "{n} is in the sewers now", "{n} was flushed"],
   buried: ["{n} was buried alive. sandy", "{n} is part of the beach now", "{n} became a sandcastle"],
   zap: ["{n} got struck twice. impressive", "{n} conducted electricity. briefly", "{n} was fried. crispy"],
+  chute: ["{n}'s parachute did not open", "{n} packed their own parachute", "{n} should have checked the parachute",
+          "{n} got a parachute from the bargain bin"],
   reentry: ["{n} came back from space. briefly", "{n} did not stick the landing", "{n} burned up on re-entry"],
   freeze: ["{n} froze solid", "{n} is a peasant-sicle now", "{n} chilled out. permanently", "{n} should have worn a coat",
            "{n} is a statue now. a cold one"]
@@ -155,7 +178,12 @@ var P_BODY = {
   walkA:  pParse([".sse.", ".sss.", "scccs", ".cCc.", ".p.p.", "f...f"], 3),
   walkB:  pParse([".sse.", ".sss.", ".ccc.", "scCcs", "..p..", "..ff."], 3),
   panicA: pParse(["ssses", "sssms", ".ccc.", ".cCc.", ".p.p.", "f...f"], 3),
-  panicB: pParse(["ssses", "sssms", ".ccc.", ".cCc.", "..p..", "..ff."], 3)
+  panicB: pParse(["ssses", "sssms", ".ccc.", ".cCc.", "..p..", "..ff."], 3),
+  /* the axe: handle in the belt colour, blade in white. raised, then down into the wood */
+  chopA:  pParse(["....ww", "....C.", ".sseC.", ".sssC.", "scccs.", ".cCc..", ".p.p..", ".f.f.."], 1),
+  chopB:  pParse([".sse..", ".sss..", "scccCC", ".cCc.w", ".p.p.w", ".f.f.."], 3),
+  /* chewing */
+  eatB:   pParse([".sse.", ".ssm.", "scccs", ".cCc.", ".p.p.", ".f.f."], 3)
 };
 var P_GHOST = pParse([".www.", "wwwww", "wewew", "wwwww", "wwwww", "w.w.w"], 0);
 var P_SKINS = ["#f1c7a0", "#e0a878", "#c68650", "#8d5a34", "#5e3a22"];
@@ -221,7 +249,8 @@ function peasantSpawn(g, x, y, quiet) {
     state: "walk", stun: 0, idle: 0, panic: 0, fire: 0, lava: 0, acid: 0, breath: P_BREATH, cold: 0, warm: 0,
     charred: 0, zap: 0, falling: false, fallY: y, anim: irnd(100), spin: 0, buried: 0, flyT: 0, immune: 0,
     say: "", sayT: 0, chat: 120 + irnd(900), voice: 170 + Math.random() * 280,
-    hat: hat, pal: pPal(cols), dead: 0, spaceT: 0, fromSpace: 0
+    hat: hat, pal: pPal(cols), dead: 0, spaceT: 0, fromSpace: 0,
+    hunger: irnd(2000), bored: irnd(1000), logs: 0, task: null
   };
   g.peasants.push(p);
   if (!quiet) { pSay(g, p, "spawn", true); g.fx.pop++; }
@@ -303,7 +332,10 @@ var P_ACHIEVE = {
   bloom: ["SPRING HAS SPRUNG", "the peasants approve"],
   leave: ["YEET", "a peasant has left the village. by air"],
   roast: ["A BARBECUE", "three peasants on fire at once. a village record"],
-  ninja: ["NINJA ROPE", "the peasants have discovered rope. there is no stopping them now"]
+  ninja: ["NINJA ROPE", "the peasants have discovered rope. there is no stopping them now"],
+  chute: ["PARACHUTE", "a peasant has discovered drag"],
+  arson: ["BORED NOW", "a peasant got bored and found the matches"],
+  camp: ["CAMPFIRE", "chopped it, stacked it, lit it"]
 };
 function achieve(g, k) {
   if (g.got[k]) return;
@@ -326,14 +358,14 @@ function pDie(g, p, cause) {
   if (cause === "fire" || cause === "zap" || cause === "reentry") {
     for (k = 0; k < 10; k++) {
       x = fx + irnd(5) - 2; y = fy - irnd(6);
-      if (x >= 0 && x < gw && y >= 0 && y < g.gh && g.m[y * gw + x] === MAT.EMPTY) sandSet(g, y * gw + x, k < 6 ? MAT.ASH : MAT.FIRE);
+      if (x >= 0 && x < gw && y >= 0 && y < g.gh && g.m[y * gw + x] === MAT.EMPTY) sandPlace(g, y * gw + x, k < 6 ? MAT.ASH : MAT.FIRE);
     }
   } else if ((cause === "fall" || cause === "splat" || cause === "buried") && pGround(g, fx, fy)) {
     /* a little headstone, where they landed */
     var stone = [[0, -2], [-1, -1], [0, -1], [1, -1], [-1, 0], [0, 0], [1, 0]];
     for (k = 0; k < stone.length; k++) {
       x = fx + stone[k][0]; y = fy + stone[k][1];
-      if (x >= 0 && x < gw && y >= 0 && y < g.gh && AIRY[g.m[y * gw + x]]) { j = y * gw + x; sandSet(g, j, MAT.STONE); g.sh[j] = 40; }
+      if (x >= 0 && x < gw && y >= 0 && y < g.gh && AIRY[g.m[y * gw + x]]) { j = y * gw + x; sandPlace(g, j, MAT.STONE); g.sh[j] = 40; heatAccept(g, j); }
     }
   } else if (cause === "nuke") {
     sparks(g, p.x, p.y - 4, 12, 1, [P_WHITE], 10, 0.5);
@@ -341,7 +373,7 @@ function pDie(g, p, cause) {
     /* an ice statue of them, where they stood */
     for (y = fy - 8; y <= fy; y++) for (x = fx - 1; x <= fx + 1; x++) {
       if ((y === fy - 8 || y === fy - 3) && x !== fx) continue;
-      if (x >= 0 && x < gw && y >= 0 && y < g.gh && AIRY[g.m[y * gw + x]]) { j = y * gw + x; sandSet(g, j, MAT.ICE); g.T[j] = -20; }
+      if (x >= 0 && x < gw && y >= 0 && y < g.gh && AIRY[g.m[y * gw + x]]) { j = y * gw + x; sandPlace(g, j, MAT.ICE); }
     }
   }
   if (cause !== "nuke" && cause !== "freeze") sparks(g, p.x, p.y - 4, 8, 0.8, [p.pal[4], p.pal[0]], 12, 0.6);
@@ -415,7 +447,7 @@ function peasantsBlast(g, cx, cy, R, P) {
       if (p.state === "held") continue;
       p.vx = clamp(p.vx + dx / d * f, -4.5, 4.5);
       p.vy = clamp(p.vy + dy / d * f - f * 0.7, -4.5, 4.5);
-      if (p.state !== "fly") { p.state = "fly"; p.flyT = 0; p.immune = 3; p.fallY = p.y; p.rope = null; }
+      if (p.state !== "fly") { p.state = "fly"; p.flyT = 0; p.immune = 3; p.fallY = p.y; p.rope = null; p.chute = null; p.bored = 0; }
       if (d < R * 1.3 && Math.random() < (big ? 0.8 : 0.35)) pIgnite(g, p);
       else if (p.sayT <= 0 || Math.random() < 0.3) pSay(g, p, "thrown", true);
     } else if (d < (big ? 400 : R * 10)) {
@@ -431,6 +463,7 @@ function peasantsReact(g, kind, x, y) {
     var p = L[k];
     if (p.dead || p.state !== "walk" || p.fire) continue;
     var dx = p.x - x, dy = p.y - y, d2 = dx * dx + dy * dy;
+    if (kind === "firework" && d2 < 160 * 160) p.bored = 0;   /* that was something */
     if (kind === "firework" && d2 < 160 * 160 && Math.random() < 0.35) { pSay(g, p, "ooh"); if (!p.jumping && !p.rope && pGround(g, Math.floor(p.x), Math.floor(p.y)) && Math.random() < 0.5) pLeap(p, 0.9, 0); }
     else if (kind === "flower" && d2 < 40 * 40 && Math.random() < 0.6) pSay(g, p, "flower");
   }
@@ -549,7 +582,12 @@ function pStep(g, p) {
   }
   if (p.ropeCD > 0) p.ropeCD--;
   if (p.catchCD > 0) p.catchCD--;
-  if (p.state === "fly") { p.jumping = false; p.rope = null; pFly(g, p); return; }
+  if (p.chuteCD > 0) p.chuteCD--;
+  if (p.calmT > 0) p.calmT--;
+  if (p.chopCD > 0) p.chopCD--;
+  if (p.taskCD > 0) p.taskCD--;
+  p.pose = null;
+  if (p.state === "fly") { p.jumping = false; p.rope = null; p.chute = null; p.task = null; pFly(g, p); return; }
 
   /* buried in something: climb out the top, if there is a top */
   if (SOLID[cf]) {
@@ -565,6 +603,8 @@ function pStep(g, p) {
   p.buried = 0;
   /* on the rope, or waiting for the hook to bite */
   if (p.rope && pRopeStep(g, p)) return;
+  /* under a parachute, good or bad */
+  if (p.chute) { pChute(g, p); return; }
   /* in the air on purpose: a jump, or a hop for fireworks */
   if (p.jumping) { pJump(g, p); return; }
   var ground = pGround(g, fx, fy);
@@ -612,7 +652,7 @@ function pHeat(g, p, fx, fy) {
 }
 
 function pHeld(g, p) {
-  p.rope = null; p.jumping = false;
+  p.rope = null; p.jumping = false; p.chute = null; p.task = null; p.bored = 0;
   p.x = clamp((g.mx - PANEL) / CELL, 1, g.gw - 2);
   p.y = clamp((g.my - PLAY_Y) / CELL + 8, 9, g.gh - 1);
   p.vx = g.cvx; p.vy = g.cvy; p.spin = 0; p.falling = false; p.fallY = p.y;
@@ -641,14 +681,15 @@ function pFall(g, p) {
   while (cy < Math.floor(target) && !pGround(g, fx, cy)) cy++;
   if (pGround(g, fx, cy) && cy <= target) { p.y = cy; pLand(g, p); return; }
   p.y = target;
-  /* a long way down: the rope, if there is anything to hook */
+  /* a long way down: the parachute, while there is still time to open it. then the rope */
+  if (pTryChute(g, p)) return;
   if (p.y - p.fallY > 25 && Math.random() < 0.08 && pTryCatch(g, p)) return;
   if (p.y - p.fallY > 30 && p.sayT <= 0) pSay(g, p, "fall", true);
 }
-function pLand(g, p) {
+function pLand(g, p, cause) {
   var drop = p.y - p.fallY;
   p.falling = false; p.vy = 0; p.fallY = p.y;
-  if (drop > 85 && !p.immune) { pDie(g, p, p.fromSpace ? "reentry" : "fall"); return; }
+  if (drop > 85 && !p.immune) { pDie(g, p, p.fromSpace ? "reentry" : (cause || "fall")); return; }
   if (drop > 34) { p.stun = 70; pSay(g, p, "oof", true); g.fx.thud++; g.shake = Math.min(6, g.shake + 1); }
 }
 /* swimming: kick up to the surface, keep your head out, paddle for the shore and climb out */
@@ -691,6 +732,8 @@ function pJump(g, p) {
     p.y = target;
     /* came down in water: swim from here */
     if (LIQUID[pCell(g, fx, Math.floor(p.y) - 4)]) { p.jumping = false; p.jx = 0; p.vy = Math.min(p.vy, 0.3); return; }
+    /* the far side was further down than it looked */
+    if (pTryChute(g, p)) return;
   }
   p.vy = Math.min(p.vy + P_GRAV, 3);
   if (p.jx) {
@@ -947,7 +990,8 @@ function pFly(g, p) {
   if (LIQUID[wet]) {
     if (!p.wet && p.vy > 0.8) {
       var sc = SAND_DEEP[wet] ? SAND_DEEP[wet][16 * 256] : SAND_PAL[wet][0];
-      for (var k = 0; k < 16; k++) partAdd(g, PK_DEBRIS, p.x + Math.random() * 4 - 2, p.y - 4, (Math.random() - 0.5) * 1.6, -0.8 - Math.random() * p.vy * 0.5, 60, sc, wet === MAT.LAVA ? MAT.FIRE : wet);
+      /* the splash is for show: the pond keeps all its water, and all its heat */
+      for (var k = 0; k < 16; k++) partAdd(g, PK_GLINT, p.x + Math.random() * 4 - 2, p.y - 4, (Math.random() - 0.5) * 1.6, -0.8 - Math.random() * p.vy * 0.5, 30 + irnd(20), sc);
       g.fx.splash++;
     }
     p.wet = 1; p.vx *= 0.85; p.vy *= 0.85;
@@ -971,6 +1015,8 @@ function pFly(g, p) {
   }
   var fx = Math.floor(p.x), fy = Math.floor(p.y);
   var onGround = pGround(g, fx, fy);
+  /* thrown, and coming down slowly enough to do something about it */
+  if (!onGround && p.flyT > 12 && pTryChute(g, p)) { p.state = "walk"; p.spin = 0; return; }
   if (onGround && Math.abs(p.vy) < 0.6) { p.vx *= 0.8; p.vy = 0; }
   if (p.flyT > 900 && (p.x < 0 || p.x >= gw)) { pLeave(g, p); return; }
   if ((onGround && Math.abs(p.vx) < 0.3 && Math.abs(p.vy) < 0.6) || p.flyT > 900) {
@@ -979,6 +1025,106 @@ function pFly(g, p) {
     if (Math.random() < 0.7) pSay(g, p, "dizzy", true);
   }
 }
+/* -------------------------------------------------------------------
+   THE PARACHUTE. it has to come out early: past P_CHUTE_V they are
+   falling too fast to open it. and one time in P_CHUTE_FAIL it does not
+   open at all, and flaps about overhead, which helps nobody. fire eats
+   it. under a good one they drift down gently and steer away from
+   anything unpleasant below.
+   ------------------------------------------------------------------- */
+var P_CHUTE_COLS = ["#e84a4a", "#3a7ae0", "#f0c040", "#4ab84a", "#e070c8", "#f08a30"].map(function (h) { return hex32(h); });
+var P_CHUTE_WHITE = hex32("#f4f4ec"), P_CHUTE_LINE = hex32("#c8c8c0");
+/* how far below their feet the first thing they would land on is */
+function pDropBelow(g, x, y, max) {
+  for (var d = 1; d <= max; d++) if (!AIRY[pCell(g, x, y + d)]) return d;
+  return max;
+}
+/* is what is under column x, below row y, somewhere a peasant would rather not land */
+function pNasty(g, x, y) {
+  for (var d = 1; d <= 200; d++) {
+    var c = pCell(g, x, y + d);
+    if (c === MAT.FIRE) return true;
+    if (!AIRY[c]) return HOT[c] || c === MAT.ACID || c === MAT.DRAIN;
+  }
+  return false;
+}
+function pTryChute(g, p) {
+  if (p.x < 1 || p.x > g.gw - 1) return false;   /* off the side of the world: leave that to the flying */
+  if (p.chute || p.chuteCD || p.rope || p.fire || p.cold > 400 || p.vy <= 0.2) return false;
+  if (p.vy > P_CHUTE_V || Math.abs(p.vx || 0) > 2) return false;   /* too fast: it would never open */
+  if (pDropBelow(g, Math.floor(p.x), Math.floor(p.y), P_CHUTE_H) < P_CHUTE_H) return false;   /* not worth it */
+  if (Math.random() > 0.08) return false;                          /* reaching for the cord */
+  var fail = Math.random() < P_CHUTE_FAIL;
+  p.chute = { t: 0, fail: fail, col: P_CHUTE_COLS[irnd(P_CHUTE_COLS.length)], steer: 0 };
+  p.jumping = false; p.vx = p.state === "fly" ? p.vx : (p.jx || 0); p.jx = 0; p.idle = 0; p.stun = 0;
+  if (!fail) p.falling = false;   /* a failed one does nothing about the fall: it still counts */
+  else { p.falling = true; p.fallY = Math.min(p.fallY, p.y); }   /* measured from the top of the fall */
+  pSay(g, p, fail ? "chutefail" : "chute", true);
+  g.fx.whee++;
+  if (!fail) achieve(g, "chute");
+  return true;
+}
+function pChute(g, p) {
+  var c = p.chute, fx = Math.floor(p.x), fy = Math.floor(p.y), tvx = 0;
+  c.t++;
+  if (p.x < 0 || p.x > g.gw || p.y > g.gh + 12) { p.chute = null; pLeave(g, p); return; }
+  /* fire and nylon do not mix */
+  if (p.fire && !c.fail && Math.random() < 0.05) {
+    c.fail = c.burnt = true; p.falling = true;
+    pSay(g, p, "chuteburn", true);
+    sparks(g, p.x, p.y - 15, 10, 0.5, SPARK_HOT, 12, 0.3);
+  }
+  if (!c.fail) {
+    /* the canopy bites over a few ticks, then holds them at a gentle sink */
+    if (p.vy > P_CHUTE_SINK) p.vy += (P_CHUTE_SINK - p.vy) * Math.min(0.25, c.t * 0.04);
+    else p.vy = Math.min(p.vy + P_GRAV, P_CHUTE_SINK);
+    /* steer away from lava, acid, fire or drains below; otherwise drift the way they are facing */
+    if ((c.t & 7) === 0) {
+      c.steer = 0;
+      if (pNasty(g, fx, fy)) {
+        for (var d = 4; d <= 40 && !c.steer; d += 4) {
+          if (!pNasty(g, fx + p.dir * d, fy)) c.steer = p.dir;
+          else if (!pNasty(g, fx - p.dir * d, fy)) c.steer = -p.dir;
+        }
+      }
+      if (c.steer) p.dir = c.steer;
+    }
+    tvx = c.steer ? c.steer * 0.35 : p.dir * 0.06;
+    p.vx += (tvx - p.vx) * 0.06;
+    p.fallY = p.y;
+  } else {
+    /* a streamer: barely slows them down */
+    p.vy = Math.min(p.vy + P_GRAV * 0.9, 2.8);
+    p.vx *= 0.97;
+    if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "chutefail", true);
+    /* cut it away and try the rope */
+    if (p.y - p.fallY > 25 && Math.random() < 0.06) {
+      var keep = p.chute; p.chute = null;
+      if (pTryCatch(g, p)) return;
+      p.chute = keep;
+    }
+  }
+  /* sideways, if nothing is in the way */
+  var nx = p.x + p.vx;
+  if (nx >= 1 && nx <= g.gw - 1 && !pBlocked(g, nx, p.y)) p.x = nx; else p.vx = 0;
+  fx = Math.floor(p.x);
+  /* and down, until there is ground */
+  var target = p.y + p.vy, cy = fy;
+  if (p.vy <= 0) { if (!pSolid(g, fx, Math.floor(target) - 9)) p.y = target; else p.vy = 0; }
+  else {
+    while (cy < Math.floor(target) && !pGround(g, fx, cy)) cy++;
+    if (pGround(g, fx, cy) && cy <= target) {
+      p.y = cy; p.chute = null; p.chuteCD = 60; p.vx = 0;
+      if (c.fail) { p.falling = true; pLand(g, p, c.burnt ? "fall" : "chute"); }
+      else { p.falling = false; p.vy = 0; p.fallY = p.y; if (p.sayT <= 0 || Math.random() < 0.4) pSay(g, p, "touchdown", true); }
+      return;
+    }
+    p.y = target;
+  }
+  /* came down in water: swim. the canopy stays on the surface */
+  if (LIQUID[pCell(g, fx, Math.floor(p.y) - 4)]) { p.chute = null; p.chuteCD = 60; p.falling = false; p.fallY = p.y; p.vy = Math.min(p.vy, 0.3); }
+}
+
 function pSpace(g, p) {
   p.state = "space"; p.spaceT = 200 + irnd(300);
   feed(g, p.name + " has gone to space", "#9ad0ff");
@@ -1029,8 +1175,9 @@ function pWalk(g, p, wading) {
     if (!p.fire) {
       var ax = fx + p.dir * 4, a0 = pCell(g, ax, fy), a1 = pCell(g, ax, fy - 3), a2 = pCell(g, ax, fy + 1), a3 = pCell(g, ax, fy - 7);
       if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3)) {
-        p.dir = -p.dir; p.panic = Math.max(p.panic, 50);
-        if (Math.random() < 0.3) pSay(g, p, "nope");
+        /* a fire they lit themselves is not frightening. just hot */
+        p.dir = -p.dir; p.task = null;
+        if (!p.calmT) { p.panic = Math.max(p.panic, 50); p.bored = 0; if (Math.random() < 0.3) pSay(g, p, "nope"); }
       }
     } else if ((p.anim % 12) === 0) {
       /* burning: run for the nearest water, if there is any, else run about */
@@ -1042,16 +1189,341 @@ function pWalk(g, p, wading) {
       if (best !== 999) p.dir = best < 0 ? -1 : 1;
       else if (Math.random() < 0.3) p.dir = -p.dir;
     }
+    /* something to do: go there, and do it */
+    if (!scared && !wading) {
+      if (!p.task && !p.taskCD && (p.anim % 20) === 0) pPickTask(g, p);
+      if (p.task) {
+        var busy = pTask(g, p);
+        /* gave up on it (out of reach, gone, taking too long): leave it a while before looking for another */
+        if (!p.task && p.taskDone !== true) p.taskCD = 300;
+        p.taskDone = false;
+        if (busy) return;
+      }
+    } else p.task = null;
     pStepX(g, p, (p.fire ? 0.5 : (p.panic ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1));
-    if (!scared) {
+    if (!scared && !p.task) {
       if (Math.random() < 0.003) p.idle = 40 + irnd(160);
       else if (Math.random() < 0.0015) p.dir = -p.dir;
     }
   }
+  /* time passes. stomachs rumble, and nothing happens, and nothing goes on happening */
+  p.hunger = (p.hunger || 0) + 1;
+  if (scared) p.bored = 0; else p.bored = (p.bored || 0) + 1;
   if (!scared && --p.chat <= 0) {
     p.chat = 500 + irnd(1200);
     var near = Math.abs(g.cx - p.x) < 14 && Math.abs(g.cy - p.y + 4) < 14 && g.mx > PANEL;
-    pSay(g, p, wading ? "swim" : (near ? "watched" : "idle"));
+    pSay(g, p, wading ? "swim" : (near ? "watched" : (p.hunger > P_HUNGRY ? "hungry" : (p.bored > P_BORED_CHOP ? "bored" : "idle"))));
+  }
+}
+
+/* -------------------------------------------------------------------
+   CHORES AND MISCHIEF. a hungry peasant goes and eats a plant. a bored
+   one goes and chops some wood, and keeps the logs. a really bored one
+   goes and sets fire to something: but only something small, with
+   nothing explosive near it, nobody standing next to it and nothing
+   above it to catch. failing that, if they have the logs, a campfire.
+   ------------------------------------------------------------------- */
+var P_FOOD = new Uint8Array(32); P_FOOD[MAT.PLANT] = P_FOOD[MAT.FLOWER] = P_FOOD[MAT.SEED] = 1;
+var P_WOOD = new Uint8Array(32); P_WOOD[MAT.WOOD] = 1;
+var P_FLAM = new Uint8Array(32);
+[MAT.WOOD, MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.OIL, MAT.GAS, MAT.GUNPOWDER, MAT.FIREWORK, MAT.NUKE, MAT.EMBER].forEach(function (v) { P_FLAM[v] = 1; });
+var P_BANG = new Uint8Array(32); P_BANG[MAT.GAS] = P_BANG[MAT.GUNPOWDER] = P_BANG[MAT.FIREWORK] = P_BANG[MAT.NUKE] = 1;
+var P_TINDER = new Uint8Array(32); P_TINDER[MAT.WOOD] = P_TINDER[MAT.PLANT] = P_TINDER[MAT.FLOWER] = P_TINDER[MAT.SEED] = P_TINDER[MAT.OIL] = 1;
+
+/* the nearest cell of a kind they could reach from about where they stand: from their feet to just over their
+   head. ok, if given, has the last word on whether a cell will do */
+function pFind(g, p, set, R, ok) {
+  var fx = Math.floor(p.x), fy = Math.floor(p.y), d, s, x, y, low;
+  for (d = 0; d <= R; d++) for (s = 0; s < 2; s++) {
+    if (d === 0 && s) continue;
+    x = fx + d * (s ? -p.dir : p.dir);   /* the way they are facing first */
+    if (x < 0 || x >= g.gw) continue;
+    /* the ground at their feet, for a nibble; never wood they might be standing on. wood is chopped from the
+       bottom up, the way you fell a tree */
+    low = set === P_WOOD && d <= 2 ? fy : fy + 1;
+    if (set === P_WOOD) { for (y = low; y >= fy - 10; y--) if (y >= 0 && y < g.gh && set[g.m[y * g.gw + x]] && (!ok || ok(g, x, y))) return { x: x, y: y }; }
+    else for (y = fy - 10; y <= low; y++) if (y >= 0 && y < g.gh && set[g.m[y * g.gw + x]] && (!ok || ok(g, x, y))) return { x: x, y: y };
+  }
+  return null;
+}
+/* food is what grows up out of the ground: follow it down, through more of itself, to soil. a roof (it ends in wood)
+   and a tree's crown (it ends in air) are not food. and leave a few of every patch, so it can grow back */
+function pEdible(g, x, y) {
+  var d, c, n = 0, dx, dy;
+  for (d = 1; d <= 40; d++) {
+    c = pCell(g, x, y + d);
+    if (P_FOOD[c]) continue;
+    if (!SOLID[c] || c === MAT.WOOD) return false;
+    break;
+  }
+  if (d > 40) return false;
+  for (dy = -3; dy <= 3; dy++) for (dx = -3; dx <= 3; dx++) if ((dx || dy) && P_FOOD[pCell(g, x + dx, y + dy)]) n++;
+  return n >= 3;
+}
+/* is this wood part of something somebody built: a run of wood six wide, well up off the bottom of it (a ceiling,
+   a floor, a bridge). a trunk or a pile of logs is fair game; a hut is not */
+function pBuilt(g, x0, y0) {
+  var gw = g.gw, gh = g.gh, m = g.m, seen = {}, list = [y0 * gw + x0], n = 0, i, x, y, k, j, bottom = y0;
+  seen[list[0]] = 1;
+  while (n < list.length) {
+    if (list.length > 500) return true;   /* that much wood is a building, or as good as */
+    i = list[n++]; x = i % gw; y = (i / gw) | 0;
+    if (y > bottom) bottom = y;
+    for (k = 0; k < 4; k++) {
+      j = sandNb(g, x, y, k);
+      if (j >= 0 && !seen[j] && m[j] === MAT.WOOD) { seen[j] = 1; list.push(j); }
+    }
+  }
+  for (n = 0; n < list.length; n++) {
+    i = list[n]; x = i % gw; y = (i / gw) | 0;
+    if (bottom - y < 5 || x + 5 >= gw) continue;
+    for (k = 1; k < 6 && m[i + k] === MAT.WOOD; k++);
+    if (k === 6) return true;
+  }
+  return false;
+}
+function pChoppable(g, x, y) { return !pBuilt(g, x, y); }
+/* the next stroke of a cut: wood near the last stroke on the same row, else the lowest near it */
+function pFindCut(g, p, cx, row) {
+  var fy = Math.floor(p.y), fx = Math.floor(p.x), best = null, x, y;
+  for (x = cx - 4; x <= cx + 4; x++) for (y = Math.abs(x - fx) > 2 ? fy + 1 : fy; y >= fy - 10; y--) {
+    if (pCell(g, x, y) !== MAT.WOOD || !pChoppable(g, x, y)) continue;
+    var score = (y === row ? 1000 : y) - Math.abs(x - cx) * 0.01;
+    if (!best || score > best.s) best = { x: x, y: y, s: score };
+  }
+  return best;
+}
+/* chopped through: if what is above no longer stands on anything, down it comes */
+function pFell(g, p, x0, y0) {
+  var gw = g.gw, m = g.m, seen = {}, k, j;
+  function tree(c) { return c === MAT.WOOD || c === MAT.PLANT || c === MAT.FLOWER; }
+  /* every piece that touched the cut, separately: a stump left standing does not hold up the top */
+  for (k = 0; k < 4; k++) {
+    j = sandNb(g, x0, y0, k);
+    if (j >= 0 && tree(m[j]) && !seen[j]) pFellPiece(g, p, x0, y0, j, seen, tree);
+  }
+}
+function pFellPiece(g, p, x0, y0, start, seen, tree) {
+  var gw = g.gw, gh = g.gh, m = g.m, list = [start], n = 0, i, x, y, k, j, c, held = false;
+  seen[start] = 1;
+  while (n < list.length) {
+    if (list.length > 1200) held = true;   /* too big to topple, or tangled up in something else */
+    i = list[n++]; x = i % gw; y = (i / gw) | 0;
+    /* standing on something that is not more of the tree: it holds */
+    c = y + 1 < gh ? m[i + gw] : MAT.STONE;
+    if (SOLID[c] && !tree(c)) held = true;
+    for (k = 0; k < 4; k++) {
+      j = sandNb(g, x, y, k);
+      if (j >= 0 && !seen[j] && tree(m[j])) { seen[j] = 1; list.push(j); }
+    }
+  }
+  if (held || g.np + list.length > PMAX - 200) return;
+  /* timber. it goes over the way it was being chopped, the top falling furthest */
+  var top = gh;
+  for (n = 0; n < list.length; n++) top = Math.min(top, (list[n] / gw) | 0);
+  for (n = 0; n < list.length; n++) {
+    i = list[n]; y = (i / gw) | 0;
+    var h = (y0 - y) / Math.max(1, y0 - top);
+    sandFling(g, i, p.dir * (0.2 + h * 1.2) + (Math.random() - 0.5) * 0.2, -0.2 * h);
+  }
+  g.fx.thud++; g.shake = Math.min(6, g.shake + 2);
+  pSay(g, p, "timber", true);
+}
+/* a few chips or leaves off whatever they are working at. only for show: these light nothing */
+function pChips(g, x, y, n, cols) {
+  for (var k = 0; k < n; k++) {
+    var a = Math.random() * 6.2832, s = 0.2 + Math.random() * 0.4;
+    partAdd(g, PK_GLINT, x, y, Math.cos(a) * s, Math.sin(a) * s - 0.2, 8 + irnd(8), pick(cols));
+  }
+}
+/* could they light the thing at (x0, y0) and not regret it. the patch of flammable things it is part of (counting
+   anything within two cells as part of it) must be small, explosive-free, and have nothing flammable above it
+   for the hot air to find, and nobody near it: the one lighting it included, who must be standing well clear of
+   it, off to one side. returns the patch's bounds, or null */
+function pSafeToLight(g, p, x0, y0) {
+  var gw = g.gw, gh = g.gh, m = g.m, seen = {}, list = [y0 * gw + x0], n = 0, i, x, y, dx, dy, j;
+  var x1 = x0, x2 = x0, y1 = y0, y2 = y0;
+  seen[list[0]] = 1;
+  while (n < list.length) {
+    i = list[n++];
+    if (n > P_LIGHT_MAX) return null;        /* too big */
+    if (P_BANG[m[i]]) return null;           /* too exciting */
+    x = i % gw; y = (i / gw) | 0;
+    if (x < x1) x1 = x; if (x > x2) x2 = x; if (y < y1) y1 = y; if (y > y2) y2 = y;
+    for (dy = -2; dy <= 2; dy++) for (dx = -2; dx <= 2; dx++) {
+      var nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+      j = ny * gw + nx;
+      if (!seen[j] && P_FLAM[m[j]]) { seen[j] = 1; list.push(j); }
+    }
+  }
+  /* anything explosive nearby, anything to catch above */
+  for (y = Math.max(0, y1 - 18); y <= Math.min(gh - 1, y2 + 6); y++) for (x = Math.max(0, x1 - 6); x <= Math.min(gw - 1, x2 + 6); x++) {
+    j = y * gw + x;
+    if (P_BANG[m[j]]) return null;
+    if (P_FLAM[m[j]] && !seen[j] && y < y1 && x >= x1 - 3 && x <= x2 + 3) return null;
+  }
+  /* nobody else anywhere near it */
+  for (var k = 0; k < g.peasants.length; k++) {
+    var q = g.peasants[k];
+    if (q !== p && !q.dead && q.x > x1 - 8 && q.x < x2 + 9 && q.y > y1 - 4 && q.y < y2 + 14) return null;
+  }
+  return { x1: x1, x2: x2, y1: y1, y2: y2 };
+}
+/* how far they are standing from the side of a patch: 0 if they are over it */
+function pClear(p, b) { return p.x < b.x1 ? b.x1 - p.x : (p.x > b.x2 + 1 ? p.x - b.x2 - 1 : 0); }
+/* somewhere they could build a campfire at x: flat ground, open sky over it, nothing flammable near, nobody else
+   close, and them a few cells off to one side of it */
+function pCampOk(g, p, x, fy, stacked) {
+  var k, y, c, clear = pClear(p, { x1: x - 1, x2: x + 1 });
+  if (clear < 2.5 || clear > 5 || Math.abs(p.y - fy) > 1.5) return false;
+  for (k = -1; k <= 1; k++) {
+    if (!pSolid(g, x + k, fy + 1) && !(stacked && pCell(g, x + k, fy + 1) === MAT.WOOD)) return false;
+    /* empty, or (once they have stacked them) their own logs */
+    for (y = fy - 1; y <= fy; y++) { c = pCell(g, x + k, y); if (!AIRY[c] && !(stacked && c === MAT.WOOD)) return false; }
+  }
+  for (y = fy - 20; y <= fy + 1; y++) for (k = -5; k <= 5; k++) {
+    c = pCell(g, x + k, y);
+    if ((P_FLAM[c] && !(y >= fy - 1 && Math.abs(k) <= 1 && c === MAT.WOOD)) || (y < fy - 1 && SOLID[c] && Math.abs(k) <= 2)) return false;
+  }
+  for (k = 0; k < g.peasants.length; k++) {
+    var q = g.peasants[k];
+    if (q !== p && !q.dead && Math.abs(q.x - x) < 6 && Math.abs(q.y - fy) < 10) return false;
+  }
+  return true;
+}
+function pPickTask(g, p) {
+  var t = null, b;
+  if (p.hunger > P_HUNGRY) t = pFind(g, p, P_FOOD, 50, pEdible);
+  else if (p.hunger > 900) t = pFind(g, p, P_FOOD, 4, pEdible);   /* a snack, if it is right there */
+  if (t) { p.task = { kind: "eat", x: t.x, y: t.y, t: 0, act: 0, n: 0 }; return; }
+  if (p.bored > P_BORED_FIRE && Math.random() < 0.25) {
+    t = pFind(g, p, P_TINDER, 40);
+    if (t && (b = pSafeToLight(g, p, t.x, t.y))) { p.task = { kind: "light", x: t.x, y: t.y, b: b, t: 0, act: 0 }; return; }
+    if ((p.logs || 0) >= 3) {
+      var cx = Math.floor(p.x) + p.dir * 5;   /* the near log three to four cells off */
+      if (pCampOk(g, p, cx, Math.floor(p.y))) { p.task = { kind: "camp", x: cx, y: Math.floor(p.y), t: 0, act: 0 }; return; }
+    }
+  }
+  if ((p.logs || 0) < P_LOGS && !p.chopCD && (p.bored > P_BORED_CHOP || Math.random() < 0.05)) {
+    t = pFind(g, p, P_WOOD, p.bored > P_BORED_CHOP ? 40 : 3, pChoppable);
+    if (t) { p.task = { kind: "chop", x: t.x, y: t.y, t: 0, act: 0, n: 0 }; return; }
+  }
+}
+/* one tick of a task. true if they spent it working; false to keep walking (towards the job, or away from it) */
+function pTask(g, p) {
+  var k = p.task, gw = g.gw, fx = Math.floor(p.x), fy = Math.floor(p.y), j = k.y * gw + k.x, c, set, more, ok;
+  if (++k.t > 900) { p.task = null; return false; }
+  set = k.kind === "eat" ? P_FOOD : (k.kind === "chop" ? P_WOOD : (k.kind === "light" ? P_TINDER : null));
+  ok = k.kind === "eat" ? pEdible : (k.kind === "chop" ? pChoppable : null);
+  /* the thing went away (somebody else ate it, it burned...): find another like it close by, or give up */
+  if (set && !set[g.m[j]]) {
+    var t = k.kind === "light" ? null : pFind(g, p, set, 4, ok);
+    if (!t) { p.task = null; return false; }
+    k.x = t.x; k.y = t.y; j = k.y * gw + k.x;
+  }
+  if (k.y < fy - 10 || k.y > fy + 2) {
+    /* out of reach up or down: forget it once close enough to see that */
+    if (Math.abs(k.x + 0.5 - p.x) < 6) { p.task = null; return false; }
+  }
+  var dx = k.x + 0.5 - p.x;
+  if (k.kind === "light") {
+    /* stand off to the side of the patch, two and a half to five cells clear of it */
+    var clear = pClear(p, k.b), mid = (k.b.x1 + k.b.x2 + 1) / 2;
+    if (clear < 2.5) { p.dir = p.x < mid ? -1 : 1; p.idle = 0; k.act = 0; return false; }
+    if (clear > 5) { p.dir = p.x < mid ? 1 : -1; p.idle = 0; k.act = 0; return false; }
+    p.dir = p.x < mid ? 1 : -1;
+  } else if (k.kind === "camp") {
+    p.dir = dx < 0 ? -1 : 1;
+  } else {
+    /* an axe reaches a bit further than a hand */
+    if (Math.abs(dx) > (k.kind === "chop" ? 5.5 : 3.2)) { p.dir = dx < 0 ? -1 : 1; p.idle = 0; k.act = 0; return false; }
+    if (Math.abs(dx) > 0.5) p.dir = dx < 0 ? -1 : 1;
+  }
+  k.act++;
+  if (k.kind === "chop") {
+    p.pose = (k.act % 24) < 12 ? "chopA" : "chopB";
+    if (k.act % 24 === 12) {
+      if (pBuilt(g, k.x, k.y)) { p.task = null; return true; }   /* on second thoughts, somebody lives in that */
+      g.m[j] = MAT.EMPTY; g.fx.thud++;
+      pChips(g, k.x + 0.5, k.y + 0.5, 5, [SAND_PAL[MAT.WOOD][40], SAND_PAL[MAT.WOOD][200]]);
+      p.logs = (p.logs || 0) + 1; p.bored = Math.max(0, p.bored - 300); k.n++;
+      if (k.n === 1 && (p.sayT <= 0 || Math.random() < 0.3)) pSay(g, p, "chop");
+      pFell(g, p, k.x, k.y);
+      more = k.n < P_CHOPS && p.logs < P_LOGS ? pFindCut(g, p, k.x, k.y) : null;
+      if (more) { k.x = more.x; k.y = more.y; } else { p.task = null; p.taskDone = true; p.chopCD = P_CHOP_CD; }
+    }
+  } else if (k.kind === "eat") {
+    p.pose = (k.act >> 3) & 1 ? "eatB" : null;
+    if (k.act % 30 === 0) {
+      if (!pEdible(g, k.x, k.y)) { p.task = null; return true; }
+      c = g.m[j]; g.m[j] = MAT.EMPTY;
+      pChips(g, k.x + 0.5, k.y + 0.5, 3, [SAND_PAL[MAT.PLANT][0], SAND_PAL[MAT.PLANT][100]]);
+      p.hunger = Math.max(0, p.hunger - (c === MAT.FLOWER ? 1000 : 700)); p.bored = Math.max(0, p.bored - 100); k.n++;
+      if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, c === MAT.FLOWER && Math.random() < 0.5 ? "flower" : "eat");
+      more = p.hunger > 300 && k.n < P_BITES ? pFind(g, p, P_FOOD, 3, pEdible) : null;
+      if (more) { k.x = more.x; k.y = more.y; } else p.task = null; p.taskDone = true;
+    }
+  } else if (k.kind === "light") {
+    if (k.act % 6 === 0) pChips(g, p.x + p.dir * 2, p.y - 4, 1, SPARK_HOT);
+    if (k.act === 40) {
+      /* one last look, from where they are standing now, then strike a light at the near edge of it */
+      var b = pSafeToLight(g, p, k.x, k.y);
+      if (!b || pClear(p, b) < 2.5 || pClear(p, b) > 5) { p.task = null; return false; }
+      var tx = p.x < (b.x1 + b.x2 + 1) / 2 ? b.x1 : b.x2, ty, best = -1;
+      for (ty = b.y2; ty >= b.y1 && best < 0; ty--) for (var sx = 0; sx <= b.x2 - b.x1 && best < 0; sx++) {
+        var xx = tx === b.x1 ? b.x1 + sx : b.x2 - sx;
+        if (P_TINDER[g.m[ty * gw + xx]]) best = ty * gw + xx;
+      }
+      if (best < 0) { p.task = null; return false; }
+      pIgniteCell(g, best);
+      feed(g, p.name + " got bored and lit a fire", "#ffb070");
+      achieve(g, "arson");
+      pSay(g, p, "light", true);
+      p.bored = 0; p.calmT = 400; p.task = null; p.taskDone = true; p.dir = -p.dir; p.idle = 0;
+    }
+  } else if (k.kind === "camp") {
+    /* stack the logs, then light them, then stand about enjoying it. looking again before each */
+    if ((k.act === 20 || k.act === 60) && !pCampOk(g, p, k.x, k.y, k.act === 60)) { p.task = null; return false; }
+    if (k.act === 20) {
+      var stack = [[k.x - 1, k.y], [k.x + 1, k.y], [k.x, k.y], [k.x, k.y - 1]], placed = 0;
+      for (var s = 0; s < stack.length && p.logs > 0; s++) {
+        var si = stack[s][1] * gw + stack[s][0];
+        if (g.m[si] === MAT.EMPTY) { sandSet(g, si, MAT.WOOD); p.logs--; placed++; }
+      }
+      if (!placed) { p.task = null; return false; }
+      g.fx.thud++;
+    }
+    if (k.act > 20 && k.act % 6 === 0) pChips(g, k.x + 0.5, k.y - 1, 1, SPARK_HOT);
+    if (k.act === 60) {
+      /* light one of the logs they stacked (not whatever drifted into the gap) */
+      var log = -1;
+      for (var lx = k.x - 1; lx <= k.x + 1 && log < 0; lx++) for (var ly = k.y; ly >= k.y - 1 && log < 0; ly--) if (g.m[ly * gw + lx] === MAT.WOOD) log = ly * gw + lx;
+      if (log < 0) { p.task = null; return false; }
+      pIgniteCell(g, log);
+      feed(g, p.name + " made a campfire", "#ffb070");
+      achieve(g, "camp");
+      pSay(g, p, "camp", true);
+      p.bored = 0; p.calmT = 600; p.task = null; p.taskDone = true; p.idle = 150;   /* and stand there admiring it */
+    }
+  }
+  return true;
+}
+/* set a cell alight: wood smoulders into embers, everything else just burns */
+function pIgniteCell(g, j, spread) {
+  var v = g.m[j], gw = g.gw, x = j % gw, y = (j / gw) | 0, k, n;
+  /* a match: no heat to speak of. the burning makes the heat. the cell keeps exactly the heat it had */
+  heatSync(g, j);
+  var q = heatQ(g, j);
+  if (v === MAT.WOOD) g.m[j] = MAT.EMBER;
+  else { g.m[j] = MAT.FIRE; g.sh[j] = irnd(128); }
+  g.aux[j] = 0;
+  heatSetQ(g, j, q);
+  g.fx.whoosh++;
+  /* a match held to a bush catches a few twigs, not just the one */
+  if (spread !== false) for (k = 0, n = 0; k < 4 && n < 2; k++) {
+    var nb = sandNb(g, x, y, k);
+    if (nb >= 0 && P_TINDER[g.m[nb]]) { pIgniteCell(g, nb, false); n++; }
   }
 }
 
@@ -1085,8 +1557,10 @@ function peasantsDraw(g) {
     else if (p.state === "fly") { body = P_BODY.panicA; rot = ((Math.round(p.spin / 1.5708) % 4) + 4) % 4; }
     else if (p.stun > 0) { body = P_BODY.stand; rot = flip ? 3 : 1; oy = Math.floor(p.y) - 2; }
     else if (p.rope) body = P_BODY.panicA;   /* arms up, holding on */
+    else if (p.chute) body = p.chute.fail ? (fast ? P_BODY.panicA : P_BODY.panicB) : P_BODY.stand;
     else if (p.fire || p.panic > 0 || p.breath < P_BREATH - 30) body = fast ? P_BODY.panicA : P_BODY.panicB;
     else if (p.jumping) body = P_BODY.walkA;
+    else if (p.pose) body = P_BODY[p.pose];
     else if (p.idle > 0) body = P_BODY.stand;
     else body = ((p.anim / 7) | 0) & 1 ? P_BODY.walkA : P_BODY.walkB;
     var src = (p.zap > 0 && (p.zap >> 2) & 1) ? P_XRAY : (p.charred ? P_CHAR : p.pal);
@@ -1106,7 +1580,7 @@ function peasantsDraw(g) {
       if (Math.random() < 0.5) pal[6] = P_FIRE[irnd(256)];
     }
     var ox = Math.floor(p.x) + (p.cold > 200 && p.state === "walk" ? (p.anim >> 1) & 1 : 0);   /* shivering */
-    if (p.state === "walk" && !p.falling && !p.jumping && !p.swimming) {
+    if (p.state === "walk" && !p.falling && !p.jumping && !p.swimming && !p.chute) {
       /* a little shadow on whatever they are standing on */
       var sy = Math.floor(p.y) + 1;
       if (sy < g.gh) for (c = -2; c <= 2; c++) {
@@ -1115,6 +1589,7 @@ function peasantsDraw(g) {
       }
     }
     if (p.rope && p.state === "walk") pDrawRope(g, p, ox);
+    if (p.chute && p.state === "walk") pDrawChute(g, p, ox);
     pBlit(g, p.hat.spr, ox, oy, flip, rot, pal, p.fire > 0);
     pBlit(g, body, ox, oy, flip, rot, pal, p.fire > 0);
   }
@@ -1145,6 +1620,34 @@ function pDrawRope(g, p, ox) {
     var t = s / n, X = Math.floor(x0 + dx * t), Y = Math.floor(y0 + dy * t + sag * 4 * t * (1 - t));
     if (X < 0 || Y < 0 || X >= gw || Y >= gh) continue;
     px[Y * gw + X] = s === n ? P_HOOK32 : P_ROPE32[(s >> 1) & 1];
+  }
+}
+
+/* a canopy over their head on two lines, opening out over its first few ticks. or a sorry, flapping streamer */
+function pDrawChute(g, p, ox) {
+  var c = p.chute, px = g.px, gw = g.gw, gh = g.gh, fy = Math.floor(p.y), k, x, y, X, Y;
+  function put(X, Y, col) { if (X >= 0 && Y >= 0 && X < gw && Y < gh) px[Y * gw + X] = col; }
+  if (c.fail) {
+    /* a twisted bundle on a line, whipping about */
+    var wob = Math.sin(p.anim * 0.9);
+    for (k = 0; k < 6; k++) put(ox + Math.round(wob * k * 0.3), fy - 9 - k, P_CHUTE_LINE);
+    for (k = 0; k < 5; k++) {
+      X = ox + Math.round(wob * (6 + k) * 0.35 + Math.sin(p.anim * 1.7 + k) * 0.8); Y = fy - 15 - k;
+      put(X, Y, k & 1 ? P_CHUTE_WHITE : c.col); put(X + 1, Y, c.col);
+    }
+    return;
+  }
+  var w = Math.min(5, 1 + c.t * 0.7) | 0, top = fy - 17;
+  /* the lines, from the hem to their shoulders */
+  for (k = 0; k <= 7; k++) {
+    var t = k / 7;
+    put(Math.round(ox - w + (w - 1) * t), top + 3 + Math.round(t * 7), P_CHUTE_LINE);
+    put(Math.round(ox + w - (w - 1) * t), top + 3 + Math.round(t * 7), P_CHUTE_LINE);
+  }
+  /* the dome, in stripes */
+  for (y = 0; y < 3; y++) {
+    var hw = y === 0 ? w - 2 : (y === 1 ? w - 1 : w);
+    for (x = -hw; x <= hw; x++) put(ox + x, top + y, ((x + 10) >> 1) & 1 ? P_CHUTE_WHITE : c.col);
   }
 }
 
