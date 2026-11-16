@@ -4,17 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PLEASAND</title>
-<meta name="description" content="a falling sand toy. twenty kinds of pixel. pour them, light them, freeze them, grow them.">
+<meta name="description" content="a falling sand game, with peasants in it. pour things, light things, throw peasants. they have names.">
 <link rel="icon" href="favicon.gif" type="image/gif">
 <style>
 html, body { margin:0; height:100%; background:#05070c; overflow:hidden; }
 body { display:flex; align-items:center; justify-content:center; }
-#cv { display:block; image-rendering:pixelated; cursor:crosshair; touch-action:none;
+#cv { display:block; cursor:crosshair; touch-action:none;
       width:min(100vw, 160vh); height:min(62.5vw, 100vh); }
 </style>
 </head>
 <body>
-<canvas id="cv" width="480" height="300"></canvas>
-<script src="sand.js"></script>
+<canvas id="cv" width="640" height="400"></canvas>
+<script src="audio.js"></script>
+<script src="world.js"></script>
+<script src="peasants.js"></script>
+<script src="game.js"></script>
 </body>
 </html>
