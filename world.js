@@ -250,8 +250,12 @@ function sandSwap(g, i, j) {
 }
 /* a new thing in a cell, made out of what the world was already doing there (a flame licking into the
    air, a plant growing, a puff of smoke). it has exactly the heat the cell had: see heat.js */
+/* something new where j is: it keeps the heat that was there, but not the heat it took to melt or boil what was there.
+   a stalk growing up through a pond, a board put in where some steam was, takes the place of the water or the steam,
+   and that heat goes with them (as down a drain, or drunk by a plant): as temperature, in one cell of plant, the
+   melting heat of a cell of water is well over a thousand degrees, and it bursts into flame */
 function sandSet(g, j, v) {
-  var q = heatQ(g, j);
+  var q = heatQ(g, j) - HEAT_HLAT[g.hm[j]] * heatF(g.hs[j]);
   g.m[j] = v; g.vy[j] = 0; g.aux[j] = 0; g.sh[j] = irnd(256);
   heatSetQ(g, j, q);
 }
@@ -918,7 +922,9 @@ function sandLiquid(g, i, x, y) {
       else if (t === MAT.SAND || WOODY[t] || LEAFY[t] || t === MAT.ICE ||
                t === MAT.GUNPOWDER || t === MAT.ASH || t === MAT.SNOW) p = 0.04;
       if (p && Math.random() < p) {
-        m[j] = MAT.EMPTY;
+        /* the air left behind keeps its heat, but not the half-melted ice's melting heat: that is a couple of hundred
+           degrees, in a cell of air */
+        g.lat[j] = 0; m[j] = MAT.EMPTY;
         if (Math.random() < 0.3) gone = true;   /* acid is used up eating things */
       }
     }
