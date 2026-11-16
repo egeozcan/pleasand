@@ -183,7 +183,10 @@ function pWeighted(list) {
 }
 function peasantSpawn(g, x, y, quiet) {
   if (g.peasants.length >= P_MAX) { if (!quiet) { feed(g, "the village is full. it is a small village", "#ffd94a"); achieve(g, "full"); } return null; }
-  var hat = pWeighted(P_HATS), hc = pick(hat.cols), skin = pick(P_SKINS);
+  var hat = pWeighted(P_HATS);
+  /* there is only ever one king */
+  while (hat === P_HATS[6] && pKing(g)) hat = pWeighted(P_HATS);
+  var hc = pick(hat.cols), skin = pick(P_SKINS);
   var short = pick(P_NAMES), name = (hat.title || "") + short + (Math.random() < 0.08 ? pick(P_SUFFIX) : "");
   var cols = [hc, hat.trim || hexDarken(hc), skin, "#101010", pick(P_SHIRTS), "#3a2a1a", pick(P_PANTS), "#2a1a10", "#401010", "#ffffff"];
   if (hat === P_HATS[4]) cols[0] = skin;
@@ -199,13 +202,19 @@ function peasantSpawn(g, x, y, quiet) {
   g.hadPeasants = true;
   return p;
 }
+function pKing(g) {
+  for (var k = 0; k < g.peasants.length; k++) if (g.peasants[k].hat === P_HATS[6] && !g.peasants[k].dead) return g.peasants[k];
+  return null;
+}
 /* a copy of somebody, from a peasant factory */
 function peasantClone(g, src, x, y) {
   var p = peasantSpawn(g, x, y, true);
   if (!p) return null;
   g.cloneN[src.short] = (g.cloneN[src.short] || 1) + 1;
-  p.hat = src.hat; p.pal = src.pal.slice(); p.voice = src.voice * (0.95 + Math.random() * 0.1);
+  p.voice = src.voice * (0.95 + Math.random() * 0.1);
   p.short = src.short; p.name = src.short + " #" + g.cloneN[src.short];
+  if (src.hat !== P_HATS[6]) { p.hat = src.hat; p.pal = src.pal.slice(); }
+  else { var hp = p.pal; p.pal = src.pal.slice(); p.pal[0] = hp[0]; p.pal[1] = hp[1]; p.name = "FAKE KING " + p.short; }
   return p;
 }
 function hexDarken(h) { var c = hexRGB(h); return "#" + c.map(function (v) { return ("0" + Math.round(v * 0.6).toString(16)).slice(-2); }).join(""); }
@@ -277,7 +286,9 @@ function pDie(g, p, cause) {
   if (cause === "splat" && p.fromSpace > 0) cause = "reentry";
   g.rip++;
   feed(g, pick(P_DEATH[cause]).replace("{n}", p.name), "#ff9a8a");
-  var gl = Math.random() < 0.45 ? pick(P_SAY.ghost) : "";
+  var talking = 0;
+  for (k = 0; k < g.ghosts.length; k++) if (g.ghosts[k].say && g.ghosts[k].t < 170) talking++;
+  var gl = (talking < 2 && Math.random() < 0.5) ? pick(P_SAY.ghost) : "";
   g.ghosts.push({ x: p.x, y: p.y - 4, t: 0, dir: p.dir, say: gl });
   var fx = Math.floor(p.x), fy = Math.floor(p.y), gw = g.gw, k, j, x, y;
   /* what is left */
