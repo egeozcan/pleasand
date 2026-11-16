@@ -707,6 +707,9 @@ function pMood(p) {
   if (p.breath < P_BREATH - 20) return "is drowning. slowly. " + Math.ceil(p.breath / 60) + "s of air left";
   if (p.zap > 0) return "is being electrocuted";
   if (p.stun > 0) return "is having a little lie down";
+  if (p.rope && p.rope.mode === "climb") return "is climbing a rope. like a ninja";
+  if (p.rope && p.rope.mode === "swing") return "is swinging on a rope";
+  if (p.rope) return "is abseiling";
   if (p.jumping) return "is jumping";
   if (p.swimming) return "is swimming";
   if (p.cold > 200) return "is freezing. needs a fire";

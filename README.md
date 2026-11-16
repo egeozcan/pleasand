@@ -17,7 +17,7 @@ snows, if you chill it hard), stone runs as lava past 1150 and lava sets again
 below 950, sand sinters into glass, glass and metal melt and set, wood, oil,
 plants and gas catch on their own when hot enough, and salt water boils down
 to salt. Also a small village of
-peasants who walk about, chat, climb things, jump ledges and gaps, swim, catch fire, run for
+peasants who walk about, chat, climb things, jump ledges and gaps, carry ninja ropes, swim, catch fire, run for
 the pond, go to space if thrown hard enough, and have opinions about all of
 it. They have names. The game keeps count.
 
@@ -60,6 +60,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - Dissolve salt in a pond, then boil it off
 - COOL a cloud of steam
 - Put a peasant on a hot plate. Or in the snow
+- Build a wall too tall to jump, or a gap too wide to leap, with a beam over it. Then a very tall cliff
 
 ## Files
 

@@ -3,10 +3,11 @@
 
    the villagers. they are not on the grid: each one is a little bag of
    numbers that walks over the grid, reads the cells it is standing in,
-   and reacts. they climb small steps, jump up ledges and over gaps, turn
-   around at walls too tall to jump, fall off cliffs, wade and swim (and
-   drown only if they cannot find the surface), catch fire, and have
-   opinions about all of it.
+   and reacts. they climb small steps, jump up ledges and over gaps, and
+   carry a ninja rope for walls too tall to jump, gaps too wide to leap
+   and cliffs too high to fall off. they wade and swim (and drown only if
+   they cannot find the surface), catch fire, and have opinions about all
+   of it.
 
    a peasant is 5 cells wide and 9 tall, drawn straight into the pixel
    buffer so it sits in the world like everything else. its feet are at
@@ -17,6 +18,8 @@
 var P_MAX = 120, P_BREATH = 300;
 /* jumping: gravity per tick, the tallest ledge a peasant can jump up, the widest gap it will leap */
 var P_GRAV = 0.09, P_JUMP = 10, P_GAP = 12;
+/* the ninja rope: how far it reaches, how fast the hook flies, how fast they climb and let themselves down */
+var P_ROPE = 45, P_HOOK_V = 4, P_REEL = 0.22, P_ABSEIL = 0.35;
 /* things a buried peasant cannot dig up through */
 var P_HARD = new Uint8Array(32);
 [MAT.STONE, MAT.GLASS, MAT.ICE, MAT.CLONER, MAT.FAUCET, MAT.DRAIN, MAT.TORCH, MAT.METAL, MAT.INERT].forEach(function (v) { P_HARD[v] = 1; });
@@ -85,7 +88,12 @@ var P_SAY = {
   scald: ["HOT HOT HOT", "OW OW OW", "MY FEET", "THE FLOOR IS HOT", "OUCH", "it burns!", "ow ow ow"],
   cold: ["brrr", "b-b-b-brr", "so cold", "i can't feel my toes", "where's my coat", "winter is here", "*shiver*",
          "my nose is frozen", "c-c-cold"],
-  float: ["i'm floating!", "salt water! i float!", "look, no hands", "it's like the dead sea", "so buoyant"]
+  float: ["i'm floating!", "salt water! i float!", "look, no hands", "it's like the dead sea", "so buoyant"],
+  rope: ["NINJA ROPE!", "hyaa!", "get over here", "i've got this", "ROPE!", "like a ninja", "hiyaa", "grappling!"],
+  swing: ["WHEEEE", "tarzan!", "AAAH-AH-AAAAH", "like a monkey", "swingin'"],
+  abseil: ["abseiling!", "going down", "safety first", "nice and slow", "don't look down"],
+  caught: ["PHEW", "got it!", "that was close", "rope! rope!", "ninja reflexes"],
+  snap: ["MY ROPE!", "uh oh", "noooo", "it snapped!", "cheap rope"]
 };
 
 var P_DEATH = {
@@ -294,7 +302,8 @@ var P_ACHIEVE = {
   full: ["OVERPOPULATION", "the housing market is in shambles"],
   bloom: ["SPRING HAS SPRUNG", "the peasants approve"],
   leave: ["YEET", "a peasant has left the village. by air"],
-  roast: ["A BARBECUE", "three peasants on fire at once. a village record"]
+  roast: ["A BARBECUE", "three peasants on fire at once. a village record"],
+  ninja: ["NINJA ROPE", "the peasants have discovered rope. there is no stopping them now"]
 };
 function achieve(g, k) {
   if (g.got[k]) return;
@@ -406,7 +415,7 @@ function peasantsBlast(g, cx, cy, R, P) {
       if (p.state === "held") continue;
       p.vx = clamp(p.vx + dx / d * f, -4.5, 4.5);
       p.vy = clamp(p.vy + dy / d * f - f * 0.7, -4.5, 4.5);
-      if (p.state !== "fly") { p.state = "fly"; p.flyT = 0; p.immune = 3; p.fallY = p.y; }
+      if (p.state !== "fly") { p.state = "fly"; p.flyT = 0; p.immune = 3; p.fallY = p.y; p.rope = null; }
       if (d < R * 1.3 && Math.random() < (big ? 0.8 : 0.35)) pIgnite(g, p);
       else if (p.sayT <= 0 || Math.random() < 0.3) pSay(g, p, "thrown", true);
     } else if (d < (big ? 400 : R * 10)) {
@@ -422,7 +431,7 @@ function peasantsReact(g, kind, x, y) {
     var p = L[k];
     if (p.dead || p.state !== "walk" || p.fire) continue;
     var dx = p.x - x, dy = p.y - y, d2 = dx * dx + dy * dy;
-    if (kind === "firework" && d2 < 160 * 160 && Math.random() < 0.35) { pSay(g, p, "ooh"); if (!p.jumping && pGround(g, Math.floor(p.x), Math.floor(p.y)) && Math.random() < 0.5) pLeap(p, 0.9, 0); }
+    if (kind === "firework" && d2 < 160 * 160 && Math.random() < 0.35) { pSay(g, p, "ooh"); if (!p.jumping && !p.rope && pGround(g, Math.floor(p.x), Math.floor(p.y)) && Math.random() < 0.5) pLeap(p, 0.9, 0); }
     else if (kind === "flower" && d2 < 40 * 40 && Math.random() < 0.6) pSay(g, p, "flower");
   }
 }
@@ -538,7 +547,9 @@ function pStep(g, p) {
     if (Math.random() < 0.25) partAdd(g, PK_SPARK, p.x + Math.random() * 3 - 1, p.y - 6 - Math.random() * 3, (Math.random() - 0.5) * 0.3, -0.5, 8 + irnd(10), pick(SPARK_HOT));
     if (p.fire > 300) { pDie(g, p, "fire"); return; }
   }
-  if (p.state === "fly") { p.jumping = false; pFly(g, p); return; }
+  if (p.ropeCD > 0) p.ropeCD--;
+  if (p.catchCD > 0) p.catchCD--;
+  if (p.state === "fly") { p.jumping = false; p.rope = null; pFly(g, p); return; }
 
   /* buried in something: climb out the top, if there is a top */
   if (SOLID[cf]) {
@@ -552,6 +563,8 @@ function pStep(g, p) {
     return;
   }
   p.buried = 0;
+  /* on the rope, or waiting for the hook to bite */
+  if (p.rope && pRopeStep(g, p)) return;
   /* in the air on purpose: a jump, or a hop for fireworks */
   if (p.jumping) { pJump(g, p); return; }
   var ground = pGround(g, fx, fy);
@@ -585,7 +598,7 @@ function pHeat(g, p, fx, fy) {
     p.panic = Math.max(p.panic, 30); p.idle = 0;
     if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "scald", true);
     /* hot ground: a little hop, as you would */
-    if (feet > P_SCALD && p.state === "walk" && !p.jumping && !p.swimming && Math.random() < 0.08) pLeap(p, 0.7, 0);
+    if (feet > P_SCALD && p.state === "walk" && !p.jumping && !p.swimming && !p.rope && Math.random() < 0.08) pLeap(p, 0.7, 0);
   } else if (!p.fire && hi > P_SWEAT) {
     if (++p.warm > 120 && p.sayT <= 0 && Math.random() < 0.01) pSay(g, p, "hot");
   } else p.warm = 0;
@@ -599,6 +612,7 @@ function pHeat(g, p, fx, fy) {
 }
 
 function pHeld(g, p) {
+  p.rope = null; p.jumping = false;
   p.x = clamp((g.mx - PANEL) / CELL, 1, g.gw - 2);
   p.y = clamp((g.my - PLAY_Y) / CELL + 8, 9, g.gh - 1);
   p.vx = g.cvx; p.vy = g.cvy; p.spin = 0; p.falling = false; p.fallY = p.y;
@@ -625,8 +639,10 @@ function pFall(g, p) {
   p.vy = Math.min(p.vy + 0.09, 3);
   var fx = Math.floor(p.x), target = p.y + p.vy, cy = Math.floor(p.y);
   while (cy < Math.floor(target) && !pGround(g, fx, cy)) cy++;
-  if (pGround(g, fx, cy) && cy <= target) { p.y = cy; pLand(g, p); }
-  else p.y = target;
+  if (pGround(g, fx, cy) && cy <= target) { p.y = cy; pLand(g, p); return; }
+  p.y = target;
+  /* a long way down: the rope, if there is anything to hook */
+  if (p.y - p.fallY > 25 && Math.random() < 0.08 && pTryCatch(g, p)) return;
   if (p.y - p.fallY > 30 && p.sayT <= 0) pSay(g, p, "fall", true);
 }
 function pLand(g, p) {
@@ -701,8 +717,15 @@ function pTryJump(g, p, fx, fy) {
 /* the ground ends and the drop is a long one: leap to the other side, if there is one close enough */
 function pTryGap(g, p, fx, fy) {
   if (p.fire || p.cold > 400) return false;   /* burning peasants want to land in the pond, not over it */
+  var d;
+  for (d = 1; d <= 6; d++) if (pGround(g, fx + p.dir, fy + d)) return false;   /* only a little drop: just walk off */
+  if (pTryLeap(g, p, fx, fy)) return true;
+  /* too wide to leap: swing over on the rope if there is anything up there to hook, else let yourself down */
+  if (!p.ropeCD && Math.random() < 0.8 && pTrySwing(g, p, fx, fy)) return true;
+  return pTryAbseil(g, p, fx, fy);
+}
+function pTryLeap(g, p, fx, fy) {
   var dir = p.dir, d, dy, x, k;
-  for (d = 1; d <= 6; d++) if (pGround(g, fx + dir, fy + d)) return false;   /* only a little drop: just walk off */
   for (k = 0; k <= 8; k++) if (pSolid(g, fx, fy - 9 - k)) return false;    /* no room to jump */
   for (d = 3; d <= P_GAP; d++) {
     x = fx + dir * d;
@@ -720,6 +743,202 @@ function pTryGap(g, p, fx, fy) {
   }
   return false;
 }
+/* -------------------------------------------------------------------
+   THE NINJA ROPE. a hook on a line: thrown at a ledge to climb it, at
+   something overhead to swing across a gap, tied to the edge of a cliff
+   to let yourself down, or flung upward mid-fall to catch yourself.
+   the hands hang on a line of length len from the anchor; the line can go
+   slack but never stretch. climbing reels it in, abseiling pays it out.
+   ------------------------------------------------------------------- */
+function pHands(p) { return p.y - 6; }
+/* something to stand on that is a floor, not just the foot of a wall they are hanging beside */
+function pFloor(g, x, y) {
+  return pSolid(g, x, y + 1) || (pSolid(g, x - 1, y + 1) && !pSolid(g, x - 1, y)) || (pSolid(g, x + 1, y + 1) && !pSolid(g, x + 1, y));
+}
+/* along (dx, dy) from (x0, y0): the last free point before the first solid cell, or null */
+function pHookCast(g, x0, y0, dx, dy, max) {
+  for (var s = 1; s <= max * 2; s++) {
+    var x = x0 + dx * s * 0.5, y = y0 + dy * s * 0.5, cx = Math.floor(x), cy = Math.floor(y);
+    if (cy < 0 || cx < 0 || cx >= g.gw) return null;
+    if (pSolid(g, cx, cy)) {
+      if (pCell(g, cx, cy) === MAT.INERT) return null;   /* magic. the hook just slides off */
+      return { x: x0 + dx * (s - 1) * 0.5, y: y0 + dy * (s - 1) * 0.5, cx: cx, cy: cy };
+    }
+  }
+  return null;
+}
+/* throw the hook at (ax, ay), which sits on solid cell (cx, cy). it bites when it gets there */
+function pRopeThrow(g, p, mode, ax, ay, cx, cy, goal, now) {
+  var dx = ax - p.x, dy = ay - pHands(p);
+  p.rope = { mode: mode, ax: ax, ay: ay, cx: cx, cy: cy, goal: goal, x0: p.x, t: 0,
+             dist: Math.sqrt(dx * dx + dy * dy), hook: now ? 1e9 : 0, len: 0, on: false };
+  p.idle = 0; p.stun = 0; p.jumping = false;
+  if (now) pRopeBite(g, p);
+  else g.fx.whee++;
+  achieve(g, "ninja");
+}
+function pRopeBite(g, p) {
+  var r = p.rope, dx = p.x - r.ax, dy = pHands(p) - r.ay;
+  r.on = true; r.len = Math.max(1.5, Math.sqrt(dx * dx + dy * dy));
+  if (pGround(g, Math.floor(p.x), Math.floor(p.y))) {
+    p.vy = 0;
+    p.vx = r.mode === "swing" || r.mode === "abseil" ? p.dir * 0.3 : 0;   /* and off the edge they go */
+  } else { p.vx = 0; p.vy = p.vy || 0; }
+  p.falling = false; p.fallY = p.y;
+}
+/* let go. whatever speed they had, they keep, and come down where it takes them */
+function pRopeDrop(g, p, snapped) {
+  p.rope = null; p.ropeCD = 90;
+  p.jumping = true; p.jx = clamp(p.vx || 0, -1.2, 1.2); p.vy = clamp(p.vy || 0, -2, 3); p.fallY = p.y;
+  if (snapped) pSay(g, p, "snap", true);
+}
+/* a wall too tall to jump: hook the top of it and climb */
+function pTryClimb(g, p, fx, fy) {
+  if (p.cold > 400 || p.fire) return false;
+  var dir = p.dir, nfx = fx + dir, k, j;
+  for (k = 4; k <= P_ROPE; k++) if (pRoom(g, nfx, fy - k)) break;
+  if (k > P_ROPE) return false;
+  /* the line runs straight up the face, so there must be room up there for it and for them */
+  for (j = 9; j <= k + 9; j++) if (pSolid(g, fx, fy - j)) return false;
+  var top = fy - k + 1;   /* the top solid cell of the wall */
+  if (!pSolid(g, nfx, top) || pCell(g, nfx, top) === MAT.INERT) return false;
+  pRopeThrow(g, p, "climb", dir > 0 ? nfx : nfx + 1, top, nfx, top, fy - k);
+  if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "rope", true);
+  return true;
+}
+/* a gap too wide to leap: hook something up and ahead, and swing over, if there is a far side to land on */
+function pTrySwing(g, p, fx, fy) {
+  var dir = p.dir, hy = pHands(p), a, h = null, c, rad, d, dy, x;
+  /* the farthest hook out over the gap swings the farthest */
+  for (a = 15; a <= 65; a += 5) {
+    rad = a * Math.PI / 180;
+    c = pHookCast(g, p.x, hy, dir * Math.sin(rad), -Math.cos(rad), P_ROPE);
+    if (c && (c.x - p.x) * dir >= 3 && (!h || (c.x - h.x) * dir > 0)) h = c;
+  }
+  if (!h) return false;
+  /* a swing reaches about as far past the hook as it started short of it, and letting go adds a bit */
+  var reach = Math.round((h.x - p.x) * dir * 2) + 10;
+  for (d = 3; d <= reach; d++) {
+    x = fx + dir * d;
+    for (dy = -6; dy <= 6; dy++) if (pGround(g, x, fy + dy) && pRoom(g, x, fy + dy)) {
+      pRopeThrow(g, p, "swing", h.x, h.y, h.cx, h.cy, fy);
+      pSay(g, p, Math.random() < 0.5 ? "rope" : "swing", true);
+      return true;
+    }
+  }
+  return false;
+}
+/* a long drop: tie the rope to the edge and let yourself down it. unless the bottom is lava, or acid:
+   then it is time to find another way */
+function pTryAbseil(g, p, fx, fy) {
+  var dir = p.dir, nfx = fx + dir, d, c, k;
+  for (d = 7; d <= 30; d++) if (pGround(g, nfx, fy + d)) return false;   /* not that far: just drop */
+  for (d = 1; fy + d < g.gh + 1; d++) {
+    c = pCell(g, nfx, fy + d);
+    if (HOT[c] || c === MAT.ACID) { p.dir = -dir; pSay(g, p, "nope"); return true; }
+    if (!AIRY[c]) break;
+  }
+  if (p.ropeCD || Math.random() > 0.85) return false;
+  /* tie it to the ground they are standing on, at the lip */
+  for (k = 0; k <= 2; k++) {
+    var cx = fx - dir * k;
+    if (pSolid(g, cx, fy + 1) && pCell(g, cx, fy + 1) !== MAT.INERT) {
+      pRopeThrow(g, p, "abseil", dir > 0 ? cx + 1 : cx, fy + 1, cx, fy + 1, 0, true);
+      pSay(g, p, "abseil", true);
+      return true;
+    }
+  }
+  return false;
+}
+/* falling, a long way: fling the hook up at anything at all, and hope */
+function pTryCatch(g, p) {
+  if (p.rope || p.catchCD || p.fire || p.cold > 400) return false;
+  var hy = pHands(p), best = null, a, h;
+  for (a = -40; a <= 40; a += 10) {
+    h = pHookCast(g, p.x, hy, Math.sin(a * Math.PI / 180), -Math.cos(a * Math.PI / 180), P_ROPE);
+    if (h && (!best || h.y > best.y)) best = h;   /* the nearest overhead */
+  }
+  if (!best) { p.catchCD = 8; return false; }
+  pRopeThrow(g, p, "abseil", best.x, best.y, best.cx, best.cy, 0);
+  pSay(g, p, "rope", true);
+  return true;
+}
+
+/* one tick on the rope. true if that was their whole tick */
+function pRopeStep(g, p) {
+  var r = p.rope, fx = Math.floor(p.x), fy = Math.floor(p.y);
+  r.t++;
+  /* the anchor burned, melted, got eaten or erased: the rope goes with it. and fire eats rope */
+  if (!pSolid(g, r.cx, r.cy) || (p.fire && Math.random() < 0.02)) {
+    if (r.on) pRopeDrop(g, p, true); else p.rope = null;
+    return r.on;
+  }
+  if (!r.on) {
+    /* the hook is still in the air. on the ground, they wait for it; falling or swimming, life goes on */
+    r.hook += P_HOOK_V;
+    if (r.hook >= r.dist) { pRopeBite(g, p); if (p.sayT <= 0 && r.mode === "abseil" && r.t > 1) pSay(g, p, "caught", true); return true; }
+    if (r.t > 30) { p.rope = null; p.ropeCD = 60; return false; }
+    return pGround(g, fx, fy) && !p.swimming;
+  }
+  var hy = pHands(p), dx, dy, d, wet = LIQUID[pCell(g, fx, fy - 4)];
+  /* reel in, pay out */
+  if (r.mode === "climb") r.len = Math.max(1.5, r.len - P_REEL);
+  else if (r.mode === "abseil") r.len = Math.min(P_ROPE * 3, r.len + P_ABSEIL);
+  else r.len = Math.max(4, r.len - 0.03);
+  p.vy += wet ? P_GRAV * 0.3 : P_GRAV;
+  if (wet) { p.vx *= 0.9; p.vy *= 0.9; }
+  /* swinging: kick on the way forward, like on a playground swing */
+  dx = p.x - r.ax; dy = hy - r.ay; d = Math.sqrt(dx * dx + dy * dy) || 1;
+  if (r.mode === "swing" && dy > 0 && p.vx * p.dir >= 0 && Math.abs(p.vx) < 1.4) {
+    p.vx += p.dir * (dy / d) * 0.02; p.vy -= p.dir * (dx / d) * 0.02;   /* along the arc, forward */
+  }
+  if (r.mode === "abseil") p.vx *= 0.92;   /* abseiling is not swinging */
+  /* move, then the rope pulls them back to its length if they went past it */
+  var nx = p.x + p.vx, ny = p.y + p.vy;
+  dx = nx - r.ax; dy = ny - 6 - r.ay; d = Math.sqrt(dx * dx + dy * dy) || 1;
+  if (d > r.len) {
+    nx = r.ax + dx / d * r.len; ny = r.ay + dy / d * r.len + 6;
+    var out = (p.vx * dx + p.vy * dy) / d;
+    if (out > 0) { p.vx -= out * dx / d; p.vy -= out * dy / d; }
+  }
+  nx = clamp(nx, 1, g.gw - 1);
+  /* and the world is in the way of all of it */
+  var landed = false;
+  if (ny > p.y) {
+    var cy = fy;
+    while (cy < Math.floor(ny) && !pFloor(g, Math.floor(nx), cy)) cy++;
+    if (pFloor(g, Math.floor(nx), cy) && cy <= ny) { ny = cy; landed = true; p.vy = 0; }
+  } else if (pSolid(g, Math.floor(nx), Math.floor(ny) - 9)) { ny = p.y; p.vy = 0; }
+  if (pBlocked(g, nx, ny)) {
+    if (!pBlocked(g, p.x, ny)) { nx = p.x; p.vx *= -0.2; }
+    else if (!pBlocked(g, nx, p.y)) { ny = p.y; p.vy = 0; }
+    else { nx = p.x; ny = p.y; p.vx = p.vy = 0; }
+  }
+  p.x = nx; p.y = ny; p.fallY = p.y; p.falling = false;
+  fx = Math.floor(p.x); fy = Math.floor(p.y);
+  /* done? */
+  if (r.mode === "climb") {
+    var h = p.y - r.goal;
+    if (h <= 7 || r.len <= 1.5) {
+      /* near enough the top: let go and jump the rest */
+      p.rope = null; p.ropeCD = 60;
+      pLeap(p, Math.sqrt(2 * P_GRAV * (Math.max(h, 0) + 2)), p.dir * 0.3);
+      return true;
+    }
+  } else if (r.mode === "swing") {
+    if (landed && Math.abs(p.x - r.x0) > 4) { p.rope = null; p.ropeCD = 60; p.vx = p.vy = 0; return true; }
+    /* past the hook, still going forward, and high enough to clear the far side: let go and fly.
+       not high enough yet: swing back and kick harder */
+    if ((p.x - r.ax) * p.dir > 2 && p.vx * p.dir > 0.15 && p.y <= r.goal + 1) { pRopeDrop(g, p); return true; }
+  } else if (landed || wet) {
+    /* abseiled all the way down. untie, and off you go */
+    p.rope = null; p.ropeCD = 90; p.vx = p.vy = 0;
+    return wet ? false : true;
+  }
+  if (r.t > 900) { pRopeDrop(g, p); return true; }   /* arms give out */
+  return true;
+}
+
 function pFly(g, p) {
   var gw = g.gw, n, s, nx, ny, spd, hx, vt;
   p.flyT++;
@@ -785,6 +1004,8 @@ function pStepX(g, p, sp, swim) {
     if (k > 3) {
       /* swimmers always try to climb out; walkers sometimes just turn round */
       if ((swim || Math.random() < 0.7) && pTryJump(g, p, fx, fy)) return false;
+      /* too tall to jump: rope up it. swimmers always try; walkers now and then */
+      if (!p.ropeCD && (swim || Math.random() < 0.35) && pTryClimb(g, p, fx, fy)) return false;
       p.dir = -p.dir; return false;
     }
     fy -= k;
@@ -863,6 +1084,7 @@ function peasantsDraw(g) {
     if (p.state === "held") body = fast ? P_BODY.panicA : P_BODY.panicB;
     else if (p.state === "fly") { body = P_BODY.panicA; rot = ((Math.round(p.spin / 1.5708) % 4) + 4) % 4; }
     else if (p.stun > 0) { body = P_BODY.stand; rot = flip ? 3 : 1; oy = Math.floor(p.y) - 2; }
+    else if (p.rope) body = P_BODY.panicA;   /* arms up, holding on */
     else if (p.fire || p.panic > 0 || p.breath < P_BREATH - 30) body = fast ? P_BODY.panicA : P_BODY.panicB;
     else if (p.jumping) body = P_BODY.walkA;
     else if (p.idle > 0) body = P_BODY.stand;
@@ -892,6 +1114,7 @@ function peasantsDraw(g) {
         if (ox + c >= 0 && ox + c < g.gw && SOLID[g.m[si]]) g.px[si] = mix32(g.px[si], c === -2 || c === 2 ? g.px[si] : 0xff000000);
       }
     }
+    if (p.rope && p.state === "walk") pDrawRope(g, p, ox);
     pBlit(g, p.hat.spr, ox, oy, flip, rot, pal, p.fire > 0);
     pBlit(g, body, ox, oy, flip, rot, pal, p.fire > 0);
   }
@@ -907,6 +1130,21 @@ function peasantsDraw(g) {
       var i = Y * gw + X;
       px[i] = P_GHOST[c + 2] === 3 ? P_GHOSTEYE : mix32(px[i], P_WHITE);
     }
+  }
+}
+
+/* the rope: from their hands to the hook, or to wherever the hook has got to so far */
+var P_ROPE32 = [hex32("#d8c090"), hex32("#b0905c")], P_HOOK32 = hex32("#c8ccd4");
+function pDrawRope(g, p, ox) {
+  var r = p.rope, x0 = ox + 0.5, y0 = Math.floor(p.y) - 6, x1 = r.ax, y1 = r.ay;
+  if (!r.on) { var f = Math.min(1, r.hook / (r.dist || 1)); x1 = x0 + (r.ax - x0) * f; y1 = y0 + (r.ay - y0) * f; }
+  var dx = x1 - x0, dy = y1 - y0, n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))) || 1, px = g.px, gw = g.gw, gh = g.gh;
+  /* a slack line sags a little in the middle */
+  var sag = r.on ? Math.max(0, r.len - Math.sqrt(dx * dx + dy * dy)) * 0.5 : 0;
+  for (var s = 0; s <= n; s++) {
+    var t = s / n, X = Math.floor(x0 + dx * t), Y = Math.floor(y0 + dy * t + sag * 4 * t * (1 - t));
+    if (X < 0 || Y < 0 || X >= gw || Y >= gh) continue;
+    px[Y * gw + X] = s === n ? P_HOOK32 : P_ROPE32[(s >> 1) & 1];
   }
 }
 
