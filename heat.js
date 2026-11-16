@@ -74,6 +74,7 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   def(MAT.FAUCET, 3.0, 0.1);
   def(MAT.DRAIN, 3.0, 0.1);
   def(MAT.CLONER, 3.0, 0.1);
+  def(MAT.INERT, 1.0, 0);      /* carries no heat at all, and is never anything but room temperature */
 
   function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
   function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
@@ -146,6 +147,7 @@ function heatBecome(g, j, v) {
 }
 /* pour some heat into a cell (or take some out), as an explosion, a bolt or a brush does */
 function heatAdd(g, j, dt) {
+  if (g.m[j] === MAT.INERT) return;
   var t = g.T[j] + dt;
   g.T[j] = t > T_MAX ? T_MAX : (t < T_MIN ? T_MIN : t);
 }
@@ -322,6 +324,7 @@ function heatBrush(g, cx, cy, sign) {
     j = y * g.gw + x;
     f = 1 - d2 / (r * r + r + 1) * 0.6;
     v = g.m[j]; t = g.T[j];
+    if (v === MAT.INERT) continue;
     e = sign > 0 ? 60 * f : -60 * f * clamp((t + 220) / 240, 0.03, 1);
     t += e * HEAT_IC[v];
     if (sign > 0 && AIRY[v] && t > 1200) t = Math.max(g.T[j], 1200);

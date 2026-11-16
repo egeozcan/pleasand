@@ -4,7 +4,9 @@ A falling sand game, with peasants in it.
 
 Twenty-odd kinds of pixel (sand, water, salt water, oil, wood, plant, fire,
 lava, stone, metal, ice, snow, gunpowder, ash, salt, seed, glass, acid, gas,
-torch, faucet, drain, cloner), plus fireworks, a nuke and lightning.
+torch, faucet, drain, cloner, and inert: a magic block that stays where you put
+it, carries no heat and ignores everything but the eraser), plus fireworks, a
+nuke and lightning.
 
 Every pixel has a temperature. Heat flows from hot to cold, fast through metal
 and slowly through wood, ash and air; hot air and hot water rise. Things melt,
@@ -15,7 +17,7 @@ snows, if you chill it hard), stone runs as lava past 1150 and lava sets again
 below 950, sand sinters into glass, glass and metal melt and set, wood, oil,
 plants and gas catch on their own when hot enough, and salt water boils down
 to salt. Also a small village of
-peasants who walk about, chat, climb things, can't swim, catch fire, run for
+peasants who walk about, chat, climb things, jump ledges and gaps, swim, catch fire, run for
 the pond, go to space if thrown hard enough, and have opinions about all of
 it. They have names. The game keeps count.
 

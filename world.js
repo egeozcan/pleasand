@@ -44,7 +44,7 @@ function mix32(a, b) { return ((((a & 0xfefefe) >>> 1) + ((b & 0xfefefe) >>> 1))
 var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STONE: 7, STEAM: 8,
             PLANT: 9, ICE: 10, GUNPOWDER: 11, ACID: 12, ASH: 13, FAUCET: 14, DRAIN: 15,
             SMOKE: 16, EMBER: 17, GLASS: 18, SALT: 19, CLONER: 20, GAS: 21, TORCH: 22,
-            SEED: 23, FLOWER: 24, FIREWORK: 25, NUKE: 26, SALTWATER: 27, METAL: 28, SNOW: 29 };
+            SEED: 23, FLOWER: 24, FIREWORK: 25, NUKE: 26, SALTWATER: 27, METAL: 28, SNOW: 29, INERT: 30 };
 
 /* the picker, top to bottom. the fun ones first, then the classics with their digit
    keys. STEAM, SMOKE, EMBER and FLOWER are not in it: you do not pour those, you earn them. */
@@ -56,7 +56,7 @@ var PICK = [
   { tool: "heat",      name: "HEAT",      key: "H", desc: "hold to pour heat into anything. boil it, melt it, light it. T shows you how hot things are." },
   { tool: "cool",      name: "COOL",      key: "K", desc: "hold to draw the heat out. freeze ponds, set lava, make steam snow. peasants hate it." },
   { m: MAT.SAND,       name: "SAND",      key: "1", desc: "falls, piles, and sinks through anything lighter. the default, for a reason." },
-  { m: MAT.WATER,      name: "WATER",     key: "2", desc: "falls and spreads. puts out fire. freezes at 0, boils at 100. cools lava into stone. peasants cannot swim." },
+  { m: MAT.WATER,      name: "WATER",     key: "2", desc: "falls and spreads. puts out fire. freezes at 0, boils at 100. cools lava into stone. peasants can swim in it." },
   { m: MAT.OIL,        name: "OIL",       key: "3", desc: "floats on water. burns very happily. nobody has ever been sorry about oil." },
   { m: MAT.WOOD,       name: "WOOD",      key: "4", desc: "does not move. keeps heat out well. at 300 it catches, and burns down to embers." },
   { m: MAT.PLANT,      name: "PLANT",     key: "5", desc: "does not move. grows into empty air wherever it touches water." },
@@ -78,6 +78,7 @@ var PICK = [
   { m: MAT.FAUCET,     name: "FAUCET",    key: "",  desc: "does not move. drips water downward forever. draw over it to stop it." },
   { m: MAT.DRAIN,      name: "DRAIN",     key: "",  desc: "does not move. swallows whatever touches it. peasants included. they hate that." },
   { m: MAT.CLONER,     name: "CLONER",    key: "",  desc: "does not move. remembers the first thing it touches, then makes it forever. try a nuke." },
+  { m: MAT.INERT,      name: "INERT",     key: "",  desc: "magic. stays exactly where you put it. does not burn, melt, dissolve, conduct or care. only erase moves it." },
   { m: MAT.EMPTY,      name: "ERASE",     key: "E", desc: "removes whatever it touches. right-drag erases from anywhere, too." }
 ];
 
@@ -87,11 +88,11 @@ var SAND_CLEAN = 200;   /* a fire whose shade is at least this leaves no ash */
 var SAND_VMAX = 12;     /* top speed: 1 + (12 >> 2) = 4 cells a tick */
 
 /* how heavy each thing is, and which things a falling thing may push past */
-var SAND_DENS = [0, 4, 2, 1, 9, 0.5, 6, 9, 0.1, 9, 9, 4.5, 2.5, 1.5, 9, 9, 0.2, 9, 9, 4.2, 9, 0.15, 9, 3, 9, 4.1, 5, 2.2, 9, 1.8];
-var SAND_FREE = [0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1];
+var SAND_DENS = [0, 4, 2, 1, 9, 0.5, 6, 9, 0.1, 9, 9, 4.5, 2.5, 1.5, 9, 9, 0.2, 9, 9, 4.2, 9, 0.15, 9, 3, 9, 4.1, 5, 2.2, 9, 1.8, 9];
+var SAND_FREE = [0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0];
 /* the brush pours these, a few grains a frame, into empty space only. everything
    else is a solid and gets stamped down whole, over whatever was there. */
-var SAND_POUR = [0, 0.3, 0.35, 0.35, 0, 0.35, 0.35, 0, 0, 0, 0, 0.3, 0.35, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0.35, 0, 0.03, 0, 0.012, 0, 0.35, 0, 0.25];
+var SAND_POUR = [0, 0.3, 0.35, 0.35, 0, 0.35, 0.35, 0, 0, 0, 0, 0.3, 0.35, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0.35, 0, 0.03, 0, 0.012, 0, 0.35, 0, 0.25, 0];
 
 /* colours. several shades per thing; each grain is dealt one and keeps it */
 var SAND_SHADES = [
@@ -125,7 +126,8 @@ var SAND_SHADES = [
   ["#c8ff3a", "#2a2a1a"],
   ["#2a8aa8", "#257d9a", "#3396b4", "#2280a0"],
   ["#8a929e", "#7e8692", "#969ea9", "#737b87"],
-  ["#eef4fb", "#e2eaf4", "#f8fbff", "#d8e2ee"]
+  ["#eef4fb", "#e2eaf4", "#f8fbff", "#d8e2ee"],
+  ["#b9a6e8", "#c4b3f0", "#ad98e0", "#cdbff5"]
 ];
 
 /* every (thing, shade) pair is worked out once, up here, not sixty times a second */
@@ -150,7 +152,7 @@ var SAND_DEEP = [];
 /* what peasants (and particles) may stand on: anything that is not air, gas, fire or liquid */
 var SOLID = new Uint8Array(32), LIQUID = new Uint8Array(32), HOT = new Uint8Array(32), AIRY = new Uint8Array(32);
 [MAT.SAND, MAT.WOOD, MAT.STONE, MAT.PLANT, MAT.ICE, MAT.GUNPOWDER, MAT.ASH, MAT.FAUCET, MAT.DRAIN, MAT.EMBER,
- MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW].forEach(function (v) { SOLID[v] = 1; });
+ MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW, MAT.INERT].forEach(function (v) { SOLID[v] = 1; });
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER].forEach(function (v) { LIQUID[v] = 1; });
 /* water, as far as fire, plants, peasants and lightning are concerned */
 var WET = new Uint8Array(32); WET[MAT.WATER] = WET[MAT.SALTWATER] = 1;
@@ -354,6 +356,7 @@ function sandBoom(g, i, R, P) {
     x = x0 + dx; y = y0 + dy;
     if (x < 0 || y < 0 || x >= gw || y >= g.gh) continue;
     j = y * gw + x; t = m[j]; r = Math.random(); inner = d2 < R2 * 0.3;
+    if (t === MAT.INERT) continue;   /* not even a nuke */
     /* a bang is hot. a big one is hot enough to leave the ground around it glowing */
     heatAdd(g, j, (big ? 1500 : 260) * (1 - d2 / (R2 + R)));
     if (t === MAT.EMPTY) {
@@ -480,6 +483,7 @@ function sandLightning(g, cx) {
     var xx = hit.x + dx, yy = hit.y + dy;
     if (xx < 0 || yy < 0 || xx >= gw || yy >= gh) continue;
     j = yy * gw + xx; t = m[j];
+    if (t === MAT.INERT) continue;
     heatAdd(g, j, (t === MAT.METAL ? 1200 : 2600) * (1 - d2 / (R * R + 1)));
     if (t === MAT.SAND && Math.random() < 0.8) heatBecome(g, j, MAT.GLASS);
     else if (WET[t] || t === MAT.ACID || t === MAT.METAL) { if (wet < 0) wet = j; if (t !== MAT.METAL && Math.random() < 0.15) heatBecome(g, j, t === MAT.SALTWATER ? MAT.SALT : MAT.STEAM); }
@@ -921,7 +925,8 @@ function sandStatic(g, i, x, y) {
         if (j < 0) continue;
         t = m[j];
         if (t !== MAT.EMPTY && t !== MAT.CLONER && t !== MAT.FAUCET && t !== MAT.DRAIN && t !== MAT.STONE &&
-            t !== MAT.WOOD && t !== MAT.GLASS && t !== MAT.EMBER && t !== MAT.TORCH && t !== MAT.FLOWER && t !== MAT.METAL) { g.aux[i] = t; break; }
+            t !== MAT.WOOD && t !== MAT.GLASS && t !== MAT.EMBER && t !== MAT.TORCH && t !== MAT.FLOWER && t !== MAT.METAL &&
+            t !== MAT.INERT) { g.aux[i] = t; break; }
       }
     } else if (Math.random() < (a === MAT.NUKE ? 0.004 : 0.35)) {
       j = sandNb(g, x, y, irnd(4));
@@ -936,7 +941,7 @@ function sandStatic(g, i, x, y) {
       if (j < 0) continue;
       t = m[j];
       if (t === MAT.EMPTY || t === MAT.STONE || t === MAT.WOOD || t === MAT.ICE || t === MAT.TORCH ||
-          t === MAT.FAUCET || t === MAT.DRAIN || t === MAT.GLASS || t === MAT.CLONER || t === MAT.METAL) continue;
+          t === MAT.FAUCET || t === MAT.DRAIN || t === MAT.GLASS || t === MAT.CLONER || t === MAT.METAL || t === MAT.INERT) continue;
       if (Math.random() < 0.5) m[j] = MAT.EMPTY;
     }
   }
@@ -953,7 +958,7 @@ function sandStep(g) {
       x = flip ? gw - 1 - xi : xi;
       i = row + x;
       v = m[i];
-      if (v === MAT.EMPTY || v === MAT.STONE || v === MAT.WOOD || v === MAT.GLASS || v === MAT.FLOWER || v === MAT.METAL) continue;
+      if (v === MAT.EMPTY || v === MAT.STONE || v === MAT.WOOD || v === MAT.GLASS || v === MAT.FLOWER || v === MAT.METAL || v === MAT.INERT) continue;
       if (st[i] === T) continue;
       if (v === MAT.FIRE) sandFire(g, i, x, y);
       else if (v === MAT.SMOKE) sandSmoke(g, i, x, y);

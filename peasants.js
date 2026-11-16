@@ -3,8 +3,10 @@
 
    the villagers. they are not on the grid: each one is a little bag of
    numbers that walks over the grid, reads the cells it is standing in,
-   and reacts. they climb small steps, turn around at walls, fall off
-   cliffs, cannot swim, catch fire, and have opinions about all of it.
+   and reacts. they climb small steps, jump up ledges and over gaps, turn
+   around at walls too tall to jump, fall off cliffs, wade and swim (and
+   drown only if they cannot find the surface), catch fire, and have
+   opinions about all of it.
 
    a peasant is 5 cells wide and 9 tall, drawn straight into the pixel
    buffer so it sits in the world like everything else. its feet are at
@@ -13,9 +15,11 @@
 "use strict";
 
 var P_MAX = 120, P_BREATH = 300;
+/* jumping: gravity per tick, the tallest ledge a peasant can jump up, the widest gap it will leap */
+var P_GRAV = 0.09, P_JUMP = 10, P_GAP = 12;
 /* things a buried peasant cannot dig up through */
 var P_HARD = new Uint8Array(32);
-[MAT.STONE, MAT.GLASS, MAT.ICE, MAT.CLONER, MAT.FAUCET, MAT.DRAIN, MAT.TORCH, MAT.METAL].forEach(function (v) { P_HARD[v] = 1; });
+[MAT.STONE, MAT.GLASS, MAT.ICE, MAT.CLONER, MAT.FAUCET, MAT.DRAIN, MAT.TORCH, MAT.METAL, MAT.INERT].forEach(function (v) { P_HARD[v] = 1; });
 /* how warm a peasant likes it. above P_SWEAT they complain, above P_SCALD they run, above
    P_IGNITE they are on fire. below P_CHILL they get colder and colder until they are ice */
 var P_SWEAT = 50, P_SCALD = 90, P_IGNITE = 230, P_CHILL = -8, P_FREEZE = 900;
@@ -49,7 +53,10 @@ var P_SAY = {
   fire: ["AAAAAA", "HOT HOT HOT", "FIRE! FIRE!", "NOT AGAIN", "STOP, DROP AND... ?", "IT BURNS", "WHO DID THIS",
          "I REGRET NOTHING", "WATER! WATER!", "AAAAAAAAA", "I'M TOO YOUNG"],
   phew: ["phew", "tssss", "that was close", "i'm ok!", "smells like bacon", "never again", "i'm damp now"],
-  swim: ["glub", "glub glub", "i can't swim", "HELP", "water! everywhere!", "this is fine", "blub"],
+  swim: ["just keep swimming", "the water's lovely", "doggy paddle!", "splish splash", "come on in!", "i'm a fish",
+         "backstroke!", "where's the shore", "i can swim!", "bit chilly"],
+  glub: ["glub", "glub glub", "HELP", "blub", "need... air", "mmmf", "which way is up"],
+  jump: ["hup!", "hop", "wheee", "yoink", "parkour!", "hyah!", "up we go"],
   acid: ["IT TINGLES", "OW OW OW", "MY SKIN", "not the acid", "it's eating me", "fizzy"],
   oof: ["OOF", "ow", "my back", "i'm ok!", "ouch", "that hurt", "my knees"],
   dizzy: ["i'm ok!", "again! again!", "what year is it", "ow", "*dizzy*", "i saw my life flash", "ten out of ten",
@@ -61,7 +68,7 @@ var P_SAY = {
   flower: ["ooh, a flower", "pretty", "smells nice", "a flower!", "lovely"],
   nope: ["nope", "nope nope", "not today", "i'm not going there", "uh oh", "hot!", "no thank you", "FIRE!", "MY HOUSE!",
          "call the fire brigade", "we don't have a fire brigade", "that's not good"],
-  wet: ["i don't do water", "too wet", "nope", "i can't swim", "not in there"],
+  wade: ["ooh, chilly", "wet feet", "splish splash", "my socks!", "it's only water", "refreshing"],
   fall: ["WAAAAH", "oh no", "AAAAAA", "wheeee", "this is fine", "MUMMY"],
   buried: ["mmmph", "mmf mmf", "help", "it's dark", "sand in my ears"],
   mourn: ["NOOO {n}!", "{n}?!", "rip {n}", "i'll take their hat", "{n} owed me money", "not {n}!", "they were so young",
@@ -84,7 +91,7 @@ var P_SAY = {
 var P_DEATH = {
   fire: ["{n} was flambéed", "{n} is extra crispy now", "{n} got toasted", "{n} became a campfire", "{n} was too hot to handle", "{n} burned out"],
   lava: ["{n} took a lava bath", "{n} is soup now", "{n} found out the floor was lava", "{n} went for a very warm dip"],
-  drown: ["{n} forgot how to swim", "{n} sleeps with the fishes", "{n} drank most of the pond", "{n} should have stayed dry"],
+  drown: ["{n} couldn't find the surface", "{n} sleeps with the fishes", "{n} drank most of the pond", "{n} should have stayed dry"],
   acid: ["{n} dissolved. ew", "{n} is a puddle now", "{n} fizzed away", "{n} got the acid treatment"],
   fall: ["{n} tripped. from very high up", "{n} found the ground", "{n} believed they could fly", "{n} fell off the world"],
   splat: ["{n} went splat", "{n} hit something at speed", "{n} was thrown too hard", "{n} became a wall decoration", "{n} has been flattened"],
@@ -415,7 +422,7 @@ function peasantsReact(g, kind, x, y) {
     var p = L[k];
     if (p.dead || p.state !== "walk" || p.fire) continue;
     var dx = p.x - x, dy = p.y - y, d2 = dx * dx + dy * dy;
-    if (kind === "firework" && d2 < 160 * 160 && Math.random() < 0.35) { pSay(g, p, "ooh"); if (pGround(g, Math.floor(p.x), Math.floor(p.y)) && Math.random() < 0.5) p.vy = -0.9; }
+    if (kind === "firework" && d2 < 160 * 160 && Math.random() < 0.35) { pSay(g, p, "ooh"); if (!p.jumping && pGround(g, Math.floor(p.x), Math.floor(p.y)) && Math.random() < 0.5) pLeap(p, 0.9, 0); }
     else if (kind === "flower" && d2 < 40 * 40 && Math.random() < 0.6) pSay(g, p, "flower");
   }
 }
@@ -518,7 +525,7 @@ function pStep(g, p) {
   if ((cm === MAT.SMOKE || ch === MAT.SMOKE) && p.sayT <= 0 && Math.random() < 0.03) pSay(g, p, "cough");
   if (sub) {
     if (--p.breath <= 0) { pDie(g, p, "drown"); return; }
-    if (p.breath % 70 === 0) pSay(g, p, "swim", true);
+    if (p.breath % 70 === 0 && p.breath < P_BREATH - 50) pSay(g, p, "glub", true);
     if (Math.random() < 0.04) partAdd(g, PK_SPARK, p.x + 0.5, p.y - 8, 0, -0.3, 20, hex32("#a8d8ff"));
   } else p.breath = Math.min(P_BREATH, p.breath + 3);
   if (p.fire) {
@@ -531,7 +538,7 @@ function pStep(g, p) {
     if (Math.random() < 0.25) partAdd(g, PK_SPARK, p.x + Math.random() * 3 - 1, p.y - 6 - Math.random() * 3, (Math.random() - 0.5) * 0.3, -0.5, 8 + irnd(10), pick(SPARK_HOT));
     if (p.fire > 300) { pDie(g, p, "fire"); return; }
   }
-  if (p.state === "fly") { pFly(g, p); return; }
+  if (p.state === "fly") { p.jumping = false; pFly(g, p); return; }
 
   /* buried in something: climb out the top, if there is a top */
   if (SOLID[cf]) {
@@ -545,13 +552,12 @@ function pStep(g, p) {
     return;
   }
   p.buried = 0;
-  /* a hop (for fireworks) */
-  if (p.vy < 0) {
-    if (pSolid(g, fx, Math.floor(p.y + p.vy) - 9)) p.vy = 0;
-    else { p.y += p.vy; p.vy += 0.09; if (p.vy < 0) return; p.falling = true; p.fallY = p.y; }
-  }
+  /* in the air on purpose: a jump, or a hop for fireworks */
+  if (p.jumping) { pJump(g, p); return; }
   var ground = pGround(g, fx, fy);
-  if (liquid && !ground) { pSwim(g, p, sub); return; }
+  /* in deep water, or standing on the bottom with your head under: swim */
+  p.swimming = liquid && (!ground || sub);
+  if (p.swimming) { pSwim(g, p, sub); return; }
   if (!ground) { pFall(g, p); return; }
   if (p.falling) pLand(g, p);
   p.vy = 0; p.fallY = p.y;
@@ -579,7 +585,7 @@ function pHeat(g, p, fx, fy) {
     p.panic = Math.max(p.panic, 30); p.idle = 0;
     if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "scald", true);
     /* hot ground: a little hop, as you would */
-    if (feet > P_SCALD && p.state === "walk" && p.vy >= 0 && Math.random() < 0.08) p.vy = -0.7;
+    if (feet > P_SCALD && p.state === "walk" && !p.jumping && !p.swimming && Math.random() < 0.08) pLeap(p, 0.7, 0);
   } else if (!p.fire && hi > P_SWEAT) {
     if (++p.warm > 120 && p.sayT <= 0 && Math.random() < 0.01) pSay(g, p, "hot");
   } else p.warm = 0;
@@ -629,23 +635,90 @@ function pLand(g, p) {
   if (drop > 85 && !p.immune) { pDie(g, p, p.fromSpace ? "reentry" : "fall"); return; }
   if (drop > 34) { p.stun = 70; pSay(g, p, "oof", true); g.fx.thud++; g.shake = Math.min(6, g.shake + 1); }
 }
+/* swimming: kick up to the surface, keep your head out, paddle for the shore and climb out */
 function pSwim(g, p, sub) {
-  p.falling = false; p.fallY = p.y;
-  p.vy += 0.02;
-  /* salt water holds you up. you can float in it, like in the dead sea */
-  if (pCell(g, Math.floor(p.x), Math.floor(p.y) - 4) === MAT.SALTWATER) {
-    p.vy -= 0.05;
-    if (p.sayT <= 0 && Math.random() < 0.004) pSay(g, p, "float");
-  }
-  if (Math.random() < 0.07) p.vy -= 0.32;   /* flailing */
-  p.vy = clamp(p.vy, -0.5, 0.3);
-  if (!sub && p.vy < 0) p.vy *= 0.3;     /* at the surface: bob */
-  var fx = Math.floor(p.x), ny = p.y + p.vy;
+  p.falling = false; p.fallY = p.y; p.stun = 0; p.idle = 0;
+  var fx = Math.floor(p.x), fy = Math.floor(p.y), depth = 0;
+  while (depth < 10 && LIQUID[pCell(g, fx, fy - depth)]) depth++;
+  /* salt water holds you up higher. you can float in it, like in the dead sea */
+  var salt = pCell(g, fx, fy - 4) === MAT.SALTWATER, want = salt ? 4 : 6, err = depth - want, target;
+  if (salt && p.sayT <= 0 && Math.random() < 0.004) pSay(g, p, "float");
+  if (sub) target = -0.3;                              /* head under: swim for the air */
+  else if (err > 0) target = -Math.min(0.2, 0.05 * err);
+  else if (err < 0) target = Math.min(0.2, -0.05 * err);
+  else target = 0;
+  p.vy += (target - p.vy) * 0.2 + Math.sin(p.anim * 0.12) * 0.01;   /* a little bob */
+  var ny = p.y + p.vy;
   if (p.vy < 0 && pSolid(g, fx, Math.floor(ny) - 8)) p.vy = 0;
-  else if (p.vy > 0 && pGround(g, fx, Math.floor(p.y))) p.vy = 0;
+  else if (p.vy > 0 && pGround(g, fx, fy)) p.vy = 0;
   else p.y = ny;
-  pStepX(g, p, 0.09);
-  if (p.sayT <= 0 && Math.random() < 0.01) pSay(g, p, "swim");
+  /* the burning swim for it too, and the cold swim slower */
+  pStepX(g, p, (sub ? 0.1 : 0.14) * (p.cold > 200 ? 0.5 : 1), true);
+  var gasping = sub && p.breath < P_BREATH - 40;
+  if (p.sayT <= 0 && Math.random() < (gasping ? 0.02 : 0.004)) pSay(g, p, gasping ? "glub" : "swim");
+}
+/* leave the ground on purpose: up at vy, sideways at jx */
+function pLeap(p, vy, jx) {
+  p.jumping = true; p.vy = -vy; p.jx = jx; p.falling = false; p.fallY = p.y; p.idle = 0;
+}
+/* in the air on purpose. the same gravity as falling, but you keep going the way you jumped */
+function pJump(g, p) {
+  var fx = Math.floor(p.x), target, cy;
+  if (p.vy < 0) {
+    if (pSolid(g, fx, Math.floor(p.y + p.vy) - 9)) p.vy = 0;   /* bumped your head */
+    else p.y += p.vy;
+    p.fallY = p.y;
+  } else {
+    target = p.y + p.vy; cy = Math.floor(p.y);
+    while (cy < Math.floor(target) && !pGround(g, fx, cy)) cy++;
+    if (pGround(g, fx, cy) && cy <= target) { p.y = cy; p.jumping = false; p.jx = 0; pLand(g, p); return; }
+    p.y = target;
+    /* came down in water: swim from here */
+    if (LIQUID[pCell(g, fx, Math.floor(p.y) - 4)]) { p.jumping = false; p.jx = 0; p.vy = Math.min(p.vy, 0.3); return; }
+  }
+  p.vy = Math.min(p.vy + P_GRAV, 3);
+  if (p.jx) {
+    var nx = p.x + p.jx;
+    if (nx < 1 || nx > g.gw - 1) p.jx = 0;
+    else if (!pBlocked(g, nx, p.y)) p.x = nx;   /* against a wall: keep rising, go over when clear */
+  }
+  if (p.y - p.fallY > 30 && p.sayT <= 0) pSay(g, p, "fall", true);
+}
+/* a wall too tall to step up: jump it, if it is not too tall to jump and there is room overhead */
+function pTryJump(g, p, fx, fy) {
+  if (p.cold > 400) return false;
+  var nfx = fx + p.dir, k, j;
+  for (j = 9; j < 12; j++) if (pSolid(g, fx, fy - j)) return false;
+  for (k = 4; k <= P_JUMP; k++) {
+    if (pSolid(g, fx, fy - k - 8)) return false;
+    if (pRoom(g, nfx, fy - k)) break;
+  }
+  if (k > P_JUMP) return false;
+  pLeap(p, Math.sqrt(2 * P_GRAV * (k + 2)), p.dir * 0.3);
+  if (p.sayT <= 0 && Math.random() < 0.15) pSay(g, p, "jump");
+  return true;
+}
+/* the ground ends and the drop is a long one: leap to the other side, if there is one close enough */
+function pTryGap(g, p, fx, fy) {
+  if (p.fire || p.cold > 400) return false;   /* burning peasants want to land in the pond, not over it */
+  var dir = p.dir, d, dy, x, k;
+  for (d = 1; d <= 6; d++) if (pGround(g, fx + dir, fy + d)) return false;   /* only a little drop: just walk off */
+  for (k = 0; k <= 8; k++) if (pSolid(g, fx, fy - 9 - k)) return false;    /* no room to jump */
+  for (d = 3; d <= P_GAP; d++) {
+    x = fx + dir * d;
+    if (x < 1 || x > g.gw - 2) return false;
+    if (pSolid(g, x, fy - 9) || pSolid(g, x, fy - 12)) return false;        /* something in the way */
+    for (dy = -3; dy <= 3; dy++) {
+      if (pGround(g, x, fy + dy) && pRoom(g, x, fy + dy)) {
+        /* time in the air for a jump that comes down dy lower, then just enough speed to get there */
+        var vy = 1.0, t = (vy + Math.sqrt(vy * vy + 2 * P_GRAV * dy)) / P_GRAV;
+        pLeap(p, vy, dir * clamp((d + 0.5) / t, 0.15, 0.7));
+        if (p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "jump");
+        return true;
+      }
+    }
+  }
+  return false;
 }
 function pFly(g, p) {
   var gw = g.gw, n, s, nx, ny, spd, hx, vt;
@@ -703,15 +776,20 @@ function pLeave(g, p) {
 /* too hot to walk into */
 function pHotAt(g, x, y) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.T[y * g.gw + x] > P_SCALD; }
 
-/* walking. a few cells of step up, a couple of step down, turn at walls */
-function pStepX(g, p, sp) {
+/* walking. a few cells of step up, a couple of step down, jump what is taller or wider, turn at the rest */
+function pStepX(g, p, sp, swim) {
   var nx = p.x + p.dir * sp, nfx = Math.floor(nx), fx = Math.floor(p.x), fy = Math.floor(p.y), k;
   if (nx < 1 || nx > g.gw - 1) { p.dir = -p.dir; return false; }
   if (nfx !== fx) {
     for (k = 0; k <= 3; k++) if (pRoom(g, nfx, fy - k)) break;
-    if (k > 3) { p.dir = -p.dir; return false; }
+    if (k > 3) {
+      /* swimmers always try to climb out; walkers sometimes just turn round */
+      if ((swim || Math.random() < 0.7) && pTryJump(g, p, fx, fy)) return false;
+      p.dir = -p.dir; return false;
+    }
     fy -= k;
     if (!pGround(g, nfx, fy)) for (k = 1; k <= 2; k++) if (pGround(g, nfx, fy + k) && pRoom(g, nfx, fy + k)) { fy += k; break; }
+    if (!swim && !pGround(g, nfx, fy) && pTryGap(g, p, fx, Math.floor(p.y))) return false;
     p.y = fy;
   }
   p.x = nx;
@@ -721,6 +799,9 @@ function pWalk(g, p, wading) {
   if (p.stun > 0) { p.stun--; return; }
   var fx = Math.floor(p.x), fy = Math.floor(p.y), scared = p.fire || p.panic > 0;
   if (p.panic > 0) p.panic--;
+  /* water is fine. a bit wet */
+  if (wading && !p.wade && !p.fire && Math.random() < 0.3) pSay(g, p, "wade");
+  p.wade = wading;
   if (p.idle > 0 && !scared) { p.idle--; if (Math.random() < 0.008) p.dir = -p.dir; }
   else {
     /* look where you are going */
@@ -729,10 +810,6 @@ function pWalk(g, p, wading) {
       if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3)) {
         p.dir = -p.dir; p.panic = Math.max(p.panic, 50);
         if (Math.random() < 0.3) pSay(g, p, "nope");
-      } else if (!wading && (LIQUID[pCell(g, fx + p.dir * 3, fy + 1)] || LIQUID[pCell(g, fx + p.dir * 3, fy)] || LIQUID[pCell(g, fx + p.dir * 3, fy - 2)]) &&
-                 !LIQUID[pCell(g, fx, fy + 1)] && Math.random() < 0.95) {
-        p.dir = -p.dir;
-        if (Math.random() < 0.2) pSay(g, p, "wet");
       }
     } else if ((p.anim % 12) === 0) {
       /* burning: run for the nearest water, if there is any, else run about */
@@ -787,6 +864,7 @@ function peasantsDraw(g) {
     else if (p.state === "fly") { body = P_BODY.panicA; rot = ((Math.round(p.spin / 1.5708) % 4) + 4) % 4; }
     else if (p.stun > 0) { body = P_BODY.stand; rot = flip ? 3 : 1; oy = Math.floor(p.y) - 2; }
     else if (p.fire || p.panic > 0 || p.breath < P_BREATH - 30) body = fast ? P_BODY.panicA : P_BODY.panicB;
+    else if (p.jumping) body = P_BODY.walkA;
     else if (p.idle > 0) body = P_BODY.stand;
     else body = ((p.anim / 7) | 0) & 1 ? P_BODY.walkA : P_BODY.walkB;
     var src = (p.zap > 0 && (p.zap >> 2) & 1) ? P_XRAY : (p.charred ? P_CHAR : p.pal);
@@ -806,7 +884,7 @@ function peasantsDraw(g) {
       if (Math.random() < 0.5) pal[6] = P_FIRE[irnd(256)];
     }
     var ox = Math.floor(p.x) + (p.cold > 200 && p.state === "walk" ? (p.anim >> 1) & 1 : 0);   /* shivering */
-    if (p.state === "walk" && !p.falling) {
+    if (p.state === "walk" && !p.falling && !p.jumping && !p.swimming) {
       /* a little shadow on whatever they are standing on */
       var sy = Math.floor(p.y) + 1;
       if (sy < g.gh) for (c = -2; c <= 2; c++) {

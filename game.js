@@ -9,11 +9,11 @@
 
 var UI_FONT = '"Menlo", "Consolas", "DejaVu Sans Mono", "Courier New", monospace';
 var GW = Math.floor((VW - PANEL) / CELL), GH = Math.floor((VH - PLAY_Y - BAR_H) / CELL);
-var ROW0 = PLAY_Y + 3, ROWH = 10, FUN_N = 6, FUN_GAP = 5;
-var SIZE_Y = 326, BTN_Y = 341, BTN2_Y = 355, BTN3_Y = 369;
+var ROW0 = PLAY_Y + 2, ROWH = 10, FUN_N = 6, FUN_GAP = 4;
+var SIZE_Y = 331, BTN_Y = 344, BTN2_Y = 357, BTN3_Y = 370;
 var TIPS = [
   "tip: pick PEASANT, grab one, and throw it at the hut",
-  "tip: peasants cannot swim. they will tell you about it",
+  "tip: peasants can swim. they cannot breathe under ice",
   "tip: put a nuke next to a cloner. then stand well back",
   "tip: lightning in a pond zaps everybody in the pond",
   "tip: fireworks make peasants happy. briefly",
@@ -67,6 +67,9 @@ var ICONS = {
   nuke: iconCanvas(["......y.", ".....y..", "...kkk..", "..kgkkk.", ".kgkkkkk", ".kkkkkkk", ".kkkkkkk", "..kkkkk."],
                    { y: "#ffd040", k: "#3a3a2a", g: "#c8ff3a" })
 };
+
+/* the sparkle on a cell of inert */
+var INERT_GLINT = hex32("#f6f0ff");
 
 /* the colour of mushroom-cloud smoke by how much life it has left: grey, then ember, then white-hot */
 var MUSH_PAL = (function () {
@@ -172,6 +175,7 @@ function sandDab(g, cx, cy, v, solid) {
     var x = ix + dx, y = iy + dy;
     if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) continue;
     j = y * g.gw + x;
+    if (g.m[j] === MAT.INERT && v !== MAT.EMPTY) continue;   /* only erasing moves it */
     if (!pour) sandSet(g, j, v);
     else if (g.m[j] === MAT.EMPTY && (solid || Math.random() < pour)) sandSet(g, j, v);
   }
@@ -378,6 +382,10 @@ function drawWorld(g) {
         if (g.aux[i] > 170) { gp[i] = px[i]; hot++; }
       } else if (v === MAT.FIREWORK) {
         px[i] = SAND_PAL[v][(y + (sh[i] & 1)) & 3];
+      } else if (v === MAT.INERT) {
+        /* faintly magic: a slow shimmer runs through it, and now and then a cell glints */
+        px[i] = SAND_PAL[v][(sh[i] + ((Math.sin(x * 0.21 + y * 0.17 + t * 1.6) * 40) | 0)) & 255];
+        if (((x * 7 + y * 13 + flick) % 89) === 0) px[i] = INERT_GLINT;
       } else {
         px[i] = (y > 0 && m[i - gw] === MAT.EMPTY) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
         if (v === MAT.TORCH && y > 0) { gp[i] = SAND_PAL[MAT.FIRE][1]; hot++; }
@@ -699,6 +707,8 @@ function pMood(p) {
   if (p.breath < P_BREATH - 20) return "is drowning. slowly. " + Math.ceil(p.breath / 60) + "s of air left";
   if (p.zap > 0) return "is being electrocuted";
   if (p.stun > 0) return "is having a little lie down";
+  if (p.jumping) return "is jumping";
+  if (p.swimming) return "is swimming";
   if (p.cold > 200) return "is freezing. needs a fire";
   if (p.cold > 60) return "is chilly";
   if (p.panic > 0) return "is panicking";
