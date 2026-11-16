@@ -293,9 +293,9 @@ function bDoors(g, plan, xs, y0, y1, ph) {
 /* the ground under column x: the first solid thing, coming down from well above row fy. -1 if it is buried, or under
    water, or too far down */
 function bGround(g, x, fy) {
-  if (SOLID[pCell(g, x, fy - 24)]) return -1;
-  for (var y = fy - 23; y <= fy + 14 && !SOLID[pCell(g, x, y)]; y++) if (!AIRY[pCell(g, x, y)]) return -1;   /* water, lava */
-  return y > fy + 14 ? -1 : y;
+  if (pBody(g, x, fy - 24)) return -1;
+  for (var y = fy - 23; y <= fy + 14 && !pBody(g, x, y); y++) if (!AIRY[pCell(g, x, y)] && !P_LEAF[pCell(g, x, y)]) return -1;   /* water, lava */
+  return y > fy + 14 ? -1 : y;   /* (the ground under any bushes: the bushes get dug out) */
 }
 /* is (x0 .. x0 + 10) a plot for a house, near row fy. the floor goes in level with the highest ground on it, on stilts
    where the ground dips (up to three cells), so the way in at either end is never uphill. how much work it would be,
@@ -410,8 +410,8 @@ function bTryBridge(g, p, fx, fy, water) {
   if (s) return s.done ? false : bJoinHere(g, p, s);
   /* (a peasant can stand a step out over the edge, held up by the corner: the bridge starts at the edge itself) */
   for (d = 0; d < 2 && !pSolid(g, fx, fy + 1); d++) fx -= dir;
-  /* from the ground, not from somebody's roof */
-  if (bMarked(g, fx, fy + 1) || WOODY[pCell(g, fx, fy + 1)]) return false;
+  /* from the ground: not from somebody's roof, or the top of a hedge */
+  if (bMarked(g, fx, fy + 1) || WOODY[pCell(g, fx, fy + 1)] || P_LEAF[pCell(g, fx, fy + 1)]) return false;
   /* with wood in hand, always; without, now and then (somebody else will bring the wood) */
   if (bOpenCount(g) >= B_OPEN || p.planCD || Math.random() > (water ? (bWood(p) >= 1 ? 0.3 : 0.05) : (bWood(p) >= 1 ? 1 : 0.4))) return false;
   for (d = 3; d <= 31 && !far; d++) {
@@ -419,7 +419,8 @@ function bTryBridge(g, p, fx, fy, water) {
     if (x < 2 || x > g.gw - 3) return false;
     for (dy = -2; dy <= 2; dy++) {
       if (pSolid(g, x, fy + 1 + dy) && pRoom(g, x, fy + dy) && !LIQUID[pCell(g, x, fy + dy)] && !LIQUID[pCell(g, x, fy + dy - 3)]) {
-        if (bMarked(g, x, fy + 1 + dy) || WOODY[pCell(g, x, fy + 1 + dy)]) return false;   /* to the ground, too */
+        /* to the ground, too: not a roof, and not a tree (a crown is something to walk through, not to walk to) */
+        if (bMarked(g, x, fy + 1 + dy) || WOODY[pCell(g, x, fy + 1 + dy)] || P_LEAF[pCell(g, x, fy + 1 + dy)]) return false;
         far = d; fdy = dy; break;
       }
     }
@@ -684,6 +685,11 @@ function bPick(g, p) {
     t = bPlantSpot(g, p, 40);
     if (t) { p.task = { kind: "plant", x: t.x, y: t.y, t: 0, act: 0 }; return true; }
   }
+  /* bored, and not yet bored enough for mischief: go and see something (paths.js) */
+  if (p.bored > 600 && !p.exploreCD && Math.random() < 0.25) {
+    p.exploreCD = 1500 + irnd(1500);
+    if (explorePick(g, p)) return true;
+  }
   return false;
 }
 /* one tick of one of the jobs in here, or undefined if it is not one of ours */
@@ -693,6 +699,7 @@ function bTask(g, p, k) {
   if (k.kind === "warm") return bTaskWarm(g, p, k);
   if (k.kind === "home") return bTaskHome(g, p, k);
   if (k.kind === "plant") return bTaskPlant(g, p, k);
+  if (k.kind === "explore") return exploreTask(g, p, k);
   return undefined;
 }
 

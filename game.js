@@ -26,6 +26,7 @@ var TIPS = [
   "tip: gas pools under ceilings. a hut has a ceiling",
   "tip: seeds on sand plus water make flowers. peasants like flowers",
   "tip: press T for thermal vision. peasants are 37 degrees. mostly",
+  "tip: B turns the speech bubbles off, for a quieter village. they still talk; you just cannot read it",
   "tip: boil salt water and you get your salt back",
   "tip: hold HEAT on one end of a metal bar. watch the other end",
   "tip: water on lava makes a crust. the lava under it is still lava",
@@ -36,7 +37,8 @@ var TIPS = [
   "tip: hover over a blueprint to see what is planned. the faint blue cells",
   "tip: only peasants can make doors. water and sand cannot get through them. peasants can",
   "tip: burn a house down and they will rebuild it. if most of it is gone, they will mourn it",
-  "tip: a lit window means somebody is home"
+  "tip: a lit window means somebody is home",
+  "tip: bored peasants go exploring. build them somewhere high to explore"
 ];
 
 /* -------------------------------------------------------------------
@@ -736,7 +738,8 @@ function drawPanel(g, c) {
   button(c, 4, BTN2_Y, 42, "SLOW-MO", g.slow, r2 && g.mx < 48);
   button(c, 48, BTN2_Y, 42, "NEW", false, r2 && g.mx >= 48);
   var r3 = g.my >= BTN3_Y && g.my < BTN3_Y + 12 && g.mx < PANEL;
-  button(c, 4, BTN3_Y, 86, g.thermal ? "THERMAL: ON" : "THERMAL (T)", g.thermal, r3);
+  button(c, 4, BTN3_Y, 42, "THERMAL", g.thermal, r3 && g.mx < 48);
+  button(c, 48, BTN3_Y, 42, "BUBBLES", !g.hush, r3 && g.mx >= 48);
 
   /* header */
   rct(c, 0, 0, VW, PLAY_Y, "#0a0d16");
@@ -804,6 +807,7 @@ function pMood(g, p) {
   if (p.task && p.task.kind === "warm") return "is warming up by the fire";
   if (p.task && p.task.kind === "home") return "is going home";
   if (p.task && p.task.kind === "plant") return "is planting a tree";
+  if (p.task && p.task.kind === "explore") return p.task.high >= 20 ? "is off to see what is up there" : "is exploring";
   if (p.task && p.task.kind === "chop") return "is chopping wood. " + (p.logs || 0) + " logs so far";
   if (p.task && p.task.kind === "eat") return "is eating a plant";
   if (p.task && p.task.kind === "light") return "is up to something";
@@ -921,7 +925,10 @@ function gameTap(g, x, y) {
   } else if (y >= BTN2_Y && y < BTN2_Y + 12) {
     if (x < 48) g.slow = g.slow ? 0 : 1;
     else sandLandscape(g);
-  } else if (y >= BTN3_Y && y < BTN3_Y + 12) g.thermal = !g.thermal;
+  } else if (y >= BTN3_Y && y < BTN3_Y + 12) {
+    if (x < 48) g.thermal = !g.thermal;
+    else g.hush = !g.hush;
+  }
   else g.tip = (g.tip + 1) % TIPS.length;
 }
 function gameWheel(g, d) {
@@ -942,6 +949,7 @@ function gameKey(g, k) {
   else if (k === "r") sandLandscape(g);
   else if (k === "`") g.debug = !g.debug;
   else if (k === "t") g.thermal = !g.thermal;
+  else if (k === "b") g.hush = !g.hush;   /* speech bubbles off (and on again) */
 }
 
 /* -------------------------------------------------------------------

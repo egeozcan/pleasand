@@ -38,7 +38,8 @@ shows as a faint blueprint. Then they live in it: they sleep in their beds (or
 on the ground, and complain), run home and hide when things go bang, go and
 stand by a fire when they are cold, light campfires and gather round them,
 climb ladders, find their way round (up the stairs, over the bridge, down
-the ladder) to wherever they are going, put back what you burn down (and mourn what you burn right
+the ladder, up a rope onto a ledge) to wherever they are going, go exploring
+when they are bored (somewhere high, somewhere nobody has been lately), put back what you burn down (and mourn what you burn right
 down), and plant saplings where they cut trees down, which grow into trees.
 
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
@@ -59,6 +60,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
   click one to pick it up, drag and let go to throw
 - **LIGHTNING** (L): click or hold to strike whatever is under the cursor
 - **HEAT** (H) / **COOL** (K): hold to pour heat into things, or draw it out
+- **B** (or the BUBBLES button) turns the speech bubbles off and on
 - **T** toggles thermal vision; the bar at the bottom shows what is under the
   cursor and how hot it is (and how far along it is boiling, melting or setting)
 - **NUKE** (N): one per click. stand back
@@ -90,6 +92,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - Pour sand on a house. Or water. Then let a peasant out through the door
 - Let off a firework near the houses, and watch everyone run home
 - Chill the village with COOL and watch them light a fire and huddle round it
+- Make them a floating island, with flowers on it. Somebody will go up and have a look
 
 ## Files
 

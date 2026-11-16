@@ -26,8 +26,8 @@
 
 var NAV_CAP = 4000;                 /* places looked at, at most, per search */
 var NAV_REPLAN = 240;               /* ticks a route is trusted for */
-var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder"];
-var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5;
+var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder", "hook"];
+var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5, NAV_HOOK = 6;
 
 /* could a peasant stand with its feet at (x, y): 1 on something solid, 2 swimming at the top of some water, 0 not */
 function navStand(g, x, y) {
@@ -96,6 +96,11 @@ function navEdges(g, x, y, add) {
       if (j > k + 9 && pSolid(g, nx, top) && pCell(g, nx, top) !== MAT.INERT && navStand(g, nx, y - k)) add(nx, y - k, 25 + k * 0.6, NAV_ROPE);
     }
   }
+  /* the end of a ledge overhead: hook it and climb up past it (pTryHook) */
+  for (s = -1; s <= 1; s += 2) {
+    var hk = pHookGeom(g, x, y, s);
+    if (hk && navStand(g, x + s, hk.stand)) add(x + s, hk.stand, 25 + hk.h * 0.6, NAV_HOOK);
+  }
   /* a ladder, up from the foot of it to wherever it lets them off at the top */
   var cx = bLadderNear(g, x, y);
   if (cx >= 0) {
@@ -115,12 +120,13 @@ function navCanLeap(g, x, y) { for (var k = 0; k <= 8; k++) if (pBody(g, x, y - 
 
 /* A*, from (sx, sy) to anywhere goal(x, y) likes, guided towards (tx, ty). a list of {x, y, m} (m: the move that gets
    there) not including the start, or null */
-function navFind(g, sx, sy, goal, tx, ty) {
+function navFind(g, sx, sy, goal, tx, ty, cap) {
+  cap = cap || NAV_CAP;
   var n = g.gw * g.gh, gw = g.gw;
   if (!g.navSeen || g.navSeen.length !== n) {
     g.navSeen = new Uint32Array(n); g.navShut = new Uint32Array(n); g.navCost = new Float32Array(n);
     g.navFrom = new Int32Array(n); g.navHow = new Int8Array(n);
-    g.navHeapI = new Int32Array(NAV_CAP * 8); g.navHeapF = new Float32Array(NAV_CAP * 8); g.navGen = 0;
+    g.navHeapI = new Int32Array(NAV_CAP * 24); g.navHeapF = new Float32Array(NAV_CAP * 24); g.navGen = 0;
   }
   var gen = ++g.navGen, seen = g.navSeen, shut = g.navShut, cost = g.navCost, from = g.navFrom, how = g.navHow;
   var HI = g.navHeapI, HF = g.navHeapF, hn = 0, looked = 0, start = sy * gw + sx, best = -1;
@@ -142,7 +148,7 @@ function navFind(g, sx, sy, goal, tx, ty) {
     HI[k] = li; HF[k] = lf;
     return top;
   }
-  function h(x, y) { return Math.abs(x - tx) + Math.abs(y - ty) * 0.5; }
+  function h(x, y) { return tx == null ? 0 : Math.abs(x - tx) + Math.abs(y - ty) * 0.5; }
   seen[start] = gen; cost[start] = 0; from[start] = -1; how[start] = 0;
   push(start, h(sx, sy));
   var cur, cx, cy, base;
@@ -154,7 +160,7 @@ function navFind(g, sx, sy, goal, tx, ty) {
     seen[i] = gen; cost[i] = nc; from[i] = cur; how[i] = m;
     push(i, nc + h(x, y));
   }
-  while (hn > 0 && looked < NAV_CAP) {
+  while (hn > 0 && looked < cap) {
     cur = pop();
     if (shut[cur] === gen) continue;
     shut[cur] = gen; looked++;
@@ -187,6 +193,8 @@ function navHere(g, p) {
 function pathGo(g, p, key, tx, ty, goal) {
   var nv = p.nav, k;
   if (nv && nv.key === key && nv.none > g.tick) return -1;
+  /* something nasty has turned up on the next few steps (a fire somebody just lit): look again */
+  if (nv && nv.key === key && nv.path.length) for (k = nv.i; k < nv.i + 4 && k < nv.path.length; k++) if (navHazard(g, nv.path[k].x, nv.path[k].y)) { nv.t = -1e9; break; }
   if (!nv || nv.key !== key || g.tick - nv.t > NAV_REPLAN || nv.off > 30 || nv.i >= nv.path.length) {
     var here = navHere(g, p);
     if (here && goal(here.x, here.y)) { p.nav = { key: key, path: [], i: 0, t: g.tick, off: 0 }; return 0; }
@@ -204,6 +212,11 @@ function pathGo(g, p, key, tx, ty, goal) {
   var dx = n.x + 0.5 - p.x;
   if (Math.abs(dx) > 0.3) p.dir = dx < 0 ? -1 : 1;
   p.navMove = NAV_MOVES[n.m];
+  /* the route hooks a ledge from here: throw the hook (before the walking carries them on under it) */
+  if (n.m === NAV_HOOK && !p.rope) {
+    var hs = n.x > Math.floor(p.x) ? 1 : -1;
+    if (Math.floor(p.x) === n.x - hs) { if (!pTryHook(g, p, Math.floor(p.x), Math.floor(p.y), hs)) pathStale(p); }
+  }
   /* the route goes up (or down) a ladder from here: on they get, whether or not there is a wall in front of them */
   if (n.m === NAV_LADDER && !p.climb) {
     var fx = Math.floor(p.x), fy = Math.floor(p.y), cx = n.y < fy ? bLadderNear(g, fx, fy) : -1;
@@ -229,4 +242,68 @@ function pathStale(p) { if (p.nav) p.nav.t = -1e9; }
    feet and no more than down below */
 function pathNear(tx, ty, rx, up, down) {
   return function (x, y) { return Math.abs(x - tx) <= rx && ty >= y - up && ty <= y + down; };
+}
+
+/* -------------------------------------------------------------------
+   EXPLORING. now and then a peasant with nothing much to do goes to
+   have a look at somewhere: somewhere it can get to (by any of the
+   moves above), a good way off, up high if there is any up high (and
+   not down a hole: what goes down a long way may not come up again), and
+   nobody has stood lately. the village keeps a rough map of where
+   everybody has been, a square of eight cells at a time.
+   ------------------------------------------------------------------- */
+var EXP_B = 8;
+P_SAY.explore = ["i wonder what's up there", "let's have a look", "adventure!", "off exploring", "what's over there?",
+  "i've never been up there", "back in a bit"];
+P_SAY.view = ["what a view!", "nobody's been up here before", "i can see my house from here", "it's lovely up here",
+  "i'm the king of the hill", "worth the climb", "huh. sand", "first!"];
+P_ACHIEVE.explorer = ["EXPLORERS", "somebody went up there just to have a look"];
+
+function exploreMap(g) {
+  var n = ((g.gw / EXP_B) | 0) + 1, m = ((g.gh / EXP_B) | 0) + 1;
+  if (!g.seenAt || g.seenAt.length !== n * m) g.seenAt = new Uint32Array(n * m);
+  return n;
+}
+/* a few times a second: where is everybody standing */
+function exploreNote(g) {
+  if (g.tick % 15) return;
+  var n = exploreMap(g);
+  for (var k = 0; k < g.peasants.length; k++) {
+    var p = g.peasants[k];
+    if (p.dead || p.state !== "walk" || p.x < 0 || p.y < 0) continue;
+    g.seenAt[((p.y / EXP_B) | 0) * n + ((p.x / EXP_B) | 0)] = g.tick + 1;
+  }
+}
+/* somewhere to go and look at: everywhere they could get to from here, scored by how long since anyone stood there,
+   how far up it is, and a little luck. true if they have set off */
+function explorePick(g, p) {
+  var here = navHere(g, p), n = exploreMap(g), best = null, bs = -1e9;
+  if (!here) return false;
+  navFind(g, here.x, here.y, function (x, y) {
+    /* (every third place will do.) not down a hole: what goes down a long way may not come up again */
+    if (Math.abs(x - here.x) + Math.abs(y - here.y) < 30 || (x + y) % 3 || y > here.y + 12) return false;
+    var seen = g.seenAt[((y / EXP_B) | 0) * n + ((x / EXP_B) | 0)];
+    var s = Math.min(seen ? g.tick - seen : 30000, 30000) / 3000 + Math.max(0, here.y - y) * 0.2 + Math.random() * 3;
+    if (s > bs) { bs = s; best = { x: x, y: y }; }
+    return false;
+  }, null, null, 12000);
+  if (!best) return false;
+  p.task = { kind: "explore", x: best.x, y: best.y, t: 0, high: here.y - best.y };
+  if (p.sayT <= 0) pSay(g, p, "explore");
+  return true;
+}
+function exploreTask(g, p, k) {
+  if (++k.t > 3000) { p.task = null; return false; }
+  var fx = Math.floor(p.x), fy = Math.floor(p.y);
+  if (Math.abs(fx - k.x) <= 2 && Math.abs(fy - k.y) <= 3) {
+    /* there: have a good look round */
+    p.task = null; p.taskDone = true; p.idle = 150 + irnd(200); p.bored = 0;
+    pSay(g, p, "view", true);
+    if (k.high >= 20) { feed(g, p.name + " climbed up high to have a look around", "#9ad0ff", "explore"); achieve(g, "explorer"); }
+    return true;
+  }
+  var left = pathGo(g, p, "x" + k.x + "," + k.y, k.x, k.y, function (x, y) { return Math.abs(x - k.x) <= 2 && Math.abs(y - k.y) <= 3; });
+  if (left < 0) p.dir = k.x < p.x ? -1 : 1;
+  if (pStuck(p, k, left > 0 ? left : Math.abs(k.x - p.x))) { pGiveUp(g, p, k.x); return false; }
+  return false;
 }

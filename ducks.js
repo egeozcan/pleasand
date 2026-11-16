@@ -578,7 +578,7 @@ function ducksBubbles(g, c) {
   c.font = "bold 6px " + UI_FONT; c.textAlign = "center";
   for (var k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k];
-    if (d.dead || d.sayT <= 0) continue;
+    if (d.dead || d.sayT <= 0 || g.hush) continue;
     var sx = PANEL + (d.x + 0.5) * CELL, sy = PLAY_Y + (d.y - 6) * CELL;
     c.globalAlpha = Math.min(1, d.sayT / 12);
     c.fillStyle = "rgba(10,14,22,0.6)";

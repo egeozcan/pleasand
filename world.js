@@ -336,10 +336,11 @@ function sandFling(g, j, vx, vy) {
   heatAccept(g, j);
   return true;
 }
-function sparks(g, x, y, n, speed, cols, life, up) {
+/* a burst of sparks. real ones (they light what they land on) unless kind says PK_GLINT: a puff that only looks like it */
+function sparks(g, x, y, n, speed, cols, life, up, kind) {
   for (var k = 0; k < n; k++) {
     var a = Math.random() * 6.2832, s = speed * (0.3 + Math.random() * 0.7);
-    partAdd(g, PK_SPARK, x, y, Math.cos(a) * s, Math.sin(a) * s - (up || 0), life + irnd(life), pick(cols));
+    partAdd(g, kind == null ? PK_SPARK : kind, x, y, Math.cos(a) * s, Math.sin(a) * s - (up || 0), life + irnd(life), pick(cols));
   }
 }
 /* a spark landing on something. some things take it personally */
@@ -517,7 +518,8 @@ function fwBurst(g, x, y) {
   for (k = 0; k < n; k++) {
     a = Math.random() * 6.2832;
     s = style === 0 ? 0.4 + Math.random() * 1.3 : (style === 1 ? 1.3 + Math.random() * 0.15 : (k & 1 ? 1.4 : 0.7));
-    partAdd(g, PK_SPARK, x, y, Math.cos(a) * s, Math.sin(a) * s - 0.2, 40 + irnd(40), (k & 1) ? c1 : c2);
+    /* the stars of a firework are long burnt out by the time they come down: pretty, but they light nothing */
+    partAdd(g, PK_GLINT, x, y, Math.cos(a) * s, Math.sin(a) * s - 0.2, 40 + irnd(40), (k & 1) ? c1 : c2);
   }
   g.fx.burst++;
   g.flash = Math.max(g.flash, 0.12);
@@ -959,8 +961,15 @@ function sandStatic(g, i, x, y) {
       for (k = 0; k < 4; k++) {
         var q = sandNb(g, x, y, (s0 + k) & 3);
         if (q >= 0 && m[q] === MAT.EMPTY) {
-          sandSet(g, q, MAT.PLANT); g.score++;
-          if (Math.random() < 0.5) m[j] = MAT.EMPTY;
+          g.score++;
+          if (Math.random() < 0.5) {
+            /* it drinks the water: the water becomes the new growth, as warm as the water was, and the air that was
+               there moves into the water's place. (not the water's heat into one cell of air: the water holds the heat
+               that melted it, and one cell of air with all of that in it is a flame waiting to happen) */
+            var tw = g.T[j], ta = g.T[q];
+            g.m[q] = MAT.PLANT; g.vy[q] = 0; g.aux[q] = 0; g.sh[q] = irnd(256); g.T[q] = tw; g.lat[q] = 0; heatAccept(g, q);
+            g.m[j] = MAT.EMPTY; g.vy[j] = 0; g.aux[j] = 0; g.T[j] = ta; g.lat[j] = 0; heatAccept(g, j);
+          } else sandSet(g, q, MAT.PLANT);
           break;
         }
       }
@@ -1037,7 +1046,7 @@ function sandStatic(g, i, x, y) {
       if (t === MAT.EMPTY || t === MAT.STONE || t === MAT.WOOD || t === MAT.ICE || t === MAT.TORCH ||
           t === MAT.FAUCET || t === MAT.DRAIN || t === MAT.GLASS || t === MAT.CLONER || t === MAT.METAL || t === MAT.INERT ||
           (STILL[t] && t !== MAT.FLOWER) || t === MAT.SAPLING) continue;
-      if (Math.random() < 0.5) m[j] = MAT.EMPTY;
+      if (Math.random() < 0.5) heatVanish(g, j);
     }
   }
 }

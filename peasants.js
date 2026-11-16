@@ -377,7 +377,7 @@ function pDie(g, p, cause) {
       if (x >= 0 && x < gw && y >= 0 && y < g.gh && AIRY[g.m[y * gw + x]]) { j = y * gw + x; sandPlace(g, j, MAT.STONE); g.sh[j] = 40; heatAccept(g, j); }
     }
   } else if (cause === "nuke") {
-    sparks(g, p.x, p.y - 4, 12, 1, [P_WHITE], 10, 0.5);
+    sparks(g, p.x, p.y - 4, 12, 1, [P_WHITE], 10, 0.5, PK_GLINT);
   } else if (cause === "freeze") {
     /* an ice statue of them, where they stood */
     for (y = fy - 8; y <= fy; y++) for (x = fx - 1; x <= fx + 1; x++) {
@@ -385,7 +385,8 @@ function pDie(g, p, cause) {
       if (x >= 0 && x < gw && y >= 0 && y < g.gh && AIRY[g.m[y * gw + x]]) { j = y * gw + x; sandPlace(g, j, MAT.ICE); }
     }
   }
-  if (cause !== "nuke" && cause !== "freeze") sparks(g, p.x, p.y - 4, 8, 0.8, [p.pal[4], p.pal[0]], 12, 0.6);
+  /* a puff of whatever they were wearing. only a puff: it lights nothing */
+  if (cause !== "nuke" && cause !== "freeze") sparks(g, p.x, p.y - 4, 8, 0.8, [p.pal[4], p.pal[0]], 12, 0.6, PK_GLINT);
   g.fx.die++;
   /* somebody nearby has feelings about it */
   var o = pOther(g, p, 80);
@@ -524,6 +525,7 @@ function peasantsStep(g) {
   }
   if (burning >= 3) achieve(g, "roast");
   buildStep(g);
+  exploreNote(g);
   for (k = L.length - 1; k >= 0; k--) if (L[k].dead) L.splice(k, 1);
   if (g.hadPeasants && !L.length && !g.emptyNoted) { g.emptyNoted = true; banner(g, "THE VILLAGE IS EMPTY", "press V and click for more. you monster"); }
   if (L.length) g.emptyNoted = false;
@@ -572,7 +574,7 @@ function pStep(g, p) {
   if (p.fire && (WET[cm] || WET[cf] || WET[ch] || WET[cb])) {
     p.fire = 0; g.fx.hiss++;
     pSay(g, p, "phew", true);
-    sparks(g, p.x, p.y - 8, 6, 0.4, [hex32("#c0d0e0")], 14, 0.6);
+    sparks(g, p.x, p.y - 8, 6, 0.4, [hex32("#c0d0e0")], 14, 0.6, PK_GLINT);   /* steam, not sparks */
   }
   if ((cm === MAT.SMOKE || ch === MAT.SMOKE) && p.sayT <= 0 && Math.random() < 0.03) pSay(g, p, "cough");
   if (sub) {
@@ -600,6 +602,7 @@ function pStep(g, p) {
   if (p.planCD > 0) p.planCD--;
   if (p.eatCD > 0) p.eatCD--;
   if (p.plantCD > 0) p.plantCD--;
+  if (p.exploreCD > 0) p.exploreCD--;
   p.pose = null; p.navMove = null;
   if (p.state === "fly") { p.jumping = false; p.rope = null; p.chute = null; p.task = null; p.climb = null; p.sleep = 0; pFly(g, p); return; }
 
@@ -877,6 +880,31 @@ function pTryClimb(g, p, fx, fy) {
   var top = fy - k + 1;   /* the top solid cell of the wall */
   if (!pSolid(g, nfx, top) || pCell(g, nfx, top) === MAT.INERT) return false;
   pRopeThrow(g, p, "climb", dir > 0 ? nfx : nfx + 1, top, nfx, top, fy - k);
+  if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "rope", true);
+  return true;
+}
+/* a ledge hanging out overhead, to one side (s), with nothing under its end: hook the top of its edge and climb straight
+   up past the end of it, onto it. how a peasant gets onto a floating island. {top: its top solid row, stand: where their
+   feet will be up there, h: how far up}, or null */
+function pHookGeom(g, x, y, s) {
+  var cx = x + s, k, bottom = -1, top;
+  if (cx < 1 || cx > g.gw - 2 || pBody(g, cx, y) || pBody(g, cx, y - 1)) return null;   /* a wall: that is pTryClimb's */
+  for (k = 2; k <= P_ROPE; k++) if (pBody(g, cx, y - k)) { bottom = y - k; break; }
+  if (bottom < 0) return null;
+  for (top = bottom; top > 0 && pBody(g, cx, top - 1); top--);
+  var stand = top - 1, h = y - stand;
+  if (h > P_ROPE || h < 5 || stand < 9) return null;
+  /* the way up beside it clear for their whole body, all the way, and room to stand on top */
+  for (k = y - 9; k >= stand - 9; k--) if (pBody(g, x, k)) return null;
+  if (!pRoom(g, cx, stand) || pCell(g, cx, top) === MAT.INERT) return null;
+  return { top: top, stand: stand, h: h };
+}
+function pTryHook(g, p, fx, fy, s) {
+  if (p.cold > 400 || p.fire || p.ropeCD) return false;
+  var r = pHookGeom(g, fx, fy, s), cx = fx + s;
+  if (!r) return false;
+  p.dir = s;
+  pRopeThrow(g, p, "climb", s > 0 ? cx : cx + 1, r.top, cx, r.top, r.stand);
   if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "rope", true);
   return true;
 }
@@ -1510,7 +1538,7 @@ function pPickTask(g, p) {
   var edible = function (g2, x, y) { return !pAvoid(g2, p, x) && pEdible(g2, x, y); };
   var choppable = function (g2, x, y) { return !pAvoid(g2, p, x) && pChoppable(g2, x, y); };
   /* (a peasant who went looking for food and found none gets on with other things for a while) */
-  if (p.hunger > P_HUNGRY && !p.eatCD) { t = pFind(g, p, P_FOOD, 50, edible); if (!t) p.eatCD = 900; }
+  if (p.hunger > P_HUNGRY && !p.eatCD) { t = pFind(g, p, P_FOOD, 60, edible, 40); if (!t) p.eatCD = 900; }
   else if (p.hunger > 900) t = pFind(g, p, P_FOOD, 4, edible);   /* a snack, if it is right there */
   if (t) { p.task = { kind: "eat", x: t.x, y: t.y, t: 0, act: 0, n: 0 }; return; }
   /* bed, warmth, building, planting: see build.js */
@@ -1813,9 +1841,10 @@ function peasantsBubbles(g, c, sx0, sy0) {
   for (k = 0; k < L.length; k++) {
     var p = L[k];
     if (p.dead || p.state === "space") continue;
-    var text = p.sayT > 0 ? p.say : (p === hover || p === g.held ? p.name : "");
+    /* (with the bubbles turned off, B, only the name of whoever is under the cursor) */
+    var text = p.sayT > 0 && !g.hush ? p.say : (p === hover || p === g.held ? p.name : "");
     if (!text) continue;
-    var tag = p.sayT <= 0, a = tag ? 0.85 : Math.min(1, p.sayT / 12);
+    var tag = p.sayT <= 0 || g.hush, a = tag ? 0.85 : Math.min(1, p.sayT / 12);
     var sx = sx0 + PANEL + (p.x + 0.5) * CELL, sy = sy0 + PLAY_Y + (Math.floor(p.y) - 10) * CELL;
     var w = Math.ceil(c.measureText(text).width) + 6, h = 10;
     var bx = clamp(Math.round(sx - w / 2), PANEL + 2, VW - w - 2), by = Math.max(PLAY_Y + 2, Math.round(sy - h - 3));
@@ -1854,7 +1883,7 @@ function peasantsBubbles(g, c, sx0, sy0) {
   /* ghosts get last words */
   for (k = 0; k < g.ghosts.length; k++) {
     var gs = g.ghosts[k];
-    if (!gs.say || gs.t < 30 || gs.t > 170) continue;
+    if (!gs.say || gs.t < 30 || gs.t > 170 || g.hush) continue;
     var gx = sx0 + PANEL + (gs.x + 0.5) * CELL, gy = sy0 + PLAY_Y + (gs.y - 6) * CELL;
     c.globalAlpha = Math.min(1, (170 - gs.t) / 20, (gs.t - 30) / 10) * 0.85;
     c.fillStyle = "#cfe0ff"; c.textAlign = "center";

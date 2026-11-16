@@ -13,7 +13,8 @@
    while they last, from the fuel they are burning; a torch never runs
    out, which is what a torch is for), bangs, lightning, the HEAT brush,
    and anything you paint, pour or clone, which arrives at its own
-   temperature. what takes it out: the edges, and the COOL brush.
+   temperature. what takes it out: the edges, the COOL brush, and things
+   that leave the world (down a drain), which take their heat with them.
    when a thing turns into another thing it keeps its temperature.
 
    warm air rises and cold air sinks, carrying its heat with it. so does
@@ -428,6 +429,16 @@ function heatStep(g) {
       lat[i] = e;
     }
   }
+}
+
+/* the thing in cell j leaves the world (down a drain), and takes its heat with it: the air that fills the hole is as warm
+   as the thing was, and no warmer. (left to the books, the hole would get all of it, melting heat and all: a cell of
+   drained water would leave behind air at well over a thousand degrees) */
+function heatVanish(g, j) {
+  var t = g.T[j];
+  g.m[j] = MAT.EMPTY; g.vy[j] = 0; g.aux[j] = 0; g.lat[j] = 0;
+  g.T[j] = t > T_MAX ? T_MAX : (t < T_MIN ? T_MIN : t);
+  heatAccept(g, j);
 }
 
 /* the HEAT and COOL brushes: pour heat in (or draw it out) around the cursor. it is heat,
