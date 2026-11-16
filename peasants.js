@@ -54,14 +54,17 @@ var P_SAY = {
   zap: ["bzzt", "i can taste colours", "my fillings!", "zap", "i've seen the light", "...ow", "crispy", "ow my hair"],
   ooh: ["ooooh", "aaaah", "pretty!", "wow", "best day ever", "do it again", "ooh, sparkly", "magic!"],
   flower: ["ooh, a flower", "pretty", "smells nice", "a flower!", "lovely"],
-  nope: ["nope", "nope nope", "not today", "i'm not going there", "uh oh", "hot!", "no thank you"],
+  nope: ["nope", "nope nope", "not today", "i'm not going there", "uh oh", "hot!", "no thank you", "FIRE!", "MY HOUSE!",
+         "call the fire brigade", "we don't have a fire brigade", "that's not good"],
   wet: ["i don't do water", "too wet", "nope", "i can't swim", "not in there"],
   fall: ["WAAAAH", "oh no", "AAAAAA", "wheeee", "this is fine", "MUMMY"],
   buried: ["mmmph", "mmf mmf", "help", "it's dark", "sand in my ears"],
   mourn: ["NOOO {n}!", "{n}?!", "rip {n}", "i'll take their hat", "{n} owed me money", "not {n}!", "they were so young",
           "{n}... no", "i liked {n}", "more room for me", "F"],
   greet: ["hi {n}", "morning", "'sup", "excuse me", "lovely hat", "hey {n}", "oh, {n}", "evening"],
-  space: ["AAAAAAA", "SPACE IS COLD", "I'M BACK", "WHAT GOES UP..."]
+  space: ["AAAAAAA", "SPACE IS COLD", "I'M BACK", "WHAT GOES UP..."],
+  cough: ["*cough*", "*cough cough*", "who's smoking", "my lungs", "*wheeze*"],
+  clone: ["am i... me?", "who are you", "i'm the real one", "there's two of me", "hello me", "is this legal"]
 };
 
 var P_DEATH = {
@@ -131,6 +134,7 @@ function pPal(list) { var p = new Uint32Array(10); for (var k = 0; k < 10; k++) 
 var P_XRAY = pPal(["#111111", "#111111", "#f8f8f0", "#000000", "#111111", "#f8f8f0", "#f8f8f0", "#f8f8f0", "#000000", "#ffffff"]);
 var P_CHAR = pPal(["#2a2622", "#1e1a18", "#3a3430", "#ffffff", "#2e2a26", "#1e1a18", "#26221e", "#1a1614", "#ff6040", "#ffffff"]);
 var P_FIRE = SAND_PAL[MAT.FIRE];
+var P_SKIN32 = hex32("#f1c7a0");
 var P_WHITE = hex32("#f4f8ff"), P_GHOSTEYE = hex32("#202a40");
 
 /* -------------------------------------------------------------------
@@ -173,13 +177,13 @@ function pWeighted(list) {
   return list[0];
 }
 function peasantSpawn(g, x, y, quiet) {
-  if (g.peasants.length >= P_MAX) { if (!quiet) feed(g, "the village is full. it is a small village", "#ffd94a"); return null; }
+  if (g.peasants.length >= P_MAX) { if (!quiet) { feed(g, "the village is full. it is a small village", "#ffd94a"); achieve(g, "full"); } return null; }
   var hat = pWeighted(P_HATS), hc = pick(hat.cols), skin = pick(P_SKINS);
-  var name = (hat.title || "") + pick(P_NAMES) + (Math.random() < 0.08 ? pick(P_SUFFIX) : "");
+  var short = pick(P_NAMES), name = (hat.title || "") + short + (Math.random() < 0.08 ? pick(P_SUFFIX) : "");
   var cols = [hc, hat.trim || hexDarken(hc), skin, "#101010", pick(P_SHIRTS), "#3a2a1a", pick(P_PANTS), "#2a1a10", "#401010", "#ffffff"];
   if (hat === P_HATS[4]) cols[0] = skin;
   var p = {
-    id: ++g.pid, name: name, x: x, y: y, vx: 0, vy: 0, dir: Math.random() < 0.5 ? -1 : 1,
+    id: ++g.pid, name: name, short: short, x: x, y: y, vx: 0, vy: 0, dir: Math.random() < 0.5 ? -1 : 1,
     state: "walk", stun: 0, idle: 0, panic: 0, fire: 0, lava: 0, acid: 0, breath: P_BREATH,
     charred: 0, zap: 0, falling: false, fallY: y, anim: irnd(100), spin: 0, buried: 0, flyT: 0, immune: 0,
     say: "", sayT: 0, chat: 120 + irnd(900), voice: 170 + Math.random() * 280,
@@ -188,6 +192,15 @@ function peasantSpawn(g, x, y, quiet) {
   g.peasants.push(p);
   if (!quiet) { pSay(g, p, "spawn", true); g.fx.pop++; }
   g.hadPeasants = true;
+  return p;
+}
+/* a copy of somebody, from a peasant factory */
+function peasantClone(g, src, x, y) {
+  var p = peasantSpawn(g, x, y, true);
+  if (!p) return null;
+  g.cloneN[src.short] = (g.cloneN[src.short] || 1) + 1;
+  p.hat = src.hat; p.pal = src.pal.slice(); p.voice = src.voice * (0.95 + Math.random() * 0.1);
+  p.short = src.short; p.name = src.short + " #" + g.cloneN[src.short];
   return p;
 }
 function hexDarken(h) { var c = hexRGB(h); return "#" + c.map(function (v) { return ("0" + Math.round(v * 0.6).toString(16)).slice(-2); }).join(""); }
@@ -216,7 +229,7 @@ function pSay(g, p, kind, force, other) {
   if (s.indexOf("{n}") >= 0) {
     var o = other || pOther(g, p, 400);
     if (!o) return;
-    var on = o.name.split(" ")[0];
+    var on = o.short;
     s = s.replace("{n}", s === s.toUpperCase() ? on : pTitle(on));
   }
   p.say = s; p.sayT = 90 + s.length * 3;
@@ -231,7 +244,27 @@ function feed(g, text, col) {
   g.feed.push({ text: text, col: col || "#c8d0dc", t: 0 });
   if (g.feed.length > 6) g.feed.shift();
 }
-function banner(g, title, sub) { g.banner = { title: title, sub: sub, t: 0 }; }
+function banner(g, title, sub) {
+  if (g.banners.length < 4) g.banners.push({ title: title, sub: sub, t: 0 });
+  g.fx.fanfare++;
+}
+/* one-off discoveries, once per visit */
+var P_ACHIEVE = {
+  space: ["ONE SMALL STEP", "for a peasant. one giant leap for peasantkind"],
+  strike: ["STRIKE!", "peasant bowling is now a recognised sport"],
+  factory: ["PEASANT FACTORY", "this seems ethically questionable"],
+  nuke: ["BIG BADA BOOM", "the neighbours have complained"],
+  shock: ["SHOCKING", "electricity and ponds: a cautionary tale"],
+  full: ["OVERPOPULATION", "the housing market is in shambles"],
+  bloom: ["SPRING HAS SPRUNG", "the peasants approve"],
+  leave: ["YEET", "a peasant has left the village. by air"],
+  roast: ["A BARBECUE", "three peasants on fire at once. a village record"]
+};
+function achieve(g, k) {
+  if (g.got[k]) return;
+  g.got[k] = 1;
+  banner(g, P_ACHIEVE[k][0], P_ACHIEVE[k][1]);
+}
 
 function pDie(g, p, cause) {
   if (p.dead) return;
@@ -292,15 +325,16 @@ function peasantsZapNear(g, x, y, r) {
   }
 }
 function peasantsZapMarked(g) {
-  var P = g.peasants, gw = g.gw;
+  var P = g.peasants, gw = g.gw, n = 0;
   for (var k = 0; k < P.length; k++) {
     var p = P[k], fx = Math.floor(p.x), fy = Math.floor(p.y);
     if (p.dead || p.state === "space" || fx < 0 || fx >= gw) continue;
     for (var dy = 0; dy <= 8; dy += 2) {
       var y = fy - dy;
-      if (y >= 0 && y < g.gh && g.zmark[y * gw + fx]) { pZap(g, p); break; }
+      if (y >= 0 && y < g.gh && g.zmark[y * gw + fx]) { pZap(g, p); n++; break; }
     }
   }
+  if (n >= 3) achieve(g, "shock");
 }
 /* an explosion: close ones are thrown, very close ones to a big one are gone, far ones panic */
 function peasantsBlast(g, cx, cy, R, P) {
@@ -358,6 +392,28 @@ function peasantsStep(g) {
       }
     }
   }
+  /* bowling: a peasant flying fast knocks over whoever it hits */
+  var burning = 0;
+  for (k = 0; k < L.length; k++) {
+    p = L[k];
+    if (p.fire && !p.dead) burning++;
+    if (p.dead || p.state !== "fly" || p.vx * p.vx + p.vy * p.vy < 2) continue;
+    for (var j2 = 0; j2 < L.length; j2++) {
+      q = L[j2];
+      if (q === p || q.dead || q.state === "fly" || q.state === "held" || q.state === "space") continue;
+      if (Math.abs(p.x - q.x) < 3 && Math.abs(p.y - q.y) < 7) {
+        q.state = "fly"; q.flyT = 0; q.immune = 6; q.fallY = q.y;
+        q.vx = p.vx * 0.8 + (q.x - p.x) * 0.1; q.vy = Math.min(p.vy, 0) - 1.2;
+        p.vx *= 0.6;
+        if (p.fire && Math.random() < 0.5) pIgnite(g, q);
+        pSay(g, q, Math.random() < 0.5 ? "oof" : "thrown", true);
+        g.fx.thud++;
+        p.pins = (p.pins || 0) + 1;
+        if (p.pins >= 3) achieve(g, "strike");
+      }
+    }
+  }
+  if (burning >= 3) achieve(g, "roast");
   for (k = L.length - 1; k >= 0; k--) if (L[k].dead) L.splice(k, 1);
   if (g.hadPeasants && !L.length && !g.emptyNoted) { g.emptyNoted = true; banner(g, "THE VILLAGE IS EMPTY", "press V and click for more. you monster"); }
   if (L.length) g.emptyNoted = false;
@@ -407,6 +463,7 @@ function pStep(g, p) {
     pSay(g, p, "phew", true);
     sparks(g, p.x, p.y - 8, 6, 0.4, [hex32("#c0d0e0")], 14, 0.6);
   }
+  if ((cm === MAT.SMOKE || ch === MAT.SMOKE) && p.sayT <= 0 && Math.random() < 0.03) pSay(g, p, "cough");
   if (sub) {
     if (--p.breath <= 0) { pDie(g, p, "drown"); return; }
     if (p.breath % 70 === 0) pSay(g, p, "swim", true);
@@ -523,7 +580,7 @@ function pFly(g, p) {
   if (onGround && Math.abs(p.vy) < 0.6) { p.vx *= 0.8; p.vy = 0; }
   if ((onGround && Math.abs(p.vx) < 0.3 && Math.abs(p.vy) < 0.6) || p.flyT > 900) {
     p.state = "walk"; p.spin = 0; p.falling = false; p.fallY = p.y; p.vx = p.vy = 0;
-    p.stun = 60;
+    p.stun = 60; p.pins = 0;
     if (Math.random() < 0.7) pSay(g, p, "dizzy", true);
   }
 }
@@ -531,10 +588,12 @@ function pSpace(g, p) {
   p.state = "space"; p.spaceT = 200 + irnd(300);
   feed(g, p.name + " has gone to space", "#9ad0ff");
   g.astronauts++;
+  achieve(g, "space");
 }
 function pLeave(g, p) {
   p.dead = 1;
   feed(g, p.name + " left the village. by air", "#c8d0dc");
+  achieve(g, "leave");
 }
 
 /* walking. a few cells of step up, a couple of step down, turn at walls */

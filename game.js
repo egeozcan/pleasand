@@ -59,6 +59,19 @@ var ICONS = {
                    { y: "#ffd040", k: "#3a3a2a", g: "#c8ff3a" })
 };
 
+/* the colour of mushroom-cloud smoke by how much life it has left: grey, then ember, then white-hot */
+var MUSH_PAL = (function () {
+  var t = new Uint32Array(256), grey = [86, 88, 98], warm = [190, 90, 40], hot = [255, 210, 140];
+  for (var a = 0; a < 256; a++) {
+    var f = a / 255, c;
+    if (f < 0.55) c = [lerp(grey[0], warm[0] * 0.6, f / 0.55), lerp(grey[1], warm[1] * 0.6, f / 0.55), lerp(grey[2], warm[2] * 0.6, f / 0.55)];
+    else if (f < 0.8) c = [lerp(warm[0] * 0.6, warm[0], (f - 0.55) / 0.25), lerp(warm[1] * 0.6, warm[1], (f - 0.55) / 0.25), lerp(warm[2] * 0.6, warm[2], (f - 0.55) / 0.25)];
+    else c = [lerp(warm[0], hot[0], (f - 0.8) / 0.2), lerp(warm[1], hot[1], (f - 0.8) / 0.2), lerp(warm[2], hot[2], (f - 0.8) / 0.2)];
+    t[a] = rgb32(c, 0.9 + Math.random() * 0.2);
+  }
+  return t;
+})();
+
 /* -------------------------------------------------------------------
    2. SETTING UP
    ------------------------------------------------------------------- */
@@ -74,10 +87,10 @@ function gameInit(g) {
   partInit(g);
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
-           pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0 };
+           pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0 };
   g.snd = {};
   g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0;
-  g.feed = []; g.banner = null; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
+  g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = null; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
   g.held = null; g.cx = 0; g.cy = 0; g.pcx = 0; g.pcy = 0; g.cvx = 0; g.cvy = 0; g.toolT = 0;
   g.intro = 0; g.tip = irnd(TIPS.length);
 
@@ -226,7 +239,7 @@ function gameUpdate(g, dt) {
     peasantsStep(g);
   } else if (g.held) pHeld(g, g.held);
   for (var k = g.feed.length - 1; k >= 0; k--) if ((g.feed[k].t += dt) > 7) g.feed.splice(k, 1);
-  if (g.banner && (g.banner.t += dt) > 4) g.banner = null;
+  if (g.banners.length && (g.banners[0].t += dt) > 3.5) g.banners.shift();
   sandSounds(g);
 }
 
@@ -249,6 +262,7 @@ function sandSounds(g) {
     else if (ok("thud", 0.12)) SFX.thud();
     if (ok("ghost", 0.5)) SFX.ghost();
     if (ok("whee", 0.2)) SFX.whee();
+    if (ok("fanfare", 1)) SFX.fanfare();
   }
   for (var k in f) f[k] = 0;
 }
@@ -289,12 +303,16 @@ function drawWorld(g) {
       } else if (v === MAT.CLONER) {
         /* a checkerboard of cloner purple and whatever it has memorised */
         var a = g.aux[i];
-        px[i] = (a && ((x + y + flick) & 1)) ? SAND_PAL[a][sh[i]] : SAND_PAL[v][(x + y) & 1];
+        px[i] = (a && ((x + y + flick) & 1)) ? (a === CLONE_PEASANT ? P_SKIN32 : SAND_PAL[a][sh[i]]) : SAND_PAL[v][(x + y) & 1];
       } else if (v === MAT.NUKE) {
         /* blinks, faster as it gets closer */
         var on = (g.aux[i] > 200 ? (t * 12) | 0 : (t * 3) | 0) & 1;
         px[i] = SAND_PAL[v][on ? 0 : 1];
         if (on) { gp[i] = px[i]; hot++; }
+      } else if (v === MAT.SMOKE && g.aux[i]) {
+        /* mushroom smoke: glows at first, then cools to grey */
+        px[i] = MUSH_PAL[g.aux[i]];
+        if (g.aux[i] > 170) { gp[i] = px[i]; hot++; }
       } else if (v === MAT.FIREWORK) {
         px[i] = SAND_PAL[v][(y + (sh[i] & 1)) & 3];
       } else {
@@ -394,9 +412,9 @@ function drawBangs(g, c) {
   for (k = g.bolts.length - 1; k >= 0; k--) {
     var b = g.bolts[k];
     if (b.t <= 0.02) { g.bolts.splice(k, 1); continue; }
-    var lines = [b.pts].concat(b.forks);
+    var lines = [b.pts].concat(b.forks), ba = b.t * (Math.random() < 0.2 ? 0.25 : 1);
     for (var pass = 0; pass < 2; pass++) {
-      c.strokeStyle = pass ? "rgba(255,255,255," + b.t.toFixed(3) + ")" : "rgba(120,160,255," + (b.t * 0.5).toFixed(3) + ")";
+      c.strokeStyle = pass ? "rgba(255,255,255," + ba.toFixed(3) + ")" : "rgba(120,160,255," + (ba * 0.5).toFixed(3) + ")";
       c.lineWidth = pass ? 1.4 : 6;
       c.lineJoin = "round";
       for (j = 0; j < lines.length; j++) {
@@ -407,10 +425,9 @@ function drawBangs(g, c) {
         c.stroke();
       }
     }
-    /* flickers out */
-    b.t *= Math.random() < 0.3 ? 0.4 : 0.82;
+    b.t *= 0.92;
   }
-  if (g.zt > 0) { g.zt -= 0.08; if (g.zt <= 0) g.zn = 0; }
+  if (g.zt > 0) { g.zt -= 0.035; if (g.zt <= 0) g.zn = 0; }
   c.restore();
 }
 
@@ -430,7 +447,7 @@ function drawCursor(g, c) {
     c.globalAlpha = 1; c.lineWidth = 1;
   }
   if (pk.tool === "peasant") {
-    var h = g.held || peasantAt(g, g.cx, g.cy, 2);
+    var h = (g.held && !g.held.dead) ? g.held : peasantAt(g, g.cx, g.cy, 2);
     if (h) {
       var bx = PANEL + (h.x - 3) * CELL, by = PLAY_Y + (h.y - 10) * CELL;
       c.strokeStyle = "#ffd94a";
@@ -554,10 +571,10 @@ function drawOverlays(g, c) {
   }
   c.globalAlpha = 1;
   /* a milestone */
-  if (g.banner) {
-    var b = g.banner, s = b.t < 0.15 ? 0.6 + b.t / 0.15 * 0.5 : (b.t < 0.3 ? 1.1 - (b.t - 0.15) / 0.15 * 0.1 : 1);
+  if (g.banners.length) {
+    var b = g.banners[0], s = b.t < 0.15 ? 0.6 + b.t / 0.15 * 0.5 : (b.t < 0.3 ? 1.1 - (b.t - 0.15) / 0.15 * 0.1 : 1);
     c.save();
-    c.globalAlpha = Math.min(1, (4 - b.t) / 0.6);
+    c.globalAlpha = Math.min(1, (3.5 - b.t) / 0.5);
     c.translate(cx, PLAY_Y + 58); c.scale(s, s);
     txt(c, b.title, 1.5, 1.5, 22, "#000000", "center", true);
     txt(c, b.title, 0, 0, 22, "#ffd94a", "center", true);

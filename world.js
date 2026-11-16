@@ -76,6 +76,7 @@ var PICK = [
 ];
 
 var SAND_MAXSIZE = 16;
+var CLONE_PEASANT = 255;   /* what a cloner remembers when it has touched a peasant */
 var SAND_CLEAN = 200;   /* a fire whose shade is at least this leaves no ash */
 var SAND_VMAX = 12;     /* top speed: 1 + (12 >> 2) = 4 cells a tick */
 
@@ -383,25 +384,25 @@ function sandBoom(g, i, R, P) {
 }
 
 function sandNuke(g, i) {
-  var gw = g.gw, x0 = i % gw, y0 = (i / gw) | 0, k, x, y, j;
+  var gw = g.gw, x0 = i % gw, y0 = (i / gw) | 0, x, y, j;
   g.m[i] = MAT.EMPTY;
   sandBoom(g, i, 34, 4.2);
   g.fx.bigboom++;
-  /* the mushroom: a stalk and a cap of slow, long-lived smoke with a fiery underside */
-  for (k = 0; k < 900; k++) {
-    var stalk = k < 300;
-    if (stalk) { x = x0 + irnd(9) - 4; y = y0 - irnd(34); }
-    else {
-      var a = Math.random() * 6.2832, rr = Math.sqrt(Math.random());
-      x = x0 + Math.round(Math.cos(a) * rr * 22); y = y0 - 40 + Math.round(Math.sin(a) * rr * 10);
-    }
+  /* the mushroom: a stalk and a cap of slow, long-lived smoke that starts out glowing */
+  var cy = y0 - 42;
+  for (y = cy - 12; y <= y0; y++) for (x = x0 - 26; x <= x0 + 26; x++) {
     if (x < 0 || y < 0 || x >= gw || y >= g.gh) continue;
+    var ex = (x - x0) / 24, ey = (y - cy) / 11, wob = Math.sin(x * 0.7) * 0.12 + Math.random() * 0.25;
+    var cap = ex * ex + ey * ey < 1 + wob - (y > cy + 4 ? 0.6 : 0);
+    var stalk = y > cy && Math.abs(x - x0) < 4 + (y - cy) * 0.12 + Math.random() * 2;
+    if (!cap && !stalk) continue;
+    if (Math.random() < 0.12) continue;
     j = y * gw + x;
-    if (g.m[j] !== MAT.EMPTY && g.m[j] !== MAT.FIRE) continue;
-    if (!stalk && y > y0 - 38 && Math.random() < 0.5) { sandSet(g, j, MAT.FIRE); g.sh[j] = SAND_CLEAN; continue; }
-    sandSet(g, j, MAT.SMOKE); g.aux[j] = 120 + irnd(130);
+    if (g.m[j] !== MAT.EMPTY && g.m[j] !== MAT.FIRE && g.m[j] !== MAT.SMOKE) continue;
+    sandSet(g, j, MAT.SMOKE); g.aux[j] = 140 + irnd(110);
   }
   peasantsReact(g, "nuke", x0, y0);
+  achieve(g, "nuke");
 }
 
 /* fireworks: a cell becomes a rocket, a rocket becomes a flower made of sparks */
@@ -553,8 +554,13 @@ function sandSteam(g, i, x, y) {
    number in aux (a mushroom cloud) hangs about for that many ticks first, and rises slowly */
 function sandSmoke(g, i, x, y) {
   var j, dd, nx, t, a = g.aux[i];
-  if (a) { g.aux[i] = a - 1; if (Math.random() < 0.7) return; }
-  else if (Math.random() < 0.03 || (y === 0 && Math.random() < 0.3)) { g.m[i] = MAT.EMPTY; return; }
+  if (a) {
+    /* mushroom smoke holds its shape and drifts up as one */
+    g.aux[i] = a - 1;
+    if (y > 0 && Math.random() < 0.12) { j = i - g.gw; if (sandEmpty(g, j)) sandSwap(g, i, j); }
+    return;
+  }
+  if (Math.random() < 0.03 || (y === 0 && Math.random() < 0.3)) { g.m[i] = MAT.EMPTY; return; }
   if (y === 0 || Math.random() < 0.3) return;
   dd = Math.random() < 0.5 ? -1 : 1;
   j = sandNb(g, x, y, 0);
@@ -729,6 +735,7 @@ function sandBloom(g, x, y) {
   }
   g.score += 3; g.fx.bloom++;
   peasantsReact(g, "flower", x, y);
+  achieve(g, "bloom");
 }
 
 /* things that do not move, but do things anyway */
@@ -784,6 +791,15 @@ function sandStatic(g, i, x, y) {
     if (j >= 0 && Math.random() < 0.1) { m[j] = MAT.STEAM; g.fx.hiss++; }
   } else if (v === MAT.CLONER) {
     var a = g.aux[i];
+    if (!a) { var tp = peasantAt(g, x, y - 1, 1); if (tp) { g.aux[i] = CLONE_PEASANT; g.cloneSrc = tp; return; } }
+    if (a === CLONE_PEASANT) {
+      /* a peasant factory: copies of whoever touched it last. rate-limited, because the village is small */
+      if (Math.random() < 0.004 && y > 9 && !SOLID[g.m[i - g.gw]] && g.cloneSrc) {
+        var np = peasantClone(g, g.cloneSrc, x + 0.5, y - 1);
+        if (np) { pSay(g, np, "clone", false); achieve(g, "factory"); g.fx.pop++; }
+      }
+      return;
+    }
     if (!a) {
       for (k = 0; k < 4; k++) {
         j = sandNb(g, x, y, k);
