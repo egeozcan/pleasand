@@ -22,7 +22,8 @@ plants and gas catch on their own when hot enough, and salt water boils down
 to salt. Also a small village of
 peasants who walk about, chat, climb things, jump ledges and gaps, carry ninja ropes and parachutes (which mostly open), swim, catch fire, run for
 the pond, go to space if thrown hard enough, and have opinions about all of
-it. They have names. The game keeps count.
+it. They have names. The game keeps count. There are ducks, too: they
+waddle, swim, dabble, fly, eat seeds, and sometimes bring ducklings.
 
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
 and grown from there.
@@ -38,6 +39,8 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - **Left-drag** paints, **right-drag** erases
 - **PEASANT** (V): click to make one and hold it, click one to pick it up,
   drag and let go to throw
+- **DUCK** (D): click to make a duck (now and then a mother with ducklings),
+  click one to pick it up, drag and let go to throw
 - **LIGHTNING** (L): click or hold to strike whatever is under the cursor
 - **HEAT** (H) / **COOL** (K): hold to pour heat into things, or draw it out
 - **T** toggles thermal vision; the bar at the bottom shows what is under the
@@ -53,6 +56,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 ## Things to try
 
 - Throw a peasant into a line of peasants
+- Pour some seeds near a duck. Please don't strike the duck pond with lightning
 - Put a cloner under a peasant's feet
 - Strike a pond with lightning while somebody is swimming in it
 - Fill a hut with gas, then light the door

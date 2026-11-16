@@ -9,10 +9,14 @@
 
 var UI_FONT = '"Menlo", "Consolas", "DejaVu Sans Mono", "Courier New", monospace';
 var GW = Math.floor((VW - PANEL) / CELL), GH = Math.floor((VH - PLAY_Y - BAR_H) / CELL);
-var ROW0 = PLAY_Y + 2, ROWH = 10, FUN_N = 6, FUN_GAP = 4;
-var SIZE_Y = 331, BTN_Y = 344, BTN2_Y = 357, BTN3_Y = 370;
+var ROW0 = PLAY_Y + 2, ROWH = 10, FUN_N = 7, FUN_GAP = 4;
+var SIZE_Y = 341, BTN_Y = 354, BTN2_Y = 367, BTN3_Y = 380;
 var TIPS = [
   "tip: pick PEASANT, grab one, and throw it at the hut",
+  "tip: WHEEL changes the brush size. SHIFT-drag draws a straight line",
+  "tip: middle-click picks up whatever is under the cursor. S is slow motion, R is a new village",
+  "tip: pour some seeds near a duck",
+  "tip: lightning in a duck pond is a terrible idea",
   "tip: peasants can swim. they cannot breathe under ice",
   "tip: put a nuke next to a cloner. then stand well back",
   "tip: lightning in a pond zaps everybody in the pond",
@@ -56,6 +60,8 @@ function iconCanvas(rows, cols) {
 var ICONS = {
   peasant: iconCanvas(["..hhh...", ".hhhhh..", ".hhhhhH.", "..sse...", "..sss...", ".scccs..", "..cCc...", "..p.p..."],
                       { h: "#a8322a", H: "#5a1a1a", s: "#f1c7a0", e: "#101010", c: "#3a7ac8", C: "#2a1a10", p: "#4a3a2a" }),
+  duck: iconCanvas(["........", "....hh..", "....heBB", "t..bbb..", "tbbbbbb.", ".bbWWbb.", "..bbbb..", "...f.f.."],
+                   { h: "#2f7a3a", e: "#101010", B: "#e8c040", t: "#f0f0f0", b: "#8a6a4a", W: "#5a5a6e", f: "#f08a20" }),
   lightning: iconCanvas(["....yyy.", "...yyy..", "..yyy...", ".yyyyyy.", "....yy..", "...yy...", "..yy....", "..y....."],
                         { y: "#ffe860" }),
   firework: iconCanvas(["...r....", "..rrr...", "..www...", "..rrr...", "..www...", "..rrr...", "...y....", "..y.y..."],
@@ -101,10 +107,11 @@ function gameInit(g) {
   heatInit(g);
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
-           pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0 };
+           pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0, quack: 0, peep: 0, squeak: 0 };
   g.snd = {};
   g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0;
   g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = {}; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
+  g.ducks = []; g.did = 0; g.heldDuck = null;
   g.held = null; g.cx = 0; g.cy = 0; g.pcx = 0; g.pcy = 0; g.cvx = 0; g.cvy = 0; g.toolT = 0;
   g.intro = 0; g.tip = irnd(TIPS.length);
 
@@ -226,6 +233,7 @@ function sandPaint(g) {
 }
 function sandRelease(g) {
   if (g.held) peasantThrow(g, g.held);
+  if (g.heldDuck) duckThrow(g, g.heldDuck);
   if (g.ax == null) return;
   var p = sandCell(g);
   sandStroke(g, g.ax, g.ay, p.x, p.y, g.av, true);
@@ -235,7 +243,7 @@ function sandRelease(g) {
 function toolHold(g) {
   if (!g.down || g.btn !== 0 || !inPlay(g) || g.keys.alt) return;
   var t = curPick(g).tool;
-  if (!t || g.held) return;
+  if (!t || g.held || g.heldDuck) return;
   if (--g.toolT > 0) return;
   if (t === "lightning") {
     g.toolT = 22;
@@ -248,6 +256,7 @@ function toolHold(g) {
 /* middle-click (or alt-click) picks up whatever is under the cursor */
 function sandEyedrop(g) {
   if (peasantAt(g, g.cx, g.cy)) { g.sel = 0; return; }
+  if (duckAt(g, g.cx, g.cy)) { g.sel = 1; return; }
   var p = sandCell(g), v = g.m[Math.round(p.y) * g.gw + Math.round(p.x)];
   if (v === MAT.STEAM) v = MAT.WATER;
   else if (v === MAT.SMOKE) v = MAT.FIRE;
@@ -282,7 +291,11 @@ function gameUpdate(g, dt) {
     sandStep(g);
     partStep(g);
     peasantsStep(g);
-  } else if (g.held) pHeld(g, g.held);
+    ducksStep(g);
+  } else {
+    if (g.held) pHeld(g, g.held);
+    if (g.heldDuck) dHeld(g, g.heldDuck);
+  }
   for (var k = g.feed.length - 1; k >= 0; k--) if ((g.feed[k].t += dt) > 7) g.feed.splice(k, 1);
   if (g.banners.length && (g.banners[0].t += dt) > 3.5) g.banners.shift();
   sandSounds(g);
@@ -309,6 +322,9 @@ function sandSounds(g) {
     if (ok("whee", 0.2)) SFX.whee();
     if (ok("fanfare", 1)) SFX.fanfare();
     if (ok("splash", 0.15)) SFX.splash();
+    if (ok("quack", 0.12)) SFX.quack();
+    if (ok("peep", 0.08)) SFX.peep();
+    if (ok("squeak", 0.15)) SFX.squeak();
   }
   for (var k in f) f[k] = 0;
 }
@@ -417,6 +433,7 @@ function drawWorld(g) {
     px[i] = g.pc[k];
     if (pk !== PK_DEBRIS || g.pm[k] === MAT.FIRE) { gp[i] = g.pc[k]; hot++; }
   }
+  ducksDraw(g);
   peasantsDraw(g);
   return hot;
 }
@@ -445,6 +462,7 @@ function drawThermal(g) {
     if (x < 0 || y < 0 || x >= g.gw || y >= g.gh || g.ppx[k] < 0 || g.ppy[k] < 0) continue;
     px[y * g.gw + x] = g.pk[k] === PK_DEBRIS && g.pm[k] !== MAT.FIRE ? thermCol(AMBIENT) : thermCol(900);
   }
+  ducksDraw(g);
   peasantsDraw(g);
   return 0;
 }
@@ -481,6 +499,7 @@ function gameDraw(g, c) {
   }
   drawBangs(g, c);
   peasantsBubbles(g, c, 0, 0);
+  ducksBubbles(g, c);
   c.restore();
 
   /* the flash of a big bang, over the play area only */
@@ -561,11 +580,12 @@ function drawCursor(g, c) {
     c.stroke();
     c.globalAlpha = 1; c.lineWidth = 1;
   }
-  if (g.held && !g.held.dead && g.down) {
+  var hh = g.held && !g.held.dead ? g.held : (g.heldDuck && !g.heldDuck.dead ? g.heldDuck : null);
+  if (hh && g.down) {
     /* where they will go if you let go now */
     var v = cursorVel(g), ax = clamp(v[0], -4.5, 4.5), ay = clamp(v[1], -4.5, 4.5);
     if (ax * ax + ay * ay > 0.5) {
-      var px0 = g.held.x, py0 = g.held.y - 4;
+      var px0 = hh.x, py0 = hh.y - (hh === g.held ? 4 : 2);
       c.fillStyle = "rgba(255,217,74,0.7)";
       for (var st = 1; st <= 40; st++) {
         px0 += ax; py0 += ay; ay += 0.1;
@@ -590,6 +610,22 @@ function drawCursor(g, c) {
     } else {
       c.strokeStyle = "rgba(255,217,74,0.8)";
       c.beginPath(); c.moveTo(cx - 4, cy); c.lineTo(cx + 4, cy); c.moveTo(cx, cy - 4); c.lineTo(cx, cy + 4); c.stroke();
+    }
+  } else if (pk.tool === "duck") {
+    var dk = (g.heldDuck && !g.heldDuck.dead) ? g.heldDuck : duckAt(g, g.cx, g.cy, 2);
+    c.strokeStyle = "#ffd94a";
+    if (dk) {
+      var dx0 = PANEL + (dk.x - 3) * CELL, dy0 = PLAY_Y + (dk.y - 5) * CELL;
+      c.beginPath();
+      c.moveTo(dx0, dy0 + 3); c.lineTo(dx0, dy0); c.lineTo(dx0 + 3, dy0);
+      c.moveTo(dx0 + 14 - 3, dy0); c.lineTo(dx0 + 14, dy0); c.lineTo(dx0 + 14, dy0 + 3);
+      c.moveTo(dx0, dy0 + 9); c.lineTo(dx0, dy0 + 12); c.lineTo(dx0 + 3, dy0 + 12);
+      c.moveTo(dx0 + 14 - 3, dy0 + 12); c.lineTo(dx0 + 14, dy0 + 12); c.lineTo(dx0 + 14, dy0 + 9);
+      c.stroke();
+    } else {
+      c.globalAlpha = 0.8;
+      c.beginPath(); c.moveTo(cx - 3, cy); c.lineTo(cx + 3, cy); c.moveTo(cx, cy - 3); c.lineTo(cx, cy + 3); c.stroke();
+      c.globalAlpha = 1;
     }
   } else if (pk.tool === "lightning") {
     c.strokeStyle = "rgba(255,232,96,0.25)";
@@ -666,8 +702,6 @@ function drawPanel(g, c) {
   button(c, 48, BTN2_Y, 42, "NEW", false, r2 && g.mx >= 48);
   var r3 = g.my >= BTN3_Y && g.my < BTN3_Y + 12 && g.mx < PANEL;
   button(c, 4, BTN3_Y, 86, g.thermal ? "THERMAL: ON" : "THERMAL (T)", g.thermal, r3);
-  var hl = ["WHEEL size  SHIFT line", "MID pick  S slow  R new"];
-  for (k = 0; k < hl.length; k++) txt(c, hl[k], 5, 389 + k * 8, 6.5, "#4a5a78");
 
   /* header */
   rct(c, 0, 0, VW, PLAY_Y, "#0a0d16");
@@ -675,7 +709,9 @@ function drawPanel(g, c) {
   txt(c, "PLEASAND", 5, 10, 9, "#ffd94a", "left", true);
   var alive = 0, space = 0;
   for (k = 0; k < g.peasants.length; k++) { if (g.peasants[k].state === "space") space++; else alive++; }
-  var hdr = "PEASANTS " + alive + "     RIP " + g.rip + (space ? "     IN SPACE " + space : "");
+  var nd = 0;
+  for (k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead) nd++;
+  var hdr = "PEASANTS " + alive + "     RIP " + g.rip + (nd ? "     DUCKS " + nd : "") + (space ? "     IN SPACE " + space : "");
   txt(c, hdr, PANEL + (VW - PANEL) / 2, 10, 8, "#d8dde6", "center", true);
   txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
 
@@ -684,11 +720,13 @@ function drawPanel(g, c) {
   rct(c, PANEL, by, VW - PANEL, BAR_H, "#0a0d16");
   rct(c, PANEL, by, VW - PANEL, 1, "#26344e");
   var hp = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null, line;
+  var hd = inPlay(g) && !hp ? duckAt(g, g.cx, g.cy, 1) : null;
   if (hp) line = hp.name + "  " + pMood(hp);
+  else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd);
   else if (g.mx < PANEL && hov < 0) line = TIPS[g.tip];
   else line = info.name + "  " + info.desc;
   /* what is under the cursor, and how hot it is, on the right */
-  var rd = inPlay(g) && !hp ? cellReadout(g, cellAt(g)) : "";
+  var rd = inPlay(g) && !hp && !hd ? cellReadout(g, cellAt(g)) : "";
   c.font = "7px " + UI_FONT;
   var rw = rd ? c.measureText(rd).width + 12 : 0, room = VW - PANEL - 10 - rw;
   if (c.measureText(line).width > room) {
@@ -808,6 +846,12 @@ function gameTap(g, x, y) {
       var p = peasantAt(g, g.cx, g.cy, 2);
       if (!p) p = peasantSpawn(g, clamp(g.cx, 2, g.gw - 3), clamp(g.cy + 8, 9, g.gh - 1));
       if (p) peasantGrab(g, p, true);
+    } else if (pk.tool === "duck") {
+      var d = duckAt(g, g.cx, g.cy, 2);
+      if (d) duckGrab(g, d);
+      /* a new duck where you click. now and then a mother, with ducklings in tow */
+      else if (Math.random() < 0.2) duckFamily(g, clamp(g.cx, 3, g.gw - 4), clamp(g.cy + 2, 4, g.gh - 1));
+      else duckSpawn(g, clamp(g.cx, 3, g.gw - 4), clamp(g.cy + 2, 4, g.gh - 1));
     } else if (pk.tool === "lightning") g.toolT = 0;
     else if (pk.m === MAT.NUKE) {
       var c = sandCell(g), j = Math.round(c.y) * g.gw + Math.round(c.x);
@@ -843,7 +887,7 @@ function gameKey(g, k) {
   else if (k === " " || k === "p") g.paused = g.paused ? 0 : 1;
   else if (k === "s") g.slow = g.slow ? 0 : 1;
   else if (k === "c") sandClear(g);
-  else if (k === ".") { if (g.paused) { sandStep(g); partStep(g); peasantsStep(g); } }
+  else if (k === ".") { if (g.paused) { sandStep(g); partStep(g); peasantsStep(g); ducksStep(g); } }
   else if (k === "r") sandLandscape(g);
   else if (k === "`") g.debug = !g.debug;
   else if (k === "t") g.thermal = !g.thermal;

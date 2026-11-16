@@ -50,6 +50,7 @@ var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STON
    keys. STEAM, SMOKE, EMBER and FLOWER are not in it: you do not pour those, you earn them. */
 var PICK = [
   { tool: "peasant",   name: "PEASANT",   key: "V", desc: "click to make one, or grab one. drag and let go to throw. they have names. and feelings." },
+  { tool: "duck",      name: "DUCK",      key: "D", desc: "click to make a duck, or grab one and throw it. they love water and seeds. some bring ducklings." },
   { m: MAT.FIREWORK,   name: "FIREWORK",  key: "F", desc: "a rocket with a short fuse. goes up, goes bang, peasants go ooooh." },
   { m: MAT.NUKE,       name: "NUKE",      key: "N", desc: "one per click. lands, ticks, and ends the afternoon. the peasants will not be pleased." },
   { tool: "lightning", name: "LIGHTNING", key: "L", desc: "strikes whatever is under it. sand turns to glass. water and metal conduct. peasants get crispy." },
@@ -454,6 +455,7 @@ function sandBoom(g, i, R, P) {
   g.flash = Math.max(g.flash, big ? 1 : 0.08);
   if (g.rings.length < 8 && (big || Math.random() < 0.15)) g.rings.push({ x: x0, y: y0, r: 0, R: R * (big ? 3 : 2.2), t: 0 });
   peasantsBlast(g, x0, y0, R, P);
+  ducksBlast(g, x0, y0, R, P);
 }
 
 function sandNuke(g, i) {
@@ -496,6 +498,7 @@ function fwBurst(g, x, y) {
   g.flash = Math.max(g.flash, 0.12);
   g.fwGlow = { x: x, y: y, t: 1, c: c1 };
   peasantsReact(g, "firework", x, y);
+  ducksScare(g, x, y, 50);
 }
 
 /* lightning: walks down out of the sky at x until it hits something */
@@ -547,6 +550,7 @@ function sandLightning(g, cx) {
   /* water conducts: every peasant in the same pond gets it too. so does metal */
   if (wet >= 0) sandConduct(g, wet);
   peasantsZapNear(g, hit.x, hit.y, 7);
+  ducksZapNear(g, hit.x, hit.y, 5);
 }
 var CONDUCTS = new Uint8Array(32);
 [MAT.WATER, MAT.SALTWATER, MAT.ACID, MAT.METAL].forEach(function (v) { CONDUCTS[v] = 1; });
@@ -564,6 +568,7 @@ function sandConduct(g, start) {
     }
   }
   peasantsZapMarked(g);
+  ducksZapMarked(g);
   g.zn = n; g.zt = 1;
   for (k = 0; k < n; k++) mark[list[k]] = 0;
 }
@@ -1135,6 +1140,8 @@ function sandLandscape(g) {
   }
   /* one of them gets a house */
   if (huts.length) peasantSpawn(g, huts[0] + hutW / 2, top[huts[0] + 2] - 1, true);
+  /* and some ducks on the pond */
+  duckPond(g, pondOK ? [x0, x1, L] : null);
   /* and one of them has noticed you */
   if (g.peasants.length) g.helloP = g.peasants[irnd(g.peasants.length)];
   g.helloT = 280;

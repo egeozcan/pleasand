@@ -88,6 +88,19 @@ var SFX = {
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.03, t + 0.2); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
     o.connect(g); g.connect(MASTER); o.start(t); l.start(t); o.stop(t + 1.15); l.stop(t + 1.15);
   },
+  /* a duck: a nasal little square-wave honk that drops in pitch */
+  quack: function () {
+    if (!live()) return;
+    var c = AC, t = c.currentTime, o = c.createOscillator(), g = c.createGain(), f = c.createBiquadFilter(), p = 330 + Math.random() * 80;
+    o.type = "square"; f.type = "bandpass"; f.frequency.value = 1200; f.Q.value = 3;
+    o.frequency.setValueAtTime(p, t); o.frequency.exponentialRampToValueAtTime(p * 0.7, t + 0.14);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    o.connect(f); f.connect(g); g.connect(MASTER); o.start(t); o.stop(t + 0.16);
+  },
+  /* a duckling */
+  peep: function () { tone(1900 + Math.random() * 300, 0.06, "sine", 0.03, 2400); },
+  /* a rubber duck */
+  squeak: function () { tone(900, 0.12, "sine", 0.05, 1500); tone(1400, 0.08, "triangle", 0.02, 1100, 0.1); },
   /* the little animal-crossing mumble a peasant makes when it talks */
   babble: function (pitch, n) {
     if (!live()) return;

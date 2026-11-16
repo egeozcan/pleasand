@@ -1363,10 +1363,14 @@ function pSafeToLight(g, p, x0, y0) {
     if (P_BANG[m[j]]) return null;
     if (P_FLAM[m[j]] && !seen[j] && y < y1 && x >= x1 - 3 && x <= x2 + 3) return null;
   }
-  /* nobody else anywhere near it */
+  /* nobody else anywhere near it, ducks included */
   for (var k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
     if (q !== p && !q.dead && q.x > x1 - 8 && q.x < x2 + 9 && q.y > y1 - 4 && q.y < y2 + 14) return null;
+  }
+  for (k = 0; k < (g.ducks ? g.ducks.length : 0); k++) {
+    var dk = g.ducks[k];
+    if (!dk.dead && dk.x > x1 - 8 && dk.x < x2 + 9 && dk.y > y1 - 4 && dk.y < y2 + 10) return null;
   }
   return { x1: x1, x2: x2, y1: y1, y2: y2 };
 }
