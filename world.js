@@ -127,6 +127,8 @@ function sandTable(list, f) {
 }
 var SAND_PAL = SAND_SHADES.map(function (list) { return sandTable(list, 1); });
 var SAND_WET = sandTable(SAND_SHADES[MAT.SAND], 0.68);
+/* the top face of anything with open sky above it catches a little more light */
+var SAND_LIT = SAND_SHADES.map(function (list) { return sandTable(list, 1.18); });
 /* liquids get darker the deeper you look. row 0 is the surface, which catches the light */
 var SAND_DEEP = [];
 [MAT.WATER, MAT.ACID, MAT.OIL].forEach(function (v) {
@@ -941,4 +943,7 @@ function sandLandscape(g) {
   }
   /* one of them gets a house */
   if (huts.length) peasantSpawn(g, huts[0] + hutW / 2, top[huts[0] + 2] - 1, true);
+  /* and one of them has noticed you */
+  if (g.peasants.length) g.helloP = g.peasants[irnd(g.peasants.length)];
+  g.helloT = 280;
 }

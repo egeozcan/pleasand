@@ -65,6 +65,7 @@ var SFX = {
   fanfare: function () {
     [523, 659, 784, 1046].forEach(function (f, k) { tone(f, k === 3 ? 0.35 : 0.1, "square", 0.04, null, k * 0.09); });
   },
+  splash: function () { hiss(0.35, 0.12, 1600, 300); tone(500, 0.12, "sine", 0.05, 160); },
   whee: function () { tone(300, 0.5, "triangle", 0.05, 1400); },
   pop: function () { tone(380, 0.09, "sine", 0.09, 900); },
   thud: function () { tone(120, 0.12, "sine", 0.16, 45); hiss(0.08, 0.06, 500); },

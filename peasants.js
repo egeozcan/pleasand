@@ -34,6 +34,8 @@ var P_SAY = {
          "did i leave the oven on", "i'm walking here", "nice hat", "what's for dinner", "i miss my goat",
          "is it tuesday", "i'm thinking of moving", "the sky is big today", "so much sand", "i'm on a walk",
          "i've got a bad feeling", "nothing ever happens here", "life is good"],
+  hello: ["is someone up there?", "hello? who's clicking?", "i have a bad feeling about today", "is that... a god?",
+          "nobody touch anything", "quiet day in the village"],
   watched: ["i feel watched", "is that a giant hand", "stop looking at me", "who's there", "the clicking. it's back",
             "hello up there", "please don't"],
   spawn: ["hello world", "where am i", "i'm new here", "hi!", "what year is it", "who am i", "i exist!",
@@ -63,6 +65,9 @@ var P_SAY = {
           "{n}... no", "i liked {n}", "more room for me", "F"],
   greet: ["hi {n}", "morning", "'sup", "excuse me", "lovely hat", "hey {n}", "oh, {n}", "evening"],
   space: ["AAAAAAA", "SPACE IS COLD", "I'M BACK", "WHAT GOES UP..."],
+  ghost: ["boo", "worth it", "tell my goat i loved it", "free at last", "it's nice up here", "wooOOoo",
+          "i regret everything", "was it something i said", "i'll haunt you", "see you all soon", "the light! it's so bright"],
+  crowned: ["i'm the king now?", "finally", "the crown is heavy", "bow, peasants", "i didn't want this"],
   cough: ["*cough*", "*cough cough*", "who's smoking", "my lungs", "*wheeze*"],
   clone: ["am i... me?", "who are you", "i'm the real one", "there's two of me", "hello me", "is this legal"]
 };
@@ -272,7 +277,8 @@ function pDie(g, p, cause) {
   if (cause === "splat" && p.fromSpace > 0) cause = "reentry";
   g.rip++;
   feed(g, pick(P_DEATH[cause]).replace("{n}", p.name), "#ff9a8a");
-  g.ghosts.push({ x: p.x, y: p.y - 4, t: 0, dir: p.dir });
+  var gl = Math.random() < 0.45 ? pick(P_SAY.ghost) : "";
+  g.ghosts.push({ x: p.x, y: p.y - 4, t: 0, dir: p.dir, say: gl });
   var fx = Math.floor(p.x), fy = Math.floor(p.y), gw = g.gw, k, j, x, y;
   /* what is left */
   if (cause === "fire" || cause === "zap" || cause === "reentry") {
@@ -297,6 +303,16 @@ function pDie(g, p, cause) {
   if (o && Math.random() < 0.7) pSay(g, o, "mourn", true, p);
   var ms = P_MILESTONES[g.rip];
   if (ms) banner(g, ms[0], ms[1]);
+  /* the king is dead. long live the king */
+  if (p.hat === P_HATS[6]) {
+    var heir = pOther(g, p, 9999);
+    if (heir) {
+      heir.hat = P_HATS[6]; heir.pal[0] = hex32("#ffd040"); heir.pal[1] = hex32("#e83a4a");
+      heir.name = "KING " + heir.short;
+      banner(g, "THE KING IS DEAD", "long live " + heir.name);
+      pSay(g, heir, "crowned", true);
+    } else banner(g, "THE KING IS DEAD", "and there is nobody left to be king");
+  }
 }
 
 /* -------------------------------------------------------------------
@@ -557,7 +573,15 @@ function pFly(g, p) {
   var gw = g.gw, n, s, nx, ny, spd, hx, vt;
   p.flyT++;
   p.vy += 0.1; p.vx *= 0.995;
-  if (LIQUID[pCell(g, Math.floor(p.x), Math.floor(p.y) - 4)]) { p.vx *= 0.85; p.vy *= 0.85; }
+  var wet = pCell(g, Math.floor(p.x), Math.floor(p.y) - 2);
+  if (LIQUID[wet]) {
+    if (!p.wet && p.vy > 0.8) {
+      var sc = wet === MAT.WATER ? SAND_DEEP[MAT.WATER][16 * 256] : SAND_PAL[wet][0];
+      for (var k = 0; k < 16; k++) partAdd(g, PK_DEBRIS, p.x + Math.random() * 4 - 2, p.y - 4, (Math.random() - 0.5) * 1.6, -0.8 - Math.random() * p.vy * 0.5, 60, sc, wet === MAT.LAVA ? MAT.FIRE : wet);
+      g.fx.splash++;
+    }
+    p.wet = 1; p.vx *= 0.85; p.vy *= 0.85;
+  } else p.wet = 0;
   spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
   if (spd > 5) { p.vx *= 5 / spd; p.vy *= 5 / spd; spd = 5; }
   p.spin += (p.vx >= 0 ? 1 : -1) * (0.05 + spd * 0.07);
@@ -622,11 +646,21 @@ function pWalk(g, p, wading) {
       if (HOT[ahead[0]] || HOT[ahead[1]] || HOT[ahead[2]] || HOT[ahead[3]] || ahead[2] === MAT.ACID || ahead[0] === MAT.ACID) {
         p.dir = -p.dir; p.panic = Math.max(p.panic, 50);
         if (Math.random() < 0.3) pSay(g, p, "nope");
-      } else if (!wading && LIQUID[pCell(g, fx + p.dir * 3, fy + 1)] && !LIQUID[pCell(g, fx, fy + 1)] && Math.random() < 0.95) {
+      } else if (!wading && (LIQUID[pCell(g, fx + p.dir * 3, fy + 1)] || LIQUID[pCell(g, fx + p.dir * 3, fy)] || LIQUID[pCell(g, fx + p.dir * 3, fy - 2)]) &&
+                 !LIQUID[pCell(g, fx, fy + 1)] && Math.random() < 0.95) {
         p.dir = -p.dir;
         if (Math.random() < 0.2) pSay(g, p, "wet");
       }
-    } else if (Math.random() < 0.03) p.dir = -p.dir;
+    } else if ((p.anim % 12) === 0) {
+      /* burning: run for the nearest water, if there is any, else run about */
+      var best = 999;
+      for (var dx = -50; dx <= 50; dx += 2) {
+        var c0 = pCell(g, fx + dx, fy + 1), c1 = pCell(g, fx + dx, fy + 3);
+        if ((c0 === MAT.WATER || c1 === MAT.WATER) && Math.abs(dx) < Math.abs(best)) best = dx;
+      }
+      if (best !== 999) p.dir = best < 0 ? -1 : 1;
+      else if (Math.random() < 0.3) p.dir = -p.dir;
+    }
     pStepX(g, p, p.fire ? 0.5 : (p.panic ? 0.4 : (wading ? 0.12 : 0.18)));
     if (!scared) {
       if (Math.random() < 0.003) p.idle = 40 + irnd(160);
@@ -636,7 +670,7 @@ function pWalk(g, p, wading) {
   if (!scared && --p.chat <= 0) {
     p.chat = 500 + irnd(1200);
     var near = Math.abs(g.cx - p.x) < 14 && Math.abs(g.cy - p.y + 4) < 14 && g.mx > PANEL;
-    pSay(g, p, near ? "watched" : "idle");
+    pSay(g, p, wading ? "swim" : (near ? "watched" : "idle"));
   }
 }
 
@@ -745,6 +779,16 @@ function peasantsBubbles(g, c, sx0, sy0) {
       var jx = loud ? (Math.random() - 0.5) * 0.8 : 0, jy = loud ? (Math.random() - 0.5) * 0.8 : 0;
       c.fillText(text, bx + w / 2 + jx, by + h - 2.5 + jy);
     }
+  }
+  /* ghosts get last words */
+  for (k = 0; k < g.ghosts.length; k++) {
+    var gs = g.ghosts[k];
+    if (!gs.say || gs.t < 30 || gs.t > 170) continue;
+    var gx = sx0 + PANEL + (gs.x + 0.5) * CELL, gy = sy0 + PLAY_Y + (gs.y - 6) * CELL;
+    c.globalAlpha = Math.min(1, (170 - gs.t) / 20, (gs.t - 30) / 10) * 0.85;
+    c.fillStyle = "#cfe0ff"; c.textAlign = "center";
+    c.font = "italic bold 7px " + UI_FONT;
+    c.fillText(gs.say, gx, gy);
   }
   c.globalAlpha = 1; c.textAlign = "left";
 }

@@ -87,7 +87,7 @@ function gameInit(g) {
   partInit(g);
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
-           pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0 };
+           pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0 };
   g.snd = {};
   g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0;
   g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = null; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
@@ -232,6 +232,7 @@ function gameUpdate(g, dt) {
   g.pcx = g.cx; g.pcy = g.cy;
   sandPaint(g);
   toolHold(g);
+  if (g.helloT > 0 && --g.helloT === 0 && g.helloP && !g.helloP.dead) pSay(g, g.helloP, "hello", true);
   var step = !g.paused && (!g.slow || (g.frame++ & 3) === 0);
   if (step) {
     sandStep(g);
@@ -263,6 +264,7 @@ function sandSounds(g) {
     if (ok("ghost", 0.5)) SFX.ghost();
     if (ok("whee", 0.2)) SFX.whee();
     if (ok("fanfare", 1)) SFX.fanfare();
+    if (ok("splash", 0.15)) SFX.splash();
   }
   for (var k in f) f[k] = 0;
 }
@@ -316,7 +318,7 @@ function drawWorld(g) {
       } else if (v === MAT.FIREWORK) {
         px[i] = SAND_PAL[v][(y + (sh[i] & 1)) & 3];
       } else {
-        px[i] = SAND_PAL[v][sh[i]];
+        px[i] = (y > 0 && m[i - gw] === MAT.EMPTY) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
         if (v === MAT.TORCH && y > 0) { gp[i] = SAND_PAL[MAT.FIRE][1]; hot++; }
       }
     }
