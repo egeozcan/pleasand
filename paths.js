@@ -10,7 +10,7 @@
    are the ways a peasant really moves, worked out with the same rules
    as the walking: a step along (up to three up, two down), walking off
    an edge, a leap over a gap, a jump up a ledge, a ladder, a ninja rope
-   up a wall, a swim. each has a cost, so a route goes round by the
+   up a wall, a swim, straight up through a tree (or down through it). each has a cost, so a route goes round by the
    stairs rather than up the rope, and over the bridge rather than
    through the pond, and nowhere near anything that burns or dissolves.
 
@@ -26,8 +26,8 @@
 
 var NAV_CAP = 4000;                 /* places looked at, at most, per search */
 var NAV_REPLAN = 240;               /* ticks a route is trusted for */
-var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder", "hook"];
-var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5, NAV_HOOK = 6;
+var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder", "hook", "up", "down"];
+var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5, NAV_HOOK = 6, NAV_UP = 7, NAV_DOWN = 8;
 
 /* could a peasant stand with its feet at (x, y): 1 on something solid, 2 swimming at the top of some water, 0 not */
 function navStand(g, x, y) {
@@ -51,7 +51,7 @@ function navEdges(g, x, y, add) {
     nx = x + s;
     if (nx < 1 || nx > g.gw - 2) continue;
     /* along: up to three up, as pStepX does it */
-    for (k = 0; k <= 3; k++) if (pRoom(g, nx, y - k)) break;
+    k = pStepUp(g, nx, y);
     if (k <= 3) {
       ny = y - k;
       if (!pGround(g, nx, ny)) for (d = 1; d <= 2; d++) if (pGround(g, nx, ny + d) && pRoom(g, nx, ny + d)) { ny += d; break; }
@@ -59,7 +59,7 @@ function navEdges(g, x, y, add) {
       if (c) { add(nx, ny, c === 2 ? 3 : 1, NAV_WALK); continue; }
       /* off the edge: the first thing to land on below (a long way down costs; much further is not a route at all) */
       for (d = 1; d <= 76; d++) {
-        if (ny + d >= g.gh || pSolid(g, nx, ny + d - 1)) { d = 99; break; }
+        if (ny + d >= g.gh || pBody(g, nx, ny + d - 1)) { d = 99; break; }
         if (navStand(g, nx, ny + d)) break;
       }
       if (d <= 76) {   /* (found somewhere to land, in the grid) */
@@ -101,6 +101,11 @@ function navEdges(g, x, y, add) {
     var hk = pHookGeom(g, x, y, s);
     if (hk && navStand(g, x + s, hk.stand)) add(x + s, hk.stand, 25 + hk.h * 0.6, NAV_HOOK);
   }
+  /* up through a bush or a tree overhead, onto the top of it (pTryUp), and down through the one underfoot (pTrySink) */
+  var up = navUp(g, x, y);
+  if (up >= 0) add(x, up, y - up <= P_JUMP ? 4 + (y - up) * 0.3 : 25 + (y - up) * 0.6, NAV_UP);
+  var dn = navSink(g, x, y);
+  if (dn >= 0) add(x, dn, 2 + (dn - y) * 0.25 + (dn - y > 34 ? 40 : 0), NAV_DOWN);
   /* a ladder, up from the foot of it to wherever it lets them off at the top */
   var cx = bLadderNear(g, x, y);
   if (cx >= 0) {
@@ -116,11 +121,41 @@ function navEdges(g, x, y, add) {
     if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * 1.2, NAV_LADDER);
   }
 }
+/* the top of the soft stuff overhead (feet out of it, standing on it), with the way up clear of anything hard: its row,
+   or -1. no further up than the rope goes */
+function navUp(g, x, y) {
+  for (var k = 1; k <= P_ROPE; k++) {
+    var ty = y - k;
+    if (ty < 9 || pBody(g, x, ty - 8) || navBad(pCell(g, x, ty))) return -1;
+    if (k >= 4 && !P_SOFT[pCell(g, x, ty)] && P_SOFT[pCell(g, x, ty + 1)])
+      return navStand(g, x, ty) === 1 && !pBody(g, x, ty - 9) && !pBody(g, x, ty - 10) ? ty : -1;
+  }
+  return -1;
+}
+/* standing on something soft (in this column, and nothing hard under them either side): where they would come down,
+   sinking through it, or -1. somewhere safe, and a real way down: not just into a skin of it lying on the ground */
+function navSink(g, x, y) {
+  if (!P_SOFT[pCell(g, x, y + 1)] || pFoot(g, x - 1, y) && !P_SOFT[pCell(g, x - 1, y + 1)] ||
+      pFoot(g, x + 1, y) && !P_SOFT[pCell(g, x + 1, y + 1)]) return -1;
+  for (var d = 1; d <= 76 && y + d < g.gh; d++) {
+    var c = pCell(g, x, y + d);
+    if (pBody(g, x, y + d) || navBad(c)) return -1;
+    if (d > 1 && navStand(g, x, y + d)) return d < 4 ? -1 : y + d;
+  }
+  return -1;
+}
 function navCanLeap(g, x, y) { for (var k = 0; k <= 8; k++) if (pBody(g, x, y - 9 - k)) return false; return true; }
 
 /* A*, from (sx, sy) to anywhere goal(x, y) likes, guided towards (tx, ty). a list of {x, y, m} (m: the move that gets
    there) not including the start, or null */
 function navFind(g, sx, sy, goal, tx, ty, cap) {
+  var sink = P_SINK;
+  P_SINK = false;   /* (the map is of the world as it stands, not as it is for somebody sinking through it) */
+  var r = navFind1(g, sx, sy, goal, tx, ty, cap);
+  P_SINK = sink;
+  return r;
+}
+function navFind1(g, sx, sy, goal, tx, ty, cap) {
   cap = cap || NAV_CAP;
   var n = g.gw * g.gh, gw = g.gw;
   if (!g.navSeen || g.navSeen.length !== n) {
@@ -216,6 +251,11 @@ function pathGo(g, p, key, tx, ty, goal) {
   if (n.m === NAV_HOOK && !p.rope) {
     var hs = n.x > Math.floor(p.x) ? 1 : -1;
     if (Math.floor(p.x) === n.x - hs) { if (!pTryHook(g, p, Math.floor(p.x), Math.floor(p.y), hs)) pathStale(p); }
+  }
+  /* the route goes straight up through a tree from here, or down through it: as soon as they are in the column */
+  if ((n.m === NAV_UP || n.m === NAV_DOWN) && !p.rope && !p.jumping && Math.floor(p.x) === n.x) {
+    var ux = Math.floor(p.x), uy = Math.floor(p.y), u = n.m === NAV_UP ? navUp(g, ux, uy) : -1;
+    if (n.m === NAV_UP ? !(u >= 0 && pTryUp(g, p, ux, uy, u)) : !pTrySink(g, p, ux, uy, 76)) pathStale(p);
   }
   /* the route goes up (or down) a ladder from here: on they get, whether or not there is a wall in front of them */
   if (n.m === NAV_LADDER && !p.climb) {

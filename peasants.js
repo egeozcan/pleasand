@@ -212,11 +212,37 @@ function pCell(g, x, y) {
   return g.m[y * g.gw + x];
 }
 function pSolid(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c]; }
-/* is there something to stand on, under feet at row y */
-function pGround(g, x, y) { return pSolid(g, x, y + 1) || pSolid(g, x - 1, y + 1) || pSolid(g, x + 1, y + 1); }
-/* could a peasant with its feet here stand up straight. leaves and flowers do not stop them: they push through */
+/* what a peasant pushes through, on its own two feet: leaves and flowers (P_LEAF, which nothing stops for, not even a
+   peasant flying through the air), and wood and saplings (P_SOFT: a tree trunk, a log, a wooden wall somebody drew).
+   it can stand on top of any of it, but not in the middle of it: a soft thing holds them up only with their feet out
+   of it. so they walk through a tree at the bottom, or along the top of it, and when they want to they go down through
+   it (P_SINK, while they are sinking into it) or up (a jump, or the rope, straight up through it: paths.js) */
 var P_LEAF = new Uint8Array(NMAT); P_LEAF[MAT.PLANT] = P_LEAF[MAT.FLOWER] = 1;
-function pBody(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c] && !P_LEAF[c]; }
+var P_SOFT = new Uint8Array(NMAT); P_SOFT[MAT.PLANT] = P_SOFT[MAT.FLOWER] = P_SOFT[MAT.WOOD] = P_SOFT[MAT.SAPLING] = 1;
+var P_SINK = false;
+/* is there something to stand on, under feet at row y: in this column (pFoot), or one either side (pGround) */
+function pFoot(g, x, y) {
+  var c = pCell(g, x, y + 1);
+  return SOLID[c] === 1 && !P_PASS[c] && !(P_SOFT[c] && (P_SINK || P_SOFT[pCell(g, x, y)]));
+}
+function pGround(g, x, y) { return pFoot(g, x, y) || pFoot(g, x - 1, y) || pFoot(g, x + 1, y); }
+/* could a peasant with its feet here stand up straight (pBody: is this cell in the way of a walking one). pStiff: in the
+   way of one that is not walking but flying, which goes through leaves but not through a tree */
+function pBody(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c] && !P_SOFT[c]; }
+function pStiff(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c] && !P_LEAF[c]; }
+function pStiffAt(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pStiff(g, fx, fy) || pStiff(g, fx, fy - 4) || pStiff(g, fx, fy - 7); }
+/* the next step along, into column x from feet at row y: how far up it is (0 to 3; 4 or more is a wall). the first
+   height with room for them, and with their feet clear of anything soft, or held up in it: walking into a bush, they go
+   through it along the ground; walking along the top of one, they keep to the top, up its bumps */
+function pStepUp(g, x, y) {
+  var k, f = -1;
+  for (k = 0; k <= 3; k++) {
+    if (!pRoom(g, x, y - k)) continue;
+    if (f < 0) f = k;
+    if (!P_SOFT[pCell(g, x, y - k)] || pFoot(g, x, y - k)) return k;
+  }
+  return f < 0 ? 4 : f;   /* (no proper step: into it, then, and down through it) */
+}
 function pRoom(g, x, y) { return !pBody(g, x, y) && !pBody(g, x, y - 3) && !pBody(g, x, y - 6) && !pBody(g, x, y - 8); }
 function pBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pBody(g, fx, fy) || pBody(g, fx, fy - 4) || pBody(g, fx, fy - 7); }
 
@@ -484,7 +510,7 @@ function peasantsReact(g, kind, x, y) {
    ------------------------------------------------------------------- */
 function peasantsStep(g) {
   var L = g.peasants, k, p, q;
-  for (k = 0; k < L.length; k++) if (!L[k].dead) pStep(g, L[k]);
+  for (k = 0; k < L.length; k++) if (!L[k].dead) { P_SINK = !!L[k].sink; pStep(g, L[k]); P_SINK = false; }
   /* fire is contagious; neighbours say hello */
   if ((g.tick & 3) === 0) {
     for (k = 0; k < L.length; k++) {
@@ -603,11 +629,13 @@ function pStep(g, p) {
   if (p.eatCD > 0) p.eatCD--;
   if (p.plantCD > 0) p.plantCD--;
   if (p.exploreCD > 0) p.exploreCD--;
-  p.pose = null; p.navMove = null;
+  p.pose = null; p.navMove = null; p.hold = false;
+  /* sinking into a bush or a tree, to go down through it: until their feet are in it. from there it holds nobody up */
+  if (p.sink && (Math.floor(p.y) >= p.sink || --p.sinkT <= 0 || p.state !== "walk")) { p.sink = 0; P_SINK = false; }
   if (p.state === "fly") { p.jumping = false; p.rope = null; p.chute = null; p.task = null; p.climb = null; p.sleep = 0; pFly(g, p); return; }
 
   /* buried in something: climb out the top, if there is a top */
-  if (SOLID[cf] && !P_PASS[cf] && !P_LEAF[cf]) {
+  if (SOLID[cf] && !P_PASS[cf] && !P_SOFT[cf]) {
     var above = pCell(g, fx, fy - 9);
     if (!SOLID[above] || P_PASS[above]) { p.y = fy - 1; p.buried = 0; }
     else if (!P_HARD[above] && (p.anim % 3) === 0) { p.y = fy - 1; if (++p.buried === 40) pSay(g, p, "buried", true); }
@@ -830,7 +858,7 @@ function pTryLeap(g, p, fx, fy) {
 function pHands(p) { return p.y - 6; }
 /* something to stand on that is a floor, not just the foot of a wall they are hanging beside */
 function pFloor(g, x, y) {
-  return pSolid(g, x, y + 1) || (pSolid(g, x - 1, y + 1) && !pSolid(g, x - 1, y)) || (pSolid(g, x + 1, y + 1) && !pSolid(g, x + 1, y));
+  return pFoot(g, x, y) || (pFoot(g, x - 1, y) && !pSolid(g, x - 1, y)) || (pFoot(g, x + 1, y) && !pSolid(g, x + 1, y));
 }
 /* along (dx, dy) from (x0, y0): the last free point before the first solid cell, or null */
 function pHookCast(g, x0, y0, dx, dy, max) {
@@ -906,6 +934,26 @@ function pTryHook(g, p, fx, fy, s) {
   p.dir = s;
   pRopeThrow(g, p, "climb", s > 0 ? cx : cx + 1, r.top, cx, r.top, r.stand);
   if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "rope", true);
+  return true;
+}
+/* up through something soft overhead (a bush, a tree) onto the top of it, its feet at row ty: a jump if it is low
+   enough, else the rope, hooked into the top of it, and up they go, straight through it */
+function pTryUp(g, p, fx, fy, ty) {
+  var h = fy - ty;
+  if (p.cold > 400 || h < 1) return false;
+  p.hold = true; p.dir = p.dir || 1;
+  if (h <= P_JUMP) { pLeap(p, Math.sqrt(2 * P_GRAV * (h + 2)), 0); return true; }
+  if (p.fire || p.ropeCD || h > P_ROPE) return false;
+  pRopeThrow(g, p, "climb", fx + 0.5, ty + 1, fx, ty + 1, ty);
+  p.rope.up = true;
+  if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "rope", true);
+  return true;
+}
+/* down through the bush or the tree they are standing on, onto whatever is under it, if that is no more than max down */
+function pTrySink(g, p, fx, fy, max) {
+  var d = navSink(g, fx, fy);
+  if (d < 0 || d - fy > max) return false;
+  p.sink = fy + 1; p.sinkT = 60; p.hold = true;
   return true;
 }
 /* a gap too wide to leap: hook something up and ahead, and swing over, if there is a far side to land on */
@@ -1054,7 +1102,7 @@ function pRopeStep(g, p) {
     if (h <= 7 || r.len <= 1.5) {
       /* near enough the top: let go and jump the rest. if it does not work, wait a good while before the next go */
       p.rope = null; p.ropeTries = (p.ropeTries || 0) + 1; p.ropeCD = Math.min(2400, 60 * p.ropeTries * p.ropeTries);
-      pLeap(p, Math.sqrt(2 * P_GRAV * (Math.max(h, 0) + 2)), p.dir * 0.3);
+      pLeap(p, Math.sqrt(2 * P_GRAV * (Math.max(h, 0) + 2)), r.up ? 0 : p.dir * 0.3);
       return true;
     }
   } else if (r.mode === "swing") {
@@ -1098,14 +1146,14 @@ function pFly(g, p) {
   spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
   if (spd > 5) { p.vx *= 5 / spd; p.vy *= 5 / spd; spd = 5; }
   p.spin += (p.vx >= 0 ? 1 : -1) * (0.05 + spd * 0.07);
-  if (pBlocked(g, p.x, p.y)) { p.state = "walk"; p.spin = 0; return; }   /* started inside something */
+  if (pStiffAt(g, p.x, p.y)) { p.state = "walk"; p.spin = 0; return; }   /* started inside something */
   n = Math.ceil(spd * 2) || 1;
   for (s = 0; s < n; s++) {
     nx = p.x + p.vx / n; ny = p.y + p.vy / n;
     if (nx < -4 || nx > gw + 4 || ny > g.gh + 12) { pLeave(g, p); return; }
     if (ny < -40) { pSpace(g, p); return; }
-    if (!pBlocked(g, nx, ny)) { p.x = nx; p.y = ny; continue; }
-    hx = pBlocked(g, nx, p.y); vt = pBlocked(g, p.x, ny);
+    if (!pStiffAt(g, nx, ny)) { p.x = nx; p.y = ny; continue; }
+    hx = pStiffAt(g, nx, p.y); vt = pStiffAt(g, p.x, ny);
     if (spd > 3.7 && !p.immune) { pDie(g, p, p.fromSpace ? "reentry" : "splat"); g.fx.splat++; g.shake = Math.min(8, g.shake + 2); return; }
     if (spd > 2) { g.fx.thud++; if (p.sayT <= 0 || Math.random() < 0.3) pSay(g, p, "oof", true); }
     if (vt || !hx) { p.vy = -p.vy * 0.3; p.vx *= 0.7; }
@@ -1250,7 +1298,7 @@ function pStepX(g, p, sp, swim) {
   var nx = p.x + p.dir * sp, nfx = Math.floor(nx), fx = Math.floor(p.x), fy = Math.floor(p.y), k;
   if (nx < 1 || nx > g.gw - 1) { p.dir = -p.dir; return false; }
   if (nfx !== fx) {
-    for (k = 0; k <= 3; k++) if (pRoom(g, nfx, fy - k)) break;
+    k = pStepUp(g, nfx, fy);
     if (k > 3) {
       /* a ladder up it: that is what it is for */
       if (!swim && bLadderUp(g, p, fx, fy)) return false;
@@ -1323,7 +1371,12 @@ function pWalk(g, p, wading) {
         if (busy) return;
       }
     } else p.task = null;
-    pStepX(g, p, (p.fire ? 0.5 : (p.panic ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1));
+    /* nothing to do, on top of a bush or a tree: now and then, down through it. or in one: up onto the top */
+    if (!scared && !p.task && !wading && !p.hold) {
+      if (Math.random() < 0.002) pTrySink(g, p, fx, fy, 20);
+      else if (P_SOFT[pCell(g, fx, fy)] && Math.random() < 0.004) { var up = navUp(g, fx, fy); if (up >= 0 && fy - up <= P_JUMP) pTryUp(g, p, fx, fy, up); }
+    }
+    if (!p.hold) pStepX(g, p, (p.fire ? 0.5 : (p.panic ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1));
     if (!scared && !p.task) {
       if (Math.random() < 0.003) p.idle = 40 + irnd(160);
       else if (Math.random() < 0.0015) p.dir = -p.dir;

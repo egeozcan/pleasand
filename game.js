@@ -38,7 +38,8 @@ var TIPS = [
   "tip: only peasants can make doors. water and sand cannot get through them. peasants can",
   "tip: burn a house down and they will rebuild it. if most of it is gone, they will mourn it",
   "tip: a lit window means somebody is home",
-  "tip: bored peasants go exploring. build them somewhere high to explore"
+  "tip: bored peasants go exploring. build them somewhere high to explore",
+  "tip: peasants walk through trees and bushes, and up or down through them when they want to"
 ];
 
 /* -------------------------------------------------------------------

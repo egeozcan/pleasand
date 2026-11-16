@@ -38,7 +38,8 @@ shows as a faint blueprint. Then they live in it: they sleep in their beds (or
 on the ground, and complain), run home and hide when things go bang, go and
 stand by a fire when they are cold, light campfires and gather round them,
 climb ladders, find their way round (up the stairs, over the bridge, down
-the ladder, up a rope onto a ledge) to wherever they are going, go exploring
+the ladder, up a rope onto a ledge, through a tree, up through it onto the top
+of it or down through it) to wherever they are going, go exploring
 when they are bored (somewhere high, somewhere nobody has been lately), put back what you burn down (and mourn what you burn right
 down), and plant saplings where they cut trees down, which grow into trees.
 
