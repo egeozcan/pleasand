@@ -146,6 +146,10 @@ function bOk(g, e) { var c = g.m[e.i]; return e.v === MAT.EMPTY ? !B_DIG[c] : c 
 /* could it be put right now: a board needs thin air to go into, or something loose they can shovel out of the way first */
 function bFree(g, e) {
   var c = g.m[e.i];
+  if (e.dry) for (var u = e.i - g.gw, n = 0; u >= 0 && n < 12; u -= g.gw, n++) {   /* nobody digs under water (a pond's floor): not with water over it, */
+    if (LIQUID[g.m[u]]) return false;                                            /* or over sand that is under it */
+    if (!B_DIG[g.m[u]]) break;
+  }
   if (e.v === MAT.SOIL) return B_TILL[c] === 1;                                  /* earth is tilled where it lies, never brought */
   if (e.v === MAT.CROP && g.m[e.i + g.gw] !== MAT.SOIL) return false;            /* and wheat is sown in earth */
   return e.v === MAT.EMPTY || B_AIR[c] === 1 || B_DIG[c] === 1;
@@ -544,6 +548,7 @@ function bTaskBuild(g, p, k) {
 function bTillCell(g, s, e, p) {
   var gw = g.gw;
   heatBecome(g, e.i, MAT.SOIL);
+  g.dug++;
   s.last = g.tick;
   g.fx.thud++;
   pChips(g, e.i % gw + 0.5, ((e.i / gw) | 0) - 0.5, 3, [SAND_PAL[MAT.SOIL][0], SAND_PAL[MAT.SOIL][60], SAND_PAL[MAT.SAND][0]]);
@@ -571,6 +576,7 @@ function bPlace(g, s, e, p) {
 function bDig(g, s, e, p) {
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, out = x + 0.5 < s.cx ? -1 : 1;
   if (!B_DIG[g.m[e.i]]) return;
+  g.dug++;   /* (a village that has done enough of this thinks of landscaping: ideas.js) */
   if (!sandFling(g, e.i, out * (0.9 + Math.random() * 0.7), -0.9 - Math.random() * 0.6)) { g.m[e.i] = MAT.EMPTY; heatSync(g, e.i); }
   s.last = g.tick;
   g.fx.thud++;
@@ -657,14 +663,14 @@ function bBusy(g, s) {
    field with only its crop gone (eaten, mostly) is not damaged, just harvested: it is quietly reopened, to sow again.
    earth blown out of a field is not put back (it is tilled where it lies, never brought), but it counts towards a ruin */
 function bInspect(g, s, idx) {
-  var gw = g.gw, n = 0, gone = 0, broken = 0, crops = 0, k, e, x, y;
+  var gw = g.gw, n = 0, gone = 0, broken = 0, crops = 0, silt = 0, k, e, x, y;
   for (y = s.y0; y <= s.y1; y++) for (x = s.x0; x <= s.x1; x++) {
     var c = pCell(g, x, y);
     if (c === MAT.FIRE || c === MAT.EMBER) return;   /* still burning: wait until it is out */
   }
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
-    if (e.v === MAT.EMPTY) continue;
+    if (e.v === MAT.EMPTY) { if (s.kind === "pond" && !bOk(g, e) && bFree(g, e)) silt++; continue; }   /* (sand slid back into a pond) */
     var lost = !bOk(g, e) && bFree(g, e);
     if (e.v === MAT.CROP) { if (lost) crops++; continue; }
     n++;
@@ -677,6 +683,11 @@ function bInspect(g, s, idx) {
     if (o && s.kind === "house") { o.home = 0; pSay(g, o, "lostHome", true); }
     if (s.kind === "house") achieve(g, "ruin");
     bRemove(g, idx);
+    return;
+  }
+  if (silt > 4) {
+    s.done = false; s.repair = true; s.last = g.tick; s.helped = {};
+    feed(g, "the village is clearing out " + bLabel(s), "#a8e08a", "fix" + s.id);
     return;
   }
   if (!gone) {

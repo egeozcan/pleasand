@@ -68,6 +68,14 @@ think of:
   front of it), and nobody runs home to a house that is on fire. A peasant who
   is burning runs for the pond from further off, or for the nearest bucket,
   and anybody with a full bucket runs at them and tips it over their head
+- **Landscaping**: comes of turning earth over (hoeing a field, shovelling out a
+  plot). With that and the bucket, a house or field with no water within forty
+  cells or so gets a pond of its own: a bowl dug into the sand beside it (it
+  takes no wood, so anybody lends a hand), the banks dug back a cell at a time
+  so the sand stands, then filled bucket by bucket from the nearest fresh water.
+  The brigade finds it like any other water, and somebody tops it up when it
+  runs low. They need level-ish sand to do it, so a pond only goes in where
+  the ground allows
 - **Gravestones**: once somebody has died, a wooden cross for each of the
   dead, in a row, saying how. Now and then somebody visits, and leaves a flower
 - **Fishing**: a jetty out over the pond, and somebody on the end of it with a
@@ -130,7 +138,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - Chill the village with COOL and watch them light a fire and huddle round it
 - Make them a floating island, with flowers on it. Somebody will go up and have a look
 - Paint a meadow of plants for them, and watch for light bulbs
-- Once they know about buckets, set fire to a house. Then build them a pond next to it
+- Once they know about buckets, set fire to a house. Then build them a pond next to it. Or wait for them to dig one
 - Leave the ducks near the wheat for a while
 - Boil the pond while somebody is fishing in it
 
@@ -142,6 +150,6 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - `peasants.js`: the villagers, what they say, how they die, and how they are drawn
 - `paths.js`: how the villagers find their way: A* over everywhere a peasant could stand, using the moves a peasant really makes (steps, drops, leaps, jumps, ladders, ropes, swims)
 - `build.js`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
-- `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, graves, jetties and fishing, scarecrows, fireworks shows
+- `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, ponds dug and filled, graves, jetties and fishing, scarecrows, fireworks shows
 - `ducks.js`: the ducks
 - `game.js`: rendering, the picker and HUD, input, and the main loop

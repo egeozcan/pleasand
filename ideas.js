@@ -24,6 +24,11 @@
                  water the wheat with them. the alarm gets everybody
                  out of a burning house, and anybody on fire is run at
                  with a bucket (and runs at it)
+     DIGGING     (landscaping) comes of turning earth over: a hoe, a
+                 spade. with that and the bucket, a house or a field
+                 that is a long way from any water gets a pond of its
+                 own: a bowl dug into the sand beside it, and filled,
+                 bucket by bucket, from the nearest water there is
      GRAVESTONES a wooden cross for everybody who died, in a row,
                  saying how. now and then somebody visits, and leaves
                  a flower
@@ -47,6 +52,12 @@ var I_FARM_W = 11;          /* a field, across */
 var I_GRAVE_GAP = 5;        /* from one cross to the next */
 var I_FEST_GAP = 5400;      /* ticks between fireworks shows, at the least */
 var I_LOAD = 5;             /* cells of water to a bucket */
+var I_POND_W = 13;          /* a pond, across (its edges are dry sand, sloping in) */
+var I_POND_D = 3;           /* and as deep as the sand goes, to the bottom of the bowl */
+var I_POND_NEAR = 40;       /* a house or a field with no water within this many cells wants a pond */
+var I_POND_CREW = 5;        /* at most this many ferrying water to one pond (it is a long way, sometimes) */
+var I_POND_KEEP = 8;        /* a pond this many cells (or more) short of full is left alone, but for a fire */
+var I_DUG = 10;             /* cells of earth turned over (tilled or shovelled) before somebody thinks of digging */
 
 P_SAY.idea_farm = ["what if the plants... came to us?", "plants. in rows. on purpose", "i've had an idea. FARMING",
   "food that stays where you put it"];
@@ -62,6 +73,8 @@ P_SAY.idea_scarecrow = ["a pretend peasant, to scare the ducks", "the ducks fear
   "what if we made a fake me. out of sticks"];
 P_SAY.idea_festival = ["what if fire... but pretty", "we should celebrate something", "a party! with explosions!",
   "what if the sky... went bang"];
+P_SAY.idea_dig = ["what if we dug a hole. on purpose", "the ground... it moves. LANDSCAPING", "a hole! for water!",
+  "i've been hoeing all day. what if i didn't stop"];
 P_SAY.genius = ["genius!", "ooh", "why didn't i think of that", "brilliant", "that's mad. i love it", "hm. could work",
   "they're so smart"];
 P_SAY.blank = ["i had an idea. it's gone", "what if... no", "i've been thinking", "hmm. hmmm", "i almost had it",
@@ -80,6 +93,10 @@ P_SAY.evac = ["FIRE! GET OUT!", "THE HOUSE IS ON FIRE", "OUT OUT OUT", "my HOUSE
 P_SAY.out = ["it's out!", "phew", "fire's out", "we did it", "good bucketing, everyone"];
 P_SAY.nowater = ["no water this side!", "where's the pond?", "we need a pond", "somebody get water!"];
 P_SAY.water = ["watering the wheat", "drink up, little plants", "grow, wheat, grow", "*sprinkle*"];
+P_SAY.planPond = ["a pond, right by the houses", "no more running a mile for water", "dig dig dig. a pond",
+  "a pond, for emergencies", "we'll have our own water"];
+P_SAY.pond = ["*splosh*", "one more for the pond", "fill it up", "pond, pond, pond"];
+P_SAY.pondFull = ["a pond! we have a pond!", "the pond's full", "water, right here", "that's some pond"];
 P_SAY.cast = ["*plip*", "here, fishy fishy", "gone fishing", "shh. fishing", "this is the life"];
 P_SAY.nibble = ["ooh, a nibble", "something's biting", "steady...", "shh!"];
 P_SAY.fish = ["a fish!", "dinner!", "got one!", "look at the size of it", "FISH!", "it's a beauty"];
@@ -103,6 +120,7 @@ P_ACHIEVE.harvest = ["HARVEST", "somebody ate the wheat. it was grown to be eate
 P_ACHIEVE.farm = ["THE FIRST FIELD", "tilled, sown, and now: the waiting"];
 P_ACHIEVE.lamp = ["LIGHTS ON", "a lantern by the door. cosy"];
 P_ACHIEVE.brigade = ["FIRE BRIGADE", "the village has a fire brigade now. it is buckets"];
+P_ACHIEVE.pond = ["A POND OF OUR OWN", "dug by hand, filled by bucket. in case of fire"];
 P_ACHIEVE.grave = ["REST IN PEACE", "the village remembers"];
 P_ACHIEVE.jetty = ["THE JETTY", "a plank walk out over the water, for fishing off"];
 P_ACHIEVE.fish = ["GONE FISHING", "a peasant caught a fish. with a stick"];
@@ -119,6 +137,8 @@ var IDEAS = [
     ready: function (g) { return iHouses(g) > 0; } },
   { id: "bucket", name: "the bucket", title: "THE BUCKET", sub: "water goes on fires. we have a fire brigade", hint: "a fire",
     ready: function (g) { return g.burnt; } },
+  { id: "dig", name: "digging", title: "LANDSCAPING", sub: "a hole in the ground is a pond, once it has water in it", hint: "some hoeing",
+    ready: function (g) { return g.dug >= I_DUG; } },
   { id: "grave", name: "the gravestone", title: "GRAVESTONES", sub: "somewhere to remember them by", hint: "a loss",
     ready: function (g) { return g.dead.length > 0; } },
   { id: "fish", name: "fishing", title: "FISHING", sub: "a stick, a string, and a jetty out over the pond", hint: "a good pond",
@@ -134,7 +154,7 @@ var IDEAS = [
    ------------------------------------------------------------------- */
 /* a new village knows nothing yet. (clearing the world does not make them forget: it does lose them the graveyard) */
 function ideasReset(g) {
-  g.know = {}; g.dead = []; g.blaze = []; g.burnt = false; g.raids = 0; g.raidT = 0; g.festT = 0; g.ideaT = 0; g.blankT = 0;
+  g.know = {}; g.dug = 0; g.dead = []; g.blaze = []; g.burnt = false; g.raids = 0; g.raidT = 0; g.festT = 0; g.ideaT = 0; g.blankT = 0;
 }
 function iKnown(g) { var n = 0; for (var k in g.know) n++; return n; }
 function iHouses(g) {
@@ -199,6 +219,13 @@ function iPick(g, p) {
     if (iPlanFarm(g, p)) return true;
     p.planCD = 1800;
   }
+  /* a pond wants hands, not wood, either. then filling it, and keeping it full, and planning the next */
+  if (K.dig && (s = iFieldWork(g, p, 160, "pond"))) { bJoin(g, p, s); return true; }
+  if (K.dig && K.bucket && !hungry && Math.random() < 0.6 && iGoFillPond(g, p)) return true;
+  if (K.dig && K.bucket && !p.planCD && (hungry || Math.random() < 0.3)) {
+    if (iPlanPond(g, p)) return true;
+    p.planCD = 1800;
+  }
   if (K.fish && (hungry || (p.bored > 700 && Math.random() < 0.3)) && iGoFish(g, p)) return true;
   if (K.bucket && !hungry && Math.random() < 0.15 && iGoWater(g, p)) return true;
   /* things that want wood: with some in hand, or now and then without (somebody with wood will be along) */
@@ -243,7 +270,7 @@ function iDone(p, ok) { p.task = null; p.taskDone = !!ok; return false; }
 /* how many are at a job of this kind, on this site */
 function iCrew(g, kind, id) {
   var n = 0;
-  for (var k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && t.kind === kind && (t.site === id || t.field === id)) n++; }
+  for (var k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && t.kind === kind && (t.site === id || t.field === id || t.pond === id)) n++; }
   return n;
 }
 function iCount(g, kind) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === kind) n++; return n; }
@@ -262,7 +289,7 @@ var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light
 /* what somebody will drop when the alarm goes up: anything they are only doing for fun, or that can wait (a snack, a
    chat round the campfire, a bit of hammering) */
 function iCanWait(p, k) {
-  return !k || I_IDLE[k.kind] || (k.kind === "eat" && p.hunger < P_HUNGRY * 2) || (k.kind === "warm" && k.social) || (k.kind === "bucket" && k.field);
+  return !k || I_IDLE[k.kind] || (k.kind === "eat" && p.hunger < P_HUNGRY * 2) || (k.kind === "warm" && k.social) || (k.kind === "bucket" && (k.field || k.pond));
 }
 function ideasStep(g) {
   if (g.tick % 20) return;
@@ -398,12 +425,12 @@ function cropGrow(g, i, x, y) {
   if (h < I_CROP_H + (x * 5) % 3 && (up === MAT.EMPTY || up === W)) { sandSet(g, i - gw, MAT.CROP); return; }
   heatBecome(g, i, MAT.WHEAT);   /* as tall as it gets: the ear ripens */
 }
-/* the nearest field with something to do on it */
-function iFieldWork(g, p, R) {
+/* the nearest field (or pond: kind) with something to do on it */
+function iFieldWork(g, p, R, kind) {
   var best = null, bd = R, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind !== "farm" || s.done || (p.failSite === s.id && p.failT > g.tick) || iCrew(g, "build", s.id) >= 3) continue;
+    if (s.kind !== (kind || "farm") || s.done || (p.failSite === s.id && p.failT > g.tick) || iCrew(g, "build", s.id) >= 3) continue;
     d = Math.abs(s.cx - p.x) + Math.abs(s.cy - p.y) * 2;
     if (d < bd && bNext(g, s, null)) { bd = d; best = s; }
   }
@@ -477,7 +504,7 @@ function iRaided(g, d, x, y) {
 }
 
 /* -------------------------------------------------------------------
-   BUCKETS: put the fire out. or, on a quiet day, water the wheat
+   BUCKETS: put the fire out. or, on a quiet day, water the wheat (or fill a pond)
    ------------------------------------------------------------------- */
 /* a field that could do with a drink: stalks still growing, nothing wet about it, nobody already watering it, and
    fresh water to be had */
@@ -485,7 +512,7 @@ function iGoWater(g, p) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k], w;
     if (s.kind !== "farm" || !s.done || Math.abs(s.cx - p.x) > 160 || iCrew(g, "bucket", s.id) || !iThirsty(g, s)) continue;
-    if (!(w = iFindWater(g, p, 160, null, true))) return false;
+    if (!(w = iFindWater(g, p, 160, null, true, iBarred(g, null)))) return false;
     p.task = { kind: "bucket", field: s.id, t: 0, act: 0, w: w };
     return true;
   }
@@ -507,21 +534,24 @@ function iThirsty(g, s) {
 }
 function iTaskBucket(g, p, k) {
   if (++k.t > 4000) return iDone(p, false);
-  var fx = Math.floor(p.x), fy = Math.floor(p.y), fresh = !!k.field, j;
+  var fx = Math.floor(p.x), fy = Math.floor(p.y), fresh = !!(k.field || k.pond), j;
+  var pond = k.pond && bSite(g, k.pond);
   if (!p.pail) {
     /* nothing burning any more (or growing): done */
     if (k.site && !iBlazeOf(g, k.site)) { if (k.threw && p.sayT <= 0) pSay(g, p, "out"); return iDone(p, true); }
     if (k.field && (!bSite(g, k.field) || !iThirsty(g, bSite(g, k.field)))) return iDone(p, true);
-    j = iScoopAt(g, fx, fy, fresh);
+    if (k.pond && (!pond || !iPondThirst(g, pond))) return iDone(p, true);
+    var bar = k.site ? null : iBarred(g, pond);
+    j = iScoopAt(g, fx, fy, fresh, bar);
     if (j >= 0 && !p.swimming && !LIQUID[pCell(g, fx, fy)] && iSafe(g, fx, fy)) {
       p.pose = (k.act >> 3) & 1 ? "eatB" : "stand"; p.dir = (j % g.gw) + 0.5 < p.x ? -1 : 1;
       if (++k.act === 16) { p.pail = iScoop(g, j, fresh); k.act = 0; k.best = null; if (p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "fill"); }
       return true;
     }
-    if (!k.w || k.t % 120 === 0) k.w = iFindWater(g, p, 160, k.site && iBlazeOf(g, k.site), fresh) || k.w;
+    if (!k.w || k.t % 120 === 0) k.w = iFindWater(g, p, 160, k.site && iBlazeOf(g, k.site), fresh, bar, !!pond) || k.w;
     if (!k.w) { if (p.sayT <= 0) pSay(g, p, "nowater"); return iDone(p, false); }
     /* (from the bank, with dry feet: not from the middle of the pond) */
-    if (iWalk(g, p, k, "water" + k.w.x, k.w.x, k.w.y, function (x, y) { return navStand(g, x, y) === 1 && !LIQUID[pCell(g, x, y)] && iScoopAt(g, x, y, fresh) >= 0 && iSafe(g, x, y); })) pGiveUp(g, p, k.w.x);
+    if (iWalk(g, p, k, "water" + k.w.x, k.w.x, k.w.y, function (x, y) { return navStand(g, x, y) === 1 && !LIQUID[pCell(g, x, y)] && iScoopAt(g, x, y, fresh, bar) >= 0 && iSafe(g, x, y); })) pGiveUp(g, p, k.w.x);
     return false;
   }
   /* bucket full, and somebody burning (out of the house, say): that comes first. run at them, and put it over them */
@@ -532,7 +562,7 @@ function iTaskBucket(g, p, k) {
     return false;
   }
   /* bucket full: off to the fire (the nearest bit of it, looked for again now and then), or the thirstiest stalk */
-  var tgt = k.last && k.aim > g.tick ? k.last : (k.site ? iBlazeTarget(g, k.site, p) : iWaterTarget(g, k.field));
+  var tgt = k.last && k.aim > g.tick ? k.last : (k.site ? iBlazeTarget(g, k.site, p) : (k.pond ? iPondTarget(g, pond) : iWaterTarget(g, k.field)));
   if (tgt !== k.last) k.aim = g.tick + 60;
   /* it went out on the way: thrown on for luck, if they are standing somewhere they could; else never mind */
   if (!tgt && k.last && iThrowFrom(g, fx, fy, k.last)) tgt = k.last;
@@ -548,12 +578,12 @@ function iTaskBucket(g, p, k) {
       var s = k.site && bSite(g, k.site);
       if (s) s.doused = (s.doused || 0) + 1;
       k.aim = 0;
-      if (p.sayT <= 0 && Math.random() < 0.4) pSay(g, p, k.site ? "douse" : "water");
+      if (p.sayT <= 0 && Math.random() < 0.4) pSay(g, p, k.site ? "douse" : (k.pond ? "pond" : "water"));
     }
     return true;
   }
   k.act = 0;
-  var left = pathGo(g, p, "throw" + (k.site || k.field), tgt.x, tgt.y, good);
+  var left = pathGo(g, p, "throw" + (k.site || k.field || k.pond), tgt.x, tgt.y, good);
   /* no way they can see to anywhere good to throw from: closer, while it is cool enough; back off, if it is not */
   if (left < 0) { var toward = tgt.x + 0.5 < p.x ? -1 : 1; p.dir = iSafe(g, fx, fy) ? toward : -toward; }
   if (pStuck(p, k, left > 0 ? left : Math.abs(tgt.x + 0.5 - p.x))) { iSpill(g, p); pGiveUp(g, p, tgt.x); }
@@ -596,10 +626,11 @@ function iWaterTarget(g, id) {
 /* water for a bucket: either kind for a fire, only fresh for the wheat (salt water kills it) */
 function iDrinkable(c, fresh) { return fresh ? c === MAT.WATER : WET[c] === 1; }
 /* a cell of water at the top of a pond, a step or two down from feet at (x, y) and no further off than an arm: its index,
-   or -1 */
-function iScoopAt(g, x, y, fresh) {
+   or -1. (not out of any of the ponds in bar) */
+function iScoopAt(g, x, y, fresh, bar) {
   for (var d = 0; d <= 3; d++) for (var s = -1; s <= 1; s += 2) {
     var cx = x + d * s;
+    if (bar && iPondAt(bar, cx)) { if (!d) break; continue; }
     for (var yy = y + 1; yy <= y + 4; yy++) {
       var c = pCell(g, cx, yy);
       if (iDrinkable(c, fresh) && yy > 0) return yy * g.gw + cx;
@@ -610,21 +641,42 @@ function iScoopAt(g, x, y, fresh) {
   return -1;
 }
 /* the nearest top of some water, roughly at their level (fresh, if it is for the wheat). not under the fire (b), and
-   not on the far side of it from them, through the flames */
-function iFindWater(g, p, R, b, fresh) {
+   not on the far side of it from them, through the flames. nor out of any of the ponds in bar (see iBarred). deep: only
+   a pond's worth of water will do, not a puddle (a pond is filled from a pond) */
+function iFindWater(g, p, R, b, fresh, bar, deep) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), d, s, x, y, c, k, b0 = 1e9, b1 = -1e9;
   if (b) for (k = 0; k < b.cells.length; k++) { x = b.cells[k] % g.gw; b0 = Math.min(b0, x); b1 = Math.max(b1, x); }
   for (d = 0; d <= R; d++) for (s = -1; s <= 1; s += 2) {
     x = fx + d * s;
-    if (x < 1 || x > g.gw - 2 || (x >= b0 && x <= b1) || (fx < b0 && x > b1) || (fx > b1 && x < b0)) continue;
+    if (x < 1 || x > g.gw - 2 || (bar && iPondAt(bar, x)) || (b && ((x >= b0 && x <= b1) || (fx < b0 && x > b1) || (fx > b1 && x < b0)))) continue;
     for (y = Math.max(1, fy - 16); y <= fy + 24 && y < g.gh; y++) {
       c = g.m[y * g.gw + x];
-      if (iDrinkable(c, fresh) && AIRY[g.m[(y - 1) * g.gw + x]]) return { x: x, y: y - 1 };
+      if (iDrinkable(c, fresh) && AIRY[g.m[(y - 1) * g.gw + x]] && (!deep || iDeep(g, x, y, fresh))) return { x: x, y: y - 1 };
       if (!AIRY[c] && !P_SOFT[c]) { if (y > fy) break; }
     }
     if (!d) break;
   }
   return null;
+}
+/* the ponds nobody takes water out of, for whatever they are doing: not the one they are filling, and not any other
+   that is still short of water (that is for a fire, and nothing less). null for a fire */
+function iBarred(g, pond) {
+  var out = pond ? [pond] : [], k, s;
+  for (k = 0; k < g.sites.length; k++) {
+    s = g.sites[k];
+    if (s.kind === "pond" && s !== pond && iPondNeed(g, s) > I_POND_KEEP) out.push(s);
+  }
+  return out;
+}
+/* is column x in (or at the edge of) one of these ponds */
+function iPondAt(list, x) {
+  for (var k = 0; k < list.length; k++) if (x >= list[k].x0 - 1 && x <= list[k].x1 + 1) return true;
+  return false;
+}
+/* water at (x, y) that is a pond and not a puddle: more of it under and either side of it (what a pond is filled from) */
+function iDeep(g, x, y, fresh) {
+  return x > 0 && x < g.gw - 1 && y + 2 < g.gh && iDrinkable(g.m[(y + 1) * g.gw + x], fresh) && iDrinkable(g.m[(y + 2) * g.gw + x], fresh) &&
+         iDrinkable(g.m[y * g.gw + x - 1], fresh) && iDrinkable(g.m[y * g.gw + x + 1], fresh);
 }
 /* fill the bucket: a few cells off the top of the pond, each with its heat, as a thrown grain carries its heat */
 var I_DIP = [[0, 0], [-1, 0], [1, 0], [0, 1], [-2, 0], [2, 0], [-1, 1], [1, 1], [0, 2]];
@@ -672,6 +724,163 @@ function iSpill(g, p, dying, cx, cy) {
     heatSetQ(g, j, qa + load[k].q);
   }
   p.pail = left.length ? left : null;
+}
+
+/* -------------------------------------------------------------------
+   PONDS: a bowl in the sand beside a house or a field that is a long way from water, dug (it takes no wood) and then
+   filled, a bucketful at a time, from the nearest water there is. the sides slope in one step to the cell, which is as
+   steep as sand will stand, down to a level floor three cells below the waterline
+   ------------------------------------------------------------------- */
+/* fresh water (any, if fresh is false) in a band of columns R either side of cx, near row cy: how many cells, counted
+   only up to a dozen */
+function iWaterCount(g, cx, cy, R, fresh) {
+  var n = 0, x, y, c, x0 = Math.max(0, Math.floor(cx - R)), x1 = Math.min(g.gw - 1, Math.floor(cx + R));
+  for (y = Math.max(0, Math.floor(cy) - 20); y <= cy + 30 && y < g.gh; y++) for (x = x0; x <= x1; x++) {
+    c = g.m[y * g.gw + x];
+    if (fresh ? c === MAT.WATER : WET[c] === 1) { if (++n >= 12) return n; }
+  }
+  return n;
+}
+/* a house or a field that a pond would do some good: done, and no water (and no pond of theirs, dug or being dug, to
+   be filled) anywhere near it, with fresh water somewhere that a bucket could be carried from */
+function iPondFor(g, p) {
+  var best = null, bd = 220, k, j, s, d, has;
+  for (k = 0; k < g.sites.length; k++) {
+    s = g.sites[k];
+    if ((s.kind !== "house" && s.kind !== "farm") || !s.done || s.repair) continue;
+    d = Math.abs(s.cx - p.x);
+    if (d >= bd) continue;
+    for (j = 0, has = false; j < g.sites.length; j++) if (g.sites[j].kind === "pond" && (g.sites[j].serves === s.id || Math.abs(g.sites[j].cx - s.cx) < I_POND_NEAR)) has = true;
+    /* (the water to fill it from has to be what a bucket can be filled from, the same as when they come to do it) */
+    if (has || iWaterCount(g, s.cx, s.cy, I_POND_NEAR, false) >= 12 || !iFindWater(g, { x: s.cx, y: s.y1 - 1 }, 160, null, true, null, true)) continue;
+    bd = d; best = s;
+  }
+  return best;
+}
+/* a pond for somewhere that wants one: one at a time, and not more than three in the valley */
+function iPlanPond(g, p) {
+  var k, s = iPondFor(g, p), d, sd, r = null, x0, fy, plan = [], y0 = 1e9;
+  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "pond" && !g.sites[k].done) return false;
+  if (!s || iCount(g, "pond") >= 3) return false;
+  fy = Math.floor(s.y1);
+  for (d = 0; d <= 34 && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) {
+    x0 = sd > 0 ? s.x1 + 3 + d : s.x0 - 3 - d - (I_POND_W - 1);
+    r = iPondPlot(g, x0, fy);
+  }
+  if (!r) return false;
+  for (k = 0; k < r.dig.length; k++) y0 = Math.min(y0, r.dig[k][1]);
+  for (k = 0; k < r.dig.length; k++) plan.push(bE(g, r.dig[k][0], r.dig[k][1], MAT.EMPTY, r.dig[k][1] - y0));
+  for (k = 0; k < plan.length; k++) plan[k].dry = true;   /* (a cell with water over it is not dug: build.js bFree) */
+  var site = bNew(g, "pond", p, plan, [r.bx0, y0, r.bx1, r.L + I_POND_D], { free: true, L: r.L, S: r.S, px0: r.x0, serves: s.id });
+  feed(g, p.name + " is digging a pond", "#a8e08a", "plan" + site.id);
+  pSay(g, p, "planPond", true);
+  bJoin(g, p, site);
+  return true;
+}
+/* is (x0 .. x0 + I_POND_W - 1) a place for a pond, near row fy: sand, with clear sky over it and a solid floor under
+   it, nobody else's site, nothing hot or wet about. the water comes up to the row under the highest-up bit of the
+   lowest ground in it (the banks outside hold it in), and the bowl goes down as far as the sand does: the sand is only
+   five deep, so on a slope the uphill end of the bowl is dug to the stone and stays dry. wherever the ground is higher
+   than the bowl wants to be, it is dug back in steps of one cell, which is as steep as sand will stand: nothing slumps.
+   {x0, L (the waterline), S (the top of the floor, column by column across the pond), dig (every cell to shift), bx0,
+   bx1 (all of it, banks and all)} or null */
+function iPondPlot(g, x0, fy) {
+  var W = I_POND_W, x1 = x0 + W - 1, gy = {}, hi = -1, x, y, k, c, G, L, S = [], dig = [], vol = 0, bx0 = x0, bx1 = x1;
+  if (x0 < 16 || x1 > g.gw - 17) return null;
+  /* the ground under column x (-1: not ground a pond can go on) */
+  function ground(x) {
+    if (gy[x] != null) return gy[x];
+    var G = bGround(g, x, fy), c = G < 0 ? 0 : pCell(g, x, G);
+    return (gy[x] = (G < 0 || Math.abs(G - fy) > 12 || bMarked(g, x, G) || (c !== MAT.SAND && c !== MAT.ASH)) ? -1 : G);
+  }
+  /* the top of the floor, for a column x (the pond is x0 .. x1, and the banks go out from there a cell at a time) */
+  function floor(x) {
+    var G = gy[x], j, off, c = x - x0;
+    if (x >= x0 && x <= x1) { off = Math.min(c, W - 1 - c, I_POND_D); return Math.min(L + off, G + 5); }
+    j = x < x0 ? x0 - x : x - x1;
+    return Math.min(Math.max(G, L - j), G + 5);
+  }
+  for (x = x0; x <= x1; x++) {
+    G = ground(x);
+    if (G < 0 || (x > x0 && Math.abs(G - gy[x - 1]) > 1)) return null;
+    hi = Math.max(hi, G);
+  }
+  L = hi + 1;
+  /* the banks: out from either edge until the ground is no higher than the bank wants to be */
+  for (x = x0 - 1; ; x--) {
+    if (x < x0 - 14 || ground(x) < 0 || Math.abs(gy[x] - gy[x + 1]) > 1) return null;
+    if (floor(x) <= gy[x]) break;
+    bx0 = x;
+  }
+  for (x = x1 + 1; ; x++) {
+    if (x > x1 + 14 || ground(x) < 0 || Math.abs(gy[x] - gy[x - 1]) > 1) return null;
+    if (floor(x) <= gy[x]) break;
+    bx1 = x;
+  }
+  /* (and the ground beyond the last of them must not be below the water) */
+  if (gy[bx0 - 1] > L || gy[bx1 + 1] > L) return null;
+  for (k = 0; k < g.sites.length; k++) {
+    var t = g.sites[k];
+    if (bx1 + 3 >= t.x0 && bx0 - 3 <= t.x1 && hi + 5 >= t.y0 && hi - 18 <= t.y1) return null;
+  }
+  for (y = hi - 14; y <= hi + 6; y++) for (x = bx0 - 2; x <= bx1 + 2; x++) {
+    c = pCell(g, x, y);
+    if (LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c]) return null;
+  }
+  for (x = bx0; x <= bx1; x++) {
+    G = gy[x]; var T = floor(x);
+    if (x >= x0 && x <= x1) { S[x - x0] = T; vol += Math.max(0, T - L); }
+    /* sky over it (bushes are dug out) */
+    for (y = G - 12; y < G; y++) {
+      c = pCell(g, x, y);
+      if (AIRY[c]) continue;
+      if (!B_DIG[c] || y < G - 6 || bMarked(g, x, y)) return null;
+      dig.push([x, y]);
+    }
+    /* the bowl and the banks: nothing but sand to shift, and something solid under it (to hold the water) */
+    for (y = G; y < T; y++) {
+      if (!B_DIG[pCell(g, x, y)] || bMarked(g, x, y)) return null;
+      dig.push([x, y]);
+    }
+    if (!pSolid(g, x, T) || !pSolid(g, x, T + 1) || LIQUID[pCell(g, x, T)]) return null;
+  }
+  if (vol < 18 || dig.length > 170) return null;
+  return { x0: x0, L: L, S: S, dig: dig, bx0: bx0, bx1: bx1, vol: vol };
+}
+/* how many cells of a pond are short of water: the dry cells between the waterline and the floor */
+function iPondNeed(g, s) {
+  var n = 0, k, y;
+  for (k = 0; k < I_POND_W; k++) for (y = s.L; y < s.S[k]; y++) if (AIRY[pCell(g, s.px0 + k, y)]) n++;
+  return n;
+}
+/* a pond that could do with filling: dug (or fixed), and a bucketful or more short. (the first time it is full, that is
+   the news) */
+function iPondThirst(g, s) {
+  if (!s.done || s.repair) return false;
+  if (iPondNeed(g, s) > 3) return true;
+  if (!s.full) {
+    s.full = true;
+    feed(g, "the pond is full. nobody has to run for water now", "#9ad0ff", "plan" + s.id);
+    achieve(g, "pond");
+    var q = pOther(g, { x: s.cx, y: s.y0 }, 60);
+    if (q && q.sayT <= 0 && !q.sleep) pSay(g, q, "pondFull", true);
+  }
+  return false;
+}
+/* where a bucket for the pond goes: over the middle of it, onto the water (or the floor, while there is none) */
+function iPondTarget(g, s) {
+  return s && iPondThirst(g, s) ? { x: s.px0 + (I_POND_W >> 1), y: s.L } : null;
+}
+/* off to fill a pond that wants it, from the nearest water not in it */
+function iGoFillPond(g, p) {
+  for (var k = 0; k < g.sites.length; k++) {
+    var s = g.sites[k], w;
+    if (s.kind !== "pond" || Math.abs(s.cx - p.x) > 200 || iCrew(g, "bucket", s.id) >= I_POND_CREW || !iPondThirst(g, s)) continue;
+    if (!(w = iFindWater(g, p, 160, null, true, iBarred(g, s), true))) continue;
+    p.task = { kind: "bucket", pond: s.id, t: 0, act: 0, w: w };
+    return true;
+  }
+  return false;
 }
 
 /* -------------------------------------------------------------------
@@ -1055,6 +1264,7 @@ function iLabel(s) {
   if (s.kind === "grave") return "the grave of " + iName(s.of);
   if (s.kind === "scarecrow") return "the scarecrow";
   if (s.kind === "jetty") return "the jetty";
+  if (s.kind === "pond") return "the pond";
   return "";
 }
 /* a site of ours is finished. true if it was one of ours */
@@ -1062,6 +1272,7 @@ function iFinish(g, s, p) {
   var who = p ? p.name : "the village";
   if (s.kind === "farm") { feed(g, iCap(bLabel(s)) + " is sown. now: the waiting", "#a8e08a", "plan" + s.id); achieve(g, "farm"); }
   else if (s.kind === "lamp") { feed(g, "a lantern burns by " + (s.who ? pTitle(s.who) + "'s" : "the") + " door", "#ffe08a", "lamp" + s.home); achieve(g, "lamp"); }
+  else if (s.kind === "pond") feed(g, who + " dug a pond. now: the buckets", "#a8e08a", "plan" + s.id);
   else if (s.kind === "jetty") { feed(g, who + " built a jetty", "#a8e08a", "plan" + s.id); achieve(g, "jetty"); }
   else if (s.kind === "scarecrow") { feed(g, "a scarecrow keeps watch over " + (s.who ? pTitle(s.who) + "'s" : "the") + " wheat", "#a8e08a", "plan" + s.id); achieve(g, "scarecrow"); }
   else if (s.kind === "grave") {
@@ -1091,6 +1302,9 @@ function iMood(g, p) {
   if (!k) return "";
   if (k.kind === "build" && (s = bSite(g, k.site)) && s.kind === "farm")
     return (s.sow ? "is sowing " : "is working on ") + bLabel(s) + ". it takes no wood, just elbow grease";
+  if (k.kind === "build" && (s = bSite(g, k.site)) && s.kind === "pond")
+    return (s.repair ? "is clearing out " : "is digging ") + bLabel(s) + ". it takes no wood, just a spade";
+  if (k.kind === "bucket" && k.pond) return p.pail ? "is carrying water to the pond" : "is fetching water for the pond";
   if (k.kind === "bucket" && k.field) return p.pail ? "is watering the wheat" : "is fetching water for the wheat";
   if (k.kind === "bucket" && p.pail && iVictim(g, p)) return "is running at somebody who is on fire with a bucket";
   if (k.kind === "bucket") return p.pail ? "is running at the fire with a bucket of water" : "is fetching water. something is on fire";

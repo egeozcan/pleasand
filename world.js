@@ -1140,6 +1140,30 @@ function sandClear(g) {
   g.sites = []; if (g.bmark) g.bmark.fill(0);
 }
 
+/* no dip in the land for a pond (or the only one is under a hut): dig a small deep one, somewhere out of the huts' way
+   where the ground is flattest. a bowl, six deep, whose sides slope in a cell at a time (as steep as sand will stand,
+   and it is only sand on the top five), a bit of flat floor, and water up to the row under the lowest bit of bank.
+   {x0, x1, L (the top of the water)} or null if there is no room */
+function sandPool(g, top, huts, hutW) {
+  var gw = g.gw, D = 6, W = 4 + 2 * D, best = -1, bs = 1e9, c0, k, x, y, lo, hi, L, ok, B, depth;
+  for (c0 = 16; c0 + W < gw - 16; c0++) {
+    for (k = 0, ok = true; k < huts.length; k++) if (c0 + W + 12 > huts[k] && c0 - 12 < huts[k] + hutW) ok = false;
+    if (!ok) continue;
+    for (x = c0 - 1, lo = 1e9, hi = -1; x <= c0 + W; x++) { lo = Math.min(lo, top[x]); hi = Math.max(hi, top[x]); }
+    if (hi - lo + Math.random() * 3 < bs) { bs = hi - lo + Math.random() * 3; best = c0; }
+  }
+  if (best < 0) return null;
+  for (x = best - 1, hi = -1; x <= best + W; x++) hi = Math.max(hi, top[x]);
+  L = hi + 1;
+  for (x = best; x < best + W; x++) {
+    k = x - best; depth = Math.min(D, k + 1, W - k);
+    B = Math.min(g.gh - 3, Math.max(top[x], L + depth));
+    for (y = Math.min(top[x], L); y < B; y++) g.m[y * gw + x] = y >= L ? MAT.WATER : MAT.EMPTY;
+    top[x] = B;
+  }
+  return { x0: best, x1: best + W - 1, L: L };
+}
+
 function sandLandscape(g) {
   var gw = g.gw, gh = g.gh, m = g.m, x, y, top = [], ph = Math.random() * 6, lo = 0, k, dx, dy;
   sandClear(g);
@@ -1176,9 +1200,10 @@ function sandLandscape(g) {
   var L = top[lo] - 9, x0 = lo, x1 = lo;
   while (x0 > 0 && top[x0 - 1] > L) x0--;
   while (x1 < gw - 1 && top[x1 + 1] > L) x1++;
-  var pondOK = true;
+  var pondOK = true, pondPool = null;
   for (k = 0; k < huts.length; k++) if (x1 > huts[k] - 4 && x0 < huts[k] + hutW + 4) pondOK = false;
   if (pondOK) for (x = x0; x <= x1; x++) for (y = L; y < top[x]; y++) m[y * gw + x] = MAT.WATER;
+  else if ((pondPool = sandPool(g, top, huts, hutW))) { x0 = pondPool.x0; x1 = pondPool.x1; L = pondPool.L; pondOK = true; }
   /* huts: wooden walls, a doorway at each end, a thatched roof that will burn beautifully */
   huts.forEach(function (hx) {
     var base = top[hx + 2], H = 15, door = Math.random() < 0.5;
