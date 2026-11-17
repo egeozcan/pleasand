@@ -196,9 +196,14 @@ function bWaiting(g, s) {
   for (var k = 0; k < s.plan.length; k++) if (s.plan[k].wait > g.tick && !bOk(g, s.plan[k])) return true;
   return false;
 }
-/* finished: nothing left that could be done */
+/* finished: nothing left that could be done. liquids and fire only block a board for now: wait for them, rather
+   than declaring a repair done without putting anything back, then reopening it as soon as the water moves on.
+   permanent obstacles are still left alone, as is digging that cannot be done under water. */
 function bFinished(g, s) {
-  for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (!bOk(g, e) && bFree(g, e)) return false; }
+  for (var k = 0; k < s.plan.length; k++) {
+    var e = s.plan[k], c = g.m[e.i];
+    if (!bOk(g, e) && (bFree(g, e) || (e.v !== MAT.EMPTY && (LIQUID[c] || c === MAT.FIRE || c === MAT.EMBER)))) return false;
+  }
   return true;
 }
 /* anybody (peasant or duck) standing in the cell, which a board would bury. doors and ladders they can share */

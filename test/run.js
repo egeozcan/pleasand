@@ -27,6 +27,46 @@ function watch(w, n) {
   check(g.rip === rip, (g.rip - rip) + " died");
 }
 
+test("water washing through a broken bridge does not announce repairs that never happened", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], x = 30, y = 30, plan = [];
+  for (var d = 0; d < 5; d++) plan.push(w.bE(g, x + d, y, w.MAT.PLANK, 2));
+  var s = sim.build(w, w.bNew(g, "bridge", p, plan, [x, y, x + 4, y], {})), hole = plan[2];
+  g.feed = [];
+  w.sandSet(g, hole.i, w.MAT.EMPTY);
+  w.bInspect(g, s, g.sites.indexOf(s));
+  check(s.repair && !s.done, "the broken bridge was not reopened");
+  for (var wave = 0; wave < 3; wave++) {
+    w.sandSet(g, hole.i, w.MAT.WATER);
+    p.task = { kind: "build", site: s.id, t: 0, idle: 0 };
+    w.bTaskBuild(g, p, p.task);
+    check(!s.done && s.repair, "water alone finished the repair on wave " + wave);
+    check(!g.feed.some(function (f) { return /as good as new/.test(f.text); }), "announced a repair without replacing the missing plank");
+    w.sandSet(g, hole.i, w.MAT.EMPTY);
+    if (s.done) w.bInspect(g, s, g.sites.indexOf(s));
+  }
+  p.boards = 1;
+  w.bPlace(g, s, hole, p);
+  w.bTaskBuild(g, p, p.task);
+  check(s.done && !s.repair, "replacing the plank did not finish the repair");
+  check(g.feed.filter(function (f) { return /as good as new/.test(f.text); }).length === 1, "the real repair was not announced once");
+});
+
+test("construction waits for liquids and fire, but leaves permanent obstacles and underwater digging alone", function () {
+  var w = sim.load(1), g = w.g, e = w.bE(g, 30, 30, w.MAT.PLANK, 2), s = { plan: [e] };
+  [w.MAT.WATER, w.MAT.SALTWATER, w.MAT.OIL, w.MAT.ACID, w.MAT.LAVA, w.MAT.FIRE, w.MAT.EMBER].forEach(function (v) {
+    w.sandSet(g, e.i, v);
+    check(!w.bFinished(g, s), "temporary material " + v + " finished construction");
+  });
+  w.sandSet(g, e.i, w.MAT.STONE);
+  check(w.bFinished(g, s), "builders should leave permanent rock alone");
+  w.sandSet(g, e.i, w.MAT.PLANK);
+  check(w.bFinished(g, s), "the finished plank was not recognised");
+  e.v = w.MAT.EMPTY; e.dry = true;
+  w.sandSet(g, e.i, w.MAT.SAND);
+  w.sandSet(g, e.i - g.gw, w.MAT.WATER);
+  check(w.bFinished(g, s), "builders should not dig up an underwater pond floor");
+});
+
 test("a village that knows how sinks a mine, digs it out, and can climb out of it", function () {
   var w = sim.load(1), g = w.g;
   know(g, ["farm", "dig", "mine"]);
