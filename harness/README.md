@@ -68,14 +68,13 @@ printf '%s\n' \
   | node harness/cli.js serve --seed 7
 ```
 
-`{"cmd":"help"}` lists the commands. Anything the library can do has a
-command: `fill`, `ignite`, `spawnPeasant`, `breakOn`, `trace`, `profile`,
-`checkpoint`, `back`, `map`, `cell`, `find`, `eval`, `scenario`, `replay`…
+`{"cmd":"help"}` lists the commands. Most of the library has a command:
+`fill`, `ignite`, `spawnPeasant`, `breakOn`, `trace`, `profile`, `checkpoint`,
+`back`, `diff`, `map`, `cell`, `find`, `eval`, `scenario`, `replay`… Snapshot
+objects themselves stay on the server (they are typed arrays): take a
+`checkpoint` id, and hand that to `back`, `restore` or `diff`.
 
-Snapshots do not travel over the wire (they are typed arrays, and they would
-be megabytes). Keep them on the server side as checkpoints: `checkpoint`,
-`back`, `restore`, `dropCheckpoint`. A *scenario* does travel: it is small
-JSON and replays from the seed.
+A *scenario* does travel: it is small JSON and replays from the seed.
 
 An error reply looks like
 `{"id":9,"ok":false,"error":{"message":"...","stack":"...","tick":812},"state":{...}}`
@@ -175,6 +174,7 @@ An invariant stop names itself and the tick.
 node harness/soak.js --seeds 1-8 --ticks 60000
 node harness/soak.js --seeds 1-6 --preset rich --jobs 6
 node harness/soak.js --seeds 1-6 --preset chaos --fail-on-stuck
+node harness/soak.js --seeds 1-6 --ticks 12000 --out soak.jsonl
 ```
 `soak.js` runs each seed in its own process with the standard invariants
 plus: valid states, unique ids, held things, site plans and stock,
@@ -182,7 +182,9 @@ peasants' task → site references, the ticker, and inventories. It also
 notices peasants who hold a task, in one place, making no stroke, for
 2400 ticks — stalled builders and routes that cannot be walked. A seed
 that stops, throws or hangs exits 1; `--json` gives one line per seed.
-This is how the lamp-bracket and dead-end-ladder bugs below were found.
+`--out` writes one json line per seed. This is how the lamp-bracket and
+dead-end-ladder bugs below were found; a recorded baseline is in
+`harness/soak-baseline.txt`.
 
 **Reproduce exactly.**
 ```js
@@ -213,7 +215,8 @@ h.heatBrush(x, y, +1, 6);           // the HEAT brush, radius 6
 // people and things
 h.spawnPeasant(x, y);
 h.spawnDuck(x, y);
-h.give(["bucket", "farm", "mine"]); // teach the village
+h.give(["bucket", "farm", "mine"]); // teach the village (the game's idea ids:
+// farm lamp bucket dig grave fish scarecrow festival mine masonry smelt lift bell oil rocket)
 
 // the real input path (picker, tap handler, painting, throws)
 h.select("LIGHTNING");
@@ -257,5 +260,6 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 - `harness.js` — the object: time, tracing, breakpoints, invariants, profiling,
   events, input, snapshots, scenarios
 - `cli.js` — `run`, `serve`, `selftest`
-- `selftest.js` — 24 checks of the harness's own promises
+- `selftest.js` — 25 checks of the harness's own promises
+- `args.js` — the argument parser the cli and soak runner share
 - `soak.js` — many seeds, long runs, presets, invariants and stuck builders

@@ -13,7 +13,6 @@ module.exports = {
   Harness: harness.Harness,
   loadGame: loader.loadGame,
   view: harness.view,
-  inspect: harness.view,
   PHASES: harness.PHASES,
   TICK_MS: harness.TICK_MS
 };

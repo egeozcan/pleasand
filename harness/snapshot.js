@@ -97,20 +97,4 @@ function apply(snap, g, keep) {
   return snap;
 }
 
-/* a rough size, for deciding how many to keep in the ring */
-function bytes(snap) {
-  var n = 0, seen = new Set();
-  function walk(v) {
-    if (v === null || typeof v !== "object" || seen.has(v)) return;
-    seen.add(v);
-    if (isTypedArray(v)) { n += v.byteLength; return; }
-    if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) walk(v[i]); return; }
-    if (typeof v.getContext === "function") return;
-    var ks = Object.keys(v);
-    for (var k = 0; k < ks.length; k++) walk(v[ks[k]]);
-  }
-  walk(snap.state);
-  return n;
-}
-
-module.exports = { capture: capture, apply: apply, bytes: bytes, constantRefs: constantRefs, SKIP: SKIP };
+module.exports = { capture: capture, apply: apply, constantRefs: constantRefs, SKIP: SKIP };

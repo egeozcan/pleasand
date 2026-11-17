@@ -93,6 +93,7 @@ Harness.prototype._refresh = function () {
   this.matName = this._eval("MAT_NAME");
   this.pick = this._eval("PICK");
   this.P_HATS = this._eval("P_HATS");
+  this.IDEAS = this._eval("IDEAS");
   this.VW = this._eval("VW");
   this.PANEL = this._eval("PANEL");
   this.CELL = this._eval("CELL");
@@ -451,10 +452,10 @@ Harness.prototype.diff = function (before, after) {
   cmp(sa.sites, sb.sites, ["done", "repair"], out.sites);
 
   /* the grid, by material */
-  var na = new Array(64).fill(0), nb = new Array(64).fill(0), i;
+  var na = new Array(self.NMAT).fill(0), nb = new Array(self.NMAT).fill(0), i;
   for (i = 0; i < sa.m.length; i++) na[sa.m[i]]++;
   for (i = 0; i < sb.m.length; i++) nb[sb.m[i]]++;
-  for (i = 0; i < 64; i++) if (na[i] !== nb[i]) out.materials.push({ id: i, name: view.matName(self, i), from: na[i], to: nb[i], delta: nb[i] - na[i] });
+  for (i = 0; i < self.NMAT; i++) if (na[i] !== nb[i]) out.materials.push({ id: i, name: view.matName(self, i), from: na[i], to: nb[i], delta: nb[i] - na[i] });
 
   /* lines that were not there before */
   var old = {}, feed = sb.feed || [];
@@ -853,8 +854,14 @@ Harness.prototype.give = function (ideas) {
   this._op("give", a); return this._doGive(a);
 };
 Harness.prototype._doGive = function (a) {
-  var g = this.g, self = this;
-  a.ideas.forEach(function (k) { g.know[k] = self.g.t; });
+  var g = this.g, ids = this.IDEAS.map(function (I) { return I.id; }), i;
+  for (i = 0; i < a.ideas.length; i++) {
+    if (ids.indexOf(a.ideas[i]) < 0) throw new Error("no idea called " + a.ideas[i] + " (ideas: " + ids.join(", ") + ")");
+  }
+  /* the game keeps the discoverer's name here, and reads it as a string: a
+     tick number is 0 at the start (falsy: the idea is not known) and a number
+     later (iSummary calls .split on it). a name is the right shape */
+  for (i = 0; i < a.ideas.length; i++) g.know[a.ideas[i]] = "HARNESS";
   return this;
 };
 
@@ -894,30 +901,31 @@ Harness.prototype._doKey = function (k) { this.game.gameKey(this.g, String(k).to
 Harness.prototype.wheel = function (d) { this._op("wheel", { d: d }); return this._doWheel(d); };
 Harness.prototype._doWheel = function (d) { this.game.gameWheel(this.g, d); return this; };
 
-Harness.prototype.down = function (btn) { this._op("down", { btn: btn }); return this._doDown(btn); };
-Harness.prototype._doDown = function (btn) {
+/* one pointer at a time, as the shell's pointer handler leaves it */
+Harness.prototype._press = function (btn) {
   var g = this.g;
   g.down = 1; g.btn = btn == null ? 0 : btn; g.ptr = 1;
   this.game.gameTap(g, g.mx, g.my);
   return this;
 };
-Harness.prototype.up = function () { this._op("up", {}); return this._doUp(); };
-Harness.prototype._doUp = function () {
+Harness.prototype._release = function () {
   var g = this.g;
   g.down = 0; this.game.sandRelease(g); g.btn = 0; g.ptr = null;
   return this;
 };
+Harness.prototype.down = function (btn) { this._op("down", { btn: btn }); return this._doDown(btn); };
+Harness.prototype._doDown = function (btn) { return this._press(btn); };
+Harness.prototype.up = function () { this._op("up", {}); return this._doUp(); };
+Harness.prototype._doUp = function () { return this._release(); };
 
 /* a click: down, the real tap handler, one frame of painting, up */
 Harness.prototype.tap = function (x, y) { this._op("tap", { x: x, y: y }); return this._doTap(x, y); };
 Harness.prototype._doTap = function (x, y) {
-  var g = this.g;
   this._doMouse(x, y);
-  g.lx = null; g.down = 1; g.btn = 0; g.ptr = 1;
-  this.game.gameTap(g, g.mx, g.my);
-  this.game.sandPaint(g);
-  g.down = 0; this.game.sandRelease(g); g.btn = 0; g.ptr = null;
-  return this;
+  this.g.lx = null;
+  this._press(0);
+  this.game.sandPaint(this.g);
+  return this._release();
 };
 
 /* drag across the grid, painting as the real loop would, one tick per step */
@@ -927,16 +935,15 @@ Harness.prototype.drag = function (x0, y0, x1, y1, opts) {
   this._op("drag", a); return this._doDrag(a);
 };
 Harness.prototype._doDrag = function (a) {
-  var g = this.g, i, t = Math.max(1, a.ticks | 0);
+  var i, t = Math.max(1, a.ticks | 0);
   this._doMouse(a.x0, a.y0);
-  g.lx = null; g.down = 1; g.btn = a.btn; g.ptr = 1;
-  this.game.gameTap(g, g.mx, g.my);
+  this.g.lx = null;
+  this._press(a.btn);
   for (i = 1; i <= t; i++) {
     this._doMouse(a.x0 + (a.x1 - a.x0) * i / t, a.y0 + (a.y1 - a.y0) * i / t);
     this._tickQuiet();
   }
-  g.down = 0; this.game.sandRelease(g); g.btn = 0; g.ptr = null;
-  return this;
+  return this._release();
 };
 
 /* a throw, without the arm: set the cursor's recent speed in cells/tick */

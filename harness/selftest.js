@@ -42,6 +42,20 @@ test("debugging does not change the game", function () {
   eq(a.hash(), b.hash(), "hooks changed the run");
 });
 
+test("giving the village an idea teaches it, at any tick, and only real ones", function () {
+  var h = open({ seed: 2 });
+  h.give(["bucket", "farm"]);
+  check(h.g.know.bucket && typeof h.g.know.bucket === "string", "no bucket at tick 0: " + JSON.stringify(h.g.know.bucket));
+  check(h.g.know.farm && typeof h.g.know.farm === "string", "no farm at tick 0");
+  h.step(10);
+  h.give(["lamp"]);
+  check(h.g.know.lamp, "no lamp after a tick");
+  try { h.game.iSummary(h.g); } catch (e) { throw new Error("iSummary broke on a granted idea: " + e.message); }
+  var rejected = false;
+  try { h.give(["fireworks"]); } catch (e) { rejected = true; }
+  check(rejected, "an idea that does not exist was accepted");
+});
+
 /* --- time travel ---------------------------------------------------- */
 test("a snapshot restored carries on exactly as it would have", function () {
   var h = open({ seed: 5 });
@@ -322,7 +336,8 @@ test("serve covers the debugging surface, not just stepping", function () {
     { id: 18, cmd: "why", id: 1 },
     { id: 19, cmd: "describe", map: false },
     { id: 20, cmd: "scenario" },
-    { id: 21, cmd: "state" }
+    { id: 21, cmd: "state" },
+    { id: 22, cmd: "diff", from: "a" }
   ].map(function (r) { return JSON.stringify(r); }).join("\n") + "\n";
   var out = cp.execFileSync(process.execPath, [path.join(__dirname, "cli.js"), "serve", "--seed", "4", "--history", "24"],
     { input: script, encoding: "utf8" });
@@ -339,6 +354,8 @@ test("serve covers the debugging surface, not just stepping", function () {
   eq(lines[16].result.length, 3, "find limit");
   check(lines[17].result.peasant && lines[17].result.around, "why");
   check(lines[19].result && lines[19].result.ops, "scenario");
+  eq(lines[21].result.ticks.from, 20, "diff over serve lost its checkpoint");
+  check(lines[21].result.ticks.to >= 20 && lines[21].result.scalar.tick, "diff over serve said nothing");
 });
 
 /* --- go ------------------------------------------------------------- */

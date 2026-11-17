@@ -20,14 +20,15 @@
    makes them findings too.
    ===================================================================== */
 "use strict";
-var path = require("path"), cp = require("child_process"), os = require("os");
+var fs = require("fs"), cp = require("child_process"), os = require("os");
 var lib = require("./harness.js");
+var args = require("./args.js");
 
 /* -------------------------------------------------------------------
    one village, watched
    ------------------------------------------------------------------- */
-function worker(seed, ticks, preset, opts) {
-  var h = lib.open({ seed: seed }), notes = [], watch = {}, found = {}, t0 = Date.now();
+function worker(seed, ticks, preset) {
+  var h = lib.open({ seed: seed }), watch = {}, found = {}, t0 = Date.now();
   var inv = function (id, expr, every) { h.invariant(id, expr, { every: every || 1 }); };
 
   h.standardInvariants({ every: 1, temps: 30, grid: 60 });
@@ -39,11 +40,12 @@ function worker(seed, ticks, preset, opts) {
   inv("sites", "g.sites.every(function (s) { return s.plan && s.plan.length > 0 && s.plan.every(function (e) { return e.i >= 0 && e.i < g.m.length; }) && (!s.stock || Object.keys(s.stock).every(function (k) { return s.stock[k] > -1e-5 && Number.isFinite(s.stock[k]); })); })", 30);
   inv("tasks", "g.peasants.every(function (p) { return !p.task || p.task.site == null || g.sites.some(function (s) { return s.id === p.task.site; }) || p.task.kind === 'sow' || p.task.kind === 'till' || p.task.kind === 'water' || p.task.kind === 'fish' || p.task.kind === 'shoo'; })", 30);
   inv("feed", "g.feed.length <= 6 && g.banners.length <= 4 && g.ghosts.length < 400 && g.np >= 0 && g.np <= PMAX", 30);
+  inv("ideas", "Object.keys(g.know).every(function (k) { return typeof g.know[k] === 'string' && IDEAS.some(function (I) { return I.id === k; }); })", 120);
   inv("resources", "g.rip >= 0 && (g.iron || 0) >= 0 && (g.barrels || 0) >= 0");
 
   if (preset === "rich") {
-    h.give(["farm", "bucket", "landscape", "grave", "fishing", "scarecrow", "fireworks", "dig", "mine",
-            "masonry", "smelt", "lift", "bell", "oil", "rocket", "lantern"]);
+    h.give(["farm", "lamp", "bucket", "dig", "grave", "fish", "scarecrow", "festival", "mine",
+            "masonry", "smelt", "lift", "bell", "oil", "rocket"]);
     h.g.iron = 40; h.g.barrels = 40;
   } else if (preset === "chaos") {
     var s = 12345;
@@ -53,7 +55,7 @@ function worker(seed, ticks, preset, opts) {
       var x = 10 + Math.floor(rnd() * (h.g.gw - 20)), y = 10 + Math.floor(rnd() * (h.g.gh - 20));
       h.paintDisc(x, y, 2 + Math.floor(rnd() * 4), paints[Math.floor(rnd() * paints.length)]);
     }
-    h.give(["bucket", "farm", "mine", "dig", "masonry", "fireworks"]);
+    h.give(["bucket", "farm", "mine", "dig", "masonry", "festival"]);
   }
 
   var chunk = 1000, chunks = [], stop = null, threw = null;
@@ -66,7 +68,7 @@ function worker(seed, ticks, preset, opts) {
         stop = { kind: r.stopped.kind, id: r.stopped.id, tick: r.stopped.tick, expr: r.stopped.expr, error: r.stopped.error };
         break;
       }
-      if (opts.stuck) stuckWatch(h, watch, found);
+      stuckWatch(h, watch, found);
     }
   } catch (e) {
     threw = { message: String(e && e.message || e), tick: h.ticks, crash: h.crashReport() };
@@ -125,23 +127,25 @@ function parseSeeds(s) {
 }
 
 function main() {
-  var opts = parseArgs(process.argv.slice(2));
+  var opts = args.parseArgs(process.argv.slice(2));
   if (opts.worker) {
-    var res = worker(Number(opts.worker[0]), Number(opts.worker[1]), opts.worker[2], { stuck: true });
+    var w = String(opts.worker).split(",");
+    var res = worker(Number(w[0]), Number(w[1]), w[2]);
     process.stdout.write(JSON.stringify(res) + "\n");
     process.exit(0);
   }
-  var seeds = parseSeeds(opts.seeds), ticks = num(opts.ticks, 20000), preset = opts.preset || "plain";
-  var jobs = Math.max(1, num(opts.jobs, Math.min(4, os.cpus().length)));
-  var timeout = num(opts.timeout, 300) * 1000;
+  var seeds = parseSeeds(opts.seeds), ticks = args.num(opts.ticks, 20000), preset = opts.preset || "plain";
+  var jobs = Math.max(1, args.num(opts.jobs, Math.min(4, os.cpus().length)));
+  var timeout = args.num(opts.timeout, 300) * 1000;
   var results = [], running = [], i = 0;
+  function isBad(r) { return !!(r.stop || r.threw || r.timeout || (opts["fail-on-stuck"] && r.stuck && r.stuck.length)); }
 
   function launch() {
     var startedAny = false;
     while (running.length < jobs && i < seeds.length) {
       startedAny = true;
       (function (seed) {
-        var child = cp.fork(__filename, ["--worker", String(seed), String(ticks), preset, "--stuck"], { stdio: ["ignore", "pipe", "pipe", "ipc"] });
+        var child = cp.fork(__filename, ["--worker", seed + "," + ticks + "," + preset], { stdio: ["ignore", "pipe", "pipe", "ipc"] });
         var buf = "", err = "", started = Date.now(), killed = false;
         running.push(child);
         var timer = setTimeout(function () {
@@ -173,12 +177,13 @@ function main() {
     if (finished) return;
     finished = true;
     results.sort(function (a, b) { return a.seed - b.seed; });
+    if (opts.out) fs.writeFileSync(String(opts.out), results.map(function (r) { return JSON.stringify(r); }).join("\n") + "\n");
     if (opts.json) {
       results.forEach(function (r) { process.stdout.write(JSON.stringify(r) + "\n"); });
     } else {
       console.log("PLEASAND soak · " + preset + " · " + ticks + " ticks · seeds " + seeds.join(","));
       results.forEach(function (r) {
-        var bad = r.stop || r.threw || r.timeout || (opts["fail-on-stuck"] && r.stuck && r.stuck.length);
+        var bad = isBad(r);
         var tag = r.timeout ? "HANG" : (r.threw ? "THREW" : (r.stop ? "STOP " + r.stop.kind + " " + (r.stop.id || "") : "ok"));
         console.log((bad ? "!! " : "   ") + String(r.seed).padStart(3) + "  " + tag.padEnd(18) +
           (r.msPerTick != null ? r.msPerTick.toFixed(2) + "ms/t" : "") +
@@ -188,33 +193,16 @@ function main() {
         if (r.threw) console.log("        " + r.threw.message);
         if (r.deaths && r.deaths.length) console.log("        deaths: " + r.deaths.slice(-5).join(" "));
       });
-      var bad = results.filter(function (r) { return r.stop || r.threw || r.timeout || (opts["fail-on-stuck"] && r.stuck && r.stuck.length); });
+      var bad = results.filter(isBad);
       console.log((bad.length ? bad.length + " of " + results.length + " seeds found trouble" : "all " + results.length + " seeds clean") +
         " in " + (results.reduce(function (n, r) { return n + (r.ms || 0); }, 0) / 1000).toFixed(0) + "s of cpu");
     }
-    var bad2 = results.filter(function (r) { return r.stop || r.threw || r.timeout || (opts["fail-on-stuck"] && r.stuck && r.stuck.length); });
+    var bad2 = results.filter(isBad);
     process.exit(bad2.length ? 1 : 0);
   }
 
   launch();
 }
 
-/* -------------------------------------------------------------------
-   tiny argument parser, as the cli's
-   ------------------------------------------------------------------- */
-function parseArgs(argv) {
-  var out = {}, i, a, key, val, eq;
-  for (i = 0; i < argv.length; i++) {
-    a = argv[i];
-    if (a.slice(0, 2) !== "--") continue;
-    key = a.slice(2); val = true; eq = key.indexOf("=");
-    if (eq >= 0) { val = key.slice(eq + 1); key = key.slice(0, eq); }
-    else if (i + 1 < argv.length && argv[i + 1].slice(0, 2) !== "--") val = argv[++i];
-    if (key === "worker") { out.worker = [val, argv[++i], argv[++i]]; continue; }
-    out[key] = val;
-  }
-  return out;
-}
-function num(v, d) { var n = Number(v); return isFinite(n) ? n : d; }
 
 main();

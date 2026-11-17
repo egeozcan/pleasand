@@ -1,0 +1,30 @@
+# pleasand soak baseline
+# recorded with the code at this commit, after the review fixes
+# node harness/soak.js --seeds 1-6 --ticks 12000 [--preset rich|chaos]
+
+PLEASAND soak · plain · 12000 ticks · seeds 1,2,3,4,5,6
+     1  ok                1.18ms/t  8 alive, 19/20 sites, 5 ideas, 0 dead
+     2  ok                1.19ms/t  8 alive, 5/6 sites, 4 ideas, 0 dead
+     3  ok                1.37ms/t  8 alive, 14/15 sites, 5 ideas, 0 dead
+     4  ok                1.33ms/t  8 alive, 14/14 sites, 5 ideas, 0 dead
+     5  ok                1.33ms/t  8 alive, 16/19 sites, 5 ideas, 0 dead
+     6  ok                1.21ms/t  8 alive, 11/11 sites, 4 ideas, 0 dead
+all 6 seeds clean in 91s of cpu
+
+PLEASAND soak · rich · 12000 ticks · seeds 1,2,3,4,5,6
+     1  ok                1.27ms/t  8 alive, 12/13 sites, 15 ideas, 0 dead
+     2  ok                1.29ms/t  8 alive, 10/15 sites, 15 ideas, 0 dead
+     3  ok                1.39ms/t  8 alive, 9/14 sites, 15 ideas, 0 dead
+     4  ok                1.24ms/t  8 alive, 18/21 sites, 15 ideas, 0 dead
+     5  ok                1.21ms/t  8 alive, 15/18 sites, 15 ideas, 0 dead
+     6  ok                1.39ms/t  8 alive, 16/17 sites, 15 ideas, 0 dead
+all 6 seeds clean in 93s of cpu
+
+PLEASAND soak · chaos · 12000 ticks · seeds 1,2,3,4,5,6
+     1  ok                1.76ms/t  8 alive, 6/10 sites, 8 ideas, 0 dead
+     2  ok                1.73ms/t  8 alive, 6/8 sites, 8 ideas, 0 dead
+     3  ok                1.83ms/t  8 alive, 7/12 sites, 10 ideas, 0 dead
+     4  ok                1.67ms/t  8 alive, 9/12 sites, 10 ideas, 0 dead
+     5  ok                1.59ms/t  8 alive, 4/10 sites, 9 ideas, 0 dead
+     6  ok                1.58ms/t  8 alive, 11/13 sites, 9 ideas, 0 dead
+all 6 seeds clean in 122s of cpu

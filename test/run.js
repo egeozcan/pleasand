@@ -27,6 +27,8 @@ function watch(w, n) {
   check(g.rip === rip, (g.rip - rip) + " died");
 }
 
+/* a build task, as bPick makes one */
+function btask(site) { return { kind: "build", site: site, t: 0, act: 0, idle: 0, wait: 0 }; }
 /* a quiet flat column, its air cleared, for a site built by hand in a test */
 function clearSpot(w, at) {
   var g = w.g, x = at, gy = -1, d, xx, y;
@@ -51,10 +53,42 @@ test("a porch light is put up even when the builder is standing under it", funct
   var s = w.bNew(g, "lamp", p, [w.bE(g, x, gy - 13, w.MAT.PLANK, 1), w.bE(g, x, gy - 12, w.MAT.LAMP, 2)],
                  [x, gy - 13, x, gy - 12], { side: -1 });
   p.x = x + 0.5; p.y = gy - 1; p.dir = 1; p.boards = 4; p.logs = 0;
-  p.task = { kind: "build", site: s.id, t: 0, act: 0, idle: 0, wait: 0 };
+  p.task = btask(s.id);
   for (var t = 0; t < 200 && !s.done; t++) w.bTaskBuild(g, p, p.task);
   check(s.done, "the lamp was never built (side " + s.side + ", dir " + p.dir + ", act " + (p.task && p.task.act) + ")");
   check(g.m[(gy - 12) * g.gw + x] === w.MAT.LAMP, "no lantern in the bracket");
+});
+
+test("a capped ladder is still climbed when the work is within reach of the top", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], spot = clearSpot(w, 230), x = spot.x, gy = spot.gy, y;
+  for (y = gy - 6; y <= gy - 1; y++) { w.sandPlace(g, y * g.gw + x, w.MAT.LADDER); g.aux[y * g.gw + x] = 1; }
+  w.sandPlace(g, (gy - 7) * g.gw + x, w.MAT.STONE);
+  check(!w.bLadderGoes(g, x, gy - 1), "(the test wants a ladder that goes nowhere)");
+  w.sandPlace(g, (gy - 15) * g.gw + x + 1, w.MAT.STONE);
+  var s = w.bNew(g, "tower", p, [w.bE(g, x, gy - 15, w.MAT.PLANK, 1)], [x, gy - 15, x, gy - 15], {});
+  p.x = x + 0.5; p.y = gy - 1; p.boards = 4;
+  p.task = btask(s.id);
+  check(w.bReach(g, p, s.plan[0]) === false, "(the test wants the work out of reach on foot)");
+  check(w.bLadderReaches(g, x, gy - 1, gy - 15), "(the test wants the ladder to reach the work)");
+  w.bTaskBuild(g, p, p.task);
+  check(!!p.climb, "the builder would not climb a capped ladder that reaches the work");
+});
+
+test("a builder climbs the ladder its own site is still putting up", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], spot = clearSpot(w, 240), x = spot.x, gy = spot.gy, y;
+  for (y = gy - 6; y <= gy - 1; y++) { w.sandPlace(g, y * g.gw + x, w.MAT.LADDER); g.aux[y * g.gw + x] = 1; }
+  w.sandPlace(g, (gy - 7) * g.gw + x, w.MAT.STONE);
+  w.sandPlace(g, (gy - 20) * g.gw + x + 1, w.MAT.STONE);
+  var s = w.bNew(g, "tower", p, [
+    w.bE(g, x, gy - 2, w.MAT.LADDER, 1),       /* its own ladder: already placed, and it goes nowhere yet */
+    w.bE(g, x, gy - 20, w.MAT.PLANK, 2)
+  ], [x, gy - 20, x, gy - 20], {});
+  p.x = x + 0.5; p.y = gy - 1; p.boards = 4;
+  p.task = btask(s.id);
+  check(!w.bLadderGoes(g, x, gy - 1), "(the test wants a ladder that goes nowhere)");
+  check(!w.bLadderReaches(g, x, gy - 1, gy - 20), "(the test wants the work out of its reach)");
+  w.bTaskBuild(g, p, p.task);
+  check(!!p.climb, "the builder would not climb a ladder its own site is putting up");
 });
 
 test("a route down through a bush is not started from a row too high", function () {
@@ -79,7 +113,7 @@ test("a builder does not climb a ladder that goes nowhere", function () {
   w.sandPlace(g, (gy - 20) * g.gw + x + 1, w.MAT.STONE);
   var s = w.bNew(g, "tower", p, [w.bE(g, x, gy - 20, w.MAT.PLANK, 1)], [x, gy - 20, x, gy - 20], {});
   p.x = x + 0.5; p.y = gy - 1; p.boards = 4;
-  p.task = { kind: "build", site: s.id, t: 0, act: 0, idle: 0, wait: 0 };
+  p.task = btask(s.id);
   check(w.bReach(g, p, s.plan[0]) === false, "(the test wants the work out of reach)");
   check(w.bSupported(g, s.plan[0]), "(the test wants a cell that can go in)");
   w.bTaskBuild(g, p, p.task);

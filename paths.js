@@ -242,7 +242,9 @@ function pathGo(g, p, key, tx, ty, goal) {
   var P = nv.path, n;
   /* past the places already reached. a step through a tree needs the row to be
      exactly right: a couple of rows of walking slack would otherwise count as
-     arriving at the top of the bush, and the sink from up there goes nowhere */
+     arriving at the top of the bush, and the sink from up there goes nowhere.
+     next.m is the move out of here, so this tightens only where the through
+     move starts, not where it lands */
   while (nv.i < P.length) {
     var here = P[nv.i], next = P[nv.i + 1];
     var vtol = next && (next.m === NAV_UP || next.m === NAV_DOWN) ? 0.75 : 3.5;

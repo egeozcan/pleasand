@@ -614,7 +614,7 @@ function bTaskBuild(g, p, k) {
       /* only a ladder that goes somewhere (or one this site is still putting up):
          an oil derrick's finished ladder ends under its own ironwork, and a builder
          who climbs it gets nowhere, for ever */
-      if (lc >= 0 && (bLadderGoes(g, lc, fy) || bLadderOurs(g, s, lc))) { bClimbStart(g, p, lc, -1); return true; }
+      if (lc >= 0 && (bLadderGoes(g, lc, fy) || bLadderOurs(g, s, lc) || bLadderReaches(g, lc, fy, y))) { bClimbStart(g, p, lc, -1); return true; }
     }
     /* find a way to somewhere the next piece is in reach from (paths.js) */
     var left = pathGo(g, p, "b" + s.id + ":" + e.i, x, y, pathNear(x, y, 4, B_REACH_UP, B_REACH_DOWN));
@@ -1100,6 +1100,21 @@ function bLadderOurs(g, s, cx) {
 function bLadderGoes(g, cx, fy) {
   for (var y = fy; y > 0 && pCell(g, cx, y) === MAT.LADDER; y--);
   return bStepOff(g, cx, y, 1) || bStepOff(g, cx, y, -1);
+}
+/* the rung they would stop at: the top one, or wherever their head is stopped */
+function bLadderTop(g, cx, fy) {
+  var y = fy;
+  while (y > 0 && pCell(g, cx, y) === MAT.LADDER) {
+    if (pBody(g, cx, y - 9)) return y;
+    y--;
+  }
+  return y + 1;
+}
+/* a dead-end ladder is still worth climbing if its top is near enough the work
+   to reach it with a hammer (that is how they work up a wall too tall to jump) */
+function bLadderReaches(g, cx, fy, wy) {
+  var top = bLadderTop(g, cx, fy);
+  return wy >= top - B_REACH_UP && wy <= top + B_REACH_DOWN;
 }
 function bClimbStart(g, p, cx, dir) {
   p.climb = { x: cx, dir: dir, t: 0, y0: p.y, stuck: 0 };

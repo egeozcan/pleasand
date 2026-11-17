@@ -20,30 +20,15 @@
 var fs = require("fs");
 var readline = require("readline");
 var lib = require("./harness.js");
-var view = require("./inspect.js");
+var args = require("./args.js");
 var open = lib.open;
+var parseArgs = args.parseArgs, num = args.num, list = args.list;
 
 var VERSION = "1.0";
 
 /* -------------------------------------------------------------------
    arguments: --key value, --key=value, --flag. repeated keys become lists
    ------------------------------------------------------------------- */
-function parseArgs(argv) {
-  var out = { _: [] }, i, a, key, val, eq;
-  for (i = 0; i < argv.length; i++) {
-    a = argv[i];
-    if (a === "--") { out._ = out._.concat(argv.slice(i + 1)); break; }
-    if (a.slice(0, 2) !== "--") { out._.push(a); continue; }
-    key = a.slice(2); val = true; eq = key.indexOf("=");
-    if (eq >= 0) { val = key.slice(eq + 1); key = key.slice(0, eq); }
-    else if (i + 1 < argv.length && argv[i + 1].slice(0, 2) !== "--") val = argv[++i];
-    if (key in out) out[key] = [].concat(out[key], val);
-    else out[key] = val;
-  }
-  return out;
-}
-function num(v, d) { if (v == null || v === true) return d; var n = Number(v); return isFinite(n) ? n : d; }
-function list(v) { return v == null ? [] : (Array.isArray(v) ? v : [v]); }
 
 /* id=expr, or just expr */
 function splitWatch(s) {
@@ -294,6 +279,7 @@ var HANDLERS = {
   tap: function (h, r) { h.tap(r.x, r.y); return { ok: true }; },
   drag: function (h, r) { h.drag(r.x0, r.y0, r.x1, r.y1, { ticks: r.ticks, btn: r.btn }); return { tick: h.ticks }; },
   flick: function (h, r) { h.flick(num(r.vx, 0), num(r.vy, 0)); return { ok: true }; },
+  diff: function (h, r) { return h.diff(r.from, r.to); },
   scenario: function (h) { return h.scenario(); },
   replay: function (h, r) { return h.replay(r.scenario, { ticks: r.ticks }); },
   crash: function (h) { return h.crashReport(); },
@@ -386,6 +372,7 @@ function help() {
     "serve: send {\"id\":1,\"cmd\":\"...\"} lines. cmd=help lists them.",
     "       {\"cmd\":\"step\",\"n\":600}   {\"cmd\":\"until\",\"expr\":\"g.rip > 0\"}",
     "       {\"cmd\":\"state\"}           {\"cmd\":\"map\",\"x\":100,\"y\":80,\"w\":80,\"h\":40}",
+    "       {\"cmd\":\"diff\",\"from\":\"cp1\"} (checkpoint id, to: now by default)",
     "       {\"cmd\":\"eval\",\"expr\":\"g.peasants.map(p => p.name)\"}",
     "",
     "library: var h = require('./harness').open({ seed: 7 }); h.step(600); h.describe();"
