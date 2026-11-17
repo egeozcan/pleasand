@@ -840,6 +840,7 @@ function bGoHome(g, p, h) {
 function bHide(g, p) {
   var h = bHome(g, p);
   if (!h || Math.abs(h.cx - p.x) > 120 || Math.abs(h.F - p.y) > 40) return false;
+  if (g.know.bucket && iBlazeOf(g, h.id)) return false;   /* (not into a house that is on fire) */
   if (bInside(h, p)) {
     p.panic = 0; p.idle = 400 + irnd(400); p.hid = g.tick;
     pSay(g, p, "safe", true);

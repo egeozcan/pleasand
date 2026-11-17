@@ -1362,17 +1362,20 @@ function pWalk(g, p, wading) {
         if (!p.calmT) { p.panic = Math.max(p.panic, 50); p.bored = 0; if (Math.random() < 0.3) pSay(g, p, "nope"); }
       }
     } else if ((p.anim % 12) === 0) {
-      /* burning: run for the nearest water, if there is any, else run about */
-      var best = 999;
-      for (var dx = -50; dx <= 50; dx += 2) {
+      /* burning: run for the nearest water, if there is any, else run about. a village that knows about buckets runs
+         for the nearest bucket too, and looks further (ideas.js) */
+      var best = 999, reach = g.know.bucket ? 120 : 50;
+      for (var dx = -reach; dx <= reach; dx += 2) {
         var c0 = pCell(g, fx + dx, fy + 1), c1 = pCell(g, fx + dx, fy + 3);
         if ((WET[c0] || WET[c1]) && Math.abs(dx) < Math.abs(best)) best = dx;
       }
+      var help = iRescuer(g, p);
+      if (help && Math.abs(help.x - p.x) < Math.abs(best)) best = help.x - p.x;
       if (best !== 999) p.dir = best < 0 ? -1 : 1;
       else if (Math.random() < 0.3) p.dir = -p.dir;
     }
     /* things going bang: home, if there is one to run to */
-    if (p.panic > 0 && !p.fire && !wading) bHide(g, p);
+    if (p.panic > 0 && !p.fire && !wading && !iFlee(g, p)) bHide(g, p);   /* (a house on fire is not somewhere to hide: ideas.js) */
     /* something to do: go there, and do it */
     if (!scared && !wading) {
       if (!p.task && !p.taskCD && (p.anim % 20) === 0) pPickTask(g, p);

@@ -21,7 +21,9 @@
      THE BUCKET  a fire at anything they built and everybody who is
                  only doing something for fun grabs a bucket, fills it
                  at the pond and throws it on. on a quiet day they
-                 water the wheat with them
+                 water the wheat with them. the alarm gets everybody
+                 out of a burning house, and anybody on fire is run at
+                 with a bucket (and runs at it)
      GRAVESTONES a wooden cross for everybody who died, in a row,
                  saying how. now and then somebody visits, and leaves
                  a flower
@@ -74,6 +76,7 @@ P_SAY.raid = ["OI! THAT'S OUR WHEAT", "SHOO", "get off the wheat!", "the ducks a
 P_SAY.brigade = ["FIRE! BUCKETS!", "get the buckets!", "bucket brigade!", "WATER! WATER!", "everybody grab a bucket"];
 P_SAY.fill = ["*slosh*", "fill her up", "got water!", "*glug glug*"];
 P_SAY.douse = ["SPLASH", "take that, fire", "hyup!", "*sploosh*", "and another"];
+P_SAY.evac = ["FIRE! GET OUT!", "THE HOUSE IS ON FIRE", "OUT OUT OUT", "my HOUSE", "everybody out!", "not the bed!"];
 P_SAY.out = ["it's out!", "phew", "fire's out", "we did it", "good bucketing, everyone"];
 P_SAY.nowater = ["no water this side!", "where's the pond?", "we need a pond", "somebody get water!"];
 P_SAY.water = ["watering the wheat", "drink up, little plants", "grow, wheat, grow", "*sprinkle*"];
@@ -287,11 +290,76 @@ function ideasStep(g) {
      grabs one */
   if (g.blaze.length && g.know.bucket) for (k = 0; k < g.peasants.length; k++) {
     var p = g.peasants[k];
+    /* and anybody in a house that is on fire (asleep or not) is woken, and runs for the door */
+    if (!p.dead && p.state === "walk" && !p.fire && iBurningHouse(g, p)) {
+      if (p.panic < 40 && p.sayT <= 0) pSay(g, p, "evac", true);
+      p.panic = Math.max(p.panic, 60); p.idle = 0;
+      continue;
+    }
     if (p.dead || p.state !== "walk" || p.sleep || p.climb || p.rope || p.swimming || !iCanWait(p, p.task)) continue;
     var was = p.task;
     p.task = null;
     if (iUrgent(g, p)) { p.idle = 0; p.taskCD = 0; } else p.task = was;
   }
+}
+/* the burning house p is in, if it is in one */
+function iBurningHouse(g, p) {
+  for (var k = 0; k < g.blaze.length; k++) {
+    var s = bSite(g, g.blaze[k].site);
+    if (s && s.kind === "house" && s.done && bInside(s, p)) return s;
+  }
+  return null;
+}
+/* which way is the way out: the nearer door, unless the fire is on the way to it (counted cells of it between them) */
+function iExit(g, p, h) {
+  var b = iBlazeOf(g, h.id), best = 0, bs = 1e9, d, k, n, x;
+  for (d = -1; d <= 1; d += 2) {
+    var door = d < 0 ? h.ix0 - 1 : h.ix1 + 2;
+    n = 0;
+    if (b) for (k = 0; k < b.cells.length; k++) { x = b.cells[k] % g.gw; if ((x - p.x) * (door - x) > 0) n++; }
+    var sc = Math.abs(door - p.x) + n * 4;
+    if (sc < bs) { bs = sc; best = d; }
+  }
+  return best;
+}
+/* panicking (and the house is on fire): out of it. true if that is what they are doing */
+function iFlee(g, p) {
+  if (!g.know.bucket) return false;
+  var h = iBurningHouse(g, p);
+  if (!h) return false;
+  p.dir = iExit(g, p, h);
+  return true;
+}
+/* somebody on fire, near enough to run at with a bucket */
+function iVictim(g, p) {
+  var best = null, bd = 1e9, k, q, d;
+  for (k = 0; k < g.peasants.length; k++) {
+    q = g.peasants[k];
+    if (q === p || q.dead || !q.fire || q.state !== "walk") continue;
+    d = Math.abs(q.x - p.x);
+    if (d < 45 && Math.abs(q.y - p.y) < 14 && d < bd) { bd = d; best = q; }
+  }
+  return best;
+}
+/* somebody burning wants water, and a brigade bucket will do as well as a pond: the nearest one, if there is one */
+function iRescuer(g, p) {
+  if (!g.know.bucket) return null;
+  var best = null, bd = 70, k, q, d;
+  for (k = 0; k < g.peasants.length; k++) {
+    q = g.peasants[k];
+    if (q === p || q.dead || !q.pail || !q.task || q.task.kind !== "bucket" || q.state !== "walk") continue;
+    d = Math.abs(q.x - p.x);
+    if (d < bd && Math.abs(q.y - p.y) < 14) { bd = d; best = q; }
+  }
+  return best;
+}
+/* a bucket over somebody: they are out. the water goes where they stand, and then on down */
+function iDouse(g, p, v) {
+  v.fire = 0; g.fx.hiss++;
+  pSay(g, v, "phew", true);
+  if (p.sayT <= 0) pSay(g, p, "douse");
+  sparks(g, v.x, v.y - 8, 6, 0.4, [hex32("#c0d0e0")], 14, 0.6, PK_GLINT);
+  iSpill(g, p, false, Math.floor(v.x), Math.floor(v.y) - 6);
 }
 function iCap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 /* flames and embers in and about a site: all of them, top to bottom. (a lantern is only on fire if it is. and the flame
@@ -456,6 +524,13 @@ function iTaskBucket(g, p, k) {
     if (iWalk(g, p, k, "water" + k.w.x, k.w.x, k.w.y, function (x, y) { return navStand(g, x, y) === 1 && !LIQUID[pCell(g, x, y)] && iScoopAt(g, x, y, fresh) >= 0 && iSafe(g, x, y); })) pGiveUp(g, p, k.w.x);
     return false;
   }
+  /* bucket full, and somebody burning (out of the house, say): that comes first. run at them, and put it over them */
+  var vic = iVictim(g, p);
+  if (vic && !p.swimming) {
+    p.dir = vic.x < p.x ? -1 : 1; k.act = 0;
+    if (Math.abs(vic.x - p.x) < 3 && Math.abs(vic.y - p.y) < 6) { iDouse(g, p, vic); k.threw = true; return true; }
+    return false;
+  }
   /* bucket full: off to the fire (the nearest bit of it, looked for again now and then), or the thirstiest stalk */
   var tgt = k.last && k.aim > g.tick ? k.last : (k.site ? iBlazeTarget(g, k.site, p) : iWaterTarget(g, k.field));
   if (tgt !== k.last) k.aim = g.tick + 60;
@@ -582,8 +657,8 @@ function iThrow(g, p, t) {
 /* a bucket emptied where they stand: each cell of it into the nearest bit of air in front of them, with its heat (and
    the heat of the air it pushes out). whatever finds no room stays in the bucket; unless they are dying (buried, say),
    when it goes in the first air above them */
-function iSpill(g, p, dying) {
-  var load = p.pail, fx = Math.floor(p.x) + p.dir, fy = Math.floor(p.y) - 1, k, r, j, x, y, left = [];
+function iSpill(g, p, dying, cx, cy) {
+  var load = p.pail, fx = cx == null ? Math.floor(p.x) + p.dir : cx, fy = cy == null ? Math.floor(p.y) - 1 : cy, k, r, j, x, y, left = [];
   if (!load) return;
   for (k = 0; k < load.length; k++) {
     for (r = 0, j = -1; r < 5 && j < 0; r++) for (y = fy - r; y <= fy && j < 0; y++) for (x = fx - r; x <= fx + r && j < 0; x++) {
@@ -1017,6 +1092,7 @@ function iMood(g, p) {
   if (k.kind === "build" && (s = bSite(g, k.site)) && s.kind === "farm")
     return (s.sow ? "is sowing " : "is working on ") + bLabel(s) + ". it takes no wood, just elbow grease";
   if (k.kind === "bucket" && k.field) return p.pail ? "is watering the wheat" : "is fetching water for the wheat";
+  if (k.kind === "bucket" && p.pail && iVictim(g, p)) return "is running at somebody who is on fire with a bucket";
   if (k.kind === "bucket") return p.pail ? "is running at the fire with a bucket of water" : "is fetching water. something is on fire";
   if (k.kind === "fish") return !k.bob ? "is off fishing" : (k.tug ? "has a bite!" : "is fishing. " + (k.n ? "caught " + k.n + " so far" : "nothing yet"));
   if (k.kind === "festival") return k.on ? "is putting on a fireworks show" : "is setting up for a fireworks show";

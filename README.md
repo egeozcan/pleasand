@@ -63,7 +63,11 @@ think of:
   bored), a fire at anything
   of theirs sends everybody who was only doing something for fun to the pond
   with a bucket (on the near side of the fire: they are brave, not daft). On
-  a quiet day they water the wheat
+  a quiet day they water the wheat. The alarm wakes everybody in a burning
+  house and sends them out of the nearer door (not the one with the fire in
+  front of it), and nobody runs home to a house that is on fire. A peasant who
+  is burning runs for the pond from further off, or for the nearest bucket,
+  and anybody with a full bucket runs at them and tips it over their head
 - **Gravestones**: once somebody has died, a wooden cross for each of the
   dead, in a row, saying how. Now and then somebody visits, and leaves a flower
 - **Fishing**: a jetty out over the pond, and somebody on the end of it with a
