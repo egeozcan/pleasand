@@ -178,10 +178,16 @@ node harness/soak.js --seeds 1-6 --ticks 12000 --out soak.jsonl
 ```
 `soak.js` runs each seed in its own process with the standard invariants
 plus: valid states, unique ids, held things, site plans and stock,
-peasants' task → site references, the ticker, and inventories. It also
-notices peasants who hold a task, in one place, making no stroke, for
-2400 ticks — stalled builders and routes that cannot be walked. A seed
-that stops, throws or hangs exits 1; `--json` gives one line per seed.
+peasants' task → site references, the ticker, and inventories. Every 30 ticks
+it samples peasants and ducks: 2400 simulation ticks in a two-cell neighborhood
+without work or behavior progress is a stall, including short escape cycles.
+Work strokes, inventory, task/site changes and construction progress distinguish
+productive stationary workers from stalled builders. Ducks' heading/quack clocks
+and blocked-surfacing state catch escape loops without flagging ordinary paddling,
+following or idling. Held units and paused time do not count.
+A seed that stops, throws or hangs exits 1; `--fail-on-stuck` also fails on
+stalled peasants or ducks. Otherwise stalls are warnings, not a clean result.
+`--json` gives one line per seed.
 `--out` writes one json line per seed. This is how the lamp-bracket and
 dead-end-ladder bugs below were found; a recorded baseline is in
 `harness/soak-baseline.txt`.
@@ -262,4 +268,6 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 - `cli.js` — `run`, `serve`, `selftest`
 - `selftest.js` — 25 checks of the harness's own promises
 - `args.js` — the argument parser the cli and soak runner share
-- `soak.js` — many seeds, long runs, presets, invariants and stuck builders
+- `soak.js` — many seeds, long runs, presets, invariants and stuck-unit reports
+- `stuck.js` — sampled work/behavior progress and short-cycle detection for peasants and ducks
+- `playtests/` — duck escape/timeout regressions, replayable scenarios and the playtest report

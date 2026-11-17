@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "seed": 14,
+  "ticks": 1120,
+  "hash": "24c38053",
+  "baselineHash": "615087f2",
+  "ops": [
+    {
+      "at": 0,
+      "op": "fill",
+      "args": {
+        "x": 29,
+        "y": 88,
+        "w": 4,
+        "h": 2,
+        "mat": "INERT"
+      }
+    },
+    {
+      "at": 0,
+      "op": "fill",
+      "args": {
+        "x": 30,
+        "y": 88,
+        "w": 2,
+        "h": 1,
+        "mat": "WATER"
+      }
+    },
+    {
+      "at": 0,
+      "op": "place",
+      "args": {
+        "x": 31,
+        "y": 88,
+        "mat": "ASH"
+      }
+    },
+    {
+      "at": 0,
+      "op": "spawnDuck",
+      "args": {
+        "x": 30,
+        "y": 88,
+        "kind": 0
+      }
+    }
+  ]
+}

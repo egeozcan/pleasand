@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "seed": 7,
+  "ticks": 900,
+  "hash": "a2efa1c9",
+  "baselineHash": "eb1e9431",
+  "ops": [
+    {
+      "at": 0,
+      "op": "fill",
+      "args": {
+        "x": 44,
+        "y": 77,
+        "w": 3,
+        "h": 5,
+        "mat": "INERT"
+      }
+    },
+    {
+      "at": 0,
+      "op": "fill",
+      "args": {
+        "x": 45,
+        "y": 78,
+        "w": 1,
+        "h": 3,
+        "mat": "WATER"
+      }
+    },
+    {
+      "at": 0,
+      "op": "spawnDuck",
+      "args": {
+        "x": 45,
+        "y": 80,
+        "kind": 0
+      }
+    }
+  ]
+}

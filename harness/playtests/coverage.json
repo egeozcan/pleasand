@@ -1,0 +1,1343 @@
+{
+  "commit": "2f8e0a8",
+  "node": "v25.3.0",
+  "regression": {
+    "passed": 23,
+    "total": 23
+  },
+  "harnessSelftest": {
+    "passed": 25,
+    "total": 25
+  },
+  "runs": [
+    {
+      "runner": "soak",
+      "seed": 7,
+      "preset": "plain",
+      "ticks": 40000,
+      "ms": 64844,
+      "msPerTick": 1.62,
+      "slowestChunk": 2.3,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 38,
+          "sitesDone": 38,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 1,
+          "bolts": 0
+        },
+        "sitesDone": 38,
+        "ideas": 11,
+        "rip": 0,
+        "hash": "76c44e13"
+      },
+      "events": {
+        "feed": 136,
+        "banner": 33,
+        "achieve": 22
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 8,
+      "preset": "plain",
+      "ticks": 40000,
+      "ms": 63081,
+      "msPerTick": 1.58,
+      "slowestChunk": 2.11,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 29,
+          "sitesDone": 25,
+          "particles": 2,
+          "ghosts": 0,
+          "feed": 1,
+          "bolts": 0
+        },
+        "sitesDone": 25,
+        "ideas": 10,
+        "rip": 0,
+        "hash": "20a46919"
+      },
+      "events": {
+        "feed": 122,
+        "banner": 29,
+        "achieve": 19
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 9,
+      "preset": "plain",
+      "ticks": 40000,
+      "ms": 57014,
+      "msPerTick": 1.43,
+      "slowestChunk": 1.91,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 3,
+          "sites": 25,
+          "sitesDone": 25,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 25,
+        "ideas": 11,
+        "rip": 0,
+        "hash": "db4315ff"
+      },
+      "events": {
+        "banner": 34,
+        "achieve": 22,
+        "feed": 114
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 10,
+      "preset": "plain",
+      "ticks": 40000,
+      "ms": 74183,
+      "msPerTick": 1.85,
+      "slowestChunk": 2.07,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 25,
+          "sitesDone": 19,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 1,
+          "bolts": 0
+        },
+        "sitesDone": 19,
+        "ideas": 9,
+        "rip": 0,
+        "hash": "fb6c2b02"
+      },
+      "events": {
+        "feed": 98,
+        "banner": 23,
+        "achieve": 14
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 11,
+      "preset": "plain",
+      "ticks": 40000,
+      "ms": 65687,
+      "msPerTick": 1.64,
+      "slowestChunk": 1.88,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 32,
+          "sitesDone": 32,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 32,
+        "ideas": 11,
+        "rip": 0,
+        "hash": "455599d0"
+      },
+      "events": {
+        "banner": 31,
+        "achieve": 20,
+        "feed": 125
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 12,
+      "preset": "plain",
+      "ticks": 40000,
+      "ms": 70353,
+      "msPerTick": 1.76,
+      "slowestChunk": 2,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 7,
+          "alive": 7,
+          "dead": 0,
+          "ducks": 3,
+          "sites": 32,
+          "sitesDone": 32,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 32,
+        "ideas": 12,
+        "rip": 0,
+        "hash": "b005fbd3"
+      },
+      "events": {
+        "banner": 39,
+        "achieve": 25,
+        "feed": 133
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 7,
+      "preset": "rich",
+      "ticks": 40000,
+      "ms": 76442,
+      "msPerTick": 1.91,
+      "slowestChunk": 3.19,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 7,
+          "alive": 7,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 30,
+          "sitesDone": 28,
+          "particles": 5,
+          "ghosts": 0,
+          "feed": 2,
+          "bolts": 0
+        },
+        "sitesDone": 28,
+        "ideas": 15,
+        "rip": 1,
+        "hash": "32ec7177"
+      },
+      "events": {
+        "feed": 97,
+        "banner": 28,
+        "achieve": 26,
+        "death": 1
+      },
+      "deaths": [
+        "35886:YURI:fire"
+      ],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 8,
+      "preset": "rich",
+      "ticks": 40000,
+      "ms": 63489,
+      "msPerTick": 1.59,
+      "slowestChunk": 2.13,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 29,
+          "sitesDone": 26,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 26,
+        "ideas": 15,
+        "rip": 0,
+        "hash": "48a9434d"
+      },
+      "events": {
+        "feed": 80,
+        "banner": 17,
+        "achieve": 17
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 9,
+      "preset": "rich",
+      "ticks": 40000,
+      "ms": 75288,
+      "msPerTick": 1.88,
+      "slowestChunk": 3.06,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 7,
+          "alive": 7,
+          "dead": 0,
+          "ducks": 3,
+          "sites": 21,
+          "sitesDone": 17,
+          "particles": 6,
+          "ghosts": 0,
+          "feed": 1,
+          "bolts": 0
+        },
+        "sitesDone": 17,
+        "ideas": 15,
+        "rip": 1,
+        "hash": "15225ed0"
+      },
+      "events": {
+        "feed": 79,
+        "banner": 21,
+        "achieve": 18,
+        "death": 1
+      },
+      "deaths": [
+        "17672:TIM:splat"
+      ],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 10,
+      "preset": "rich",
+      "ticks": 40000,
+      "ms": 75539,
+      "msPerTick": 1.89,
+      "slowestChunk": 2.22,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 5,
+          "alive": 5,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 31,
+          "sitesDone": 27,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 27,
+        "ideas": 15,
+        "rip": 2,
+        "hash": "cb803bbd"
+      },
+      "events": {
+        "feed": 96,
+        "banner": 27,
+        "achieve": 24,
+        "death": 2
+      },
+      "deaths": [
+        "30758:LARRY JR:splat",
+        "30781:KING ETHEL:splat"
+      ],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 11,
+      "preset": "rich",
+      "ticks": 40000,
+      "ms": 68844,
+      "msPerTick": 1.72,
+      "slowestChunk": 2.06,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 6,
+          "alive": 6,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 33,
+          "sitesDone": 29,
+          "particles": 15,
+          "ghosts": 1,
+          "feed": 1,
+          "bolts": 0
+        },
+        "sitesDone": 29,
+        "ideas": 15,
+        "rip": 1,
+        "hash": "fcfff27e"
+      },
+      "events": {
+        "feed": 94,
+        "banner": 23,
+        "achieve": 21,
+        "death": 1
+      },
+      "deaths": [
+        "39841:FERGUS:splat"
+      ],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 12,
+      "preset": "rich",
+      "ticks": 40000,
+      "ms": 65449,
+      "msPerTick": 1.64,
+      "slowestChunk": 1.92,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 6,
+          "alive": 6,
+          "dead": 0,
+          "ducks": 3,
+          "sites": 26,
+          "sitesDone": 25,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 25,
+        "ideas": 15,
+        "rip": 0,
+        "hash": "561599b7"
+      },
+      "events": {
+        "feed": 81,
+        "banner": 22,
+        "achieve": 21
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 7,
+      "preset": "chaos",
+      "ticks": 30000,
+      "ms": 51760,
+      "msPerTick": 1.73,
+      "slowestChunk": 2.13,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 0,
+          "sites": 7,
+          "sitesDone": 6,
+          "particles": 1,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 6,
+        "ideas": 9,
+        "rip": 0,
+        "hash": "a7b6b04a"
+      },
+      "events": {
+        "feed": 43,
+        "banner": 14,
+        "achieve": 11
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 8,
+      "preset": "chaos",
+      "ticks": 30000,
+      "ms": 56975,
+      "msPerTick": 1.9,
+      "slowestChunk": 2.33,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 18,
+          "sitesDone": 12,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 12,
+        "ideas": 9,
+        "rip": 0,
+        "hash": "1bdc9b27"
+      },
+      "events": {
+        "feed": 64,
+        "banner": 16,
+        "achieve": 13
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 9,
+      "preset": "chaos",
+      "ticks": 30000,
+      "ms": 71741,
+      "msPerTick": 2.39,
+      "slowestChunk": 2.98,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 8,
+          "alive": 8,
+          "dead": 0,
+          "ducks": 1,
+          "sites": 15,
+          "sitesDone": 12,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 2,
+          "bolts": 0
+        },
+        "sitesDone": 12,
+        "ideas": 12,
+        "rip": 0,
+        "hash": "ceefabe4"
+      },
+      "events": {
+        "feed": 67,
+        "banner": 23,
+        "achieve": 17
+      },
+      "deaths": [],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "soak",
+      "seed": 10,
+      "preset": "chaos",
+      "ticks": 30000,
+      "ms": 83475,
+      "msPerTick": 2.78,
+      "slowestChunk": 5.06,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 7,
+          "alive": 7,
+          "dead": 0,
+          "ducks": 0,
+          "sites": 9,
+          "sitesDone": 7,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 7,
+        "ideas": 9,
+        "rip": 1,
+        "hash": "866977f2"
+      },
+      "events": {
+        "feed": 36,
+        "banner": 11,
+        "achieve": 7,
+        "death": 1
+      },
+      "deaths": [
+        "116:FERN:splat"
+      ],
+      "stuck": [],
+      "context": null
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 7,
+      "preset": "rich",
+      "ticks": 40020,
+      "counts": {
+        "peasants": 7,
+        "alive": 7,
+        "dead": 0,
+        "ducks": 1,
+        "sites": 30,
+        "sitesDone": 28,
+        "particles": 11,
+        "ghosts": 0,
+        "feed": 1,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 82,
+        "barrels": 61,
+        "score": 11,
+        "astronauts": 0,
+        "rip": 1
+      },
+      "flags": [],
+      "deaths": [
+        {
+          "tick": 35886,
+          "t": 598.1,
+          "kind": "death",
+          "name": "YURI",
+          "id": 4,
+          "cause": "fire"
+        }
+      ]
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 8,
+      "preset": "plain",
+      "ticks": 40020,
+      "counts": {
+        "peasants": 8,
+        "alive": 8,
+        "dead": 0,
+        "ducks": 1,
+        "sites": 29,
+        "sitesDone": 25,
+        "particles": 2,
+        "ghosts": 0,
+        "feed": 1,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 11,
+        "barrels": 0,
+        "score": 40,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 10,
+      "preset": "plain",
+      "ticks": 40020,
+      "counts": {
+        "peasants": 8,
+        "alive": 8,
+        "dead": 0,
+        "ducks": 1,
+        "sites": 25,
+        "sitesDone": 19,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 1,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 6,
+        "barrels": 0,
+        "score": 0,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 12,
+      "preset": "plain",
+      "ticks": 40020,
+      "counts": {
+        "peasants": 7,
+        "alive": 7,
+        "dead": 0,
+        "ducks": 3,
+        "sites": 32,
+        "sitesDone": 32,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 33,
+        "barrels": 33,
+        "score": 101,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 8,
+      "preset": "rich",
+      "ticks": 40020,
+      "counts": {
+        "peasants": 8,
+        "alive": 8,
+        "dead": 0,
+        "ducks": 1,
+        "sites": 29,
+        "sitesDone": 27,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 40,
+        "barrels": 40,
+        "score": 0,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 10,
+      "preset": "rich",
+      "ticks": 40020,
+      "counts": {
+        "peasants": 5,
+        "alive": 5,
+        "dead": 0,
+        "ducks": 1,
+        "sites": 31,
+        "sitesDone": 27,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 64,
+        "barrels": 113,
+        "score": 16,
+        "astronauts": 0,
+        "rip": 2
+      },
+      "flags": [
+        {
+          "seed": 10,
+          "preset": "rich",
+          "tick": 36810,
+          "type": "p",
+          "id": 4,
+          "name": "ULF",
+          "state": "walk",
+          "task": "pump",
+          "x": 98.44063151152294,
+          "y": 148
+        }
+      ],
+      "deaths": [
+        {
+          "tick": 30758,
+          "t": 512.63,
+          "kind": "death",
+          "name": "LARRY JR",
+          "id": 2,
+          "cause": "splat"
+        },
+        {
+          "tick": 30781,
+          "t": 513.02,
+          "kind": "death",
+          "name": "KING ETHEL",
+          "id": 1,
+          "cause": "splat"
+        }
+      ]
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 13,
+      "preset": "plain",
+      "ticks": 60000,
+      "counts": {
+        "peasants": 8,
+        "alive": 8,
+        "dead": 0,
+        "ducks": 3,
+        "sites": 29,
+        "sitesDone": 29,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 16,
+        "barrels": 0,
+        "score": 120,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 14,
+      "preset": "rich",
+      "ticks": 60000,
+      "counts": {
+        "peasants": 4,
+        "alive": 4,
+        "dead": 0,
+        "ducks": 2,
+        "sites": 21,
+        "sitesDone": 20,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 58,
+        "barrels": 65,
+        "score": 79,
+        "astronauts": 0,
+        "rip": 3
+      },
+      "flags": [
+        {
+          "seed": 14,
+          "preset": "rich",
+          "tick": 45720,
+          "type": "d",
+          "id": 1,
+          "state": "walk",
+          "x": 94.5,
+          "y": 164
+        },
+        {
+          "seed": 14,
+          "preset": "rich",
+          "tick": 50730,
+          "type": "d",
+          "id": 2,
+          "state": "walk",
+          "x": 94.5,
+          "y": 164
+        }
+      ],
+      "deaths": [
+        {
+          "tick": 16558,
+          "t": 275.97,
+          "kind": "death",
+          "name": "HANK",
+          "id": 8,
+          "cause": "fire"
+        },
+        {
+          "tick": 48843,
+          "t": 814.05,
+          "kind": "death",
+          "name": "CLIVE",
+          "id": 7,
+          "cause": "splat"
+        },
+        {
+          "tick": 50718,
+          "t": 845.3,
+          "kind": "death",
+          "name": "HAROLD",
+          "id": 2,
+          "cause": "splat"
+        }
+      ]
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 15,
+      "preset": "terrain",
+      "ticks": 60000,
+      "counts": {
+        "peasants": 8,
+        "alive": 8,
+        "dead": 0,
+        "ducks": 11,
+        "sites": 15,
+        "sitesDone": 9,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 1,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 40,
+        "barrels": 40,
+        "score": 15,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 16,
+      "preset": "terrain",
+      "ticks": 60000,
+      "counts": {
+        "peasants": 8,
+        "alive": 8,
+        "dead": 0,
+        "ducks": 13,
+        "sites": 6,
+        "sitesDone": 0,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 40,
+        "barrels": 40,
+        "score": 0,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 17,
+      "preset": "terrain",
+      "ticks": 60000,
+      "counts": {
+        "peasants": 8,
+        "alive": 8,
+        "dead": 0,
+        "ducks": 13,
+        "sites": 9,
+        "sitesDone": 5,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 40,
+        "barrels": 40,
+        "score": 0,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "movement-observer",
+      "seed": 18,
+      "preset": "terrain",
+      "ticks": 60000,
+      "counts": {
+        "peasants": 8,
+        "alive": 8,
+        "dead": 0,
+        "ducks": 13,
+        "sites": 4,
+        "sitesDone": 0,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 40,
+        "barrels": 40,
+        "score": 0,
+        "astronauts": 0,
+        "rip": 0
+      },
+      "flags": [],
+      "deaths": []
+    },
+    {
+      "runner": "input-stress",
+      "seed": 21,
+      "ticks": 12364,
+      "stop": null,
+      "counts": {
+        "peasants": 0,
+        "alive": 0,
+        "dead": 0,
+        "ducks": 1,
+        "sites": 9,
+        "sitesDone": 3,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 0,
+        "barrels": 0,
+        "score": 48,
+        "astronauts": 1,
+        "rip": 3
+      },
+      "deaths": [
+        {
+          "tick": 4979,
+          "t": 82.98,
+          "kind": "death",
+          "name": "BOB",
+          "id": 4,
+          "cause": "reentry"
+        },
+        {
+          "tick": 6717,
+          "t": 111.95,
+          "kind": "death",
+          "name": "OSCAR",
+          "id": 8,
+          "cause": "splat"
+        },
+        {
+          "tick": 11897,
+          "t": 198.28,
+          "kind": "death",
+          "name": "GUNTHER",
+          "id": 7,
+          "cause": "splat"
+        }
+      ]
+    },
+    {
+      "runner": "input-stress",
+      "seed": 22,
+      "ticks": 12364,
+      "stop": null,
+      "counts": {
+        "peasants": 1,
+        "alive": 1,
+        "dead": 0,
+        "ducks": 0,
+        "sites": 7,
+        "sitesDone": 2,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 1,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 0,
+        "barrels": 0,
+        "score": 126,
+        "astronauts": 0,
+        "rip": 4
+      },
+      "deaths": [
+        {
+          "tick": 3783,
+          "t": 63.05,
+          "kind": "death",
+          "name": "CHAD",
+          "id": 4,
+          "cause": "splat"
+        },
+        {
+          "tick": 6199,
+          "t": 103.32,
+          "kind": "death",
+          "name": "PRUDENCE",
+          "id": 6,
+          "cause": "buried"
+        },
+        {
+          "tick": 6941,
+          "t": 115.68,
+          "kind": "death",
+          "name": "NELL",
+          "id": 1,
+          "cause": "buried"
+        },
+        {
+          "tick": 8211,
+          "t": 136.85,
+          "kind": "death",
+          "name": "OLGA",
+          "id": 9,
+          "cause": "splat"
+        }
+      ]
+    },
+    {
+      "runner": "input-stress",
+      "seed": 23,
+      "ticks": 12364,
+      "stop": null,
+      "counts": {
+        "peasants": 0,
+        "alive": 0,
+        "dead": 0,
+        "ducks": 1,
+        "sites": 8,
+        "sitesDone": 3,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 1,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 0,
+        "barrels": 0,
+        "score": 238,
+        "astronauts": 0,
+        "rip": 5
+      },
+      "deaths": [
+        {
+          "tick": 783,
+          "t": 13.05,
+          "kind": "death",
+          "name": "BOB SR",
+          "id": 2,
+          "cause": "splat"
+        },
+        {
+          "tick": 1808,
+          "t": 30.13,
+          "kind": "death",
+          "name": "CEDRIC THE UNLUCKY",
+          "id": 3,
+          "cause": "drown"
+        },
+        {
+          "tick": 1956,
+          "t": 32.6,
+          "kind": "death",
+          "name": "BOB",
+          "id": 7,
+          "cause": "fire"
+        },
+        {
+          "tick": 5221,
+          "t": 87.02,
+          "kind": "death",
+          "name": "BERNARD",
+          "id": 6,
+          "cause": "splat"
+        },
+        {
+          "tick": 8212,
+          "t": 136.87,
+          "kind": "death",
+          "name": "ULF",
+          "id": 1,
+          "cause": "splat"
+        }
+      ]
+    },
+    {
+      "runner": "input-stress",
+      "seed": 24,
+      "ticks": 12364,
+      "stop": null,
+      "counts": {
+        "peasants": 0,
+        "alive": 0,
+        "dead": 0,
+        "ducks": 1,
+        "sites": 8,
+        "sitesDone": 2,
+        "particles": 0,
+        "ghosts": 0,
+        "feed": 0,
+        "bolts": 0
+      },
+      "resources": {
+        "iron": 0,
+        "barrels": 0,
+        "score": 129,
+        "astronauts": 1,
+        "rip": 8
+      },
+      "deaths": [
+        {
+          "tick": 76,
+          "t": 1.27,
+          "kind": "death",
+          "name": "INGRID",
+          "id": 2,
+          "cause": "splat"
+        },
+        {
+          "tick": 3000,
+          "t": 50,
+          "kind": "death",
+          "name": "PERCY",
+          "id": 7,
+          "cause": "splat"
+        },
+        {
+          "tick": 3787,
+          "t": 63.12,
+          "kind": "death",
+          "name": "TOBIAS",
+          "id": 8,
+          "cause": "splat"
+        },
+        {
+          "tick": 6705,
+          "t": 111.75,
+          "kind": "death",
+          "name": "ELMER",
+          "id": 4,
+          "cause": "splat"
+        },
+        {
+          "tick": 8186,
+          "t": 136.43,
+          "kind": "death",
+          "name": "MOE",
+          "id": 1,
+          "cause": "splat"
+        },
+        {
+          "tick": 9303,
+          "t": 155.05,
+          "kind": "death",
+          "name": "DEB",
+          "id": 9,
+          "cause": "reentry"
+        },
+        {
+          "tick": 11138,
+          "t": 185.63,
+          "kind": "death",
+          "name": "NED",
+          "id": 11,
+          "cause": "splat"
+        },
+        {
+          "tick": 11944,
+          "t": 199.07,
+          "kind": "death",
+          "name": "GLADYS",
+          "id": 12,
+          "cause": "splat"
+        }
+      ]
+    },
+    {
+      "runner": "soak",
+      "seed": 14,
+      "preset": "rich",
+      "ticks": 60000,
+      "ms": 94579,
+      "msPerTick": 1.58,
+      "slowestChunk": 1.96,
+      "stop": null,
+      "threw": null,
+      "state": {
+        "counts": {
+          "peasants": 4,
+          "alive": 4,
+          "dead": 0,
+          "ducks": 2,
+          "sites": 21,
+          "sitesDone": 20,
+          "particles": 0,
+          "ghosts": 0,
+          "feed": 0,
+          "bolts": 0
+        },
+        "sitesDone": 20,
+        "ideas": 15,
+        "rip": 3,
+        "hash": "0169c098"
+      },
+      "events": {
+        "feed": 100,
+        "banner": 25,
+        "achieve": 23,
+        "death": 3
+      },
+      "deaths": [
+        "16558:HANK:fire",
+        "48843:CLIVE:splat",
+        "50718:HAROLD:splat"
+      ],
+      "stuck": [],
+      "context": null
+    }
+  ],
+  "totalTicks": 1309576,
+  "distinctConfigurations": 26
+}

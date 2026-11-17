@@ -45,6 +45,23 @@ function clearSpot(w, at) {
   }
   return { x: x, gy: gy };
 }
+test("the soak observer catches duck and peasant cycles without flagging productive work", function () {
+  require("./stuck.js").run();
+});
+
+test("ducks escape ash on water without getting stuck or dying", function () {
+  var ducks = require("../harness/playtests/check.js");
+  ducks.ashCycle(false);
+  ducks.ashCycle(true);
+});
+
+test("ducks trapped below a ceiling time out, but ducks that can surface survive", function () {
+  var ducks = require("../harness/playtests/check.js");
+  ducks.submergedCeiling(false);
+  ducks.submergedCeiling(true);
+  ducks.surfacingResetsTimeout();
+});
+
 test("a porch light is put up even when the builder is standing under it", function () {
   var w = sim.load(1), g = w.g, p = g.peasants[0], spot = clearSpot(w, 200), x = spot.x, gy = spot.gy;
   /* a wall to hang the bracket off, and a lamp in the same column the builder stands in */

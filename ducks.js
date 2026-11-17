@@ -85,7 +85,7 @@ function duckSpawn(g, x, y, kind, baby, quiet) {
   if (g.ducks.length >= D_MAX) { if (!quiet) feed(g, "that is enough ducks", "#ffd94a"); return null; }
   kind = kind || pWeighted(D_KINDS);
   var d = { id: ++g.did, kind: kind, x: x, y: y, vx: 0, vy: 0, dir: Math.random() < 0.5 ? -1 : 1, state: "walk",
-            t: baby ? 0 : D_GROW, baby: !!baby, lead: null, idle: 0, dab: 0, fire: 0, stuck: 0, flyT: 0, alt: 0, goal: -1,
+            t: baby ? 0 : D_GROW, baby: !!baby, lead: null, idle: 0, dab: 0, fire: 0, stuck: 0, submerged: 0, flyT: 0, alt: 0, goal: -1,
             quackT: 120 + irnd(600), say: "", sayT: 0, anim: irnd(100), dead: 0, look: irnd(60), seed: null };
   g.ducks.push(d);
   if (!quiet) { achieve(g, "duck"); if (kind.rubber) achieve(g, "rubber"); }
@@ -159,7 +159,11 @@ function dWriggle(g, d) {
   for (i = 0; i < q.length; i++) {
     x = fx + (q[i] % 9) - 4; y = fy + ((q[i] / 9) | 0) - 4;
     if (i && !dBlocked(g, x, y) && !dNasty(g, x, y) && !dNasty(g, x, y + 1) && !dNasty(g, x, y - 2) && x >= 1 && x <= g.gw - 2 && y >= 3) {
-      s = Math.abs(x - fx) + Math.abs(y - fy) * 1.5 + (dGround(g, x, y) || LIQUID[pCell(g, x, y + 1)] ? 0 : 3);
+      /* get above the water if possible: a grain of floating ash can trade
+         places with the next water cell every tick, chasing a duck sideways
+         for ever. air over the surface is a real escape, not another dodge */
+      s = Math.abs(x - fx) + Math.abs(y - fy) * 1.5 + (dGround(g, x, y) || LIQUID[pCell(g, x, y + 1)] ? 0 : 3) +
+          (LIQUID[pCell(g, x, y)] ? 4 : 0);
       if (s < bs) { bs = s; best = { x: x + 0.5, y: y }; }
     }
     for (k = 0; k < 4; k++) {
@@ -308,13 +312,21 @@ function dStep(g, d) {
     }
   } else if (tb > P_SCALD && (d.state === "walk" || d.state === "swim")) dTakeOff(g, d, true);
 
-  /* inside something: climb out of the top, if there is a top */
+  /* unable to get its head above water: count the actual condition, not
+     swimming updates. trying to take off under the ceiling is not a breath */
+  if (LIQUID[cf] && LIQUID[cb] && (dBody(g, fx, fy - 2) || dBody(g, fx, fy - 3))) {
+    d.submerged = (d.submerged || 0) + 1;
+    if (d.submerged > 400) { dDie(g, d, "freeze"); return; }
+  } else d.submerged = 0;
+
+  /* inside something: climb out of the top, if there is a top. a wriggle
+     only counts as an escape once the next update finds the duck clear */
   if (dBlocked(g, d.x, d.y) && d.state !== "thrown") {
     var above = pCell(g, fx, fy - 3), out = dWriggle(g, d);
+    if (++d.stuck > 300) { dDie(g, d, cb === MAT.ICE || above === MAT.ICE ? "freeze" : "buried"); return; }
     if (out) { d.x = out.x; d.y = out.y; d.vy = 0; if (d.state === "fly") d.state = "walk"; }
     else if (!SOLID[above] || D_PASS[above]) d.y = fy - 1;
     else if (!P_HARD[above] && (d.anim % 3) === 0) d.y = fy - 1;
-    else if (++d.stuck > 300) { dDie(g, d, cb === MAT.ICE || above === MAT.ICE ? "freeze" : "buried"); return; }
     return;
   }
   d.stuck = 0;
@@ -445,7 +457,7 @@ function dSwim(g, d) {
   if (d.state !== "swim") { d.state = "swim"; d.vy = 0; }
   /* float: feet in the water, the rest of the duck above it */
   while (depth < 5 && LIQUID[pCell(g, fx, fy - depth)]) depth++;
-  if (depth > 1) { if (!dBody(g, fx, fy - 3)) d.y -= 0.2; else if (++d.stuck > 400) { dDie(g, d, "freeze"); return; } }
+  if (depth > 1) { if (!dBody(g, fx, fy - 3)) d.y -= 0.2; }
   else if (depth === 0) {
     if (dGround(g, d.x, d.y)) { d.state = "walk"; return; }
     if (LIQUID[pCell(g, fx, fy + 1)]) d.y = Math.min(fy + 0.99, d.y + 0.25);

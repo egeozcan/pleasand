@@ -16,19 +16,20 @@
    powder, acid and ice, then a few ideas).
 
    a worker that stops, throws or hangs is a finding: the parent says so
-   and exits 1. stuck peasants are reported on the side; --fail-on-stuck
-   makes them findings too.
+   and exits 1. stuck peasants and ducks are reported on the side;
+   --fail-on-stuck makes them findings too.
    ===================================================================== */
 "use strict";
 var fs = require("fs"), cp = require("child_process"), os = require("os");
 var lib = require("./harness.js");
 var args = require("./args.js");
+var createWatcher = require("./stuck.js").createWatcher;
 
 /* -------------------------------------------------------------------
    one village, watched
    ------------------------------------------------------------------- */
 function worker(seed, ticks, preset) {
-  var h = lib.open({ seed: seed }), watch = {}, found = {}, t0 = Date.now();
+  var h = lib.open({ seed: seed }), stuck = createWatcher(), t0 = Date.now();
   var inv = function (id, expr, every) { h.invariant(id, expr, { every: every || 1 }); };
 
   h.standardInvariants({ every: 1, temps: 30, grid: 60 });
@@ -58,7 +59,10 @@ function worker(seed, ticks, preset) {
     h.give(["bucket", "farm", "mine", "dig", "masonry", "festival"]);
   }
 
-  var chunk = 1000, chunks = [], stop = null, threw = null;
+  /* Sample often enough to see shuffles and work strokes, rather than
+     aliasing them into apparent progress (or an idle productive worker). */
+  var chunk = 30, chunks = [], stop = null, threw = null;
+  stuck.sample(h);
   try {
     for (var done = 0; done < ticks && !stop; done += chunk) {
       var c0 = Date.now();
@@ -68,7 +72,7 @@ function worker(seed, ticks, preset) {
         stop = { kind: r.stopped.kind, id: r.stopped.id, tick: r.stopped.tick, expr: r.stopped.expr, error: r.stopped.error };
         break;
       }
-      stuckWatch(h, watch, found);
+      stuck.sample(h);
     }
   } catch (e) {
     threw = { message: String(e && e.message || e), tick: h.ticks, crash: h.crashReport() };
@@ -82,35 +86,10 @@ function worker(seed, ticks, preset) {
     state: { counts: st.counts, sitesDone: st.counts.sitesDone, ideas: st.ideas.length, rip: st.resources.rip, hash: st.hash },
     events: h.events().reduce(function (o, e) { o[e.kind] = (o[e.kind] || 0) + 1; return o; }, {}),
     deaths: h.events({ kind: "death" }).map(function (e) { return e.tick + ":" + (e.name || "") + ":" + e.cause; }),
-    stuck: Object.keys(found).map(function (k) { return found[k]; }),
+    stuck: stuck.report(),
     context: stop && stop.tick ? h.events({ since: Math.max(0, stop.tick - 200), limit: 6 }) : null
   };
   return out;
-}
-
-/* a peasant who has held the same task, in the same place, with no stroke
-   made, for a long time: the shape of a stalled builder or a plan that
-   cannot be walked */
-var BENIGN = { sleep: 1, warm: 1, home: 1, watch: 1, festival: 1, visit: 1 };
-function stuckWatch(h, watch, found) {
-  h.g.peasants.forEach(function (p) {
-    if (p.dead || !p.task || BENIGN[p.task.kind]) { delete watch[p.id]; return; }
-    var w = watch[p.id], now = h.ticks;
-    var pos = Math.round(p.x * 4) + "," + Math.round(p.y * 4);
-    var act = (p.task.act | 0) + ":" + (p.task.n | 0);
-    if (!w || w.pos !== pos || w.act !== act || w.kind !== p.task.kind) {
-      watch[p.id] = { pos: pos, act: act, kind: p.task.kind, since: now, name: p.name };
-      return;
-    }
-    var still = now - w.since;
-    if (still > 2400 && !found[p.id]) {
-      var s = h.g.sites.filter(function (x) { return x.id === p.task.site; })[0];
-      found[p.id] = {
-        tick: now, name: p.name, id: p.id, task: p.task.kind, site: s ? s.kind + "#" + s.id : null,
-        x: +p.x.toFixed(1), y: +p.y.toFixed(1), still: still, climb: !!p.climb, since: p.task.t | 0
-      };
-    }
-  });
 }
 
 /* -------------------------------------------------------------------
@@ -184,7 +163,8 @@ function main() {
       console.log("PLEASAND soak · " + preset + " · " + ticks + " ticks · seeds " + seeds.join(","));
       results.forEach(function (r) {
         var bad = isBad(r);
-        var tag = r.timeout ? "HANG" : (r.threw ? "THREW" : (r.stop ? "STOP " + r.stop.kind + " " + (r.stop.id || "") : "ok"));
+        var tag = r.timeout ? "HANG" : (r.threw ? "THREW" : (r.stop ? "STOP " + r.stop.kind + " " + (r.stop.id || "") :
+          (r.stuck && r.stuck.length ? "STUCK" : "ok")));
         console.log((bad ? "!! " : "   ") + String(r.seed).padStart(3) + "  " + tag.padEnd(18) +
           (r.msPerTick != null ? r.msPerTick.toFixed(2) + "ms/t" : "") +
           (r.state ? "  " + r.state.counts.alive + " alive, " + r.state.counts.sitesDone + "/" + r.state.counts.sites + " sites, " + r.state.ideas + " ideas, " + r.state.rip + " dead" : "") +
@@ -193,8 +173,9 @@ function main() {
         if (r.threw) console.log("        " + r.threw.message);
         if (r.deaths && r.deaths.length) console.log("        deaths: " + r.deaths.slice(-5).join(" "));
       });
-      var bad = results.filter(isBad);
-      console.log((bad.length ? bad.length + " of " + results.length + " seeds found trouble" : "all " + results.length + " seeds clean") +
+      var bad = results.filter(isBad), warned = results.filter(function (r) { return r.stuck && r.stuck.length; });
+      console.log((bad.length ? bad.length + " of " + results.length + " seeds found trouble" :
+        (warned.length ? warned.length + " seeds with stuck-unit warnings (use --fail-on-stuck)" : "all " + results.length + " seeds clean")) +
         " in " + (results.reduce(function (n, r) { return n + (r.ms || 0); }, 0) / 1000).toFixed(0) + "s of cpu");
     }
     var bad2 = results.filter(isBad);

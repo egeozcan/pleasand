@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "seed": 14,
+  "ticks": 60000,
+  "hash": "8e4852ee",
+  "baselineHash": "0169c098",
+  "ops": [
+    {
+      "at": 0,
+      "op": "give",
+      "args": {
+        "ideas": [
+          "farm",
+          "lamp",
+          "bucket",
+          "dig",
+          "grave",
+          "fish",
+          "scarecrow",
+          "festival",
+          "mine",
+          "masonry",
+          "smelt",
+          "lift",
+          "bell",
+          "oil",
+          "rocket"
+        ]
+      }
+    },
+    {
+      "at": 0,
+      "op": "set",
+      "args": {
+        "path": "g.iron",
+        "value": 40
+      }
+    },
+    {
+      "at": 0,
+      "op": "set",
+      "args": {
+        "path": "g.barrels",
+        "value": 40
+      }
+    }
+  ]
+}
