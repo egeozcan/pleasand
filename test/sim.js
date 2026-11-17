@@ -15,7 +15,7 @@
 "use strict";
 var fs = require("fs"), path = require("path"), zlib = require("zlib");
 var ROOT = path.join(__dirname, "..");
-var FILES = ["audio.js", "world.js", "heat.js", "peasants.js", "build.js", "paths.js", "ideas.js", "mines.js", "ducks.js", "game.js"];
+var FILES = ["audio.js", "world.js", "heat.js", "peasants.js", "build.js", "paths.js", "ideas.js", "mines.js", "oil.js", "ducks.js", "game.js"];
 
 function stubCtx() {
   var c = { createImageData: function (w, h) { return { data: new Uint8ClampedArray(w * h * 4), width: w, height: h }; },

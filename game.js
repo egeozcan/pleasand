@@ -48,6 +48,9 @@ var TIPS = [
   "tip: peasants who farm will chase ducks out of the wheat. throw one in and see",
   "tip: a village that knows buckets and landscaping, and lives a long way from water, digs itself a pond",
   "tip: there is coal, iron ore and gold in the rock. a village that has dug enough holes will go looking for it",
+  "tip: deep in the rock there is oil. a mine can smell it, and then they want a derrick",
+  "tip: an oil well pours its overflow at the foot of the derrick. do not bring a torch",
+  "tip: oil, a tank and a little iron: the peasants will eventually think of rocket packs",
   "tip: hover over the dark rock of a mine. the galleries go where the ore is",
   "tip: a watchtower has a ladder up the inside. a lift is quicker. iron makes a lift",
   "tip: paint some ICE where they walk. or COOL the pond and watch them cross it",
@@ -521,9 +524,11 @@ function drawWorld(g) {
   hot += bDraw(g);
   hot += iDraw(g);
   hot += mDraw(g);
+  hot += oDraw(g);
   ducksDraw(g);
   peasantsDraw(g);
   mDrawOver(g);
+  oDrawOver(g);
   return hot;
 }
 var WIN_DARK = hex32("#1e2638"), DOOR_KNOB = hex32("#e8c050");

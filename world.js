@@ -1238,6 +1238,7 @@ function sandLandscape(g) {
     top[x] = hgt[x] - 5;
   }
   sandOres(g, hgt);
+  oSeedOil(g, hgt);   /* and the odd pool of oil, sealed deep in the rock (oil.js) */
   /* fill the deepest dip, away from the huts, up to just under its lip */
   for (x = 0; x < gw; x++) {
     var nearHut = false;

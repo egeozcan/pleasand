@@ -295,7 +295,8 @@ function peasantSpawn(g, x, y, quiet) {
     charred: 0, zap: 0, falling: false, fallY: y, anim: irnd(100), spin: 0, buried: 0, flyT: 0, immune: 0,
     say: "", sayT: 0, chat: 120 + irnd(900), voice: 170 + Math.random() * 280,
     hat: hat, pal: pPal(cols), dead: 0, spaceT: 0, fromSpace: 0,
-    hunger: irnd(2000), bored: irnd(1000), logs: 0, task: null, boards: 0, home: 0, tired: irnd(6000), sleep: 0
+    hunger: irnd(2000), bored: irnd(1000), logs: 0, task: null, boards: 0, home: 0, tired: irnd(6000), sleep: 0,
+    pack: 0, launch: 0
   };
   g.peasants.push(p);
   if (!quiet) { pSay(g, p, "spawn", true); g.fx.pop++; }
@@ -587,6 +588,10 @@ function pStep(g, p) {
   if (p.immune > 0) p.immune--;
   if (p.fromSpace > 0) p.fromSpace--;
   p.anim++;
+  if (p.launch && p.state !== "fly") {   /* (down again: the rocket pack is off, till next time) */
+    if (p.state === "walk") pSay(g, p, "rocketLand", true);
+    p.launch = 0;
+  }
   if (p.state === "held") { pHeld(g, p); return; }
   if (p.state === "space") {
     if (--p.spaceT <= 0) {
@@ -647,6 +652,7 @@ function pStep(g, p) {
   if (p.plantCD > 0) p.plantCD--;
   if (p.exploreCD > 0) p.exploreCD--;
   if (p.mineCD > 0) p.mineCD--;
+  if (p.oilCD > 0) p.oilCD--;
   p.pose = null; p.navMove = null; p.hold = false;
   /* sinking into a bush or a tree, to go down through it: until their feet are in it. from there it holds nobody up */
   if (p.sink && (Math.floor(p.y) >= p.sink || --p.sinkT <= 0 || p.state !== "walk")) { p.sink = 0; P_SINK = false; }
@@ -1191,7 +1197,7 @@ function pFly(g, p) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y);
   var onGround = pGround(g, fx, fy);
   /* thrown, and coming down slowly enough to do something about it */
-  if (!onGround && p.flyT > 12 && pTryChute(g, p)) { p.state = "walk"; p.spin = 0; return; }
+  if (!onGround && p.flyT > 12 && !p.launch && pTryChute(g, p)) { p.state = "walk"; p.spin = 0; return; }
   /* thrown onto ice: they do not stop, they slide, on their back */
   if (onGround && Math.abs(p.vy) < 0.6 && Math.abs(p.vx) > 0.15 && pOnIce(g, fx, fy)) {
     p.state = "walk"; p.spin = 0; p.falling = false; p.fallY = p.y; p.vy = 0; p.stun = 0;
@@ -1724,6 +1730,8 @@ function pPickTask(g, p) {
   var t = null, b;
   /* the village is on fire, and they know about buckets: that comes before anything (ideas.js) */
   if (iUrgent(g, p)) return;
+  /* iron in their pocket and oil in a tank: a rocket pack (oil.js) */
+  if (oFirst(g, p)) return;
   /* wood in hand and something to build with it: that comes before lunch */
   if (bCarries(p) && p.cold <= 80) { var bs = bNearestSite(g, p, 170); if (bs) { bJoin(g, p, bs); return; } }
   var edible = function (g2, x, y) { return !pAvoid(g2, p, x) && pEdible(g2, x, y); };
@@ -1969,6 +1977,8 @@ function peasantsDraw(g) {
     pBlit(g, p.hat.spr, ox, oy, flip, rot, pal, p.fire > 0);
     pBlit(g, body, ox, oy, flip, rot, pal, p.fire > 0);
     if (rot === 0 && !g.thermal) iDrawGear(g, p, ox, oy);   /* a bucket, a fishing rod, a bright idea (ideas.js) */
+    if (p.pack && rot === 0 && !g.thermal) pDrawPack(g, p, ox, oy);   /* (oil.js) */
+    if (p.launch) pDrawFlame(g, p, ox, oy);
   }
   /* ghosts: half see-through, which is the least a ghost can do */
   var px = g.px, gw = g.gw, gh = g.gh, G = g.ghosts;

@@ -199,7 +199,8 @@ test("iron ore, melted, sets as iron", function () {
 
 test("a village with everything draws, reads out and describes itself without falling over", function () {
   var w = sim.load(4), g = w.g;
-  know(g, ["farm", "dig", "mine", "masonry", "smelt", "lift", "bell"]);
+  know(g, ["farm", "dig", "mine", "masonry", "smelt", "lift", "bell", "oil", "rocket"]);
+  g.iron = 6; g.barrels = 12;
   for (var n = 0; n < 12; n++) {
     watch(w, 1000);
     w.gameDraw(g, w.ctx);
@@ -207,6 +208,133 @@ test("a village with everything draws, reads out and describes itself without fa
     g.sites.forEach(function (s) { s.plan.forEach(function (e, k) { if (k % 5 === 0) { var r = w.cellReadout(g, e.i); check(!/undefined|NaN/.test(r), "readout: " + r); } }); });
     check(!/undefined/.test(w.iSummary(g)), "summary: " + w.iSummary(g));
   }
+});
+
+test("there is oil in the rock, and a mine can smell it", function () {
+  var w = sim.load(2), g = w.g, p = g.peasants[0];
+  know(g, ["farm", "dig", "mine"]);
+  check(w.oOilInRock(g) > 100, "only " + w.oOilInRock(g) + " cells of oil in the rock");
+  check(w.mPlanMine(g, p), "nowhere for a mine");
+  sim.build(w, sites(g, "mine")[0]);
+  w.oSmell(g);
+  check(g.oilSeen && g.found.oil, "the mine did not smell the oil");
+  g.iron = 1;
+  var idea = w.IDEAS.filter(function (I) { return I.id === "oil"; })[0];
+  check(idea && idea.ready(g), "nobody thought of an oil well");
+});
+
+test("an oil well is planned over a pool, and its pump brings the oil up", function () {
+  var w = sim.load(7), g = w.g, p = null, s = null, k, i;
+  g.know.oil = "TEST"; g.iron = 5;
+  for (k = 0; k < g.peasants.length && !s; k++) {
+    p = g.peasants[k];
+    if (w.oPlanWell(g, p)) s = g.sites[g.sites.length - 1];
+  }
+  check(s && s.kind === "well", "nowhere to sink a well");
+  check(s.plan.some(function (e) { return e.v === w.MAT.GIRDER; }), "the derrick has no iron in it");
+  check(s.plan.some(function (e) { return e.v === w.MAT.LADDER; }), "the derrick has no ladder in it");
+  /* the oil the pump can reach, exactly as oFindOil sees it */
+  function poolOil() {
+    var n = 0;
+    for (var y = s.G + 4; y < Math.min(g.gh - 1, s.G + 90); y++)
+      for (var x = Math.max(1, s.col - 6); x <= Math.min(g.gw - 2, s.col + 6); x++)
+        if (g.m[y * g.gw + x] === w.MAT.OIL) n++;
+    return n;
+  }
+  var before = poolOil();
+  sim.build(w, s);
+  w.oFinish(g, s, p);
+  check(g.barrels === before - poolOil(), "the gusher made oil out of nothing");
+  p.x = s.pump.x + 0.5; p.y = s.pump.y; p.state = "walk"; p.task = null;
+  var made = g.barrels, left = poolOil();
+  k = { kind: "pump", site: s.id, t: 0, act: 0, n: 0 };
+  for (i = 0; i < 1200; i++) { w.oTaskPump(g, p, k); }
+  check(g.barrels > made, "no oil was pumped");
+  check(poolOil() === left - (g.barrels - made), "the pump was not drawing from the pool (" + left + " -> " + poolOil() + ")");
+  check(s.tank > 0 && s.tank <= 5, "the tank holds " + s.tank + " barrels");
+  check(w.oSumpCount(g, s) > 0, "nothing overflowed into the sump");
+  check(!s.dry, "the well went dry at once");
+  w.gameDraw(g, w.ctx);
+  /* work the pool out, and the well knows it */
+  made = g.barrels;
+  for (var y = s.G + 4; y < Math.min(g.gh - 1, s.G + 90); y++) for (var x = Math.max(1, s.col - 6); x <= Math.min(g.gw - 2, s.col + 6); x++) {
+    var j = y * g.gw + x;
+    if (g.m[j] === w.MAT.OIL) { g.m[j] = w.MAT.EMPTY; w.heatSync(g, j); }
+  }
+  k = { kind: "pump", site: s.id, t: 0, act: 0, n: 0 };
+  for (i = 0; i < 300 && !s.dry; i++) w.oTaskPump(g, p, k);
+  check(s.dry, "the well did not run dry");
+  check(g.barrels === made, "a dry well was still giving oil");
+});
+
+test("a derrick on uneven ground stands its posts under its own legs", function () {
+  var w = sim.load(7), g = w.g, p = null, s = null, k, x0, gy, j, r, cols = {};
+  g.know.oil = "TEST"; g.iron = 5;
+  for (k = 0; k < g.peasants.length && !s; k++) {
+    p = g.peasants[k];
+    if (w.oPlanWell(g, p)) s = g.sites[g.sites.length - 1];
+  }
+  check(s && s.kind === "well", "nowhere to sink a well");
+  x0 = s.dx0;
+  w.bRemove(g, g.sites.indexOf(s));
+  gy = w.bGround(g, x0, s.G - 1);
+  check(gy > 0 && g.m[(gy + 2) * g.gw + x0] !== w.MAT.EMPTY, "(the test wants two cells of ground to take away)");
+  for (k = 0; k < 2; k++) { j = (gy + k) * g.gw + x0; g.m[j] = w.MAT.EMPTY; w.heatSync(g, j); }
+  r = w.oWellPlot(g, x0, s.G - 1);
+  check(r, "the lowered plot is no longer a plot");
+  check(r.fill.length > 0, "nothing was planned under the low leg");
+  r.fill.forEach(function (f) { cols[f[0]] = 1; });
+  check(cols[x0] === 1, "the posts were not put under the leg at " + x0 + " (" + Object.keys(cols).join(",") + ")");
+});
+
+test("a derrick that is stocked with iron goes up without being forced", function () {
+  var w = sim.load(8), g = w.g, p = null, s = null, k, t;
+  g.know.oil = "TEST"; g.iron = 8;
+  for (k = 0; k < g.peasants.length && !s; k++) {
+    p = g.peasants[k];
+    if (w.oPlanWell(g, p)) s = g.sites[g.sites.length - 1];
+  }
+  check(s && s.kind === "well", "nowhere to sink a well");
+  s.stock = { iron: 40 };
+  g.peasants.forEach(function (q) { q.task = null; });
+  g.peasants.slice(0, 3).forEach(function (q) { w.bJoin(g, q, s); });
+  for (t = 0; t < 6000 && !s.done; t++) {
+    sim.step(w, 1);
+    if (t % 1000 === 999) g.peasants.forEach(function (q) { if (!q.task) w.bJoin(g, q, s); });
+  }
+  check(s.done, "the derrick did not go up (" + Math.round(w.bShare(g, s) * 100) + "%)");
+});
+
+test("with oil in the tank, a peasant builds a rocket pack and flies it", function () {
+  var w = sim.load(7), g = w.g, p = null, s = null, k, i, x;
+  g.know.oil = "TEST"; g.know.rocket = "TEST"; g.iron = 5; g.barrels = 12;
+  for (k = 0; k < g.peasants.length && !s; k++) {
+    p = g.peasants[k];
+    if (w.oPlanWell(g, p)) s = g.sites[g.sites.length - 1];
+  }
+  check(s && s.kind === "well", "nowhere to sink a well");
+  var idea = w.IDEAS.filter(function (I) { return I.id === "rocket"; })[0];
+  check(idea && idea.ready(g), "nobody thought of rocket packs");
+  sim.build(w, s);
+  s.tank = 6; p.iron = 1; p.pack = 0; p.task = null;
+  p.x = s.pump.x + 0.5; p.y = s.pump.y; p.state = "walk";
+  k = { kind: "pack", site: s.id, t: 0, act: 0 };
+  for (i = 0; i < 400 && !p.pack; i++) w.oTaskPack(g, p, k);
+  check(p.pack, "no rocket pack was built");
+  check(s.tank === 6 - w.O_PACK_OIL, "the pack did not take its oil (" + s.tank + ")");
+  check(p.iron === 0, "the pack did not take its iron (" + p.iron + ")");
+  w.gameDraw(g, w.ctx);   /* (the tank on their back) */
+  /* open ground, and up */
+  for (x = 20; x < g.gw - 20; x++) { var gy = w.mGround(g, x); if (gy > 20) break; }
+  p.x = x + 0.5; p.y = gy - 1; p.state = "walk"; p.task = null; p.idle = 0; p.chute = null; p.climb = null;
+  check(w.oLaunch(g, p), "would not launch");
+  check(p.state === "fly" && p.immune > 0, "the launch went nowhere");
+  w.gameDraw(g, w.ctx);   /* (the flame under it) */
+  for (i = 0; i < 1600 && p.state === "fly"; i++) sim.step(w, 1);
+  check(!p.dead, "the rocket pack killed them");
+  check(p.state === "walk", "still up there");
+  sim.step(w, 2);
+  check(!p.launch, "the pack is still burning after landing");
 });
 
 var failed = 0, t0 = Date.now();

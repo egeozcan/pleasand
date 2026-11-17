@@ -7,7 +7,8 @@ lava, stone, metal, ice, snow, gunpowder, ash, salt, seed, glass, acid, gas,
 torch, faucet, drain, cloner, and inert: a magic block that stays where you put
 it, carries no heat and ignores everything but the eraser), plus fireworks, a
 nuke and lightning. And under the sand, in the rock, what you cannot paint:
-seams of coal, lumps of iron ore and, deep down, the odd speck of gold.
+seams of coal, lumps of iron ore and, deep down, the odd speck of gold, and here
+and there a pool of oil sealed in the stone, waiting for somebody to drill for it.
 
 Every pixel has a temperature. Heat flows from hot to cold, fast through metal
 and slowly through wood, ash and air; hot air and hot water rise, cold air sinks.
@@ -130,6 +131,18 @@ next idea, and the next:
   bracket out over the battlements. It rings for every new idea, and when
   anything of theirs is on fire it rings and rings, and the whole valley
   hears it: the sleepers wake, and the bucket brigade comes from however far
+- **The oil well**: comes of a smell of oil under the rock (a mine dug to the
+  bottom of it will find one) and of iron enough for a derrick. An iron deck,
+  a frame of iron legs and braces, and a ladder up the inside to build it by. Somebody
+  works the pump at the foot of it, and every stroke brings up a barrel. The
+  first few go in the tank; after that the well overflows, and the oil pools at
+  the foot of the derrick, black and patient and extremely flammable. The oil is
+  finite: when the pool under it is empty the well runs dry, and they sink
+  another. (Do not bring a torch.)
+- **Rocket packs**: comes of a tank of oil and a bar of iron, and somebody with
+  more nerve than sense. A peasant puts one together at the well: a tank, a
+  nozzle, a seat, and no brakes. Then, when they are bored enough, they light it
+  and go up. They come down again, mostly. The ducks are not impressed
 
 Building with stone (or iron, or gold) works as building with wood does,
 except that a site keeps a pile: whoever brings some puts it on the pile, and
@@ -148,8 +161,8 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 
 To check it still works, with node (and still no dependencies): `node test/run.js`
 plays a few villages headless, with some things forced, and checks them (mines,
-galleries, the furnace, lifts, the bell, ice). `test/sim.js` is the game without
-a browser, for writing more.
+galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
+`test/sim.js` is the game without a browser, for writing more.
 
 ## Controls
 
@@ -195,6 +208,8 @@ a browser, for writing more.
 - Make them a floating island, with flowers on it. Somebody will go up and have a look
 - Paint a meadow of plants for them, and watch for light bulbs
 - Once they know about buckets, set fire to a house. Then build them a pond next to it. Or wait for them to dig one
+- Sink a mine, then set fire to the oil pooled at the foot of their new well. Stand back
+- Wait for a peasant to build a rocket pack, then watch them go up. Try it from a tower
 - Leave the ducks near the wheat for a while. Watch who runs at them
 - Boil the pond while somebody is fishing in it
 - Paint some ICE across their path. Or COOL the pond until it freezes, and wait for somebody to cross it in a hurry

@@ -163,7 +163,12 @@ var IDEAS = [
   { id: "lift", name: "the lift", title: "THE LIFT", sub: "a cage on a chain, and a wheel at the top. why climb?", hint: "iron, and a long climb",
     ready: function (g) { return g.iron >= 2 && mLadders(g) > 0; } },
   { id: "bell", name: "the bell", title: "THE BELL", sub: "gold rings. hang it up high, and the whole valley hears it", hint: "something shiny, up high",
-    ready: function (g) { return g.found.gold >= 2 && mSites(g, "tower", true).length > 0; } }
+    ready: function (g) { return g.found.gold >= 2 && mSites(g, "tower", true).length > 0; } },
+  /* and what is deeper still, and what it is good for (oil.js) */
+  { id: "oil", name: "the oil well", title: "THE OIL WELL", sub: "there is oil under the rock. bring it up", hint: "a smell of oil",
+    ready: function (g) { return !!g.oilSeen && g.iron >= 1; } },
+  { id: "rocket", name: "the rocket pack", title: "ROCKET PACKS", sub: "oil, a tank, a nozzle, and one brave peasant", hint: "oil enough",
+    ready: function (g) { return !!g.know.oil && (g.barrels || 0) >= O_ROCKET_OIL && g.iron >= 2; } }
 ];
 
 /* -------------------------------------------------------------------
@@ -174,7 +179,9 @@ function ideasReset(g) {
   g.know = {}; g.dug = 0; g.dead = []; g.blaze = []; g.burnt = false; g.raids = 0; g.raidT = 0; g.festT = 0; g.ideaT = 0; g.blankT = 0;
   /* what has come up out of the ground so far, and how much iron they have made of it (mines.js). rock: how often
      anybody has stood on bare rock, and wondered */
-  g.found = { stone: 0, coal: 0, ore: 0, gold: 0 }; g.iron = 0; g.rock = 0;
+  g.found = { stone: 0, coal: 0, ore: 0, gold: 0, oil: 0 }; g.iron = 0; g.rock = 0;
+  /* and what comes up out of a well, and what they make of it (oil.js) */
+  g.oilSeen = 0; g.barrels = 0; g.packs = 0;
 }
 function iKnown(g) { var n = 0; for (var k in g.know) n++; return n; }
 function iHouses(g) {
@@ -253,6 +260,8 @@ function iPick(g, p) {
   }
   /* the mine, and everything that comes up out of it (mines.js) */
   if (mPick(g, p, hungry)) return true;
+  /* the oil well, and the rocket pack (oil.js) */
+  if (oPick(g, p, hungry)) return true;
   if (K.fish && (hungry || (p.bored > 700 && Math.random() < 0.3)) && iGoFish(g, p)) return true;
   if (K.bucket && !hungry && Math.random() < 0.15 && iGoWater(g, p)) return true;
   /* things that want wood: with some in hand, or now and then without (somebody with wood will be along) */
@@ -292,7 +301,9 @@ function iTask(g, p, k) {
   if (k.kind === "visit") return iTaskVisit(g, p, k);
   if (k.kind === "festival") return iTaskFestival(g, p, k);
   if (k.kind === "watch") return iTaskWatch(g, p, k);
-  return mTask(g, p, k);
+  var r = mTask(g, p, k);
+  if (r !== undefined) return r;
+  return oTask(g, p, k);
 }
 function iDone(p, ok) { p.task = null; p.taskDone = !!ok; return false; }
 /* how many are at a job of this kind, on this site */
@@ -313,7 +324,7 @@ function iWalk(g, p, k, key, x, y, goal) {
 /* what somebody will drop to go and watch the fireworks */
 var I_FUN = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, light: 1, lookout: 1 };
 /* once a third of a second or so: what is on fire */
-var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1, shoo: 1, lookout: 1, smelt: 1 };
+var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1, shoo: 1, lookout: 1, smelt: 1, pump: 1, pack: 1 };
 /* what somebody will drop when the alarm goes up: anything they are only doing for fun, or that can wait (a snack, a
    chat round the campfire, a bit of hammering) */
 function iCanWait(p, k) {
@@ -343,8 +354,9 @@ function ideasStep(g) {
   }
   /* ducks in the wheat: somebody who is only doing something for fun goes and chases each one off */
   if (g.know.farm && !g.blaze.length) iShooAlarm(g);
-  /* furnaces, bells (mines.js) */
+  /* furnaces, bells (mines.js), and the smell of oil under the rock (oil.js) */
   mStep(g);
+  oStep(g);
   /* the bell, ringing for a fire, wakes the whole valley, buckets or no buckets */
   if (g.blaze.length && mRinging(g)) for (k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
@@ -1395,6 +1407,7 @@ function iLabel(s) {
   if (s.kind === "scarecrow") return "the scarecrow";
   if (s.kind === "jetty") return "the jetty";
   if (s.kind === "pond") return "the pond";
+  if (s.kind === "well") return oLabel(s);
   return mLabel(s);
 }
 /* a site of ours is finished. true if it was one of ours */
@@ -1411,7 +1424,7 @@ function iFinish(g, s, p) {
     /* and a flower, at the foot of it */
     var x = Math.round(s.cx - 0.5) + (Math.random() < 0.5 ? -1 : 1), j = s.y1 * g.gw + x;
     if (g.m[j] === MAT.EMPTY && pSolid(g, x, s.y1 + 1)) { sandSet(g, j, MAT.FLOWER); g.sh[j] = irnd(42) * 6 + 1 + irnd(5); }
-  } else return mFinish(g, s, p);
+  } else if (!oFinish(g, s, p)) return mFinish(g, s, p);
   return true;
 }
 /* what the village knows, and who thought of it, and what might put the rest into their heads: for the bar at the
@@ -1431,6 +1444,8 @@ function iMood(g, p) {
   if (p.bulb > 0) return "has had an idea!";
   var mm = mMood(g, p);
   if (mm) return mm;
+  var om = oMood(g, p);
+  if (om) return om;
   if (!k) return "";
   if (k.kind === "build" && (s = bSite(g, k.site)) && s.kind === "farm")
     return (s.sow ? "is sowing " : "is working on ") + bLabel(s) + ". it takes no wood, just elbow grease";
