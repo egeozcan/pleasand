@@ -6,7 +6,8 @@ Twenty-odd kinds of pixel (sand, water, salt water, oil, wood, plant, fire,
 lava, stone, metal, ice, snow, gunpowder, ash, salt, seed, glass, acid, gas,
 torch, faucet, drain, cloner, and inert: a magic block that stays where you put
 it, carries no heat and ignores everything but the eraser), plus fireworks, a
-nuke and lightning.
+nuke and lightning. And under the sand, in the rock, what you cannot paint:
+seams of coal, lumps of iron ore and, deep down, the odd speck of gold.
 
 Every pixel has a temperature. Heat flows from hot to cold, fast through metal
 and slowly through wood, ash and air; hot air and hot water rise, cold air sinks.
@@ -19,10 +20,15 @@ lava stays runny under its crust. Ice melts, water boils, steam rains (or
 snows, if you chill it hard), stone runs as lava past 1150 and lava sets again
 below 950, sand sinters into glass, glass and metal melt and set, wood, oil,
 plants and gas catch on their own when hot enough, and salt water boils down
-to salt. Also a small village of
+to salt. Coal catches late and burns a long while; iron ore runs, and what
+runs out of it sets as iron. Also a small village of
 peasants who walk about, chat, climb things, jump ledges and gaps, carry ninja ropes and parachutes (which mostly open), swim, catch fire, run for
 the pond, go to space if thrown hard enough, and have opinions about all of
-it. They have names. The game keeps count. There are ducks, too: they
+it. On ice they take a while to get going and a good deal longer to stop:
+turn round in a hurry, or run, and down they go, sliding along on their
+back until the ice runs out, or a wall comes, or somebody else's legs do
+(thrown onto a frozen pond, they do not stop either). They have names. The
+game keeps count. There are ducks, too: they
 waddle, swim, dabble, fly, eat seeds, push through bushes and flowers, and
 sometimes bring ducklings.
 
@@ -67,7 +73,8 @@ think of:
   house and sends them out of the nearer door (not the one with the fire in
   front of it), and nobody runs home to a house that is on fire. A peasant who
   is burning runs for the pond from further off, or for the nearest bucket,
-  and anybody with a full bucket runs at them and tips it over their head
+  and anybody with a full bucket runs at them and tips it over their head. On a
+  bridge with water under it they just drop through the planks into it
 - **Landscaping**: comes of turning earth over (hoeing a field, shovelling out a
   plot). With that and the bucket, a house or field with no water within forty
   cells or so gets a pond of its own: a bowl dug into the sand beside it (it
@@ -89,6 +96,47 @@ think of:
 - **Fireworks**: once they have a couple of houses and a couple of ideas, now
   and then somebody puts on a show, and everybody comes to watch
 
+And under the sand there is rock. What comes up out of it gives them the
+next idea, and the next:
+
+- **Mining**: comes of digging enough holes (or standing on bare rock and
+  wondering). A mine: five columns dug down through the sand, the sand
+  either side held back by a collar of timbers, a shaft three wide straight
+  down into the rock with a ladder in it, row by row, so whoever is at the
+  bottom can always climb out, and the spoil tipped on a heap beside it. Then
+  galleries off the bottom, pushed out a stretch at a time, towards whatever
+  is worth having (they look a good way along the rock), following a seam up
+  into the roof and down into the floor. Timber props every few steps, the
+  rock dark, and a warm pool of candlelight round every miner. A pick takes a
+  cell at a time, and what comes out goes in their pockets: stone, coal, iron
+  ore, gold. The first of each is news. A mine takes no wood, just a pick:
+  anybody lends a hand. When it is worked out both ways, they sink another
+- **Masonry**: comes of a heap of stone. A watchtower, seven wide and two dozen
+  high: a door at the foot of each side, so it is in nobody's way, a ladder
+  up the inside, built a row at a time with the walls round it so whoever is
+  building it climbs what they have built, and a lookout on top, jutting out
+  on corbels, with battlements and a lantern. The bored go up and look out
+  over the valley (and shout if they see smoke), and the explorers love it
+- **Smelting**: comes of finding both coal and iron ore. A furnace by the
+  mine, with a mouth and a chimney. Everybody's ore and coal goes in it, and
+  whoever is there works the bellows: the hearth glows, the chimney smokes,
+  and out comes a bar of iron. And with iron, iron picks: mining goes
+  nearly twice as fast
+- **The lift**: comes of iron, and a long ladder. An iron headframe over the
+  top of a mine shaft or a tower, a wheel, a chain, and a cage, which comes
+  to whoever wants it and runs up and down four times as fast as anybody
+  climbs. They work out their routes by it, too
+- **The bell**: comes of gold, and a tower to hang it from. A golden bell on a
+  bracket out over the battlements. It rings for every new idea, and when
+  anything of theirs is on fire it rings and rings, and the whole valley
+  hears it: the sleepers wake, and the bucket brigade comes from however far
+
+Building with stone (or iron, or gold) works as building with wood does,
+except that a site keeps a pile: whoever brings some puts it on the pile, and
+whoever is building builds from it, so somebody with stone and somebody with
+wood can build a stone tower with wooden doors between them. Hover over a
+site to see what it is waiting for.
+
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
 and grown from there.
 
@@ -97,6 +145,11 @@ and grown from there.
 No build, no dependencies. Open `index.html`, or serve the folder:
 
     python3 -m http.server
+
+To check it still works, with node (and still no dependencies): `node test/run.js`
+plays a few villages headless, with some things forced, and checks them (mines,
+galleries, the furnace, lifts, the bell, ice). `test/sim.js` is the game without
+a browser, for writing more.
 
 ## Controls
 
@@ -144,6 +197,11 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - Once they know about buckets, set fire to a house. Then build them a pond next to it. Or wait for them to dig one
 - Leave the ducks near the wheat for a while. Watch who runs at them
 - Boil the pond while somebody is fishing in it
+- Paint some ICE across their path. Or COOL the pond until it freezes, and wait for somebody to cross it in a hurry
+- Throw a peasant onto the ice, at a line of other peasants
+- Hover over the rock: the black is coal, the rust is iron ore, and the glint is gold. Then watch where the galleries go
+- Hold HEAT on a lump of iron ore in the rock, and see what it sets into
+- Set fire to something once the bell is up. Everybody comes
 
 ## Files
 
@@ -154,5 +212,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - `paths.js`: how the villagers find their way: A* over everywhere a peasant could stand, using the moves a peasant really makes (steps, drops, leaps, jumps, ladders, ropes, swims)
 - `build.js`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
 - `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, ponds dug and filled, graves, jetties and fishing, scarecrows, fireworks shows
+- `mines.js`: what is under the sand, and what comes of digging for it: mines and their galleries, coal, iron ore and gold, watchtowers, the furnace and iron, lifts, the bell
 - `ducks.js`: the ducks
 - `game.js`: rendering, the picker and HUD, input, and the main loop
+- `test/`: the game without a browser (`sim.js`), and some checks that it still works (`run.js`)

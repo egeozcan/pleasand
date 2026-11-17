@@ -48,7 +48,10 @@ var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STON
             /* things only peasants make, out of the wood they chop: you will not find these in the picker */
             PLANK: 31, DOOR: 32, LADDER: 33, STAIRS: 34, BED: 35, SAPLING: 36,
             /* and what a well-fed village thinks of next (ideas.js): tilled earth, wheat growing and ripe, a lantern */
-            SOIL: 37, CROP: 38, WHEAT: 39, LAMP: 40 };
+            SOIL: 37, CROP: 38, WHEAT: 39, LAMP: 40,
+            /* what is in the rock, for a village that digs deep enough to find it: coal, iron ore, gold. and what
+               they make of it: dressed stone, and iron girders (a lift's headframe, which they walk through) */
+            COAL: 41, ORE: 42, GOLD: 43, BRICK: 44, GIRDER: 45 };
 /* how many kinds of thing there may ever be: the size of every per-thing table */
 var NMAT = 64;
 
@@ -96,13 +99,13 @@ var SAND_VMAX = 12;     /* top speed: 1 + (12 >> 2) = 4 cells a tick */
 
 /* how heavy each thing is, and which things a falling thing may push past */
 var SAND_DENS = [0, 4, 2, 1, 9, 0.5, 6, 9, 0.1, 9, 9, 4.5, 2.5, 1.5, 9, 9, 0.2, 9, 9, 4.2, 9, 0.15, 9, 3, 9, 4.1, 5, 2.2, 9, 1.8, 9,
-                 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
+                 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
 var SAND_FREE = [0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0,
-                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 /* the brush pours these, a few grains a frame, into empty space only. everything
    else is a solid and gets stamped down whole, over whatever was there. */
 var SAND_POUR = [0, 0.3, 0.35, 0.35, 0, 0.35, 0.35, 0, 0, 0, 0, 0.3, 0.35, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0.35, 0, 0.03, 0, 0.012, 0, 0.35, 0, 0.25, 0,
-                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 /* colours. several shades per thing; each grain is dealt one and keeps it */
 var SAND_SHADES = [
@@ -149,7 +152,14 @@ var SAND_SHADES = [
   ["#4a3222", "#3f2a1c", "#553a28", "#45301f"],
   ["#6fae3c", "#5f9e34", "#7cbc48", "#86c050"],
   ["#e2b84a", "#d4a83e", "#ecc85a", "#c89a36"],
-  ["#ffe08a", "#ffd060", "#fff0b0"]
+  ["#ffe08a", "#ffd060", "#fff0b0"],
+  /* coal: black, with a greasy shine. iron ore: rock shot through with rust. gold: gold */
+  ["#1e1e24", "#2a2a32", "#16161a", "#3c3c48"],
+  ["#8a5034", "#5c6270", "#a8643a", "#6e4a3c"],
+  ["#f0c040", "#ffd860", "#d8a028", "#fff0a0"],
+  /* dressed stone, squared off and mortared (the mortar is drawn in game.js). an iron girder */
+  ["#c2b9a2", "#b6ad96", "#cbc3ad", "#ada48c"],
+  ["#4a5260", "#555e6c", "#3e4652"]
 ];
 
 /* every (thing, shade) pair is worked out once, up here, not sixty times a second */
@@ -175,7 +185,11 @@ var SAND_DEEP = [];
 var SOLID = new Uint8Array(NMAT), LIQUID = new Uint8Array(NMAT), HOT = new Uint8Array(NMAT), AIRY = new Uint8Array(NMAT);
 [MAT.SAND, MAT.WOOD, MAT.STONE, MAT.PLANT, MAT.ICE, MAT.GUNPOWDER, MAT.ASH, MAT.FAUCET, MAT.DRAIN, MAT.EMBER,
  MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW, MAT.INERT,
- MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.SOIL, MAT.CROP, MAT.WHEAT, MAT.LAMP].forEach(function (v) { SOLID[v] = 1; });
+ MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.SOIL, MAT.CROP, MAT.WHEAT, MAT.LAMP,
+ MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER].forEach(function (v) { SOLID[v] = 1; });
+/* rock: what a pick is for (mines.js). it all stays where it is, whatever is dug out from under it */
+var ROCK = new Uint8Array(NMAT);
+[MAT.STONE, MAT.COAL, MAT.ORE, MAT.GOLD].forEach(function (v) { ROCK[v] = 1; });
 /* wood, and everything a peasant has made out of wood: it all burns the same way, down to embers */
 var WOODY = new Uint8Array(NMAT);
 [MAT.WOOD, MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS].forEach(function (v) { WOODY[v] = 1; });
@@ -185,7 +199,8 @@ var LEAFY = new Uint8Array(NMAT);
 /* things that never move and never do anything on their own: the step skips them */
 var STILL = new Uint8Array(NMAT);
 [MAT.EMPTY, MAT.STONE, MAT.WOOD, MAT.GLASS, MAT.FLOWER, MAT.METAL, MAT.INERT,
- MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.WHEAT, MAT.LAMP].forEach(function (v) { STILL[v] = 1; });
+ MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.WHEAT, MAT.LAMP,
+ MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER].forEach(function (v) { STILL[v] = 1; });
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER].forEach(function (v) { LIQUID[v] = 1; });
 /* water, as far as fire, plants, peasants and lightning are concerned */
 var WET = new Uint8Array(NMAT); WET[MAT.WATER] = WET[MAT.SALTWATER] = 1;
@@ -446,8 +461,9 @@ function sandBoom(g, i, R, P) {
       if (r < (big ? (inner ? 0.02 : 0.12) : 0.3)) { sandSet(g, j, MAT.FIRE); if (big) g.sh[j] = SAND_CLEAN; }
       continue;
     }
+    if (t === MAT.COAL && !big) { if (r < 0.3) m[j] = MAT.EMBER; continue; }   /* a seam of coal catches; it does not shatter */
     if (t === MAT.STONE || t === MAT.FAUCET || t === MAT.DRAIN || t === MAT.CLONER || t === MAT.TORCH || t === MAT.LAVA ||
-        t === MAT.METAL) {
+        t === MAT.METAL || ROCK[t] || t === MAT.BRICK || t === MAT.GIRDER) {
       /* only a big one digs a crater, and the middle of it is molten */
       if (big && (inner || r < 0.35 * (1 - d2 / R2))) {
         if (inner && r < 0.12 && (t === MAT.STONE || t === MAT.METAL)) { m[j] = MAT.LAVA; g.aux[j] = t === MAT.METAL ? t : 0; g.lat[j] = 0; g.T[j] = Math.max(g.T[j], 1500); }
@@ -595,7 +611,7 @@ function sandLightning(g, cx) {
   ducksZapNear(g, hit.x, hit.y, 5);
 }
 var CONDUCTS = new Uint8Array(NMAT);
-[MAT.WATER, MAT.SALTWATER, MAT.ACID, MAT.METAL].forEach(function (v) { CONDUCTS[v] = 1; });
+[MAT.WATER, MAT.SALTWATER, MAT.ACID, MAT.METAL, MAT.GIRDER, MAT.GOLD].forEach(function (v) { CONDUCTS[v] = 1; });
 /* flood out through connected water (and metal), mark it, light it up for a moment */
 function sandConduct(g, start) {
   var gw = g.gw, gh = g.gh, m = g.m, mark = g.zmark, list = g.zlist, n = 0, head = 0, j, x, y, k, nb, t;
@@ -924,8 +940,8 @@ function sandLiquid(g, i, x, y) {
       j = sandNb(g, x, y, k);
       if (j < 0) continue;
       t = m[j]; p = 0;
-      if (t === MAT.STONE) p = 0.006;
-      else if (t === MAT.METAL) p = 0.003;
+      if (t === MAT.STONE || t === MAT.BRICK || t === MAT.ORE || t === MAT.COAL) p = 0.006;
+      else if (t === MAT.METAL || t === MAT.GIRDER) p = 0.003;   /* (and gold not at all: that is what gold is for) */
       else if (t === MAT.SAND || t === MAT.SOIL || WOODY[t] || LEAFY[t] || t === MAT.ICE ||
                t === MAT.GUNPOWDER || t === MAT.ASH || t === MAT.SNOW) p = 0.04;
       if (p && Math.random() < p) {
@@ -1031,7 +1047,8 @@ function sandStatic(g, i, x, y) {
     }
     j = sandNb(g, x, y, 0);
     if (j >= 0 && m[j] === MAT.EMPTY && Math.random() < 0.05) sandSet(g, j, Math.random() < 0.3 ? MAT.SMOKE : MAT.FIRE);
-    if (Math.random() < 0.005) m[i] = MAT.ASH;
+    /* (a lump of coal, aux 1, burns a good deal longer than a stick does) */
+    if (Math.random() < (g.aux[i] ? 0.0012 : 0.005)) { m[i] = MAT.ASH; g.aux[i] = 0; }
   } else if (v === MAT.TORCH) {
     j = sandNb(g, x, y, 0);
     /* its own ash would smother it, so it burns that off too */
@@ -1164,12 +1181,41 @@ function sandPool(g, top, huts, hutW) {
   return { x0: best, x1: best + W - 1, L: L };
 }
 
+/* the rock is not all rock: flat seams of coal not far into it, lumps of iron ore further down, and here and there,
+   deep, a speck of gold. painted into the stone, where it is stone, with a skin of plain rock over all of it (rock is
+   the top of the stone at each column) */
+function sandOres(g, rock) {
+  var gw = g.gw, gh = g.gh, k, x, y, dx, dy, cx, cy, n, r, len;
+  function put(x, y, v) {
+    if (x < 0 || x >= gw || y < 0 || y >= gh - 1 || y < rock[x] + 2) return;
+    var j = y * gw + x;
+    if (g.m[j] === MAT.STONE) g.m[j] = v;
+  }
+  for (k = 0; k < 11; k++) {
+    cx = irnd(gw); len = 12 + irnd(22); cy = rock[cx] + 6 + irnd(20); n = 1 + irnd(3);
+    for (dx = -(len >> 1); dx <= len >> 1; dx++) {
+      y = cy + Math.round(Math.sin((cx + dx) * 0.17 + k) * 1.5);
+      for (dy = 0; dy < n + (Math.random() < 0.3 ? 1 : 0); dy++) put(cx + dx, y + dy, MAT.COAL);
+    }
+  }
+  for (k = 0; k < 10; k++) {
+    cx = irnd(gw); cy = rock[cx] + 9 + irnd(28); r = 2 + Math.random() * 2.5;
+    for (dy = -4; dy <= 4; dy++) for (dx = -6; dx <= 6; dx++)
+      if (dx * dx / (r * r * 1.8) + dy * dy / (r * r * 0.6) < 1 && Math.random() < 0.75) put(cx + dx, cy + dy, MAT.ORE);
+  }
+  for (k = 0; k < 10; k++) {
+    cx = irnd(gw); cy = rock[cx] + 14 + irnd(26); n = 1 + irnd(3);
+    for (r = 0; r < n; r++) put(cx + irnd(3) - 1, cy + irnd(2), MAT.GOLD);
+  }
+}
+
 function sandLandscape(g) {
   var gw = g.gw, gh = g.gh, m = g.m, x, y, top = [], ph = Math.random() * 6, lo = 0, k, dx, dy;
   sandClear(g);
   ideasReset(g);   /* a new village has had no ideas yet */
   var hgt = [];
-  for (x = 0; x < gw; x++) hgt[x] = gh - 22 - Math.round(Math.sin(x * 0.07 + ph) * 7 + Math.sin(x * 0.023 + ph * 2) * 13);
+  /* (the rock goes a good way down: somebody may want to dig in it, one day) */
+  for (x = 0; x < gw; x++) hgt[x] = gh - 32 - Math.round(Math.sin(x * 0.07 + ph) * 7 + Math.sin(x * 0.023 + ph * 2) * 13);
   /* flat plots for the huts, away from the edges */
   var huts = [], hutW = 22;
   for (k = 0; k < 2; k++) {
@@ -1191,6 +1237,7 @@ function sandLandscape(g) {
     for (y = hgt[x] - 5; y < hgt[x]; y++) m[y * gw + x] = MAT.SAND;
     top[x] = hgt[x] - 5;
   }
+  sandOres(g, hgt);
   /* fill the deepest dip, away from the huts, up to just under its lip */
   for (x = 0; x < gw; x++) {
     var nearHut = false;

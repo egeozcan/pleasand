@@ -111,14 +111,16 @@ function navEdges(g, x, y, add) {
   if (cx >= 0) {
     for (j = y; j > 0 && pCell(g, cx, j) === MAT.LADDER && !pBody(g, cx, j - 9); j--);
     if (pCell(g, cx, j) === MAT.LADDER) j = y;   /* something overhead: the climber would stop under it (bClimbStep) */
-    for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * 1.2, NAV_LADDER);
+    /* (a ladder with a lift on it is a good deal quicker: mines.js) */
+    var rate = mLiftAt(g, cx, y) ? 0.3 : 1.2;
+    for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * rate, NAV_LADDER);
   }
   /* and down one, from beside the top of it */
   for (s = -1; s <= 1; s += 2) {
     cx = bLadderMid(g, x + s, y + 1);
     if (cx < 0) continue;
     for (j = y; pCell(g, cx, j + 1) === MAT.LADDER && j < g.gh; j++);
-    if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * 1.2, NAV_LADDER);
+    if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * (mLiftAt(g, cx, j) ? 0.3 : 1.2), NAV_LADDER);
   }
 }
 /* the top of the soft stuff overhead (feet out of it, standing on it), with the way up clear of anything hard: its row,

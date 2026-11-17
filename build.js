@@ -40,6 +40,7 @@ var B_HOUSES = 6;                 /* houses there is room for in a valley this s
 var B_REACH_X = 4.5, B_REACH_UP = 13, B_REACH_DOWN = 2;   /* how far a hammer reaches */
 var B_SLEEPY = 9000, B_SLEEP = 1300;                     /* ticks awake before bed, and asleep in it */
 var B_CLIMB = 0.25;               /* rows a tick, on a ladder */
+var B_LIFT = 1;                   /* and in a lift (mines.js) */
 
 /* what a cell costs, in boards */
 var B_COST = new Float32Array(NMAT);
@@ -47,6 +48,14 @@ B_COST[MAT.PLANK] = B_COST[MAT.DOOR] = B_COST[MAT.STAIRS] = B_COST[MAT.BED] = B_
 B_COST[MAT.LADDER] = 1 / 3;
 B_COST[MAT.LAMP] = 1;             /* a lantern: a board's worth of frame, round a little oil */
 /* (tilling a field and sowing it cost nothing but the work: SOIL and CROP are free) */
+/* and the things that are not made of wood (mines.js): what they are made of, and how much of it a cell takes. a stone
+   dresses into two blocks, an iron bar into five lengths of girder, and a nugget of gold casts five cells of bell */
+var B_RES = [], B_AMT = new Float32Array(NMAT);
+for (var bv = 0; bv < NMAT; bv++) if (B_COST[bv]) { B_RES[bv] = "wood"; B_AMT[bv] = B_COST[bv]; }
+B_RES[MAT.BRICK] = "stone"; B_AMT[MAT.BRICK] = 0.5;
+B_RES[MAT.GIRDER] = "iron"; B_AMT[MAT.GIRDER] = 0.2;
+B_RES[MAT.GOLD] = "gold"; B_AMT[MAT.GOLD] = 0.2;
+var B_KINDS = ["wood", "stone", "iron", "gold"];
 /* what a spade can shift: loose stuff, and greenery */
 var B_DIG = new Uint8Array(NMAT);
 [MAT.SAND, MAT.ASH, MAT.SNOW, MAT.SALT, MAT.SEED, MAT.PLANT, MAT.FLOWER].forEach(function (v) { B_DIG[v] = 1; });
@@ -141,8 +150,8 @@ function bLabel(s) {
 }
 /* a field's cell of sand or ash, to be tilled where it lies */
 function bTill(g, e) { return e.v === MAT.SOIL && B_TILL[g.m[e.i]] === 1; }
-/* is this cell of the plan as it should be */
-function bOk(g, e) { var c = g.m[e.i]; return e.v === MAT.EMPTY ? !B_DIG[c] : c === e.v; }
+/* is this cell of the plan as it should be. (a cell of a mine is not dug until the rock is out of it, too) */
+function bOk(g, e) { var c = g.m[e.i]; return e.v === MAT.EMPTY ? !B_DIG[c] && !(e.mine && ROCK[c]) : c === e.v; }
 /* could it be put right now: a board needs thin air to go into, or something loose they can shovel out of the way first */
 function bFree(g, e) {
   var c = g.m[e.i];
@@ -151,6 +160,7 @@ function bFree(g, e) {
     if (!B_DIG[g.m[u]]) break;
   }
   if (e.v === MAT.SOIL) return B_TILL[c] === 1;                                  /* earth is tilled where it lies, never brought */
+  if (c === MAT.WOOD && e.v !== MAT.EMPTY && e.v !== MAT.WOOD) return true;       /* a fallen log where a board goes: chopped out first */
   if (e.v === MAT.CROP && g.m[e.i + g.gw] !== MAT.SOIL) return false;            /* and wheat is sown in earth */
   return e.v === MAT.EMPTY || B_AIR[c] === 1 || B_DIG[c] === 1;
 }
@@ -220,6 +230,67 @@ function bSiteAround(g, x, y, kind, pad) {
 }
 /* wood in hand, in logs */
 function bWood(p) { return (p.logs || 0) + (p.boards || 0) / B_BOARDS; }
+/* what they have in their pockets of a building material, in the units a cell is priced in (wood: boards) */
+function bHas(p, r) { return r === "wood" ? (p.boards || 0) + (p.logs || 0) * B_BOARDS : (p[r] || 0); }
+/* carrying anything worth bringing to a building site */
+function bCarries(p) { return bWood(p) > 0.3 || (p.stone || 0) >= 1 || (p.iron || 0) >= 0.2 || (p.gold || 0) >= 0.2; }
+/* what a cell of the plan costs: {r: what in, n: how much}. (an entry can be priced on its own: a miner's ladder is
+   knocked together out of the pit props, and costs nothing anybody has to carry) */
+function bPrice(e) { var n = e.cost != null ? e.cost : B_AMT[e.v]; return n > 0 ? { r: B_RES[e.v], n: n } : null; }
+/* how much more of r a site wants, for everything still to go in, over what is already stacked on it */
+function bNeed(g, s, r) {
+  var n = 0, k, e, pr;
+  for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; pr = bPrice(e); if (pr && pr.r === r && !bOk(g, e)) n += pr.n; }
+  return n - ((s.stock && s.stock[r]) || 0);
+}
+/* everything they are carrying that the site wants goes on the site's pile, for whoever is building it: a peasant with
+   stone and no wood, and one with wood and no stone, can build a stone tower with wooden doors between them */
+function bDeposit(g, p, s) {
+  var st = s.stock || (s.stock = {}), k, r, need, give;
+  for (k = 0; k < B_KINDS.length; k++) {
+    r = B_KINDS[k]; need = bNeed(g, s, r);
+    if (need <= 1e-6 || bHas(p, r) <= 0) continue;
+    if (r === "wood") {
+      give = Math.min(p.boards || 0, need); p.boards = (p.boards || 0) - give; st.wood = (st.wood || 0) + give; need -= give;
+      while (need > 1e-6 && p.logs > 0) { p.logs--; st.wood += B_BOARDS; need -= B_BOARDS; }
+    } else { give = Math.min(p[r], need); p[r] -= give; st[r] = (st[r] || 0) + give; }
+  }
+}
+function bCanPay(g, p, s, e) {
+  var pr = bPrice(e);
+  return !pr || ((s.stock && s.stock[pr.r]) || 0) + (p ? bHas(p, pr.r) : 0) >= pr.n - 1e-6;
+}
+/* pay for a cell: off the site's pile first, then out of their pockets (sawing a log into boards if it comes to that) */
+function bPay(g, p, s, e) {
+  var pr = bPrice(e), st = s.stock || (s.stock = {});
+  if (!pr) return true;
+  if ((st[pr.r] || 0) >= pr.n - 1e-6) { st[pr.r] -= pr.n; return true; }
+  if (pr.r === "wood") {
+    if ((p.boards || 0) < pr.n - 1e-6 && p.logs > 0) {
+      p.logs--; p.boards = (p.boards || 0) + B_BOARDS; g.fx.saw++;
+      pChips(g, p.x + p.dir * 2, p.y - 3, 4, [SAND_PAL[MAT.PLANK][10], SAND_PAL[MAT.WOOD][200], hex32("#e8d0a0")]);
+    }
+    if ((p.boards || 0) < pr.n - 1e-6) return false;
+    p.boards -= pr.n; return true;
+  }
+  if ((p[pr.r] || 0) < pr.n - 1e-6) return false;
+  p[pr.r] -= pr.n; return true;
+}
+/* do they carry anything site s still wants */
+function bBrings(g, p, s) {
+  for (var k = 0; k < B_KINDS.length; k++) if (bHas(p, B_KINDS[k]) > 0.2 && bNeed(g, s, B_KINDS[k]) > 1e-6) return true;
+  return false;
+}
+/* would they be any use on site s: they carry something it wants, or there is enough on its pile for the next cell */
+function bUseful(g, p, s) {
+  if (bBrings(g, p, s)) return true;
+  var e = bNext(g, s, null);
+  return !!e && bCanPay(g, null, s, e);
+}
+/* anything at all on its pile */
+function bStocked(s) { for (var r in s.stock) if (s.stock[r] > 1e-6) return true; return false; }
+/* what the next cell of s wants that nobody has brought: for the readout, and for what they say about it */
+function bShort(g, s) { var e = bNext(g, s, null), pr = e && bPrice(e); return pr ? pr.r : "wood"; }
 /* is the village short of wood: something going up, or a homeless peasant with room for a house */
 function bWoodWanted(g, p) {
   for (var k = 0; k < g.sites.length; k++) if (!g.sites[k].done && !g.sites[k].free && Math.abs(g.sites[k].cx - p.x) < 200) return true;
@@ -234,12 +305,15 @@ function bOwnsSite(g, p) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].owner === p.id && g.sites[k].kind === "house") return true;
   return false;
 }
-/* the nearest unfinished site, their own house first */
-function bNearestSite(g, p, R) {
+/* the nearest unfinished site they would be any use on, their own house first. (left: only one that nobody is building,
+   with something on its pile) */
+function bNearestSite(g, p, R, left) {
   var best = null, bd = R, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     if (s.done || s.free || (p.failSite === s.id && p.failT > g.tick)) continue;   /* (a field wants hands, not wood: ideas.js) */
+    if (left && (!bStocked(s) || bBusy(g, s))) continue;
+    if (!bUseful(g, p, s)) continue;
     d = Math.abs(s.cx - p.x) + Math.abs(s.cy - p.y) * 2 - (s.owner === p.id ? 100 : 0);
     if (d < bd) { bd = d; best = s; }
   }
@@ -496,9 +570,11 @@ function bTaskBuild(g, p, k) {
     if (!bWaiting(g, s) && ++k.idle > 240) { bFail(g, p, s, 1200, "nothing"); }
     return false;
   }
-  if (B_COST[e.v] > (p.boards || 0) + 1e-6 && !(p.logs > 0)) {
-    if (p.sayT <= 0) pSay(g, p, "nowood");
-    p.task = null; p.taskDone = true;
+  /* short of what the next cell is made of: whatever they did bring goes on the pile first (stone for a tower whose next
+     cell is a door, say), and then they leave it to somebody who has the rest */
+  if (!bCanPay(g, p, s, e) && (k.dep || !bBrings(g, p, s))) {
+    if (p.sayT <= 0) pSay(g, p, "no" + bPrice(e).r);
+    bFail(g, p, s, 600, "short");
     return false;
   }
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, fx = Math.floor(p.x), fy = Math.floor(p.y), dx = x + 0.5 - p.x;
@@ -512,7 +588,20 @@ function bTaskBuild(g, p, k) {
   if (!bReach(g, p, e)) {
     k.act = 0;
     /* up a ladder to reach the rest of it */
-    if (p.climb) { p.climb.dir = y > fy ? 1 : -1; return false; }
+    /* (steering the climb, but only on a ladder that is by the work, and that goes on that way: a ladder somewhere else
+       is the way there, and goes where the way goes) */
+    if (p.climb) {
+      if (Math.abs(dx) > B_REACH_X + 2 || p.climb.stuck > 60) return false;
+      /* level with it, but too far across to reach from the ladder: off the ladder, onto whatever is beside it. no way
+         off here: on the way they were going, to wherever the ladder lets them off (and the way round from there) */
+      var sd = dx < 0 ? -1 : 1, lx = p.climb.x;
+      if (y >= fy - B_REACH_UP && y <= fy + B_REACH_DOWN) {
+        if (bStepOff(g, lx, fy, sd)) { p.x = lx + 2 * sd + 0.5; p.dir = sd; p.climb = null; }
+        return false;
+      }
+      p.climb.dir = y > fy ? 1 : -1;
+      return false;
+    }
     if (y < fy - B_REACH_UP && Math.abs(dx) <= B_REACH_X + 2) {
       var lc = bLadderNear(g, fx, fy);
       if (lc >= 0) { bClimbStart(g, p, lc, -1); return true; }
@@ -533,13 +622,19 @@ function bTaskBuild(g, p, k) {
   if (who === p) { p.dir = dx > 0 ? -1 : 1; if (p.climb) e.wait = g.tick + 120; return false; }   /* step out of its way */
   if (who) { if (++k.wait > 200) { e.wait = g.tick + 300; k.wait = 0; } return true; }
   k.idle = 0;
+  /* there: whatever they brought that the site wants goes on its pile */
+  if (!k.dep) { k.dep = true; bDeposit(g, p, s); if (!bCanPay(g, p, s, e)) return false; }
   if (Math.abs(dx) > 0.5) p.dir = dx < 0 ? -1 : 1;
   k.act++;
-  var till = bTill(g, e), dig = !till && (e.v === MAT.EMPTY || B_DIG[g.m[e.i]] === 1);   /* (sand where a board should go: shovel it out first) */
-  var hoe = till || dig, sow = e.v === MAT.CROP;
-  p.pose = hoe ? ((k.act % 20) < 10 ? "chopA" : "chopB") : (sow ? ((k.act % 14) < 7 ? "stand" : "eatB") : ((k.act % 14) < 7 ? "hammerA" : "hammerB"));
-  if (k.act % (hoe ? 20 : 14) === 7) {
-    if (till) bTillCell(g, s, e, p); else if (dig) bDig(g, s, e, p); else bPlace(g, s, e, p);
+  var pick = !!e.mine && ROCK[g.m[e.i]] === 1;   /* rock: that is a job for a pick (mines.js) */
+  /* (sand where a board should go: shovel it out first. unless it is a timber to be driven in through it, which it
+     would only pour into the hole round: a mine's collar) */
+  var till = !pick && bTill(g, e), dig = !pick && !till && (e.v === MAT.EMPTY || (B_DIG[g.m[e.i]] === 1 && !e.drive) || g.m[e.i] === MAT.WOOD);
+  var hoe = till || dig, sow = e.v === MAT.CROP, beat = pick ? mStroke(g) : (hoe ? 20 : 14);
+  p.pose = pick ? ((k.act % beat) < (beat >> 1) ? "pickA" : "pickB") : hoe ? ((k.act % 20) < 10 ? "chopA" : "chopB") :
+           (sow ? ((k.act % 14) < 7 ? "stand" : "eatB") : ((k.act % 14) < 7 ? "hammerA" : "hammerB"));
+  if (k.act % beat === (beat >> 1)) {
+    if (pick) mMine(g, s, e, p); else if (till) bTillCell(g, s, e, p); else if (dig) bDig(g, s, e, p); else bPlace(g, s, e, p);
     k.best = null;   /* that was progress */
   }
   return true;
@@ -556,13 +651,8 @@ function bTillCell(g, s, e, p) {
 }
 /* a board into the plan. the cell keeps whatever heat it had: a board brought in at room temperature, near enough */
 function bPlace(g, s, e, p) {
-  var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, cost = B_COST[e.v];
-  if ((p.boards || 0) < cost - 1e-6) {
-    /* saw another log into boards */
-    p.logs--; p.boards = (p.boards || 0) + B_BOARDS; g.fx.saw++;
-    pChips(g, p.x + p.dir * 2, p.y - 3, 4, [SAND_PAL[MAT.PLANK][10], SAND_PAL[MAT.WOOD][200], hex32("#e8d0a0")]);
-  }
-  p.boards -= cost;
+  var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0;
+  if (!bPay(g, p, s, e)) return;
   sandSet(g, e.i, e.v);
   g.aux[e.i] = e.a;
   if (e.sh >= 0) g.sh[e.i] = e.sh;
@@ -574,17 +664,47 @@ function bPlace(g, s, e, p) {
 }
 /* a spadeful of sand off the plot, flung out of the way. it lands where it lands, heat and all */
 function bDig(g, s, e, p) {
-  var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, out = x + 0.5 < s.cx ? -1 : 1;
-  if (!B_DIG[g.m[e.i]]) return;
+  var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, out = x + 0.5 < s.cx ? -1 : 1, c = g.m[e.i];
+  /* a log in the way (off a tree somebody felled): chopped out of it, and kept */
+  if (c === MAT.WOOD && e.v !== MAT.EMPTY) {
+    g.m[e.i] = MAT.EMPTY; heatSync(g, e.i); p.logs = (p.logs || 0) + 1; s.last = g.tick; g.fx.thud++;
+    pChips(g, x + 0.5, y + 0.5, 4, [SAND_PAL[MAT.WOOD][40], SAND_PAL[MAT.WOOD][200]]);
+    return;
+  }
+  if (!B_DIG[c]) return;
   g.dug++;   /* (a village that has done enough of this thinks of landscaping: ideas.js) */
-  if (!sandFling(g, e.i, out * (0.9 + Math.random() * 0.7), -0.9 - Math.random() * 0.6)) { g.m[e.i] = MAT.EMPTY; heatSync(g, e.i); }
+  /* down the head of a mine there is no throwing it out: it is carried up and tipped on the spoil heap (mines.js) */
+  if (s.mine && !P_LEAF[c] && mSpoil(g, s, e.i)) { g.dug++; s.last = g.tick; g.fx.thud++; return; }
+  /* greenery is just cleared. sand goes up and out over their shoulder (or the other, if that way is blocked), high
+     enough to clear the sides of a hole as steep as sand stands, and far enough to land well outside it. with no way
+     to throw it, it is trodden down instead */
+  if (P_LEAF[c] || c === MAT.SEED || !bToss(g, e.i, out)) { g.m[e.i] = MAT.EMPTY; g.aux[e.i] = 0; heatSync(g, e.i); }
   s.last = g.tick;
   g.fx.thud++;
   if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "dig");
 }
+/* throw cell j (a spadeful of sand) up and away: out first, then the other way. only if the arc it would fly on is
+   clear for the first dozen cells or so, or it hits whatever is in the way and lands right back where it came from */
+function bToss(g, j, out) {
+  var gw = g.gw, x = j % gw, y = (j / gw) | 0, k, t, X, Y, ok;
+  for (k = 0; k < 2; k++, out = -out) {
+    for (ok = true, t = 1; t <= 14 && ok; t++) {
+      X = x + 0.5 + out * t; Y = y + 0.5 - 1.7 * t + 0.055 * t * t;
+      if (X < 0 || X >= gw || Y < 0) break;
+      if (!AIRY[pCell(g, Math.floor(X), Math.floor(Y))]) ok = false;
+    }
+    if (ok && sandFling(g, j, out * (0.9 + Math.random() * 0.2), -1.6 - Math.random() * 0.2)) return true;
+  }
+  return false;
+}
 function bFinish(g, s, p) {
   s.done = true; s.last = g.tick;
   var o = bOwner(g, s);
+  /* what is left on the pile (a log sawn for one board, say) goes home with whoever finished it */
+  if (s.stock && p) for (var r in s.stock) {
+    if (r === "wood") p.boards = (p.boards || 0) + s.stock.wood; else p[r] = (p[r] || 0) + s.stock[r];
+    s.stock[r] = 0;
+  }
   g.fx.pop++;
   if (s.sow) { s.sow = s.repair = false; if (p && p.sayT <= 0) pSay(g, p, "sown"); return; }   /* a field sown again: no news */
   if (s.repair) {
@@ -670,14 +790,14 @@ function bInspect(g, s, idx) {
   }
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
-    if (e.v === MAT.EMPTY) { if (s.kind === "pond" && !bOk(g, e) && bFree(g, e)) silt++; continue; }   /* (sand slid back into a pond) */
+    if (e.v === MAT.EMPTY) { if ((s.kind === "pond" || s.mine) && !bOk(g, e) && bFree(g, e)) silt++; continue; }   /* (sand slid back into a pond, or a mine) */
     var lost = !bOk(g, e) && bFree(g, e);
     if (e.v === MAT.CROP) { if (lost) crops++; continue; }
     n++;
     if (lost) gone++;
     if (lost || (e.v === MAT.SOIL && !bOk(g, e))) broken++;
   }
-  if (broken > n * 0.6) {
+  if (broken > n * 0.6 && !s.mine) {   /* (a mine is a hole in the ground: there is no knocking that down) */
     var o = bOwner(g, s);
     feed(g, bLabel(s).charAt(0).toUpperCase() + bLabel(s).slice(1) + " is gone", "#ff9a8a", "fix" + s.id);
     if (o && s.kind === "house") { o.home = 0; pSay(g, o, "lostHome", true); }
@@ -717,9 +837,11 @@ function bPick(g, p) {
     }
     if ((h = bHome(g, p)) && !bInside(h, p)) { p.task = { kind: "home", t: 0, stay: 600 }; return true; }
   }
+  /* something going up that they could help with: with what they carry, or (now and then, empty-handed) a site left
+     with what it needs on its pile and nobody building it */
+  var s = bCarries(p) ? bNearestSite(g, p, 170) : (Math.random() < 0.2 ? bNearestSite(g, p, 170, true) : null);
+  if (s) { bJoin(g, p, s); return true; }
   if (bWood(p) > 0.3) {
-    var s = bNearestSite(g, p, 170);
-    if (s) { bJoin(g, p, s); return true; }
     if (!bHome(g, p) && !bOwnsSite(g, p) && p.logs >= 4 && !p.planCD && bHouses(g) < Math.min(B_HOUSES, bAlive(g)) && !bGoingUp(g)) {
       if (bPlanHouse(g, p)) return true;
       p.planCD = 2400;
@@ -963,6 +1085,9 @@ function bLadderGoes(g, cx, fy) {
 function bClimbStart(g, p, cx, dir) {
   p.climb = { x: cx, dir: dir, t: 0, y0: p.y, stuck: 0 };
   p.x = cx + 0.5; p.jumping = false; p.falling = false; p.idle = 0;
+  /* a ladder with a lift on it: into the cage, if nobody else is in it (mines.js) */
+  var L = mLiftAt(g, cx, Math.floor(p.y));
+  if (L && !mLiftBusy(g, L, p)) { p.climb.lift = L.id; return; }
   if (p.sayT <= 0 && Math.random() < 0.2) pSay(g, p, "climb");
 }
 /* at the foot of a wall: if there is a ladder up it (that goes somewhere), up they go */
@@ -991,6 +1116,9 @@ function bClimbStep(g, p) {
   }
   p.x = cx + 0.5;
   p.pose = "climb";
+  /* in the lift: it has to come to them first. then it carries them, a good deal faster than hands do (mines.js) */
+  var L = c.lift ? mLiftRide(g, p, c) : null, sp = L ? B_LIFT : B_CLIMB;
+  if (L === false) return;
   /* a builder works off the ladder */
   if (p.task && p.task.kind === "build" && bTaskBuild(g, p, p.task)) return;
   if (!p.climb) return;
@@ -999,13 +1127,14 @@ function bClimbStep(g, p) {
       var sd = s ? -p.dir : p.dir;
       if (bStepOff(g, cx, fy, sd)) { p.x = cx + 2 * sd + 0.5; p.dir = sd; p.climb = null; return; }
     }
-    if (pCell(g, cx, fy) === MAT.LADDER && !pBody(g, cx, fy - 9)) p.y -= B_CLIMB;
+    if (pCell(g, cx, fy) === MAT.LADDER && !pBody(g, cx, fy - 9)) p.y -= sp;
     else if (++c.stuck > 60) c.dir = 1;   /* nowhere to go up there: back down */
   } else {
     if (pGround(g, cx, fy) && !(pCell(g, cx, fy + 1) === MAT.LADDER)) { p.climb = null; return; }
-    if (pCell(g, cx, fy + 1) === MAT.LADDER || pCell(g, cx, fy) === MAT.LADDER) p.y += B_CLIMB;
+    if (pCell(g, cx, fy + 1) === MAT.LADDER || pCell(g, cx, fy) === MAT.LADDER) p.y += sp;
     else p.climb = null;   /* the bottom of it is in mid-air: drop */
   }
+  if (L) L.cy = p.y;   /* (and the cage goes with them) */
 }
 
 /* -------------------------------------------------------------------
@@ -1076,8 +1205,9 @@ function bWhy(g, s) {
   if (bBusy(g, s)) return s.sow ? " (BEING SOWN)" : (s.repair ? " (BEING FIXED)" : " (GOING UP)");
   if (!bNext(g, s, null)) return " (STUCK)";
   if (s.free) return s.sow ? " (TO BE SOWN)" : " (WAITING FOR HANDS)";
-  for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead && bWood(g.peasants[k]) > 0.3) return " (NOBODY CAN GET TO IT)";
-  return " (WAITING FOR WOOD)";
+  var r = bShort(g, s);
+  for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead && bHas(g.peasants[k], r) > 0.2) return " (NOBODY CAN GET TO IT)";
+  return " (WAITING FOR " + (r === "wood" ? "WOOD" : r.toUpperCase()) + ")";
 }
 function bOccupied(g, s) {
   for (var k = 0; k < g.peasants.length; k++) {
@@ -1097,7 +1227,8 @@ function bReadout(g, j) {
       var e = s.plan[n];
       if (e.i !== j) continue;
       var what = bLabel(s).toUpperCase() + (s.done ? "" : bWhy(g, s)) + (s.note ? ": " + s.note.toUpperCase() : "");
-      if (bOk(g, e) || e.v === MAT.EMPTY) return e.v === MAT.EMPTY ? "TO DIG OUT, FOR " + what : what;
+      if (bOk(g, e)) return what;
+      if (e.v === MAT.EMPTY) return (e.mine && ROCK[g.m[j]] ? "TO MINE, FOR " : "TO DIG OUT, FOR ") + what;
       return "PLANNED " + (e.v === MAT.PLANK && e.a === 1 ? "WINDOW" : MAT_NAME[e.v]) + ", FOR " + what;
     }
   }

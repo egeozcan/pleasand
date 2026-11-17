@@ -46,7 +46,13 @@ var TIPS = [
   "tip: once they know about buckets, set fire to a house and watch",
   "tip: ducks love wheat. the peasants will think of something",
   "tip: peasants who farm will chase ducks out of the wheat. throw one in and see",
-  "tip: a village that knows buckets and landscaping, and lives a long way from water, digs itself a pond"
+  "tip: a village that knows buckets and landscaping, and lives a long way from water, digs itself a pond",
+  "tip: there is coal, iron ore and gold in the rock. a village that has dug enough holes will go looking for it",
+  "tip: hover over the dark rock of a mine. the galleries go where the ore is",
+  "tip: a watchtower has a ladder up the inside. a lift is quicker. iron makes a lift",
+  "tip: paint some ICE where they walk. or COOL the pond and watch them cross it",
+  "tip: throw a peasant onto a frozen pond. then another",
+  "tip: hold HEAT on a lump of iron ore. what runs out of it sets as iron"
 ];
 
 /* -------------------------------------------------------------------
@@ -125,7 +131,7 @@ function gameInit(g) {
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
            pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0, quack: 0, peep: 0, squeak: 0,
-           hammer: 0, saw: 0, idea: 0 };
+           hammer: 0, saw: 0, idea: 0, pick: 0, clang: 0, clank: 0, bell: 0 };
   g.snd = {};
   g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0;
   g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = {}; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
@@ -223,10 +229,11 @@ MAT_NAME[MAT.EMBER] = "EMBER"; MAT_NAME[MAT.FLOWER] = "FLOWER";
 MAT_NAME[MAT.PLANK] = "PLANKS"; MAT_NAME[MAT.DOOR] = "DOOR"; MAT_NAME[MAT.LADDER] = "LADDER"; MAT_NAME[MAT.STAIRS] = "STAIRS";
 MAT_NAME[MAT.BED] = "BED"; MAT_NAME[MAT.SAPLING] = "SAPLING";
 MAT_NAME[MAT.SOIL] = "TILLED EARTH"; MAT_NAME[MAT.CROP] = "YOUNG WHEAT"; MAT_NAME[MAT.WHEAT] = "RIPE WHEAT"; MAT_NAME[MAT.LAMP] = "LANTERN";
+MAT_NAME[MAT.COAL] = "COAL"; MAT_NAME[MAT.ORE] = "IRON ORE"; MAT_NAME[MAT.GOLD] = "GOLD"; MAT_NAME[MAT.BRICK] = "STONEWORK"; MAT_NAME[MAT.GIRDER] = "IRON GIRDER";
 /* a cell partway through melting, boiling or setting says so */
 var MAT_UP = [], MAT_DOWN = [];
 MAT_UP[MAT.WATER] = MAT_UP[MAT.SALTWATER] = "boiling"; MAT_UP[MAT.ICE] = MAT_UP[MAT.SNOW] = "melting";
-MAT_UP[MAT.STONE] = MAT_UP[MAT.GLASS] = MAT_UP[MAT.METAL] = "melting"; MAT_UP[MAT.SAND] = MAT_UP[MAT.SOIL] = "fusing"; MAT_UP[MAT.ACID] = "boiling";
+MAT_UP[MAT.STONE] = MAT_UP[MAT.GLASS] = MAT_UP[MAT.METAL] = MAT_UP[MAT.ORE] = MAT_UP[MAT.BRICK] = MAT_UP[MAT.GIRDER] = "melting"; MAT_UP[MAT.SAND] = MAT_UP[MAT.SOIL] = "fusing"; MAT_UP[MAT.ACID] = "boiling";
 MAT_DOWN[MAT.WATER] = MAT_DOWN[MAT.SALTWATER] = "freezing"; MAT_DOWN[MAT.STEAM] = "condensing"; MAT_DOWN[MAT.LAVA] = "setting";
 function cellReadout(g, j) {
   var v = g.m[j], e = g.lat[j], name = MAT_NAME[v] || "", s;
@@ -355,6 +362,10 @@ function sandSounds(g) {
     if (ok("hammer", 0.09)) SFX.hammer();
     if (ok("saw", 0.4)) SFX.saw();
     if (ok("idea", 0.3)) SFX.idea();
+    if (ok("pick", 0.07)) SFX.pick();
+    if (ok("clang", 0.2)) SFX.clang();
+    if (ok("clank", 0.12)) SFX.clank();
+    if (ok("bell", 0.6)) SFX.bell();
   }
   for (var k in f) f[k] = 0;
 }
@@ -458,6 +469,20 @@ function drawWorld(g) {
         /* a little flame behind glass: the warm pool of light round it is in ideas.js */
         px[i] = gp[i] = SAND_PAL[v][(sh[i] + flick) & 255];
         hot++;
+      } else if (v === MAT.BRICK) {
+        /* squared stone in courses two high, with mortar between, and (where the stonework is wider than one block)
+           the joints staggered */
+        f = (y > 0 && AIRY[m[i - gw]]) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
+        a = y % 3 === 0 || (x > 0 && x < gw - 1 && m[i - 1] === v && m[i + 1] === v && (x + ((y / 3) | 0) * 2) % 4 === 0);
+        px[i] = a ? blend32(f, 0xff000000, 0.25) : f;
+      } else if (v === MAT.GIRDER) {
+        /* a lattice: the edges and the crossing diagonals are iron, the rest is see-through */
+        a = ((x + y) % 3 === 0) || ((x - y + 300) % 3 === 0);
+        px[i] = a ? SAND_PAL[v][sh[i]] : blend32(bg[i], 0xff000000, 0.35);
+      } else if (v === MAT.GOLD || v === MAT.COAL) {
+        /* gold glints, now and then; coal has a greasy shine where the light catches it */
+        px[i] = (y > 0 && AIRY[m[i - gw]]) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
+        if (((x * 7 + y * 13 + flick) % (v === MAT.GOLD ? 23 : 97)) === 0) px[i] = v === MAT.GOLD ? INERT_GLINT : SAND_PAL[v][3];
       } else if (v === MAT.INERT) {
         /* faintly magic: a slow shimmer runs through it, and now and then a cell glints */
         px[i] = SAND_PAL[v][(sh[i] + ((Math.sin(x * 0.21 + y * 0.17 + t * 1.6) * 40) | 0)) & 255];
@@ -495,8 +520,10 @@ function drawWorld(g) {
   }
   hot += bDraw(g);
   hot += iDraw(g);
+  hot += mDraw(g);
   ducksDraw(g);
   peasantsDraw(g);
+  mDrawOver(g);
   return hot;
 }
 var WIN_DARK = hex32("#1e2638"), DOOR_KNOB = hex32("#e8c050");
@@ -814,8 +841,9 @@ function pMood(g, p) {
   if (p.breath < P_BREATH - 20) return "is drowning. slowly. " + Math.ceil(p.breath / 60) + "s of air left";
   if (p.zap > 0) return "is being electrocuted";
   if (p.stun > 0) return "is having a little lie down";
+  if (p.slip > 0) return Math.abs(p.ivx || 0) > 0.05 ? "has slipped on the ice, and is still going" : "has slipped on the ice. ow";
   if (p.sleep > 0) return p.inBed ? "is asleep in bed. zzz" : "is asleep on the ground. it is not comfy";
-  if (p.climb) return "is climbing a ladder";
+  if (p.climb) return p.climb.lift ? (p.climb.board ? "is riding the lift" : "is waiting for the lift") : "is climbing a ladder";
   if (p.rope && p.rope.mode === "climb") return "is climbing a rope. like a ninja";
   if (p.rope && p.rope.mode === "swing") return "is swinging on a rope";
   if (p.rope) return "is abseiling";
@@ -853,6 +881,8 @@ function pMood(g, p) {
   if (p.hunger < I_FED && (p.muse || 0) > I_MUSE * 0.5) return "is well fed, and thinking";
   if (p.idle > 0) return "is standing about";
   if (p.logs > 0) return "is going for a walk. carrying " + p.logs + " log" + (p.logs > 1 ? "s" : "");
+  if (mPockets(p)) return "is going for a walk. carrying " + mPockets(p);
+  if (p.ivx && Math.abs(p.ivx) > 0.05) return "is on the ice. it is slippy";
   return home ? "is going for a walk. has a house" : "is going for a walk. has no house";
 }
 

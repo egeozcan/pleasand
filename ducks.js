@@ -142,7 +142,7 @@ function dDie(g, d, cause) {
 /* anything solid holds a duck up, leaves and all. but a duck pushes through leaves and flowers, squeezes through a
    ladder, and slips through a door after whoever opened it: none of those are in a duck's way */
 var D_PASS = new Uint8Array(NMAT);
-[MAT.PLANT, MAT.FLOWER, MAT.DOOR, MAT.LADDER, MAT.CROP, MAT.WHEAT].forEach(function (v) { D_PASS[v] = 1; });
+[MAT.PLANT, MAT.FLOWER, MAT.DOOR, MAT.LADDER, MAT.CROP, MAT.WHEAT, MAT.GIRDER].forEach(function (v) { D_PASS[v] = 1; });
 /* what a duck will waddle a long way for: seeds, and ripe wheat (which is seeds, on a stalk, in a row, somebody's) */
 function dTasty(g, x, y) { var c = pCell(g, x, y); return c === MAT.SEED || (c === MAT.WHEAT && !iScarecrowNear(g, x, y)); }
 function dSolid(g, x, y) { return SOLID[pCell(g, x, y)] === 1; }

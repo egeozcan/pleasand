@@ -90,6 +90,8 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   def(MAT.SAPLING, 2.5, 0.06);
   def(MAT.SOIL, 1.2, 0.08); def(MAT.CROP, 2.5, 0.06); def(MAT.WHEAT, 2.0, 0.05);
   def(MAT.LAMP, 1.5, 0.1);     /* a little glass and a little oil */
+  def(MAT.COAL, 1.3, 0.06); def(MAT.ORE, 1.8, 0.16); def(MAT.GOLD, 1.0, 0.4);
+  def(MAT.BRICK, 2.0, 0.1); def(MAT.GIRDER, 1.5, 0.36);
 
   function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
   function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
@@ -114,6 +116,9 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   hi(MAT.PLANK, 300, 0); hi(MAT.DOOR, 300, 0); hi(MAT.LADDER, 300, 0); hi(MAT.STAIRS, 300, 0);
   hi(MAT.BED, 200, 0); hi(MAT.SAPLING, 220, 0);
   hi(MAT.CROP, 220, 0); hi(MAT.WHEAT, 200, 0); hi(MAT.LAMP, 250, 0); hi(MAT.SOIL, 800, 0);   /* (a field of ripe wheat goes up like a field of ripe wheat) */
+  /* coal catches late and burns long. iron ore runs, and what runs out of it sets as iron: a furnace is only a way of
+     getting it hot enough. dressed stone is stone, and a girder is iron */
+  hi(MAT.COAL, 400, 0); hi(MAT.ORE, 1250, 500); hi(MAT.BRICK, 1150, 4500); hi(MAT.GIRDER, 1500, 500);
 
   HEAT_SRC[MAT.FIRE] = 750; HEAT_SRC[MAT.EMBER] = 700; HEAT_SRC[MAT.TORCH] = 1000;
   HEAT_POW[MAT.FIRE] = 200; HEAT_POW[MAT.EMBER] = 40; HEAT_POW[MAT.TORCH] = 400;
@@ -285,6 +290,9 @@ function heatUp(g, i, v) {
     case MAT.ICE: case MAT.SNOW: m[i] = MAT.WATER; g.aux[i] = 0; return 0;
     case MAT.STONE: case MAT.GLASS: case MAT.METAL:
       m[i] = MAT.LAVA; g.aux[i] = v === MAT.STONE ? 0 : v; return 0;
+    case MAT.BRICK: m[i] = MAT.LAVA; g.aux[i] = 0; return 0;
+    case MAT.ORE: case MAT.GIRDER: m[i] = MAT.LAVA; g.aux[i] = MAT.METAL; return 0;
+    case MAT.COAL: m[i] = MAT.EMBER; g.aux[i] = 1; return 0;
     case MAT.SAND: case MAT.SOIL: m[i] = MAT.GLASS; g.aux[i] = 0; g.score++; return 0;
     case MAT.WOOD: case MAT.PLANK: case MAT.DOOR: case MAT.LADDER: case MAT.STAIRS: m[i] = MAT.EMBER; g.aux[i] = 0; return 0;
     case MAT.ACID: m[i] = MAT.SMOKE; g.aux[i] = 0; return 0;
