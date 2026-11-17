@@ -383,6 +383,23 @@ test("an oil well is planned over a pool, and its pump brings the oil up", funct
   check(!w.oGoPump(g, p) && g.barrels === made, "a dry well was still giving oil");
 });
 
+test("an oil well needs ground beneath it, not a floating stone deck", function () {
+  var w = sim.load(7), g = w.g, p = g.peasants[0], col = 100, ground = g.gh - 30, deck = ground - 35;
+  w.sandClear(g);
+  g.m.fill(w.MAT.STONE, (ground + 3) * g.gw);
+  g.m.fill(w.MAT.SAND, ground * g.gw, (ground + 3) * g.gw);
+  var oil = (ground + 12) * g.gw + col;
+  w.sandPlace(g, oil, w.MAT.OIL);
+  g.aux[oil] = w.O_RESERVOIR;
+  g.know.oil = "TEST"; g.iron = 5;
+  p.x = col + 0.5; p.y = ground - 1;
+  check(w.oPlanWell(g, p) && g.sites[0].G === ground, "the well would not use solid ground over the pool");
+  w.bRemove(g, 0);
+  g.m.fill(w.MAT.STONE, deck * g.gw + col - 8, deck * g.gw + col + 9);
+  p.y = deck - 1;
+  check(!w.oPlanWell(g, p), "the well was planned on a floating deck, with its bore hanging in the air");
+});
+
 test("painted oil is neither a mine discovery nor a derrick plot", function () {
   var w = sim.load(7), g = w.g, well = planOilWell(w), s = well.s, p = well.p;
   w.bRemove(g, g.sites.indexOf(s));

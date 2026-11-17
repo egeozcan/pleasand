@@ -305,6 +305,14 @@ function oWellPlot(g, x0, fy) {
     if (d < bestD) { bestD = d; oilY = y; oilDepth = y - F; }
   }
   if (oilY < 0) return null;
+  /* from the ground under the deck (which may be on short posts) to the pool: a bore through earth and rock,
+     not a pipe dangling from a bridge or passing through somebody's building */
+  x = x0 + 2;
+  for (y = gy[2]; y < oilY; y++) {
+    c = pCell(g, x, y);
+    if ((!ROCK[c] && c !== MAT.SAND && c !== MAT.SOIL && c !== MAT.ASH && c !== MAT.SNOW && c !== MAT.SALT) ||
+        bMarked(g, x, y)) return null;
+  }
   /* posts under the low end of the deck */
   for (k = 0; k < 5; k++) if (gy[k] > F) for (y = gy[k] - 1; y > F; y--) fill.push([x0 + k, y]);
   dig.sort(function (a, b) { return a[1] - b[1]; });
