@@ -231,3 +231,6 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - `ducks.js`: the ducks
 - `game.js`: rendering, the picker and HUD, input, and the main loop
 - `test/`: the game without a browser (`sim.js`), and some checks that it still works (`run.js`)
+- `harness/`: the game without a screen or a browser, built for agents: deterministic runs,
+snapshots and rewinds, traces, breakpoints, invariants, a profiler, ascii maps, `why(id)`,
+scenario record/replay, and a library, a CLI and an ndjson server. see `harness/README.md`
