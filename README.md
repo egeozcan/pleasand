@@ -82,7 +82,10 @@ think of:
   rod. A fish, mostly. Sometimes a boot, or a duck. If you boiled the pond,
   the fish come out cooked
 - **The scarecrow**: the ducks like the wheat too (they eat the bottom of the
-  stalk, and the rest comes down as seed). Not with one of these about
+  stalk, and the rest comes down as seed). Not with one of these about. Until
+  then, anybody who knows farming and is only doing something for fun runs at a
+  duck in the wheat, arms going, until it takes off (ducklings are left alone,
+  and a fire comes first)
 - **Fireworks**: once they have a couple of houses and a couple of ideas, now
   and then somebody puts on a show, and everybody comes to watch
 
@@ -139,7 +142,7 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - Make them a floating island, with flowers on it. Somebody will go up and have a look
 - Paint a meadow of plants for them, and watch for light bulbs
 - Once they know about buckets, set fire to a house. Then build them a pond next to it. Or wait for them to dig one
-- Leave the ducks near the wheat for a while
+- Leave the ducks near the wheat for a while. Watch who runs at them
 - Boil the pond while somebody is fishing in it
 
 ## Files

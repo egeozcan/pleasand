@@ -45,6 +45,7 @@ var TIPS = [
   "tip: hover over the header to see what the village has thought of, and what might give them more ideas",
   "tip: once they know about buckets, set fire to a house and watch",
   "tip: ducks love wheat. the peasants will think of something",
+  "tip: peasants who farm will chase ducks out of the wheat. throw one in and see",
   "tip: a village that knows buckets and landscaping, and lives a long way from water, digs itself a pond"
 ];
 

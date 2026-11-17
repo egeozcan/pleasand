@@ -34,7 +34,9 @@
                  a flower
      FISHING     a jetty out over the pond, and somebody on the end of
                  it with a rod: a fish (or a boot, or a duck)
-     SCARECROWS  the ducks like the wheat too. not with this about
+     SCARECROWS  the ducks like the wheat too. not with this about.
+                 (and anybody who knows farming will run at a duck in the
+                 wheat, waving their arms, until it takes off)
      FIREWORKS   once the village has a few houses and a few ideas: now
                  and then, a show, and everybody comes to watch
 
@@ -57,6 +59,7 @@ var I_POND_D = 3;           /* and as deep as the sand goes, to the bottom of th
 var I_POND_NEAR = 40;       /* a house or a field with no water within this many cells wants a pond */
 var I_POND_CREW = 5;        /* at most this many ferrying water to one pond (it is a long way, sometimes) */
 var I_POND_KEEP = 8;        /* a pond this many cells (or more) short of full is left alone, but for a fire */
+var I_SHOO_R = 90;          /* how far off a peasant will run to chase a duck out of the wheat */
 var I_DUG = 10;             /* cells of earth turned over (tilled or shovelled) before somebody thinks of digging */
 
 P_SAY.idea_farm = ["what if the plants... came to us?", "plants. in rows. on purpose", "i've had an idea. FARMING",
@@ -97,6 +100,8 @@ P_SAY.planPond = ["a pond, right by the houses", "no more running a mile for wat
   "a pond, for emergencies", "we'll have our own water"];
 P_SAY.pond = ["*splosh*", "one more for the pond", "fill it up", "pond, pond, pond"];
 P_SAY.pondFull = ["a pond! we have a pond!", "the pond's full", "water, right here", "that's some pond"];
+P_SAY.shoo = ["SHOO!", "get out of my wheat!", "scram, duck", "shoo shoo shoo", "go on, off with you", "OUT. OUT. OUT"];
+P_SAY.shooed = ["and stay out", "that showed it", "ducks. honestly", "it'll be back", "off you go"];
 P_SAY.cast = ["*plip*", "here, fishy fishy", "gone fishing", "shh. fishing", "this is the life"];
 P_SAY.nibble = ["ooh, a nibble", "something's biting", "steady...", "shh!"];
 P_SAY.fish = ["a fish!", "dinner!", "got one!", "look at the size of it", "FISH!", "it's a beauty"];
@@ -121,6 +126,7 @@ P_ACHIEVE.farm = ["THE FIRST FIELD", "tilled, sown, and now: the waiting"];
 P_ACHIEVE.lamp = ["LIGHTS ON", "a lantern by the door. cosy"];
 P_ACHIEVE.brigade = ["FIRE BRIGADE", "the village has a fire brigade now. it is buckets"];
 P_ACHIEVE.pond = ["A POND OF OUR OWN", "dug by hand, filled by bucket. in case of fire"];
+P_ACHIEVE.shoo = ["SHOO!", "a peasant chased a duck out of the wheat. arms and everything"];
 P_ACHIEVE.grave = ["REST IN PEACE", "the village remembers"];
 P_ACHIEVE.jetty = ["THE JETTY", "a plank walk out over the water, for fishing off"];
 P_ACHIEVE.fish = ["GONE FISHING", "a peasant caught a fish. with a stick"];
@@ -213,6 +219,8 @@ function iEureka(g, p) {
 function iPick(g, p) {
   var K = g.know, hungry = p.hunger > P_HUNGRY, s;
   if ((p.muse || 0) >= I_MUSE && iEureka(g, p)) return true;
+  /* a duck in the wheat comes before anything */
+  if (K.farm && !hungry && iGoShoo(g, p)) return true;
   /* a field wants hands, not wood: anybody will do */
   if (K.farm && (s = iFieldWork(g, p, 160))) { bJoin(g, p, s); return true; }
   if (K.farm && !p.planCD && iCount(g, "farm") < Math.min(3, Math.ceil(bAlive(g) / 4)) && (hungry || Math.random() < 0.3)) {
@@ -261,6 +269,7 @@ function iUrgent(g, p) {
 function iTask(g, p, k) {
   if (k.kind === "bucket") return iTaskBucket(g, p, k);
   if (k.kind === "fish") return iTaskFish(g, p, k);
+  if (k.kind === "shoo") return iTaskShoo(g, p, k);
   if (k.kind === "visit") return iTaskVisit(g, p, k);
   if (k.kind === "festival") return iTaskFestival(g, p, k);
   if (k.kind === "watch") return iTaskWatch(g, p, k);
@@ -285,7 +294,7 @@ function iWalk(g, p, k, key, x, y, goal) {
 /* what somebody will drop to go and watch the fireworks */
 var I_FUN = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, light: 1 };
 /* once a third of a second or so: what is on fire */
-var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1 };
+var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1, shoo: 1 };
 /* what somebody will drop when the alarm goes up: anything they are only doing for fun, or that can wait (a snack, a
    chat round the campfire, a bit of hammering) */
 function iCanWait(p, k) {
@@ -313,6 +322,8 @@ function ideasStep(g) {
     g.blaze.push({ site: s.id, cells: f });
     g.burnt = true;
   }
+  /* ducks in the wheat: somebody who is only doing something for fun goes and chases each one off */
+  if (g.know.farm && !g.blaze.length) iShooAlarm(g);
   /* the alarm: anybody who knows about buckets drops whatever they were doing just for fun (or nothing at all), and
      grabs one */
   if (g.blaze.length && g.know.bucket) for (k = 0; k < g.peasants.length; k++) {
@@ -884,6 +895,99 @@ function iGoFillPond(g, p) {
 }
 
 /* -------------------------------------------------------------------
+   SHOOING: a duck in the wheat gets run at, by somebody waving their arms, until it takes off
+   ------------------------------------------------------------------- */
+/* a field with wheat growing in it (or a sprout, which is as good) */
+function iCropped(g, s) {
+  for (var k = 0; k < s.plan.length; k++) {
+    var e = s.plan[k];
+    if (e.v === MAT.CROP && (g.m[e.i] === MAT.CROP || g.m[e.i] === MAT.WHEAT)) return true;
+  }
+  return false;
+}
+/* ducks that are on a field of wheat (not in the pond, not in the air, not under a scarecrow, which does the job itself) */
+function iPests(g) {
+  var out = [], k, j, d, s, fields = [];
+  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "farm" && iCropped(g, g.sites[k])) fields.push(g.sites[k]);
+  if (!fields.length) return out;
+  for (j = 0; j < g.ducks.length; j++) {
+    d = g.ducks[j];
+    if (d.dead || d.state !== "walk" || d.baby) continue;
+    for (k = 0; k < fields.length; k++) {
+      s = fields[k];
+      if (d.x >= s.x0 - 4 && d.x <= s.x1 + 5 && d.y >= s.y0 - 2 && d.y <= s.y1 + 3 && !iScarecrowNear(g, d.x, d.y)) { out.push(d); break; }
+    }
+  }
+  return out;
+}
+/* is anybody already after this duck */
+function iChased(g, d) {
+  for (var k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && t.kind === "shoo" && t.duck === d) return true; }
+  return false;
+}
+/* could p go and chase a duck off: awake, calm, fed, and not carrying anything or in the middle of anything important */
+function iCanShoo(g, p, k) {
+  return !p.dead && p.state === "walk" && !p.sleep && !p.climb && !p.rope && !p.swimming && !p.fire && p.panic <= 0 && p.cold < 150 &&
+         !p.pail && !p.hold && p.hunger < P_HUNGRY * 2 && (!k || I_FUN[k.kind]);
+}
+function iShooTask(p, d) { p.task = { kind: "shoo", duck: d, t: 0, act: 0, near: 0 }; }
+/* an idle peasant looking for something to do: the nearest duck in the wheat that nobody is chasing */
+function iGoShoo(g, p) {
+  var best = null, bd = I_SHOO_R, k, ps = iPests(g), d, dd;
+  for (k = 0; k < ps.length; k++) {
+    d = ps[k]; dd = Math.abs(d.x - p.x) + Math.abs(d.y - p.y);
+    if (dd < bd && !iChased(g, d)) { bd = dd; best = d; }
+  }
+  if (!best || !iCanShoo(g, p, null)) return false;
+  iShooTask(p, best);
+  if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, "shoo");
+  return true;
+}
+/* every few seconds: each duck in the wheat that nobody is after gets the nearest peasant who is only doing
+   something for fun (or nothing) */
+function iShooAlarm(g) {
+  var ps = iPests(g), k, j, d, p, best, bd, dd;
+  for (k = 0; k < ps.length; k++) {
+    d = ps[k];
+    if (iChased(g, d)) continue;
+    best = null; bd = I_SHOO_R;
+    for (j = 0; j < g.peasants.length; j++) {
+      p = g.peasants[j];
+      dd = Math.abs(d.x - p.x) + Math.abs(d.y - p.y);
+      if (dd < bd && iCanShoo(g, p, p.task)) { bd = dd; best = p; }
+    }
+    if (!best) continue;
+    iShooTask(best, d);
+    best.idle = 0; best.taskCD = 0;
+    if (best.sayT <= 0 && Math.random() < 0.5) pSay(g, best, "shoo");
+  }
+}
+function iTaskShoo(g, p, k) {
+  var d = k.duck;
+  /* gone: flew off, was caught, got picked up, or has waddled out of the wheat on its own */
+  if (++k.t > 900 || !d || d.dead || d.state !== "walk" || p.pail) {
+    if (d && !d.dead && d.state === "fly" && k.near) {
+      if (p.sayT <= 0 && Math.random() < 0.6) pSay(g, p, "shooed");
+      achieve(g, "shoo"); p.bored = Math.max(0, p.bored - 300);
+      return iDone(p, true);
+    }
+    return iDone(p, false);
+  }
+  var dx = d.x - p.x, dy = d.y - p.y, near = Math.abs(dx) < 6 && Math.abs(dy) < 8;
+  if (!near) {
+    k.act = 0;
+    if (iWalk(g, p, k, "shoo" + (d.id) + ":" + (Math.floor(d.x / 4)), Math.floor(d.x), Math.floor(d.y), pathNear(Math.floor(d.x), Math.floor(d.y), 4, 8, 8))) pGiveUp(g, p, Math.floor(d.x));
+    return false;
+  }
+  /* at it: arms going, running at it. then it takes off, the other way */
+  p.dir = dx < 0 ? -1 : 1; p.idle = 0; k.near = 1;
+  p.pose = (k.act >> 2) & 1 ? "hammerA" : "hammerB";
+  if (Math.abs(dx) > 3) { k.act++; return false; }   /* (a few steps closer first) */
+  if (++k.act > 14) { d.dir = d.x < p.x ? -1 : 1; dTakeOff(g, d, true); k.act = 0; }
+  return true;
+}
+
+/* -------------------------------------------------------------------
    FISHING: a jetty, and a rod off the end of it
    ------------------------------------------------------------------- */
 /* somewhere for a jetty: a bank, then a deck row with (after a step or three of boardwalk over the shore) open water
@@ -1304,6 +1408,7 @@ function iMood(g, p) {
     return (s.sow ? "is sowing " : "is working on ") + bLabel(s) + ". it takes no wood, just elbow grease";
   if (k.kind === "build" && (s = bSite(g, k.site)) && s.kind === "pond")
     return (s.repair ? "is clearing out " : "is digging ") + bLabel(s) + ". it takes no wood, just a spade";
+  if (k.kind === "shoo") return "is chasing a duck out of the wheat";
   if (k.kind === "bucket" && k.pond) return p.pail ? "is carrying water to the pond" : "is fetching water for the pond";
   if (k.kind === "bucket" && k.field) return p.pail ? "is watering the wheat" : "is fetching water for the wheat";
   if (k.kind === "bucket" && p.pail && iVictim(g, p)) return "is running at somebody who is on fire with a bucket";
