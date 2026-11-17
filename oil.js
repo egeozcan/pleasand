@@ -27,6 +27,7 @@
 "use strict";
 
 var O_POOLS = 5;            /* pools of oil in the rock, in a new valley */
+var O_RESERVOIR = 1;        /* oil aux tag: carried with the cell when it flows, never set on spills or painted oil */
 var O_DEEP = 90;            /* how far under a well they look for its oil */
 var O_WELLS = 2;            /* wells pumping at once */
 var O_H = 13;               /* how tall a derrick is, from the deck to the platform */
@@ -89,7 +90,7 @@ function oSeedOil(g, rock) {
       for (dy = -ry; dy <= ry; dy++) for (dx = -rx; dx <= rx; dx++) {
         if (dx * dx / (rx * rx) + dy * dy / (ry * ry) > 1) continue;
         j = (cy + dy) * gw + cx + dx;
-        if (ROCK[g.m[j]]) { g.m[j] = MAT.OIL; g.aux[j] = 0; g.vy[j] = 0; }
+        if (ROCK[g.m[j]]) { g.m[j] = MAT.OIL; g.aux[j] = O_RESERVOIR; g.vy[j] = 0; }
       }
       /* and a skin of stone all round it: one cell, but nothing gets through one cell of stone. (this covers any
          seam of coal or ore it has been painted over, too.) */
@@ -104,10 +105,11 @@ function oSeedOil(g, rock) {
     }
   }
 }
-/* how much oil there is about, below the first few rows (for the tests and for the smell) */
+function oReservoirOil(g, j) { return g.m[j] === MAT.OIL && g.aux[j] === O_RESERVOIR; }
+/* how much reservoir oil there is about (for the tests and for the smell) */
 function oOilInRock(g) {
   var n = 0;
-  for (var j = 0; j < g.m.length; j++) if (g.m[j] === MAT.OIL && (j / g.gw | 0) > 12) n++;
+  for (var j = 0; j < g.m.length; j++) if (oReservoirOil(g, j)) n++;
   return n;
 }
 /* a mine at the bottom of the rock smells the oil: once is enough, and the village hears about it */
@@ -130,7 +132,7 @@ function oFindOil(g, s) {
   var x0 = Math.max(1, s.col - 6), x1 = Math.min(g.gw - 2, s.col + 6), y, x, j, best = -1, bd = 1e9, d;
   for (y = s.G + 4; y < Math.min(g.gh - 1, s.G + O_DEEP); y++) for (x = x0; x <= x1; x++) {
     j = y * g.gw + x;
-    if (g.m[j] !== MAT.OIL) continue;
+    if (!oReservoirOil(g, j)) continue;
     d = (y - s.G) * 2 + Math.abs(x - s.col);
     if (d < bd) { bd = d; best = j; }
   }
@@ -192,6 +194,11 @@ function oFinish(g, s, p) {
     oTake(g, s, j, p);
   }
   return true;
+}
+function oRunDry(g, s, p) {
+  s.dry = true;
+  feed(g, "the oil well has run dry", "#c8d0dc", "dry" + s.id);
+  if (p) pSay(g, p, "dry", true);
 }
 function oMood(g, p) {
   var k = p.task, s = k && (k.kind === "pump" || k.kind === "pack") ? bSite(g, k.site) : null;
@@ -293,7 +300,7 @@ function oWellPlot(g, x0, fy) {
   }
   /* oil under the drill, at least a few cells down (a puddle on the ground is not a well) */
   for (x = x0 + 1; x <= x0 + 3; x++) for (y = F + 4; y < Math.min(g.gh - 1, F + O_DEEP); y++) {
-    if (pCell(g, x, y) !== MAT.OIL) continue;
+    if (!oReservoirOil(g, y * g.gw + x)) continue;
     d = (y - F) * 2 + Math.abs(x - (x0 + 2));
     if (d < bestD) { bestD = d; oilY = y; oilDepth = y - F; }
   }
@@ -335,10 +342,9 @@ function oGoPump(g, p) {
   var best = null, bd = 220, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind !== "well" || !s.done || s.repair || s.dry) continue;
+    if (s.kind !== "well" || !s.done || s.repair || s.dry || pAvoid(g, p, s.pump.x)) continue;
     d = Math.abs(s.cx - p.x);
-    if (d >= bd) continue;
-    if (mCrew(g, "pump", s.id) + mCrew(g, "pack", s.id) > 0) continue;
+    if (d >= bd || mCrew(g, "pump", s.id) > 0) continue;
     if (s.tank >= O_TANK && oSumpCount(g, s) >= O_SPILL_MAX) continue;   /* no room: leave it for another day */
     bd = d; best = s;
   }
@@ -355,6 +361,7 @@ function oTask(g, p, k) {
 function oTaskPump(g, p, k) {
   var s = bSite(g, k.site), sx, sy, fy = Math.floor(p.y);
   if (!s || s.kind !== "well" || !s.done || s.repair || ++k.t > 3000) return iDone(p, false);
+  if (s.dry) return iDone(p, k.n > 0);
   sx = s.pump.x; sy = s.pump.y;
   if (Math.abs(p.x - sx - 0.5) > 1.2 || Math.abs(fy - sy) > 2) {
     if (iWalk(g, p, k, "pump" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 2; })) pGiveUp(g, p, sx);
@@ -367,12 +374,9 @@ function oTaskPump(g, p, k) {
   if (k.act === 20 && p.sayT <= 0) pSay(g, p, "pump");
   if (k.act % O_PUMP) return true;
   /* a stroke of the pump: a barrel out of the rock. into the tank, or over the side if the tank is full */
-  if (s.dry) return iDone(p, false);
   var j = oFindOil(g, s);
   if (j < 0) {
-    s.dry = true;
-    feed(g, "the oil well has run dry", "#c8d0dc", "dry" + s.id);
-    pSay(g, p, "dry", true);
+    oRunDry(g, s, p);
     return iDone(p, true);
   }
   if (s.tank >= O_TANK) {
@@ -394,7 +398,7 @@ function oGoPack(g, p) {
   var best = null, bd = 220, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind !== "well" || !s.done || s.repair || s.tank < O_PACK_OIL) continue;
+    if (s.kind !== "well" || !s.done || s.repair || s.tank < O_PACK_OIL || pAvoid(g, p, s.pump.x)) continue;
     d = Math.abs(s.cx - p.x);
     if (d >= bd || mCrew(g, "pack", s.id) > 0) continue;   /* (somebody may be working the pump at the same time) */
     bd = d; best = s;
@@ -446,11 +450,13 @@ function oLaunch(g, p) {
 /* the goings on: twice a second (from ideasStep) */
 function oStep(g) {
   oSmell(g);
-  /* what is in the tank, for the readout when the cursor is over the derrick */
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind !== "well" || !s.done) continue;
-    s.note = s.dry ? "dry" : s.tank + (s.tank === 1 ? " barrel" : " barrels") + " in the tank";
+    /* a full tank and sump can keep anyone from taking another shift to discover it is dry.
+       give the pool a stroke's worth of time to settle after a barrel comes out. */
+    if (!s.dry && g.tick - s.last >= O_PUMP && oFindOil(g, s) < 0) oRunDry(g, s);
+    s.note = (s.dry ? "dry; " : "") + s.tank + (s.tank === 1 ? " barrel" : " barrels") + " in the tank";
   }
 }
 

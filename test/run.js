@@ -333,14 +333,23 @@ test("there is oil in the rock, and a mine can smell it", function () {
   check(idea && idea.ready(g), "nobody thought of an oil well");
 });
 
-test("an oil well is planned over a pool, and its pump brings the oil up", function () {
-  var w = sim.load(7), g = w.g, p = null, s = null, k, i;
+function planOilWell(w) {
+  var g = w.g;
   g.know.oil = "TEST"; g.iron = 5;
-  for (k = 0; k < g.peasants.length && !s; k++) {
-    p = g.peasants[k];
-    if (w.oPlanWell(g, p)) s = g.sites[g.sites.length - 1];
-  }
-  check(s && s.kind === "well", "nowhere to sink a well");
+  var p = g.peasants.find(function (q) { return w.oPlanWell(g, q); });
+  check(p, "nowhere to sink a well");
+  return { p: p, s: sites(g, "well")[0] };
+}
+function clearOil(w, keep) {
+  var g = w.g;
+  for (var j = 0; j < g.m.length; j++) if (j !== keep && g.m[j] === w.MAT.OIL) w.sandPlace(g, j, w.MAT.EMPTY);
+}
+function standAtPump(p, s) {
+  p.x = s.pump.x + 0.5; p.y = s.pump.y; p.state = "walk"; p.task = null;
+}
+
+test("an oil well is planned over a pool, and its pump brings the oil up", function () {
+  var w = sim.load(7), g = w.g, well = planOilWell(w), p = well.p, s = well.s, i;
   check(s.plan.some(function (e) { return e.v === w.MAT.GIRDER; }), "the derrick has no iron in it");
   check(s.plan.some(function (e) { return e.v === w.MAT.LADDER; }), "the derrick has no ladder in it");
   /* the oil the pump can reach, exactly as oFindOil sees it */
@@ -353,13 +362,13 @@ test("an oil well is planned over a pool, and its pump brings the oil up", funct
   }
   var before = poolOil();
   sim.build(w, s);
-  w.oFinish(g, s, p);
+  w.bFinish(g, s, p);
   check(g.barrels === before - poolOil(), "the gusher made oil out of nothing");
-  p.x = s.pump.x + 0.5; p.y = s.pump.y; p.state = "walk"; p.task = null;
+  standAtPump(p, s);
   var made = g.barrels, left = poolOil();
-  k = { kind: "pump", site: s.id, t: 0, act: 0, n: 0 };
-  for (i = 0; i < 1200; i++) { w.oTaskPump(g, p, k); }
-  check(g.barrels > made, "no oil was pumped");
+  check(w.oGoPump(g, p), "nobody would take a shift at the pump");
+  for (i = 0; i < 1200 && p.task; i++) w.oTask(g, p, p.task);
+  check(!p.task && g.barrels - made === w.O_STROKE_N, "the shift did not pump " + w.O_STROKE_N + " barrels");
   check(poolOil() === left - (g.barrels - made), "the pump was not drawing from the pool (" + left + " -> " + poolOil() + ")");
   check(s.tank > 0 && s.tank <= 5, "the tank holds " + s.tank + " barrels");
   check(w.oSumpCount(g, s) > 0, "nothing overflowed into the sump");
@@ -367,14 +376,107 @@ test("an oil well is planned over a pool, and its pump brings the oil up", funct
   w.gameDraw(g, w.ctx);
   /* work the pool out, and the well knows it */
   made = g.barrels;
-  for (var y = s.G + 4; y < Math.min(g.gh - 1, s.G + 90); y++) for (var x = Math.max(1, s.col - 6); x <= Math.min(g.gw - 2, s.col + 6); x++) {
-    var j = y * g.gw + x;
-    if (g.m[j] === w.MAT.OIL) { g.m[j] = w.MAT.EMPTY; w.heatSync(g, j); }
-  }
-  k = { kind: "pump", site: s.id, t: 0, act: 0, n: 0 };
-  for (i = 0; i < 300 && !s.dry; i++) w.oTaskPump(g, p, k);
+  clearOil(w);
+  g.tick += w.O_PUMP;
+  w.oStep(g);
   check(s.dry, "the well did not run dry");
-  check(g.barrels === made, "a dry well was still giving oil");
+  check(!w.oGoPump(g, p) && g.barrels === made, "a dry well was still giving oil");
+});
+
+test("painted oil is neither a mine discovery nor a derrick plot", function () {
+  var w = sim.load(7), g = w.g, well = planOilWell(w), s = well.s, p = well.p;
+  w.bRemove(g, g.sites.indexOf(s));
+  clearOil(w);
+  w.sandPlace(g, s.oilY * g.gw + s.col, w.MAT.OIL);
+  g.know.mine = "TEST";
+  check(w.mPlanMine(g, p), "nowhere for a mine");
+  sim.build(w, sites(g, "mine")[0]);
+  w.oSmell(g);
+  check(!g.oilSeen && !g.found.oil, "the mine discovered painted oil");
+  w.bRemove(g, g.sites.indexOf(sites(g, "mine")[0]));
+  check(!w.oWellPlot(g, s.dx0, s.G - 1), "painted oil qualified as a derrick plot");
+});
+
+test("a derrick cannot pump its own overflow back up", function () {
+  var w = sim.load(7), g = w.g, well = planOilWell(w), s = well.s, p = well.p;
+  sim.build(w, s);
+  standAtPump(p, s);
+  clearOil(w);
+  s.tank = w.O_TANK;
+  check(w.oSpill(g, s), "no oil spilled at the spout");
+  var from = s.spill.y * g.gw + s.spill.x, to = (s.G + 5) * g.gw + s.spill.x;
+  check(g.m[from] === w.MAT.OIL, "the spout wasn't clear");
+  w.sandPlace(g, to, w.MAT.EMPTY);
+  w.sandSwap(g, from, to);   /* the spill reached a hole below the derrick */
+  check(w.oGoPump(g, p), "the pump was not staffed");
+  p.task.act = w.O_PUMP - 1;
+  w.oTask(g, p, p.task);
+  check(s.dry && g.barrels === 0 && g.m[to] === w.MAT.OIL, "the well counted its own overflow as a new barrel");
+});
+
+test("a derrick runs dry even if its last barrel fills the sump", function () {
+  var w = sim.load(7), g = w.g, well = planOilWell(w), s = well.s, p = well.p;
+  sim.build(w, s);
+  standAtPump(p, s);
+  var last = w.oFindOil(g, s);
+  check(last >= 0, "the well has no reservoir");
+  clearOil(w, last);
+  s.tank = w.O_TANK;
+  for (var dx = -8, n = 0; n < w.O_SPILL_MAX - 1; dx++) if (Math.abs(dx) > 2) {
+    w.sandPlace(g, (s.spill.y - 5) * g.gw + s.spill.x + dx, w.MAT.OIL);
+    n++;
+  }
+  check(w.oGoPump(g, p), "the pump was not staffed");
+  p.task.act = w.O_PUMP - 1; p.task.n = w.O_STROKE_N - 1;
+  w.oTask(g, p, p.task);
+  check(!p.task && g.barrels === 1 && w.oSumpCount(g, s) === w.O_SPILL_MAX, "the final barrel did not fill the sump");
+  check(!w.oGoPump(g, p), "somebody took another shift at the full well");
+  g.tick += w.O_PUMP;
+  w.oStep(g);
+  check(s.dry, "the full well was never marked dry");
+  check(s.note.indexOf("dry") >= 0 && s.note.indexOf(w.O_TANK + " barrels") >= 0, "the readout hid the dry well's remaining stock");
+  g.know.rocket = "TEST"; p.iron = 1;
+  check(w.oGoPack(g, p), "the dry well's tank could not be used for a pack");
+});
+
+test("a derrick gives reservoir oil time to flow back under the drill", function () {
+  var w = sim.load(7), g = w.g, s = planOilWell(w).s;
+  sim.build(w, s);
+  var cell = w.oFindOil(g, s), edge = ((cell / g.gw) | 0) * g.gw + s.col + 6;
+  check(cell >= 0 && cell !== edge, "the test needs oil away from the edge of the drill's reach");
+  clearOil(w, cell);
+  w.sandPlace(g, edge + 1, w.MAT.EMPTY);
+  w.sandSwap(g, cell, edge + 1);
+  check(w.oFindOil(g, s) < 0, "the test oil is still in reach");
+  w.oStep(g);
+  check(!s.dry, "the derrick was marked dry before the remaining oil could settle");
+  w.sandPlace(g, edge, w.MAT.EMPTY);
+  w.sandSwap(g, edge + 1, edge);
+  g.tick += w.O_PUMP;
+  w.oStep(g);
+  check(!s.dry && w.oFindOil(g, s) === edge, "the remaining oil did not stay drillable after moving");
+});
+
+test("derrick workers respect the cooldown after giving up on a route", function () {
+  var w = sim.load(7), g = w.g, well = planOilWell(w), s = well.s, p = well.p;
+  sim.build(w, s);
+  g.know.rocket = "TEST"; p.iron = 1; s.tank = w.O_PACK_OIL;
+  check(w.oGoPump(g, p), "no shift at the pump");
+  w.pGiveUp(g, p, s.pump.x);
+  check(!w.oGoPump(g, p) && !w.oGoPack(g, p), "the worker immediately retried the unreachable well");
+  g.tick = p.avoidT;
+  check(w.oGoPack(g, p), "the worker did not retry after the cooldown");
+});
+
+test("a derrick can be pumped even if a pack maker got there first", function () {
+  var w = sim.load(7), g = w.g, well = planOilWell(w), s = well.s, p = well.p;
+  var q = g.peasants.find(function (other) { return other !== p; });
+  sim.build(w, s);
+  g.know.rocket = "TEST"; p.iron = 1; s.tank = w.O_PACK_OIL;
+  check(w.oGoPack(g, p), "no shift making a pack");
+  check(w.oGoPump(g, q), "the pack maker blocked the pump shift");
+  p.task = null;
+  check(!w.oGoPump(g, p) && w.oGoPack(g, p), "the pump should take one worker and not block pack making");
 });
 
 test("a derrick on uneven ground stands its posts under its own legs", function () {
