@@ -584,8 +584,10 @@ function bTaskBuild(g, p, k) {
   }
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, fx = Math.floor(p.x), fy = Math.floor(p.y), dx = x + 0.5 - p.x;
   if (k.idle > 600 || k.t > 6000) { bFail(g, p, s, 900, k.idle > 600 ? "idle" : "slow"); return false; }
-  /* stairs and bridges: stand on what is built, on the near side of the next piece, never under it or past it */
-  if (s.side && !p.climb && (p.x - x - 0.5) * s.side < 0.6) {
+  /* stairs: stand on what is built, on the near side of the next piece, never under it or past it.
+     (only stairs use side this way. a lamp carries the side of the door it hangs by, which is
+     not a place to stand: it is the same column the builder has to be in) */
+  if (s.side && s.kind === "stairs" && !p.climb && (p.x - x - 0.5) * s.side < 0.6) {
     k.act = 0;
     if (pStuck(p, k, Math.abs(p.x - x - 0.5 - s.side))) { bFail(g, p, s, 1500, "side"); return false; }
     p.dir = s.side; return false;
@@ -609,7 +611,10 @@ function bTaskBuild(g, p, k) {
     }
     if (y < fy - B_REACH_UP && Math.abs(dx) <= B_REACH_X + 2) {
       var lc = bLadderNear(g, fx, fy);
-      if (lc >= 0) { bClimbStart(g, p, lc, -1); return true; }
+      /* only a ladder that goes somewhere (or one this site is still putting up):
+         an oil derrick's finished ladder ends under its own ironwork, and a builder
+         who climbs it gets nowhere, for ever */
+      if (lc >= 0 && (bLadderGoes(g, lc, fy) || bLadderOurs(g, s, lc))) { bClimbStart(g, p, lc, -1); return true; }
     }
     /* find a way to somewhere the next piece is in reach from (paths.js) */
     var left = pathGo(g, p, "b" + s.id + ":" + e.i, x, y, pathNear(x, y, 4, B_REACH_UP, B_REACH_DOWN));
@@ -1082,6 +1087,15 @@ function bLadderNear(g, fx, fy) {
 }
 /* could they step off the ladder (middle column cx) onto the ground beside it, side s, with their feet at fy */
 function bStepOff(g, cx, fy, s) { var x = cx + 2 * s; return pRoom(g, x, fy) && pGround(g, x, fy) && !pSolid(g, cx + s, fy); }
+/* is this ladder one of the ones this site is putting up? then it is theirs to climb,
+   however far up it currently reaches */
+function bLadderOurs(g, s, cx) {
+  for (var k = 0; k < s.plan.length; k++) {
+    var e = s.plan[k];
+    if (e.v === MAT.LADDER && (e.i % g.gw) === cx) return true;
+  }
+  return false;
+}
 /* does the ladder go anywhere: up from (cx, fy) to a top they could step off at */
 function bLadderGoes(g, cx, fy) {
   for (var y = fy; y > 0 && pCell(g, cx, y) === MAT.LADDER; y--);

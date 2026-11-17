@@ -240,8 +240,15 @@ function pathGo(g, p, key, tx, ty, goal) {
     nv = p.nav = { key: key, path: path, i: 0, t: g.tick, off: 0 };
   }
   var P = nv.path, n;
-  /* past the places already reached */
-  while (nv.i < P.length && Math.abs(p.x - P[nv.i].x - 0.5) < 0.7 && Math.abs(p.y - P[nv.i].y) < 3.5) nv.i++;
+  /* past the places already reached. a step through a tree needs the row to be
+     exactly right: a couple of rows of walking slack would otherwise count as
+     arriving at the top of the bush, and the sink from up there goes nowhere */
+  while (nv.i < P.length) {
+    var here = P[nv.i], next = P[nv.i + 1];
+    var vtol = next && (next.m === NAV_UP || next.m === NAV_DOWN) ? 0.75 : 3.5;
+    if (!(Math.abs(p.x - here.x - 0.5) < 0.7 && Math.abs(p.y - here.y) < vtol)) break;
+    nv.i++;
+  }
   if (nv.i >= P.length) return 0;
   n = P[nv.i];
   /* wandered off it (a fall, a shove, a swim that drifted): plan again soon */

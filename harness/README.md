@@ -170,6 +170,20 @@ h.invariant("no lava in the sky", "(() => { const y = 10; for (let x = 0; x < g.
 ```
 An invariant stop names itself and the tick.
 
+**Play a lot of villages and see what falls out.**
+```bash
+node harness/soak.js --seeds 1-8 --ticks 60000
+node harness/soak.js --seeds 1-6 --preset rich --jobs 6
+node harness/soak.js --seeds 1-6 --preset chaos --fail-on-stuck
+```
+`soak.js` runs each seed in its own process with the standard invariants
+plus: valid states, unique ids, held things, site plans and stock,
+peasants' task → site references, the ticker, and inventories. It also
+notices peasants who hold a task, in one place, making no stroke, for
+2400 ticks — stalled builders and routes that cannot be walked. A seed
+that stops, throws or hangs exits 1; `--json` gives one line per seed.
+This is how the lamp-bracket and dead-end-ladder bugs below were found.
+
 **Reproduce exactly.**
 ```js
 const sc = h.scenario();       // { seed, ticks, hash, ops: [{at, op, args}] }
@@ -244,3 +258,4 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
   events, input, snapshots, scenarios
 - `cli.js` — `run`, `serve`, `selftest`
 - `selftest.js` — 24 checks of the harness's own promises
+- `soak.js` — many seeds, long runs, presets, invariants and stuck builders

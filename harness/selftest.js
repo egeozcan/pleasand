@@ -147,6 +147,8 @@ test("events come out of the ticker, deaths and discoveries", function () {
   check(evs.some(function (e) { return e.kind === "feed" && /hello from the harness/.test(e.text); }), "no feed event");
   check(evs.some(function (e) { return e.kind === "death" && e.cause === "fire"; }), "no death event");
   check(evs.some(function (e) { return e.kind === "achieve" && e.key === "ninja"; }), "no achievement event");
+  h.game.achieve(h.g, "ninja");
+  eq(h.events({ kind: "achieve" }).length, 1, "an achievement already got was announced twice");
 });
 
 test("the census, a cell, a search and a map", function () {

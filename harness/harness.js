@@ -42,6 +42,7 @@ function Harness(opts) {
   this.ops = [];
   this.eventLog = [];
   this.eventMax = EVENT_MAX;
+  this.achSeen = Object.create(null);
   this.watches = [];
   this.breaks = [];
   this.invariants = [];
@@ -233,6 +234,7 @@ Harness.prototype.reset = function (seed) {
   this.g = this._eval("g");
   this.ticks = 0;
   this.eventLog.length = 0;
+  this.achSeen = Object.create(null);
   this.ops.length = 0;
   this.watches.forEach(function (w) { w.rows.length = 0; });
   this.breaks.forEach(function (b) { b.has = false; b.prev = undefined; b.v = undefined; });
@@ -261,7 +263,13 @@ Harness.prototype._onHook = function (tag, args) {
   var e = { tick: this.ticks, t: view.round(this.g.t, 2), kind: tag }, a;
   if (tag === "feed") { e.text = String(args[1]); e.col = args[2]; if (args[3]) e.key = args[3]; }
   else if (tag === "death") { a = args[1]; e.name = a && a.name; e.id = a && a.id; e.cause = args[2]; }
-  else if (tag === "achieve") { e.key = args[1]; }
+  else if (tag === "achieve") {
+    /* the game calls achieve() every time somebody finishes a wall, and it
+       returns early once it is got; only the first one is news */
+    if (this.achSeen[args[1]]) return;
+    this.achSeen[args[1]] = 1;
+    e.key = args[1];
+  }
   else if (tag === "banner") { e.title = args[1]; e.sub = args[2]; }
   this.eventLog.push(e);
   if (this.eventLog.length > this.eventMax) this.eventLog.splice(0, this.eventLog.length - this.eventMax);
