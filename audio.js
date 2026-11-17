@@ -102,6 +102,8 @@ var SFX = {
   /* a hammer on a nail, and a saw through a log */
   hammer: function () { tone(1300 + Math.random() * 300, 0.035, "square", 0.035, 700); hiss(0.03, 0.05, 4000); },
   saw: function () { for (var k = 0; k < 3; k++) hiss(0.09, 0.05, 2600, 1400, k * 0.1, "bandpass"); },
+  /* a light bulb going on over somebody's head */
+  idea: function () { tone(1568, 0.09, "sine", 0.05); tone(2093, 0.3, "sine", 0.045, null, 0.08); tone(3136, 0.2, "triangle", 0.012, null, 0.1); },
   /* a rubber duck */
   squeak: function () { tone(900, 0.12, "sine", 0.05, 1500); tone(1400, 0.08, "triangle", 0.02, 1100, 0.1); },
   /* the little animal-crossing mumble a peasant makes when it talks */

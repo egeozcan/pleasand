@@ -33,6 +33,7 @@ var P_HARD = new Uint8Array(NMAT);
 [MAT.STONE, MAT.GLASS, MAT.ICE, MAT.CLONER, MAT.FAUCET, MAT.DRAIN, MAT.TORCH, MAT.METAL, MAT.INERT, MAT.PLANK, MAT.STAIRS].forEach(function (v) { P_HARD[v] = 1; });
 /* things a peasant walks straight through, though nothing else can: doors (they open them) and ladders (they climb them) */
 var P_PASS = new Uint8Array(NMAT); P_PASS[MAT.DOOR] = P_PASS[MAT.LADDER] = 1;
+P_PASS[MAT.LAMP] = 1;   /* (and lanterns, hung over doorways: they duck) */
 /* how warm a peasant likes it. above P_SWEAT they complain, above P_SCALD they run, above
    P_IGNITE they are on fire. below P_CHILL they get colder and colder until they are ice */
 var P_SWEAT = 50, P_SCALD = 90, P_IGNITE = 230, P_CHILL = -8, P_FREEZE = 900;
@@ -217,8 +218,9 @@ function pSolid(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_P
    it can stand on top of any of it, but not in the middle of it: a soft thing holds them up only with their feet out
    of it. so they walk through a tree at the bottom, or along the top of it, and when they want to they go down through
    it (P_SINK, while they are sinking into it) or up (a jump, or the rope, straight up through it: paths.js) */
-var P_LEAF = new Uint8Array(NMAT); P_LEAF[MAT.PLANT] = P_LEAF[MAT.FLOWER] = 1;
+var P_LEAF = new Uint8Array(NMAT); P_LEAF[MAT.PLANT] = P_LEAF[MAT.FLOWER] = P_LEAF[MAT.CROP] = P_LEAF[MAT.WHEAT] = 1;
 var P_SOFT = new Uint8Array(NMAT); P_SOFT[MAT.PLANT] = P_SOFT[MAT.FLOWER] = P_SOFT[MAT.WOOD] = P_SOFT[MAT.SAPLING] = 1;
+P_SOFT[MAT.CROP] = P_SOFT[MAT.WHEAT] = 1;   /* (a field of wheat is walked through, like a bush) */
 var P_SINK = false;
 /* is there something to stand on, under feet at row y: in this column (pFoot), or one either side (pGround) */
 function pFoot(g, x, y) {
@@ -383,7 +385,10 @@ function pDie(g, p, cause) {
   p.dead = 1;
   if (cause === "splat" && p.fromSpace > 0) cause = "reentry";
   g.rip++;
-  feed(g, pick(P_DEATH[cause]).replace("{n}", p.name), "#ff9a8a");
+  iSpill(g, p, true);   /* a bucket of water they were carrying (ideas.js) goes where they fell */
+  var line = pick(P_DEATH[cause]);
+  feed(g, line.replace("{n}", p.name), "#ff9a8a");
+  iMourn(g, p, line);   /* remembered, for a grave (ideas.js) */
   var talking = 0;
   for (k = 0; k < g.ghosts.length; k++) if (g.ghosts[k].say && g.ghosts[k].t < 170) talking++;
   var gl = (talking < 2 && Math.random() < 0.5) ? pick(P_SAY.ghost) : "";
@@ -510,7 +515,10 @@ function peasantsReact(g, kind, x, y) {
    ------------------------------------------------------------------- */
 function peasantsStep(g) {
   var L = g.peasants, k, p, q;
-  for (k = 0; k < L.length; k++) if (!L[k].dead) { P_SINK = !!L[k].sink; pStep(g, L[k]); P_SINK = false; }
+  for (k = 0; k < L.length; k++) if (!L[k].dead) {
+    P_SINK = !!L[k].sink; pStep(g, L[k]); P_SINK = false;
+    iThink(g, L[k]);   /* and a full stomach, whatever it is up to, has time to think (ideas.js) */
+  }
   /* fire is contagious; neighbours say hello */
   if ((g.tick & 3) === 0) {
     for (k = 0; k < L.length; k++) {
@@ -551,6 +559,7 @@ function peasantsStep(g) {
   }
   if (burning >= 3) achieve(g, "roast");
   buildStep(g);
+  ideasStep(g);
   exploreNote(g);
   for (k = L.length - 1; k >= 0; k--) if (L[k].dead) L.splice(k, 1);
   if (g.hadPeasants && !L.length && !g.emptyNoted) { g.emptyNoted = true; banner(g, "THE VILLAGE IS EMPTY", "press V and click for more. you monster"); }
@@ -1330,6 +1339,7 @@ function pStepX(g, p, sp, swim) {
   return true;
 }
 function pWalk(g, p, wading) {
+  iPail(g, p);   /* (a full bucket and nothing to throw it at: it gets put down. ideas.js) */
   if (p.stun > 0) { p.stun--; return; }
   if (p.sleep > 0 && bSleeping(g, p)) return;
   var fx = Math.floor(p.x), fy = Math.floor(p.y), scared = p.fire || p.panic > 0;
@@ -1341,8 +1351,11 @@ function pWalk(g, p, wading) {
   else {
     /* look where you are going */
     if (!p.fire) {
-      var ax = fx + p.dir * 4, a0 = pCell(g, ax, fy), a1 = pCell(g, ax, fy - 3), a2 = pCell(g, ax, fy + 1), a3 = pCell(g, ax, fy - 7);
-      if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3) ||
+      /* (a bucket in hand makes them braver: only flames a couple of steps ahead turn them back, not hot air. they
+         keep themselves out of that: see iSafe in ideas.js) */
+      var brave = p.task && p.task.kind === "bucket";
+      var ax = fx + p.dir * (brave ? 2 : 4), a0 = pCell(g, ax, fy), a1 = pCell(g, ax, fy - 3), a2 = pCell(g, ax, fy + 1), a3 = pCell(g, ax, fy - 7);
+      if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || (!brave && (pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3))) ||
           (!p.fire && !SOLID[a2] && pNasty(g, ax, fy))) {
         /* a fire they lit themselves is not frightening. just hot */
         p.dir = -p.dir; p.task = null;
@@ -1376,7 +1389,8 @@ function pWalk(g, p, wading) {
       if (Math.random() < 0.002) pTrySink(g, p, fx, fy, 20);
       else if (P_SOFT[pCell(g, fx, fy)] && Math.random() < 0.004) { var up = navUp(g, fx, fy); if (up >= 0 && fy - up <= P_JUMP) pTryUp(g, p, fx, fy, up); }
     }
-    if (!p.hold) pStepX(g, p, (p.fire ? 0.5 : (p.panic ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1));
+    var rush = p.task && p.task.kind === "bucket" && p.task.site;   /* (the bucket brigade runs) */
+    if (!p.hold) pStepX(g, p, (p.fire ? 0.5 : (p.panic || rush ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1));
     if (!scared && !p.task) {
       if (Math.random() < 0.003) p.idle = 40 + irnd(160);
       else if (Math.random() < 0.0015) p.dir = -p.dir;
@@ -1400,11 +1414,11 @@ function pWalk(g, p, wading) {
    nothing explosive near it, nobody standing next to it and nothing
    above it to catch. failing that, if they have the logs, a campfire.
    ------------------------------------------------------------------- */
-var P_FOOD = new Uint8Array(NMAT); P_FOOD[MAT.PLANT] = P_FOOD[MAT.FLOWER] = P_FOOD[MAT.SEED] = 1;
+var P_FOOD = new Uint8Array(NMAT); P_FOOD[MAT.PLANT] = P_FOOD[MAT.FLOWER] = P_FOOD[MAT.SEED] = P_FOOD[MAT.WHEAT] = 1;
 var P_WOOD = new Uint8Array(NMAT); P_WOOD[MAT.WOOD] = 1;
 var P_FLAM = new Uint8Array(NMAT);
 [MAT.WOOD, MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.OIL, MAT.GAS, MAT.GUNPOWDER, MAT.FIREWORK, MAT.NUKE, MAT.EMBER,
- MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING].forEach(function (v) { P_FLAM[v] = 1; });
+ MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.CROP, MAT.WHEAT, MAT.LAMP].forEach(function (v) { P_FLAM[v] = 1; });
 var P_BANG = new Uint8Array(NMAT); P_BANG[MAT.GAS] = P_BANG[MAT.GUNPOWDER] = P_BANG[MAT.FIREWORK] = P_BANG[MAT.NUKE] = 1;
 var P_TINDER = new Uint8Array(NMAT); P_TINDER[MAT.WOOD] = P_TINDER[MAT.PLANT] = P_TINDER[MAT.FLOWER] = P_TINDER[MAT.SEED] = P_TINDER[MAT.OIL] = 1;
 
@@ -1427,7 +1441,8 @@ function pFind(g, p, set, R, ok, far) {
   return null;
 }
 /* food is what grows up out of the ground: follow it down, through more of itself, to soil. a roof (it ends in wood)
-   and a tree's crown (it ends in air) are not food. and leave a few of every patch, so it can grow back */
+   and a tree's crown (it ends in air) are not food. and leave a few of every patch, so it can grow back. (not wheat:
+   wheat is grown to be eaten, all of it, and the field is sown again) */
 function pEdible(g, x, y) {
   var d, c, n = 0, dx, dy;
   for (d = 1; d <= 40; d++) {
@@ -1437,6 +1452,7 @@ function pEdible(g, x, y) {
     break;
   }
   if (d > 40) return false;
+  if (pCell(g, x, y) === MAT.WHEAT) return !LEAFY[pCell(g, x, y - 1)];   /* (from the ear down: no stalks left hanging) */
   for (dy = -3; dy <= 3; dy++) for (dx = -3; dx <= 3; dx++) if ((dx || dy) && P_FOOD[pCell(g, x + dx, y + dy)]) n++;
   return n >= 3;
 }
@@ -1569,6 +1585,7 @@ function pClear(p, b) { return p.x < b.x1 ? b.x1 - p.x : (p.x > b.x2 + 1 ? p.x -
 function pCampOk(g, p, x, fy, stacked) {
   var k, y, c, clear = pClear(p, { x1: x - 1, x2: x + 1 });
   if (clear < 2.5 || clear > 5 || Math.abs(p.y - fy) > 1.5) return false;
+  if (bSiteAround(g, x, fy, null, 3)) return false;   /* not on somebody's field, or by their cross: the bucket brigade would only put it out */
   for (k = -1; k <= 1; k++) {
     if (!pSolid(g, x + k, fy + 1) && !(stacked && pCell(g, x + k, fy + 1) === MAT.WOOD)) return false;
     /* empty, or (once they have stacked them) their own logs */
@@ -1586,6 +1603,8 @@ function pCampOk(g, p, x, fy, stacked) {
 }
 function pPickTask(g, p) {
   var t = null, b;
+  /* the village is on fire, and they know about buckets: that comes before anything (ideas.js) */
+  if (iUrgent(g, p)) return;
   /* wood in hand and something to build with it: that comes before lunch */
   if (bWood(p) > 0.3 && p.cold <= 80) { var bs = bNearestSite(g, p, 170); if (bs) { bJoin(g, p, bs); return; } }
   var edible = function (g2, x, y) { return !pAvoid(g2, p, x) && pEdible(g2, x, y); };
@@ -1594,8 +1613,9 @@ function pPickTask(g, p) {
   if (p.hunger > P_HUNGRY && !p.eatCD) { t = pFind(g, p, P_FOOD, 60, edible, 40); if (!t) p.eatCD = 900; }
   else if (p.hunger > 900) t = pFind(g, p, P_FOOD, 4, edible);   /* a snack, if it is right there */
   if (t) { p.task = { kind: "eat", x: t.x, y: t.y, t: 0, act: 0, n: 0 }; return; }
-  /* bed, warmth, building, planting: see build.js */
+  /* bed, warmth, building, planting: see build.js. bright ideas, and what came of them: ideas.js */
   if (bPick(g, p)) return;
+  if (iPick(g, p)) return;
   if (p.bored > P_BORED_FIRE && Math.random() < 0.25) {
     t = pFind(g, p, P_TINDER, 40);
     if (t && (b = pSafeToLight(g, p, t.x, t.y))) { p.task = { kind: "light", x: t.x, y: t.y, b: b, t: 0, act: 0 }; return; }
@@ -1690,8 +1710,9 @@ function pTask(g, p) {
       if (!pEdible(g, k.x, k.y)) { p.task = null; return true; }
       c = g.m[j]; g.m[j] = MAT.EMPTY; heatSync(g, j);
       pChips(g, k.x + 0.5, k.y + 0.5, 3, [SAND_PAL[MAT.PLANT][0], SAND_PAL[MAT.PLANT][100]]);
-      p.hunger = Math.max(0, p.hunger - (c === MAT.FLOWER ? 1000 : 700)); p.bored = Math.max(0, p.bored - 100); k.n++;
-      if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, c === MAT.FLOWER && Math.random() < 0.5 ? "flower" : "eat");
+      p.hunger = Math.max(0, p.hunger - (c === MAT.FLOWER ? 1000 : (c === MAT.WHEAT ? 900 : 700))); p.bored = Math.max(0, p.bored - 100); k.n++;
+      if (c === MAT.WHEAT) achieve(g, "harvest");
+      if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, c === MAT.FLOWER && Math.random() < 0.5 ? "flower" : (c === MAT.WHEAT && Math.random() < 0.6 ? "wheat" : "eat"));
       more = p.hunger > 300 && k.n < P_BITES ? pFind(g, p, P_FOOD, 3, pEdible) : null;
       if (more) { k.x = more.x; k.y = more.y; } else p.task = null; p.taskDone = true;
     }
@@ -1710,6 +1731,7 @@ function pTask(g, p) {
       pIgniteCell(g, best);
       feed(g, p.name + " got bored and lit a fire", "#ffb070");
       achieve(g, "arson");
+      g.burnt = true;   /* (and somebody, somewhere, starts thinking about buckets: ideas.js) */
       pSay(g, p, "light", true);
       p.bored = 0; p.calmT = 400; p.task = null; p.taskDone = true; p.dir = -p.dir; p.idle = 0;
     }
@@ -1826,6 +1848,7 @@ function peasantsDraw(g) {
     if (p.chute && p.state === "walk") pDrawChute(g, p, ox);
     pBlit(g, p.hat.spr, ox, oy, flip, rot, pal, p.fire > 0);
     pBlit(g, body, ox, oy, flip, rot, pal, p.fire > 0);
+    if (rot === 0 && !g.thermal) iDrawGear(g, p, ox, oy);   /* a bucket, a fishing rod, a bright idea (ideas.js) */
   }
   /* ghosts: half see-through, which is the least a ghost can do */
   var px = g.px, gw = g.gw, gh = g.gh, G = g.ghosts;

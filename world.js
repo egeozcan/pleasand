@@ -46,7 +46,9 @@ var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STON
             SMOKE: 16, EMBER: 17, GLASS: 18, SALT: 19, CLONER: 20, GAS: 21, TORCH: 22,
             SEED: 23, FLOWER: 24, FIREWORK: 25, NUKE: 26, SALTWATER: 27, METAL: 28, SNOW: 29, INERT: 30,
             /* things only peasants make, out of the wood they chop: you will not find these in the picker */
-            PLANK: 31, DOOR: 32, LADDER: 33, STAIRS: 34, BED: 35, SAPLING: 36 };
+            PLANK: 31, DOOR: 32, LADDER: 33, STAIRS: 34, BED: 35, SAPLING: 36,
+            /* and what a well-fed village thinks of next (ideas.js): tilled earth, wheat growing and ripe, a lantern */
+            SOIL: 37, CROP: 38, WHEAT: 39, LAMP: 40 };
 /* how many kinds of thing there may ever be: the size of every per-thing table */
 var NMAT = 64;
 
@@ -94,13 +96,13 @@ var SAND_VMAX = 12;     /* top speed: 1 + (12 >> 2) = 4 cells a tick */
 
 /* how heavy each thing is, and which things a falling thing may push past */
 var SAND_DENS = [0, 4, 2, 1, 9, 0.5, 6, 9, 0.1, 9, 9, 4.5, 2.5, 1.5, 9, 9, 0.2, 9, 9, 4.2, 9, 0.15, 9, 3, 9, 4.1, 5, 2.2, 9, 1.8, 9,
-                 9, 9, 9, 9, 9, 9];
+                 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
 var SAND_FREE = [0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0,
-                 0, 0, 0, 0, 0, 0];
+                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 /* the brush pours these, a few grains a frame, into empty space only. everything
    else is a solid and gets stamped down whole, over whatever was there. */
 var SAND_POUR = [0, 0.3, 0.35, 0.35, 0, 0.35, 0.35, 0, 0, 0, 0, 0.3, 0.35, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0.35, 0, 0.03, 0, 0.012, 0, 0.35, 0, 0.25, 0,
-                 0, 0, 0, 0, 0, 0];
+                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 /* colours. several shades per thing; each grain is dealt one and keeps it */
 var SAND_SHADES = [
@@ -142,7 +144,12 @@ var SAND_SHADES = [
   ["#c8985c", "#ba8a52"],
   ["#9c6a3a", "#a87444", "#925f32"],
   ["#c84a4a", "#3a6ac0", "#4a9a4a", "#d8a840", "#9a5ac0", "#f4f0e6"],
-  ["#5aa040", "#6ab04a", "#4a8a36", "#6b4a1e"]
+  ["#5aa040", "#6ab04a", "#4a8a36", "#6b4a1e"],
+  /* tilled earth, young wheat, ripe wheat (the last shade is the ear), a lantern's flame */
+  ["#4a3222", "#3f2a1c", "#553a28", "#45301f"],
+  ["#6fae3c", "#5f9e34", "#7cbc48", "#86c050"],
+  ["#e2b84a", "#d4a83e", "#ecc85a", "#c89a36"],
+  ["#ffe08a", "#ffd060", "#fff0b0"]
 ];
 
 /* every (thing, shade) pair is worked out once, up here, not sixty times a second */
@@ -168,17 +175,17 @@ var SAND_DEEP = [];
 var SOLID = new Uint8Array(NMAT), LIQUID = new Uint8Array(NMAT), HOT = new Uint8Array(NMAT), AIRY = new Uint8Array(NMAT);
 [MAT.SAND, MAT.WOOD, MAT.STONE, MAT.PLANT, MAT.ICE, MAT.GUNPOWDER, MAT.ASH, MAT.FAUCET, MAT.DRAIN, MAT.EMBER,
  MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW, MAT.INERT,
- MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING].forEach(function (v) { SOLID[v] = 1; });
+ MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.SOIL, MAT.CROP, MAT.WHEAT, MAT.LAMP].forEach(function (v) { SOLID[v] = 1; });
 /* wood, and everything a peasant has made out of wood: it all burns the same way, down to embers */
 var WOODY = new Uint8Array(NMAT);
 [MAT.WOOD, MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS].forEach(function (v) { WOODY[v] = 1; });
 /* things that burn up like a plant does: in flames, not embers */
 var LEAFY = new Uint8Array(NMAT);
-[MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.BED, MAT.SAPLING].forEach(function (v) { LEAFY[v] = 1; });
+[MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.BED, MAT.SAPLING, MAT.CROP, MAT.WHEAT].forEach(function (v) { LEAFY[v] = 1; });
 /* things that never move and never do anything on their own: the step skips them */
 var STILL = new Uint8Array(NMAT);
 [MAT.EMPTY, MAT.STONE, MAT.WOOD, MAT.GLASS, MAT.FLOWER, MAT.METAL, MAT.INERT,
- MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED].forEach(function (v) { STILL[v] = 1; });
+ MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.WHEAT, MAT.LAMP].forEach(function (v) { STILL[v] = 1; });
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER].forEach(function (v) { LIQUID[v] = 1; });
 /* water, as far as fire, plants, peasants and lightning are concerned */
 var WET = new Uint8Array(NMAT); WET[MAT.WATER] = WET[MAT.SALTWATER] = 1;
@@ -465,7 +472,7 @@ function sandBoom(g, i, R, P) {
     else if (t === MAT.SALTWATER) heatForce(g, j, MAT.SALT);
     else if (t === MAT.ICE || t === MAT.SNOW) heatForce(g, j, MAT.WATER);
     else if (t === MAT.SMOKE || t === MAT.STEAM || t === MAT.GAS) { m[j] = t === MAT.GAS ? MAT.FIRE : t; }
-    else if (t === MAT.SAND || t === MAT.ASH || t === MAT.SALT || t === MAT.SNOW) { if (r < 0.5) m[j] = MAT.EMPTY; }
+    else if (t === MAT.SAND || t === MAT.SOIL || t === MAT.ASH || t === MAT.SALT || t === MAT.SNOW) { if (r < 0.5) m[j] = MAT.EMPTY; }
     else if (r < 0.85) m[j] = MAT.FIRE;
   }
   /* sparks, a few burning bits thrown about, and the news */
@@ -569,7 +576,7 @@ function sandLightning(g, cx) {
     j = yy * gw + xx; t = m[j];
     if (t === MAT.INERT) continue;
     heatAdd(g, j, (t === MAT.METAL ? 1200 : 2600) * (1 - d2 / (R * R + 1)));
-    if (t === MAT.SAND && Math.random() < 0.8) heatForce(g, j, MAT.GLASS);
+    if ((t === MAT.SAND || t === MAT.SOIL) && Math.random() < 0.8) heatForce(g, j, MAT.GLASS);
     else if (WET[t] || t === MAT.ACID || t === MAT.METAL) {
       /* some of the water flashes to steam. the current runs on through whatever is still water */
       if (t !== MAT.METAL && Math.random() < 0.15) heatForce(g, j, t === MAT.SALTWATER ? MAT.SALT : MAT.STEAM);
@@ -857,7 +864,7 @@ function sandPowder(g, i, x, y) {
     /* a seed sitting on soil, with water touching it, sprouts. the number it is
        given is how tall it is going to get. */
     t = m[i + g.gw];
-    if ((t === MAT.SAND || t === MAT.ASH || t === MAT.PLANT) && sandHas(g, x, y, MAT.WATER) >= 0 && Math.random() < 0.04) {
+    if ((t === MAT.SAND || t === MAT.ASH || t === MAT.PLANT || t === MAT.SOIL) && sandHas(g, x, y, MAT.WATER) >= 0 && Math.random() < 0.04) {
       m[i] = MAT.PLANT; g.aux[i] = 12 + irnd(30); g.score++; return;
     }
   }
@@ -919,7 +926,7 @@ function sandLiquid(g, i, x, y) {
       t = m[j]; p = 0;
       if (t === MAT.STONE) p = 0.006;
       else if (t === MAT.METAL) p = 0.003;
-      else if (t === MAT.SAND || WOODY[t] || LEAFY[t] || t === MAT.ICE ||
+      else if (t === MAT.SAND || t === MAT.SOIL || WOODY[t] || LEAFY[t] || t === MAT.ICE ||
                t === MAT.GUNPOWDER || t === MAT.ASH || t === MAT.SNOW) p = 0.04;
       if (p && Math.random() < p) {
         /* the air left behind keeps its heat, but not the half-melted ice's melting heat: that is a couple of hundred
@@ -1065,6 +1072,11 @@ function sandStatic(g, i, x, y) {
     }
   } else if (v === MAT.SAPLING) {
     saplingGrow(g, i, x, y);
+  } else if (v === MAT.CROP) {
+    cropGrow(g, i, x, y);
+  } else if (v === MAT.SOIL) {
+    /* tilled earth holds its furrows only on solid ground. with nothing under it, it is just sand again */
+    if (y < g.gh - 1 && (AIRY[g.m[i + g.gw]] || LIQUID[g.m[i + g.gw]])) heatBecome(g, i, MAT.SAND);
   } else if (v === MAT.FAUCET) {
     j = i + g.gw;
     if (y + 1 < g.gh && m[j] === MAT.EMPTY && Math.random() < 0.5) sandPlace(g, j, MAT.WATER);
@@ -1131,6 +1143,7 @@ function sandClear(g) {
 function sandLandscape(g) {
   var gw = g.gw, gh = g.gh, m = g.m, x, y, top = [], ph = Math.random() * 6, lo = 0, k, dx, dy;
   sandClear(g);
+  ideasReset(g);   /* a new village has had no ideas yet */
   var hgt = [];
   for (x = 0; x < gw; x++) hgt[x] = gh - 22 - Math.round(Math.sin(x * 0.07 + ph) * 7 + Math.sin(x * 0.023 + ph * 2) * 13);
   /* flat plots for the huts, away from the edges */

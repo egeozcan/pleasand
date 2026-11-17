@@ -45,12 +45,16 @@ var B_CLIMB = 0.25;               /* rows a tick, on a ladder */
 var B_COST = new Float32Array(NMAT);
 B_COST[MAT.PLANK] = B_COST[MAT.DOOR] = B_COST[MAT.STAIRS] = B_COST[MAT.BED] = B_COST[MAT.WOOD] = 1;
 B_COST[MAT.LADDER] = 1 / 3;
+B_COST[MAT.LAMP] = 1;             /* a lantern: a board's worth of frame, round a little oil */
+/* (tilling a field and sowing it cost nothing but the work: SOIL and CROP are free) */
 /* what a spade can shift: loose stuff, and greenery */
 var B_DIG = new Uint8Array(NMAT);
 [MAT.SAND, MAT.ASH, MAT.SNOW, MAT.SALT, MAT.SEED, MAT.PLANT, MAT.FLOWER].forEach(function (v) { B_DIG[v] = 1; });
 /* where a board can go: thin air. not into a flame */
 var B_AIR = new Uint8Array(NMAT);
 [MAT.EMPTY, MAT.SMOKE, MAT.STEAM, MAT.GAS].forEach(function (v) { B_AIR[v] = 1; });
+/* what a hoe turns into tilled earth where it lies, rather than shovelling it away */
+var B_TILL = new Uint8Array(NMAT); B_TILL[MAT.SAND] = B_TILL[MAT.ASH] = 1;
 
 P_SAY.build = ["*tap tap tap*", "hammer time", "measure twice, cut once", "nearly there", "who needs an architect",
   "it's not crooked, it's rustic", "mind your thumbs", "OW. MY THUMB", "a bit to the left", "*whistles*", "solid work"];
@@ -133,12 +137,19 @@ function bHome(g, p) {
 function bLabel(s) {
   var what = s.hut ? "hut" : "house";
   if (s.kind === "house") return s.who ? pTitle(s.who) + "'s " + what : "the empty " + what;
-  return "the " + s.kind;
+  return iLabel(s) || "the " + s.kind;
 }
+/* a field's cell of sand or ash, to be tilled where it lies */
+function bTill(g, e) { return e.v === MAT.SOIL && B_TILL[g.m[e.i]] === 1; }
 /* is this cell of the plan as it should be */
 function bOk(g, e) { var c = g.m[e.i]; return e.v === MAT.EMPTY ? !B_DIG[c] : c === e.v; }
 /* could it be put right now: a board needs thin air to go into, or something loose they can shovel out of the way first */
-function bFree(g, e) { var c = g.m[e.i]; return e.v === MAT.EMPTY || B_AIR[c] === 1 || B_DIG[c] === 1; }
+function bFree(g, e) {
+  var c = g.m[e.i];
+  if (e.v === MAT.SOIL) return B_TILL[c] === 1;                                  /* earth is tilled where it lies, never brought */
+  if (e.v === MAT.CROP && g.m[e.i + g.gw] !== MAT.SOIL) return false;            /* and wheat is sown in earth */
+  return e.v === MAT.EMPTY || B_AIR[c] === 1 || B_DIG[c] === 1;
+}
 /* a board needs something solid next to it (corners count) */
 function bSupported(g, e) {
   if (e.v === MAT.EMPTY) return true;
@@ -178,7 +189,7 @@ function bFinished(g, s) {
 }
 /* anybody (peasant or duck) standing in the cell, which a board would bury. doors and ladders they can share */
 function bInTheWay(g, e) {
-  if (P_PASS[e.v] || e.v === MAT.EMPTY) return null;
+  if (P_PASS[e.v] || P_LEAF[e.v] || e.v === MAT.EMPTY) return null;   /* (a seed goes in at anybody's feet) */
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, k, q;
   for (k = 0; k < g.peasants.length; k++) {
     q = g.peasants[k];
@@ -190,7 +201,8 @@ function bInTheWay(g, e) {
   }
   return null;
 }
-function bOpenCount(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (!g.sites[k].done) n++; return n; }
+/* projects under way. a field being sown is not one: it wants no wood, and is never long about it */
+function bOpenCount(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (!g.sites[k].done && !g.sites[k].free) n++; return n; }
 function bHouses(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house") n++; return n; }
 function bAlive(g) { var n = 0; for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n++; return n; }
 /* the site of a kind whose box (and a little round it) holds (x, y) */
@@ -206,7 +218,7 @@ function bSiteAround(g, x, y, kind, pad) {
 function bWood(p) { return (p.logs || 0) + (p.boards || 0) / B_BOARDS; }
 /* is the village short of wood: something going up, or a homeless peasant with room for a house */
 function bWoodWanted(g, p) {
-  for (var k = 0; k < g.sites.length; k++) if (!g.sites[k].done && Math.abs(g.sites[k].cx - p.x) < 200) return true;
+  for (var k = 0; k < g.sites.length; k++) if (!g.sites[k].done && !g.sites[k].free && Math.abs(g.sites[k].cx - p.x) < 200) return true;
   return !p.home && !bOwnsSite(g, p) && bHouses(g) < Math.min(B_HOUSES, bAlive(g));
 }
 /* a new house going up already: one at a time, or the wood goes everywhere and nothing gets finished */
@@ -223,7 +235,7 @@ function bNearestSite(g, p, R) {
   var best = null, bd = R, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.done || (p.failSite === s.id && p.failT > g.tick)) continue;
+    if (s.done || s.free || (p.failSite === s.id && p.failT > g.tick)) continue;   /* (a field wants hands, not wood: ideas.js) */
     d = Math.abs(s.cx - p.x) + Math.abs(s.cy - p.y) * 2 - (s.owner === p.id ? 100 : 0);
     if (d < bd) { bd = d; best = s; }
   }
@@ -235,7 +247,7 @@ function bJoin(g, p, s) {
   if (s.owner !== p.id && !s.helped[p.id]) {
     s.helped[p.id] = 1;
     if (s.kind === "house" && s.who && !s.repair) feed(g, p.name + " is helping with " + bLabel(s), "#a8e08a");
-    if (p.sayT <= 0) pSay(g, p, s.repair ? "repair" : "help");
+    if (p.sayT <= 0) pSay(g, p, s.kind === "farm" ? "helpFarm" : (s.repair ? "repair" : "help"));
   }
 }
 /* a site found on the way (or just planned): with wood, get to work on it; without, carry on as they would have (a
@@ -461,7 +473,7 @@ function bTryBridge(g, p, fx, fy, water) {
 function bFail(g, p, s, t, why) {
   p.failSite = s.id; p.failT = g.tick + t; p.task = null; p.taskCD = 120;
   /* a stair or a bridge that nobody can find a way to add to, time after time, is not going to happen */
-  if (why === "nothing" && s.kind !== "house" && ++s.nothing > 6) {
+  if (why === "nothing" && s.kind !== "house" && !s.free && ++s.nothing > 6) {
     var k = g.sites.indexOf(s);
     if (k >= 0) { feed(g, "the village gave up on " + bLabel(s), "#c8d0dc", "plan" + s.id); bRemove(g, k); }
   }
@@ -519,13 +531,23 @@ function bTaskBuild(g, p, k) {
   k.idle = 0;
   if (Math.abs(dx) > 0.5) p.dir = dx < 0 ? -1 : 1;
   k.act++;
-  var dig = e.v === MAT.EMPTY || B_DIG[g.m[e.i]] === 1;   /* (sand where a board should go: shovel it out first) */
-  p.pose = dig ? ((k.act % 20) < 10 ? "chopA" : "chopB") : ((k.act % 14) < 7 ? "hammerA" : "hammerB");
-  if (k.act % (dig ? 20 : 14) === 7) {
-    if (dig) bDig(g, s, e, p); else bPlace(g, s, e, p);
+  var till = bTill(g, e), dig = !till && (e.v === MAT.EMPTY || B_DIG[g.m[e.i]] === 1);   /* (sand where a board should go: shovel it out first) */
+  var hoe = till || dig, sow = e.v === MAT.CROP;
+  p.pose = hoe ? ((k.act % 20) < 10 ? "chopA" : "chopB") : (sow ? ((k.act % 14) < 7 ? "stand" : "eatB") : ((k.act % 14) < 7 ? "hammerA" : "hammerB"));
+  if (k.act % (hoe ? 20 : 14) === 7) {
+    if (till) bTillCell(g, s, e, p); else if (dig) bDig(g, s, e, p); else bPlace(g, s, e, p);
     k.best = null;   /* that was progress */
   }
   return true;
+}
+/* a stroke of the hoe: sand (or ash) turned over into dark earth, where it lies, keeping its heat */
+function bTillCell(g, s, e, p) {
+  var gw = g.gw;
+  heatBecome(g, e.i, MAT.SOIL);
+  s.last = g.tick;
+  g.fx.thud++;
+  pChips(g, e.i % gw + 0.5, ((e.i / gw) | 0) - 0.5, 3, [SAND_PAL[MAT.SOIL][0], SAND_PAL[MAT.SOIL][60], SAND_PAL[MAT.SAND][0]]);
+  if (p.sayT <= 0 && Math.random() < 0.06) pSay(g, p, "till");
 }
 /* a board into the plan. the cell keeps whatever heat it had: a board brought in at room temperature, near enough */
 function bPlace(g, s, e, p) {
@@ -543,7 +565,7 @@ function bPlace(g, s, e, p) {
   s.last = g.tick;
   g.fx.hammer++;
   pChips(g, x + 0.5, y + 0.5, 2, [SAND_PAL[e.v][0], SAND_PAL[e.v][40]]);
-  if (p.sayT <= 0 && Math.random() < 0.06) pSay(g, p, s.repair ? "repair" : "build");
+  if (p.sayT <= 0 && Math.random() < 0.06) pSay(g, p, e.v === MAT.CROP ? "sow" : (s.repair ? "repair" : "build"));
 }
 /* a spadeful of sand off the plot, flung out of the way. it lands where it lands, heat and all */
 function bDig(g, s, e, p) {
@@ -558,6 +580,7 @@ function bFinish(g, s, p) {
   s.done = true; s.last = g.tick;
   var o = bOwner(g, s);
   g.fx.pop++;
+  if (s.sow) { s.sow = s.repair = false; if (p && p.sayT <= 0) pSay(g, p, "sown"); return; }   /* a field sown again: no news */
   if (s.repair) {
     s.repair = false;
     feed(g, bLabel(s).charAt(0).toUpperCase() + bLabel(s).slice(1) + " is as good as new", "#a8e08a", "fix" + s.id);
@@ -575,7 +598,7 @@ function bFinish(g, s, p) {
       if (n >= 3) achieve(g, "village");
     }
     if (o) { o.home = s.id; pSay(g, o, "homeDone", true); }
-  } else {
+  } else if (!iFinish(g, s, p)) {
     feed(g, p.name + " built " + (s.kind === "stairs" ? "some stairs" : "a " + s.kind), "#a8e08a", "plan" + s.id);
     achieve(g, s.kind);
   }
@@ -595,7 +618,10 @@ function buildStep(g) {
     if (s.done) { if (((g.tick / 30) + s.id) % 4 === 0) bInspect(g, s, k); }
     else if (g.tick - s.last > 20000 && !bBusy(g, s)) {
       /* nobody has touched it in ages. a house that is mostly up is lived in as it is; anything else is forgotten */
-      if (s.kind === "house" && (s.repair || s.hut || bShare(g, s) > 0.6)) { s.done = true; s.repair = false; s.last = g.tick; if (bOwner(g, s)) bOwner(g, s).home = s.id; }
+      if ((s.kind === "house" || s.free) && (s.repair || s.hut || bShare(g, s) > 0.6)) {
+        s.done = true; s.repair = s.sow = false; s.last = g.tick;
+        if (s.kind === "house" && bOwner(g, s)) bOwner(g, s).home = s.id;
+      }
       else { feed(g, "the village gave up on " + bLabel(s), "#c8d0dc", "plan" + s.id); bRemove(g, k); }
     }
   }
@@ -627,9 +653,11 @@ function bBusy(g, s) {
   for (var k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && t.kind === "build" && t.site === s.id) return true; }
   return false;
 }
-/* a finished site, looked over: a few cells gone and it is reopened for repairs. most of it gone and it is a ruin */
+/* a finished site, looked over: a few cells gone and it is reopened for repairs. most of it gone and it is a ruin. a
+   field with only its crop gone (eaten, mostly) is not damaged, just harvested: it is quietly reopened, to sow again.
+   earth blown out of a field is not put back (it is tilled where it lies, never brought), but it counts towards a ruin */
 function bInspect(g, s, idx) {
-  var gw = g.gw, n = 0, gone = 0, k, e, x, y;
+  var gw = g.gw, n = 0, gone = 0, broken = 0, crops = 0, k, e, x, y;
   for (y = s.y0; y <= s.y1; y++) for (x = s.x0; x <= s.x1; x++) {
     var c = pCell(g, x, y);
     if (c === MAT.FIRE || c === MAT.EMBER) return;   /* still burning: wait until it is out */
@@ -637,16 +665,22 @@ function bInspect(g, s, idx) {
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
     if (e.v === MAT.EMPTY) continue;
+    var lost = !bOk(g, e) && bFree(g, e);
+    if (e.v === MAT.CROP) { if (lost) crops++; continue; }
     n++;
-    if (!bOk(g, e) && bFree(g, e)) gone++;
+    if (lost) gone++;
+    if (lost || (e.v === MAT.SOIL && !bOk(g, e))) broken++;
   }
-  if (!gone) return;
-  if (gone > n * 0.6) {
+  if (broken > n * 0.6) {
     var o = bOwner(g, s);
     feed(g, bLabel(s).charAt(0).toUpperCase() + bLabel(s).slice(1) + " is gone", "#ff9a8a", "fix" + s.id);
-    if (o) { o.home = 0; pSay(g, o, "lostHome", true); }
+    if (o && s.kind === "house") { o.home = 0; pSay(g, o, "lostHome", true); }
     if (s.kind === "house") achieve(g, "ruin");
     bRemove(g, idx);
+    return;
+  }
+  if (!gone) {
+    if (crops) { s.done = false; s.repair = s.sow = true; s.last = g.tick; s.helped = {}; }
     return;
   }
   s.done = false; s.repair = true; s.last = g.tick; s.helped = {};
@@ -700,7 +734,7 @@ function bTask(g, p, k) {
   if (k.kind === "home") return bTaskHome(g, p, k);
   if (k.kind === "plant") return bTaskPlant(g, p, k);
   if (k.kind === "explore") return exploreTask(g, p, k);
-  return undefined;
+  return iTask(g, p, k);
 }
 
 /* bed: their own, if they have one with a bed in it. otherwise wherever they are standing */
@@ -1027,8 +1061,9 @@ function bDraw(g) {
 }
 /* why an unfinished site is not going up, in a few words, for the readout */
 function bWhy(g, s) {
-  if (bBusy(g, s)) return s.repair ? " (BEING FIXED)" : " (GOING UP)";
+  if (bBusy(g, s)) return s.sow ? " (BEING SOWN)" : (s.repair ? " (BEING FIXED)" : " (GOING UP)");
   if (!bNext(g, s, null)) return " (STUCK)";
+  if (s.free) return s.sow ? " (TO BE SOWN)" : " (WAITING FOR HANDS)";
   for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead && bWood(g.peasants[k]) > 0.3) return " (NOBODY CAN GET TO IT)";
   return " (WAITING FOR WOOD)";
 }
@@ -1049,7 +1084,7 @@ function bReadout(g, j) {
     for (var n = 0; n < s.plan.length; n++) {
       var e = s.plan[n];
       if (e.i !== j) continue;
-      var what = bLabel(s).toUpperCase() + (s.done ? "" : bWhy(g, s));
+      var what = bLabel(s).toUpperCase() + (s.done ? "" : bWhy(g, s)) + (s.note ? ": " + s.note.toUpperCase() : "");
       if (bOk(g, e) || e.v === MAT.EMPTY) return e.v === MAT.EMPTY ? "TO DIG OUT, FOR " + what : what;
       return "PLANNED " + (e.v === MAT.PLANK && e.a === 1 ? "WINDOW" : MAT_NAME[e.v]) + ", FOR " + what;
     }

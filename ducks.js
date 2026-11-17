@@ -142,7 +142,9 @@ function dDie(g, d, cause) {
 /* anything solid holds a duck up, leaves and all. but a duck pushes through leaves and flowers, squeezes through a
    ladder, and slips through a door after whoever opened it: none of those are in a duck's way */
 var D_PASS = new Uint8Array(NMAT);
-[MAT.PLANT, MAT.FLOWER, MAT.DOOR, MAT.LADDER].forEach(function (v) { D_PASS[v] = 1; });
+[MAT.PLANT, MAT.FLOWER, MAT.DOOR, MAT.LADDER, MAT.CROP, MAT.WHEAT].forEach(function (v) { D_PASS[v] = 1; });
+/* what a duck will waddle a long way for: seeds, and ripe wheat (which is seeds, on a stalk, in a row, somebody's) */
+function dTasty(g, x, y) { var c = pCell(g, x, y); return c === MAT.SEED || (c === MAT.WHEAT && !iScarecrowNear(g, x, y)); }
 function dSolid(g, x, y) { return SOLID[pCell(g, x, y)] === 1; }
 function dBody(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !D_PASS[c]; }
 function dBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return dBody(g, fx, fy) || dBody(g, fx, fy - 1) || dBody(g, fx, fy - 2); }
@@ -349,11 +351,19 @@ function dHeading(g, d) {
   if (--d.look <= 0) {
     d.look = 60 + irnd(60);
     var s, hit, best = 999;
+    /* a scarecrow: off the other way, smartish */
+    var sc = iScarecrowNear(g, d.x, d.y);
+    if (sc && d.state === "walk") {
+      d.seed = null; d.dir = d.x < sc.cx ? -1 : 1;
+      if (Math.random() < 0.3) dSay(g, d, "quack", true);
+      iShooed(g, sc);
+      return 0.16;
+    }
     /* seeds lying about, that it could waddle to. ducks love seeds */
     d.seed = null;
     for (s = -1; s <= 1; s += 2) {
       hit = dScan(g, d, s, 40, function (x, y) {
-        for (var yy = y - 1; yy <= y + 1; yy++) for (var xx = x - 1; xx <= x + 1; xx++) if (pCell(g, xx, yy) === MAT.SEED) return { x: xx, y: yy };
+        for (var yy = y - 1; yy <= y + 1; yy++) for (var xx = x - 1; xx <= x + 1; xx++) if (dTasty(g, xx, yy)) return { x: xx, y: yy };
         return null;
       });
       if (hit && hit.n < Math.abs(best)) { best = hit.n * s; d.seed = hit.at; }
@@ -368,7 +378,7 @@ function dHeading(g, d) {
     }
   }
   if (d.seed) {
-    if (pCell(g, d.seed.x, d.seed.y) !== MAT.SEED) d.seed = null;
+    if (!dTasty(g, d.seed.x, d.seed.y)) d.seed = null;
     else d.dir = d.seed.x + 0.5 < d.x ? -1 : 1;
   }
   return 0.1;
@@ -391,12 +401,14 @@ function dScan(g, d, s, max, fn) {
   }
   return null;
 }
-/* any seed within reach of the beak gets eaten */
+/* any seed (or ear of wheat) within reach of the beak gets eaten */
 function dPeck(g, d) {
-  var fx = Math.floor(d.x), fy = Math.floor(d.y), x, y;
+  var fx = Math.floor(d.x), fy = Math.floor(d.y), x, y, j;
   for (x = fx - 1; x <= fx + 2; x++) for (y = fy - 1; y <= fy + 1; y++) {
-    if (pCell(g, x, y) === MAT.SEED && Math.random() < 0.08) {
-      g.m[y * g.gw + x] = MAT.EMPTY; d.idle = 20;
+    if (dTasty(g, x, y) && Math.random() < 0.08) {
+      j = y * g.gw + x;
+      if (g.m[j] === MAT.WHEAT) iRaided(g, d, x, y);
+      g.m[j] = MAT.EMPTY; heatSync(g, j); d.idle = 20;
       if (Math.random() < 0.4) dSay(g, d, "quack");
       return;
     }

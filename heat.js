@@ -88,6 +88,8 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   def(MAT.PLANK, 2.0, 0.04); def(MAT.DOOR, 2.0, 0.04); def(MAT.LADDER, 2.0, 0.04); def(MAT.STAIRS, 2.0, 0.04);
   def(MAT.BED, 1.5, 0.03);     /* straw and a blanket: warm to lie on */
   def(MAT.SAPLING, 2.5, 0.06);
+  def(MAT.SOIL, 1.2, 0.08); def(MAT.CROP, 2.5, 0.06); def(MAT.WHEAT, 2.0, 0.05);
+  def(MAT.LAMP, 1.5, 0.1);     /* a little glass and a little oil */
 
   function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
   function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
@@ -111,6 +113,7 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   hi(MAT.GAS, 200, 0); hi(MAT.GUNPOWDER, 180, 0); hi(MAT.FIREWORK, 150, 0); hi(MAT.NUKE, 400, 0);
   hi(MAT.PLANK, 300, 0); hi(MAT.DOOR, 300, 0); hi(MAT.LADDER, 300, 0); hi(MAT.STAIRS, 300, 0);
   hi(MAT.BED, 200, 0); hi(MAT.SAPLING, 220, 0);
+  hi(MAT.CROP, 220, 0); hi(MAT.WHEAT, 200, 0); hi(MAT.LAMP, 250, 0); hi(MAT.SOIL, 800, 0);   /* (a field of ripe wheat goes up like a field of ripe wheat) */
 
   HEAT_SRC[MAT.FIRE] = 750; HEAT_SRC[MAT.EMBER] = 700; HEAT_SRC[MAT.TORCH] = 1000;
   HEAT_POW[MAT.FIRE] = 200; HEAT_POW[MAT.EMBER] = 40; HEAT_POW[MAT.TORCH] = 400;
@@ -282,7 +285,7 @@ function heatUp(g, i, v) {
     case MAT.ICE: case MAT.SNOW: m[i] = MAT.WATER; g.aux[i] = 0; return 0;
     case MAT.STONE: case MAT.GLASS: case MAT.METAL:
       m[i] = MAT.LAVA; g.aux[i] = v === MAT.STONE ? 0 : v; return 0;
-    case MAT.SAND: m[i] = MAT.GLASS; g.aux[i] = 0; g.score++; return 0;
+    case MAT.SAND: case MAT.SOIL: m[i] = MAT.GLASS; g.aux[i] = 0; g.score++; return 0;
     case MAT.WOOD: case MAT.PLANK: case MAT.DOOR: case MAT.LADDER: case MAT.STAIRS: m[i] = MAT.EMBER; g.aux[i] = 0; return 0;
     case MAT.ACID: m[i] = MAT.SMOKE; g.aux[i] = 0; return 0;
     case MAT.GAS: m[i] = MAT.FIRE; g.sh[i] = SAND_CLEAN; g.aux[i] = 0; g.fx.whoosh++; return 0;

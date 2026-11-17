@@ -43,6 +43,37 @@ of it or down through it) to wherever they are going, go exploring
 when they are bored (somewhere high, somewhere nobody has been lately), put back what you burn down (and mourn what you burn right
 down), and plant saplings where they cut trees down, which grow into trees.
 
+And when they have eaten well, they think. Every tick a peasant spends well
+fed, and not frightened, freezing or asleep, goes towards a bright idea (twice
+as fast at home, round a campfire, holding a fishing rod or standing about by
+lamplight). When it comes, a
+light bulb goes on over their head, the village hears about it, and from then
+on they all know it. Something has to put an idea into somebody's head first:
+nobody thinks of buckets until something has gone up in flames. Hover over IDEAS
+at the top to see what they know, and what might give them the rest. What they
+think of:
+
+- **Farming**: a field of sand tilled into dark furrows and sown with wheat,
+  which grows (faster with water about: it drinks what lands on it), ripens
+  from the ear down, and is eaten, all of it, after which the field is sown
+  again. It takes no wood, so anybody lends a hand. A village with fields is
+  a well-fed village, and a well-fed village has more ideas
+- **Lanterns**: one on a bracket by each door, burning in a warm pool of light
+- **The bucket**: once something has burned (or been set alight by somebody
+  bored), a fire at anything
+  of theirs sends everybody who was only doing something for fun to the pond
+  with a bucket (on the near side of the fire: they are brave, not daft). On
+  a quiet day they water the wheat
+- **Gravestones**: once somebody has died, a wooden cross for each of the
+  dead, in a row, saying how. Now and then somebody visits, and leaves a flower
+- **Fishing**: a jetty out over the pond, and somebody on the end of it with a
+  rod. A fish, mostly. Sometimes a boot, or a duck. If you boiled the pond,
+  the fish come out cooked
+- **The scarecrow**: the ducks like the wheat too (they eat the bottom of the
+  stalk, and the rest comes down as seed). Not with one of these about
+- **Fireworks**: once they have a couple of houses and a couple of ideas, now
+  and then somebody puts on a show, and everybody comes to watch
+
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
 and grown from there.
 
@@ -94,6 +125,10 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - Let off a firework near the houses, and watch everyone run home
 - Chill the village with COOL and watch them light a fire and huddle round it
 - Make them a floating island, with flowers on it. Somebody will go up and have a look
+- Paint a meadow of plants for them, and watch for light bulbs
+- Once they know about buckets, set fire to a house. Then build them a pond next to it
+- Leave the ducks near the wheat for a while
+- Boil the pond while somebody is fishing in it
 
 ## Files
 
@@ -103,5 +138,6 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 - `peasants.js`: the villagers, what they say, how they die, and how they are drawn
 - `paths.js`: how the villagers find their way: A* over everywhere a peasant could stand, using the moves a peasant really makes (steps, drops, leaps, jumps, ladders, ropes, swims)
 - `build.js`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
+- `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, graves, jetties and fishing, scarecrows, fireworks shows
 - `ducks.js`: the ducks
 - `game.js`: rendering, the picker and HUD, input, and the main loop

@@ -39,7 +39,12 @@ var TIPS = [
   "tip: burn a house down and they will rebuild it. if most of it is gone, they will mourn it",
   "tip: a lit window means somebody is home",
   "tip: bored peasants go exploring. build them somewhere high to explore",
-  "tip: peasants walk through trees and bushes, and up or down through them when they want to"
+  "tip: peasants walk through trees and bushes, and up or down through them when they want to",
+  "tip: well-fed peasants have ideas. paint them some plants, or let them farm, and see what they think of",
+  "tip: a peasant who has thought of something has a light bulb over their head. hover to see what they are up to",
+  "tip: hover over the header to see what the village has thought of, and what might give them more ideas",
+  "tip: once they know about buckets, set fire to a house and watch",
+  "tip: ducks love wheat. the peasants will think of something"
 ];
 
 /* -------------------------------------------------------------------
@@ -118,7 +123,7 @@ function gameInit(g) {
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
            pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0, quack: 0, peep: 0, squeak: 0,
-           hammer: 0, saw: 0 };
+           hammer: 0, saw: 0, idea: 0 };
   g.snd = {};
   g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0;
   g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = {}; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
@@ -215,10 +220,11 @@ MAT_NAME[MAT.EMBER] = "EMBER"; MAT_NAME[MAT.FLOWER] = "FLOWER";
 /* the things only peasants make */
 MAT_NAME[MAT.PLANK] = "PLANKS"; MAT_NAME[MAT.DOOR] = "DOOR"; MAT_NAME[MAT.LADDER] = "LADDER"; MAT_NAME[MAT.STAIRS] = "STAIRS";
 MAT_NAME[MAT.BED] = "BED"; MAT_NAME[MAT.SAPLING] = "SAPLING";
+MAT_NAME[MAT.SOIL] = "TILLED EARTH"; MAT_NAME[MAT.CROP] = "YOUNG WHEAT"; MAT_NAME[MAT.WHEAT] = "RIPE WHEAT"; MAT_NAME[MAT.LAMP] = "LANTERN";
 /* a cell partway through melting, boiling or setting says so */
 var MAT_UP = [], MAT_DOWN = [];
 MAT_UP[MAT.WATER] = MAT_UP[MAT.SALTWATER] = "boiling"; MAT_UP[MAT.ICE] = MAT_UP[MAT.SNOW] = "melting";
-MAT_UP[MAT.STONE] = MAT_UP[MAT.GLASS] = MAT_UP[MAT.METAL] = "melting"; MAT_UP[MAT.SAND] = "fusing"; MAT_UP[MAT.ACID] = "boiling";
+MAT_UP[MAT.STONE] = MAT_UP[MAT.GLASS] = MAT_UP[MAT.METAL] = "melting"; MAT_UP[MAT.SAND] = MAT_UP[MAT.SOIL] = "fusing"; MAT_UP[MAT.ACID] = "boiling";
 MAT_DOWN[MAT.WATER] = MAT_DOWN[MAT.SALTWATER] = "freezing"; MAT_DOWN[MAT.STEAM] = "condensing"; MAT_DOWN[MAT.LAVA] = "setting";
 function cellReadout(g, j) {
   var v = g.m[j], e = g.lat[j], name = MAT_NAME[v] || "", s;
@@ -346,6 +352,7 @@ function sandSounds(g) {
     if (ok("squeak", 0.15)) SFX.squeak();
     if (ok("hammer", 0.09)) SFX.hammer();
     if (ok("saw", 0.4)) SFX.saw();
+    if (ok("idea", 0.3)) SFX.idea();
   }
   for (var k in f) f[k] = 0;
 }
@@ -434,6 +441,21 @@ function drawWorld(g) {
         /* two rails, and a rung every third row between them; between the rungs you see through it */
         a = g.aux[i];
         px[i] = a !== 1 ? SAND_PAL[v][sh[i]] : (y % 3 === 0 ? SAND_LIT[v][sh[i]] : blend32(bg[i], 0xff000000, 0.3));
+      } else if (v === MAT.SOIL) {
+        /* furrows: ridges and troughs, every other column */
+        f = y > 0 && (AIRY[m[i - gw]] || P_LEAF[m[i - gw]]) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
+        px[i] = (x & 1) ? f : blend32(f, 0xff000000, 0.2);
+      } else if (v === MAT.WHEAT) {
+        /* the ear at the top of the stalk, with its whiskers, nodding in the breeze */
+        if (y > 0 && !LEAFY[m[i - gw]]) {
+          a = Math.sin(x * 0.7 + t * 1.8) > 0.55;
+          px[i] = a ? SAND_LIT[v][3] : SAND_PAL[v][3];
+          if (m[i - gw] === MAT.EMPTY) px[i - gw] = blend32(px[i - gw], SAND_LIT[v][2], a ? 0.75 : 0.5);
+        } else px[i] = SAND_PAL[v][sh[i] % 3];
+      } else if (v === MAT.LAMP) {
+        /* a little flame behind glass: the warm pool of light round it is in ideas.js */
+        px[i] = gp[i] = SAND_PAL[v][(sh[i] + flick) & 255];
+        hot++;
       } else if (v === MAT.INERT) {
         /* faintly magic: a slow shimmer runs through it, and now and then a cell glints */
         px[i] = SAND_PAL[v][(sh[i] + ((Math.sin(x * 0.21 + y * 0.17 + t * 1.6) * 40) | 0)) & 255];
@@ -470,6 +492,7 @@ function drawWorld(g) {
     if (pk !== PK_DEBRIS || g.pm[k] === MAT.FIRE) { gp[i] = g.pc[k]; hot++; }
   }
   hot += bDraw(g);
+  hot += iDraw(g);
   ducksDraw(g);
   peasantsDraw(g);
   return hot;
@@ -752,7 +775,9 @@ function drawPanel(g, c) {
   for (k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead) nd++;
   var nh = 0;
   for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done) nh++;
-  var hdr = "PEASANTS " + alive + "     RIP " + g.rip + (nh ? "     HOUSES " + nh : "") + (nd ? "     DUCKS " + nd : "") + (space ? "     IN SPACE " + space : "");
+  var ni = iKnown(g);
+  var hdr = "PEASANTS " + alive + "     RIP " + g.rip + (nh ? "     HOUSES " + nh : "") + (ni ? "     IDEAS " + ni + "/" + IDEAS.length : "") +
+            (nd ? "     DUCKS " + nd : "") + (space ? "     IN SPACE " + space : "");
   txt(c, hdr, PANEL + (VW - PANEL) / 2, 10, 8, "#d8dde6", "center", true);
   txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
 
@@ -764,6 +789,7 @@ function drawPanel(g, c) {
   var hd = inPlay(g) && !hp ? duckAt(g, g.cx, g.cy, 1) : null;
   if (hp) line = hp.name + "  " + pMood(g, hp);
   else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd);
+  else if (g.my < PLAY_Y && g.mx >= PANEL) line = iSummary(g);   /* over the header: what the village knows */
   else if (g.mx < PANEL && hov < 0) line = TIPS[g.tip];
   else line = info.name + "  " + info.desc;
   /* what is under the cursor, and how hot it is, on the right */
@@ -799,6 +825,8 @@ function pMood(g, p) {
   if (p.cold > 60) return "is chilly";
   if (p.panic > 0) return "is panicking";
   if (p.warm > 0) return "is too warm";
+  var im = iMood(g, p);
+  if (im) return im;
   if (p.task && p.task.kind === "build") {
     var bs = bSite(g, p.task.site), bn = bs ? bLabel(bs) : "something", wl = Math.round(bWood(p) * 10) / 10;
     var verb = !bs ? "building " : (bs.repair ? "fixing " : (bs.hut ? "putting doors on " : "building "));
@@ -820,6 +848,7 @@ function pMood(g, p) {
   if (p.charred) return "is a bit crispy, but fine";
   var home = bHome(g, p);
   if (p.idle > 0 && home && bInside(home, p)) return p.hid && g.tick - p.hid < 900 ? "is hiding at home" : "is at home";
+  if (p.hunger < I_FED && (p.muse || 0) > I_MUSE * 0.5) return "is well fed, and thinking";
   if (p.idle > 0) return "is standing about";
   if (p.logs > 0) return "is going for a walk. carrying " + p.logs + " log" + (p.logs > 1 ? "s" : "");
   return home ? "is going for a walk. has a house" : "is going for a walk. has no house";
