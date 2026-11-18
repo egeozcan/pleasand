@@ -892,6 +892,43 @@ test("peasants grow old and go quietly, and somebody new walks into the valley",
   check(g.got.arrive, "nobody noticed the newcomer");
 });
 
+test("a peasant you make yourself raises the count the valley keeps up, and a new valley counts again", function () {
+  var w = sim.load(2), g = w.g, i;
+  sim.step(w, 120);
+  var n = g.popGoal;
+  check(n > 0, "(the test wants a village)");
+  g.sel = w.PICK.findIndex(function (k) { return k.tool === "peasant"; });
+  g.cx = 60; g.cy = 20; g.btn = 0; g.keys = {};
+  g.mx = w.PANEL + g.cx * w.CELL; g.my = w.PLAY_Y + g.cy * w.CELL;
+  w.gameTap(g, g.mx, g.my);
+  check(g.popGoal === n + 1, "making a peasant did not raise the count (" + n + " -> " + g.popGoal + ")");
+  w.sandLandscape(g);
+  check(g.popGoal == null, "a new valley kept the old one's count");
+  sim.step(w, 120);
+  check(g.popGoal === g.peasants.filter(function (q) { return !q.dead; }).length, "the new valley did not count its own");
+});
+
+test("now and then a duck walks into the valley, but not into a valley full of ducks", function () {
+  var w = sim.load(3), g = w.g, i;
+  sim.step(w, 120);
+  var n = g.ducks.length;
+  g.duckArriveT = g.tick;
+  for (i = 0; i < 61; i++) sim.step(w, 1);
+  check(g.ducks.length > n, "no duck walked in");
+  var d = g.ducks[g.ducks.length - 1];
+  check(d.x < 40 || d.x > g.gw - 40, "the newcomer did not come from the edge (x " + d.x + ")");
+  for (i = 0; i < 240; i++) sim.step(w, 1);
+  check(!d.dead, "the newcomer died on arrival");
+  /* and a full pond gets nobody new */
+  while (g.ducks.filter(function (q) { return !q.baby; }).length < w.D_ARRIVE_UPTO) w.duckWalkIn(g, 0);
+  n = g.ducks.length; g.duckArriveT = g.tick;
+  for (i = 0; i < 61; i++) sim.step(w, 1);
+  check(g.ducks.length <= n, "ducks kept coming into a full valley");
+  /* and a family brings its ducklings along behind it */
+  var mom = w.duckWalkIn(g, 4), kids = g.ducks.filter(function (q) { return q.baby && q.lead; });
+  check(mom && kids.length >= 1, "the mother came without her ducklings");
+});
+
 test("with nowhere else for a mine, one of two fields is dug up for it, and never the last", function () {
   var w = sim.load(4), g = w.g, p = g.peasants[0], k, f;
   know(g, ["farm", "dig", "mine"]);

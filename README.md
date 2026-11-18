@@ -31,9 +31,10 @@ back until the ice runs out, or a wall comes, or somebody else's legs do
 (thrown onto a frozen pond, they do not stop either). They have names. The
 game keeps count. They grow old, too, and in the end die of old age, quietly, in bed or
 sitting about (or, if nobody ever feeds them, of hunger) (and get a cross, once somebody has thought of crosses); and a
-valley with room in it gets somebody new walking in from the edge now and then. There are ducks, too: they
+valley with room in it gets somebody new walking in from the edge now and then (the valley keeps up the count it
+started with, plus any you make yourself). There are ducks, too: they
 waddle, swim, dabble, fly, eat seeds, push through bushes and flowers, and
-sometimes bring ducklings.
+sometimes bring ducklings. Now and then another duck waddles in from the edge, unless the valley is full of them.
 
 The peasants build. They chop wood, saw each log into four boards, and put up
 things you cannot paint yourself: **houses** (on a levelled plot, a plank floor,

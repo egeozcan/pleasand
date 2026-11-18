@@ -1197,7 +1197,8 @@ function gameTap(g, x, y) {
     var pk = curPick(g);
     if (pk.tool === "peasant") {
       var p = peasantAt(g, g.cx, g.cy, 2);
-      if (!p) p = peasantSpawn(g, clamp(g.cx, 2, g.gw - 3), clamp(g.cy + 8, 9, g.gh - 1));
+      /* (one you made yourself is one more the valley holds: when somebody dies, somebody walks in to make it up) */
+      if (!p && (p = peasantSpawn(g, clamp(g.cx, 2, g.gw - 3), clamp(g.cy + 8, 9, g.gh - 1))) && g.popGoal != null) g.popGoal++;
       if (p) peasantGrab(g, p, true);
     } else if (pk.tool === "duck") {
       var d = duckAt(g, g.cx, g.cy, 2);

@@ -286,6 +286,7 @@ function ducksStep(g) {
       pSay(g, q, d.kind.rubber ? "rubber" : (d.baby ? "ducklings" : "duck"));
   }
   for (k = D.length - 1; k >= 0; k--) if (D[k].dead) { if (g.heldDuck === D[k]) g.heldDuck = null; D.splice(k, 1); }
+  if ((g.tick % 60) === 0) duckArrivals(g);
 }
 
 function dStep(g, d) {
@@ -552,6 +553,48 @@ function duckPond(g, pond) {
     var x = x0 + 2 + Math.random() * Math.max(1, x1 - x0 - 4), d = duckSpawn(g, x, y + 0.5, null, false, true);
     if (d) d.state = "swim";
   }
+}
+
+/* -------------------------------------------------------------------
+   NEWCOMERS. now and then a duck (or, sometimes, a mother and her
+   ducklings) waddles in from the edge of the valley, as long as the
+   valley is not already full of ducks
+   ------------------------------------------------------------------- */
+var D_ARRIVE = 7200, D_ARRIVE_MORE = 7200;   /* ticks between ducks walking in: at the least, and up to this many more */
+var D_ARRIVE_UPTO = 8;                        /* no more walk in once there are this many grown ducks about */
+function duckArrivals(g) {
+  /* (the first wait comes from the clock, not the dice: a valley's luck is the same with ducks due or not) */
+  if (g.duckArriveT == null) { g.duckArriveT = g.tick + D_ARRIVE + (g.tick * 7919) % D_ARRIVE_MORE; return; }
+  if (g.tick < g.duckArriveT) return;
+  g.duckArriveT = g.tick + D_ARRIVE + irnd(D_ARRIVE_MORE);
+  var grown = 0;
+  for (var k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead && !g.ducks[k].baby) grown++;
+  if (grown >= D_ARRIVE_UPTO) return;
+  duckWalkIn(g, Math.random() < 0.25 ? 3 + irnd(3) : 0);
+}
+/* a duck from one edge or the other, wherever there is ground to stand on near it; n ducklings behind, towards the edge */
+function duckWalkIn(g, n) {
+  var first = Math.random() < 0.5 ? 1 : -1;
+  for (var t = 0; t < 120; t++) {
+    var side = (t & 1) ? -first : first, dir = side, off = 3 + (t >> 1) + n * 4;
+    var x = side > 0 ? off : g.gw - 1 - off, y = mGround(g, x);
+    if (y < 10 || !pRoom(g, x, y - 1)) continue;
+    var kind = n ? (Math.random() < 0.5 ? D_KINDS[1] : D_KINDS[2]) : null, d = duckSpawn(g, x + 0.5, y - 0.5, kind, false, true);
+    if (!d) return null;
+    d.dir = dir;
+    var prev = d, kids = 0;
+    for (var c = 1; c <= n; c++) {
+      var bx = x - dir * c * 4, by = mGround(g, bx);
+      if (bx < 1 || bx > g.gw - 2 || by < 10) break;
+      var b = duckSpawn(g, bx + 0.5, by - 0.5, kind, true, true);
+      if (!b) break;
+      b.dir = dir; b.lead = prev; prev = b; kids++;
+    }
+    feed(g, kids ? "a duck has brought her ducklings to the valley" : "a duck has waddled into the valley", "#ffd94a", "duckarrive");
+    dSay(g, d, "quack", true);
+    return d;
+  }
+  return null;
 }
 
 /* how a duck is doing, for the bar at the bottom */

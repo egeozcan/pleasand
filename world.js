@@ -1334,6 +1334,8 @@ function sandLandscape(g) {
   heatReset(g);
   /* and the villagers */
   g.peasants.length = 0; g.ghosts.length = 0; g.held = null;
+  /* (a new valley counts its own villagers, and waits a while for its first visitors) */
+  g.popGoal = null; g.arriveT = 0; g.duckArriveT = null;
   for (k = 0; k < 7; k++) {
     for (tries = 0; tries < 20; tries++) {
       x = 6 + irnd(gw - 12);
