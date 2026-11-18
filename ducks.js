@@ -127,6 +127,7 @@ function dFeathers(g, d, n) {
 function dDie(g, d, cause) {
   if (d.dead) return;
   d.dead = 1;
+  g.duckRip = (g.duckRip || 0) + 1;
   feed(g, pick(D_DEATH[cause] || D_DEATH.splat), "#ffb0a0");
   dFeathers(g, d, cause === "nuke" ? 0 : 8);
   if (cause === "fire" || cause === "zap") {

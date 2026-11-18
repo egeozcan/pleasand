@@ -398,6 +398,7 @@ function pDie(g, p, cause) {
   p.dead = 1;
   if (cause === "splat" && p.fromSpace > 0) cause = "reentry";
   g.rip++;
+  if (g.causes) g.causes[cause] = (g.causes[cause] || 0) + 1;
   iSpill(g, p, true);   /* a bucket of water they were carrying (ideas.js) goes where they fell */
   var line = pick(P_DEATH[cause]);
   feed(g, line.replace("{n}", p.name), "#ff9a8a");

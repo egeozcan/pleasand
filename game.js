@@ -136,7 +136,7 @@ function gameInit(g) {
            pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0, quack: 0, peep: 0, squeak: 0,
            hammer: 0, saw: 0, idea: 0, pick: 0, clang: 0, clank: 0, bell: 0 };
   g.snd = {};
-  g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0;
+  g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0; g.causes = {}; g.duckRip = 0; g.pop = null; g.hdrHit = [];
   g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = {}; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
   g.ducks = []; g.did = 0; g.heldDuck = null;
   g.sites = []; g.sid = 0;
@@ -810,9 +810,27 @@ function drawPanel(g, c) {
   var nh = 0;
   for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done) nh++;
   var ni = iKnown(g);
-  var hdr = "PEASANTS " + alive + "     RIP " + g.rip + (nh ? "     HOUSES " + nh : "") + (ni ? "     IDEAS " + ni + "/" + IDEAS.length : "") +
-            (nd ? "     DUCKS " + nd : "") + (space ? "     IN SPACE " + space : "");
-  txt(c, hdr, PANEL + (VW - PANEL) / 2, 10, 8, "#d8dde6", "center", true);
+  /* each count is its own button: click it for a popup of the numbers behind it */
+  var segs = [["peasants", "PEASANTS " + alive], ["rip", "RIP " + g.rip]];
+  if (nh) segs.push(["houses", "HOUSES " + nh]);
+  if (ni) segs.push(["ideas", "IDEAS " + ni + "/" + IDEAS.length]);
+  if (nd) segs.push(["ducks", "DUCKS " + nd]);
+  if (space) segs.push(["peasants", "IN SPACE " + space]);
+  c.font = "bold 8px " + UI_FONT;
+  var gap = c.measureText("     ").width, tw = -gap;
+  for (k = 0; k < segs.length; k++) tw += c.measureText(segs[k][1]).width + gap;
+  var hx = PANEL + (VW - PANEL - tw) / 2, hot = null;
+  g.hdrHit = [];
+  for (k = 0; k < segs.length; k++) {
+    var sw = c.measureText(segs[k][1]).width, on = g.pop === segs[k][0];
+    var over = g.my < PLAY_Y && g.mx >= hx - 3 && g.mx < hx + sw + 3;
+    if (over) hot = segs[k][0];
+    if (on || over) rct(c, hx - 3, 2, sw + 6, PLAY_Y - 4, on ? "#2a3d5e" : "#17202f");
+    txt(c, segs[k][1], hx, 10, 8, on ? "#ffd94a" : (over ? "#ffffff" : "#d8dde6"), "left", true);
+    g.hdrHit.push({ key: segs[k][0], x0: hx - 3, x1: hx + sw + 3 });
+    hx += sw + gap;
+  }
+  if (typeof cv !== "undefined" && cv && cv.style) { var want = hot ? "pointer" : "crosshair"; if (cv.style.cursor !== want) cv.style.cursor = want; }
   txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
 
   /* description bar */
@@ -891,6 +909,194 @@ function pMood(g, p) {
   return home ? "is going for a walk. has a house" : "is going for a walk. has no house";
 }
 
+/* -------------------------------------------------------------------
+   STAT POPUPS: click a count along the top for what is behind it.
+   each is a list of rows: [left, right, colour] (right may be ""), or
+   a header ["#", text], or a bar ["=", left, n, of, colour]
+   ------------------------------------------------------------------- */
+var P_CAUSE = { starve: "hunger", old: "old age", fire: "fire", lava: "lava", drown: "drowning", acid: "acid",
+  fall: "a long fall", splat: "going splat", nuke: "the nuke", drain: "the drain", buried: "being buried",
+  zap: "lightning", chute: "a parachute", reentry: "re-entry", freeze: "the cold" };
+/* what the other things they build are called, one and many */
+var SITE_NAMES = { farm: ["field", "fields"], lamp: ["porch light", "porch lights"], post: ["street lamp", "street lamps"],
+  grave: ["cross", "crosses"], scarecrow: ["scarecrow", "scarecrows"], jetty: ["jetty", "jetties"], pond: ["dug pond", "dug ponds"],
+  statue: ["statue", "statues"], well: ["oil well", "oil wells"], mine: ["mine", "mines"], tunnel: ["gallery", "galleries"],
+  tower: ["watchtower", "watchtowers"], furnace: ["furnace", "furnaces"], lift: ["lift", "lifts"], bell: ["bell", "bells"],
+  stairs: ["flight of stairs", "flights of stairs"], ladder: ["ladder", "ladders"], bridge: ["bridge", "bridges"] };
+var POP_TITLE = { peasants: "THE VILLAGERS", rip: "IN MEMORIAM", houses: "THE BUILDINGS", ideas: "WHAT THEY KNOW", ducks: "THE DUCKS" };
+/* a peasant's age in years (a year is twenty seconds, so they make seventy to ninety-five) */
+function pYears(g, p) { return Math.max(0, Math.floor(pAge(g, p) / 1200)); }
+function yrs(n) { return n + (n === 1 ? " year" : " years"); }
+function popRows(g, key) {
+  var R = [], k, p, s, n;
+  if (key === "peasants") {
+    var L = [], sp = 0, housed = 0, sleep = 0, hungry = 0, cold = 0, busy = 0, fire = 0, wet = 0, tot = 0, old = null, young = null;
+    for (k = 0; k < g.peasants.length; k++) {
+      p = g.peasants[k];
+      if (p.dead) continue;
+      if (p.state === "space") { sp++; continue; }
+      L.push(p);
+      if (bHome(g, p)) housed++;
+      if (p.sleep > 0) sleep++;
+      if (p.hunger > P_HUNGRY) hungry++;
+      if (p.cold > 60) cold++;
+      if (p.fire) fire++;
+      if (p.swimming) wet++;
+      if (p.task && p.task.kind !== "sleep") busy++;
+      var y = pYears(g, p); tot += y;
+      if (!old || y > pYears(g, old)) old = p;
+      if (!young || y < pYears(g, young)) young = p;
+    }
+    n = L.length;
+    R.push(["living", String(n), "#ffffff"]);
+    if (sp) R.push(["in space, right now", String(sp), "#9ad0ff"]);
+    R.push(["been to space, ever", String(g.astronauts), "#9ad0ff"]);
+    if (!n) { R.push(["nobody about. throw some in", "", "#8892a8"]); return R; }
+    R.push(["#", "HOW THEY ARE"]);
+    R.push(["=", "with a house", housed, n, "#a8e08a"]);
+    R.push(["=", "busy with something", busy, n, "#f0c060"]);
+    R.push(["=", "asleep", sleep, n, "#9aa6b8"]);
+    R.push(["=", "hungry", hungry, n, "#ff9a8a"]);
+    if (cold) R.push(["=", "cold", cold, n, "#8ad8ff"]);
+    if (wet) R.push(["=", "swimming", wet, n, "#5a9ae8"]);
+    if (fire) R.push(["=", "on fire", fire, n, "#ff7a3a"]);
+    R.push(["#", "AGES"]);
+    R.push(["average", yrs(Math.round(tot / n)), "#ffffff"]);
+    R.push(["oldest: " + pTitle(old.name), yrs(pYears(g, old)), "#c8d0dc"]);
+    if (n > 1) R.push(["youngest: " + pTitle(young.name), yrs(pYears(g, young)), "#c8d0dc"]);
+    var king = pKing(g), th = iThinker(g);
+    if (king || th.n) R.push(["#", "NOTABLES"]);
+    if (king) R.push(["the king", pTitle(king.name), "#ffd94a"]);
+    if (th.n) R.push(["the great thinker", pTitle(th.name) + " (" + th.n + ")", "#ffd94a"]);
+  } else if (key === "rip") {
+    R.push(["died, all told", String(g.rip), "#ffffff"]);
+    var cs = [], most = 0;
+    for (k in g.causes) { cs.push([k, g.causes[k]]); most = Math.max(most, g.causes[k]); }
+    cs.sort(function (a, b) { return b[1] - a[1]; });
+    if (cs.length) {
+      R.push(["#", "OF WHAT"]);
+      for (k = 0; k < cs.length; k++) R.push(["=", P_CAUSE[cs[k][0]] || cs[k][0], cs[k][1], g.rip, "#ff9a8a"]);
+    } else R.push(["nobody yet. how kind", "", "#8892a8"]);
+    var graves = 0;
+    for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "grave" && g.sites[k].done) graves++;
+    if (graves) R.push(["crosses in the graveyard", String(graves), "#c8d0dc"]);
+    if (g.dead && g.dead.length) {
+      R.push(["#", "LATELY"]);
+      for (k = g.dead.length - 1; k >= Math.max(0, g.dead.length - 4); k--) R.push([g.dead[k].note, "", "#c8d0dc"]);
+    }
+  } else if (key === "houses") {
+    var hs = 0, huts = 0, stone = 0, empty = 0, rising = 0, kinds = {}, kn = [];
+    for (k = 0; k < g.sites.length; k++) {
+      s = g.sites[k];
+      if (s.kind === "house") {
+        if (!s.done) { rising++; continue; }
+        if (s.hut) huts++; else hs++;
+        if (s.stone) stone++;
+        if (!bOwner(g, s)) empty++;
+      } else if (s.done && s.kind !== "grave") kinds[s.kind] = (kinds[s.kind] || 0) + 1;   /* (graves are under RIP) */
+    }
+    n = hs + huts;
+    R.push(["houses", String(hs), "#ffffff"]);
+    if (huts) R.push(["the old huts", String(huts), "#ffffff"]);
+    R.push(["=", "lived in", n - empty, n, "#a8e08a"]);
+    if (stone) R.push(["=", "rebuilt in stone", stone, n, "#9aa6b8"]);
+    if (rising) R.push(["going up", String(rising), "#f0c060"]);
+    for (k in kinds) kn.push([k, kinds[k]]);
+    kn.sort(function (a, b) { return b[1] - a[1]; });
+    if (kn.length) {
+      R.push(["#", "AND ALSO"]);
+      for (k = 0; k < kn.length; k++) R.push([(SITE_NAMES[kn[k][0]] || [kn[k][0], kn[k][0] + "s"])[kn[k][1] > 1 ? 1 : 0], String(kn[k][1]), "#c8d0dc"]);
+    }
+  } else if (key === "ideas") {
+    R.push(["=", "thought of", iKnown(g), IDEAS.length, "#ffd94a"]);
+    R.push(["#", "KNOWN"]);
+    for (k = 0; k < IDEAS.length; k++) if (g.know[IDEAS[k].id]) R.push([IDEAS[k].name, pTitle(iShort(g.know[IDEAS[k].id])), "#ffffff"]);
+    var todo = 0;
+    for (k = 0; k < IDEAS.length; k++) if (!g.know[IDEAS[k].id]) {
+      if (!todo++) R.push(["#", "TO COME"]);
+      var ready = g.readyT && g.readyT[IDEAS[k].id];
+      R.push(["? " + IDEAS[k].hint, ready ? "on their minds" : "", ready ? "#f0c060" : "#8892a8"]);
+    }
+  } else if (key === "ducks") {
+    var D = [], kc = {}, kl = [], baby = 0, swim = 0, fly = 0, burn = 0;
+    for (k = 0; k < g.ducks.length; k++) {
+      var d = g.ducks[k];
+      if (d.dead) continue;
+      D.push(d);
+      if (d.baby) baby++;
+      if (d.state === "swim") swim++;
+      if (d.state === "fly") fly++;
+      if (d.fire) burn++;
+      if (!d.baby) kc[d.kind.name] = (kc[d.kind.name] || 0) + 1;
+    }
+    n = D.length;
+    R.push(["ducks", String(n - baby), "#ffffff"]);
+    R.push(["ducklings", String(baby), "#ffe070"]);
+    if (n) {
+      R.push(["#", "DOING"]);
+      R.push(["=", "swimming", swim, n, "#5a9ae8"]);
+      R.push(["=", "flying", fly, n, "#9ad0ff"]);
+      R.push(["=", "waddling", n - swim - fly, n, "#e8c040"]);
+      if (burn) R.push(["=", "on fire", burn, n, "#ff7a3a"]);
+    }
+    for (k in kc) kl.push([k, kc[k]]);
+    kl.sort(function (a, b) { return b[1] - a[1]; });
+    if (kl.length) {
+      R.push(["#", "KINDS"]);
+      for (k = 0; k < kl.length; k++) R.push([kl[k][0].toLowerCase() + (kl[k][1] > 1 ? "s" : ""), String(kl[k][1]), "#c8d0dc"]);
+    }
+    if (g.duckRip) R.push(["lost, all told", String(g.duckRip), "#ffb0a0"]);
+  }
+  return R;
+}
+function drawStatPop(g, c) {
+  g.popRect = null;
+  if (!g.pop) return;
+  var hit = null, k;
+  for (k = 0; k < g.hdrHit.length; k++) if (g.hdrHit[k].key === g.pop) { hit = g.hdrHit[k]; break; }
+  if (!hit) { g.pop = null; return; }   /* (the count it hangs off has gone: no ducks, say) */
+  var R = popRows(g, g.pop), LH = 9, BARW = 44, pad = 6, w = 0, h = 14 + pad, r;
+  c.font = "7px " + UI_FONT;
+  for (k = 0; k < R.length; k++) {
+    r = R[k];
+    if (r[0] === "#") { w = Math.max(w, c.measureText(r[1]).width); h += k ? LH + 3 : LH; }
+    else if (r[0] === "=") { w = Math.max(w, c.measureText(r[1]).width + BARW + 40); h += LH; }
+    else { w = Math.max(w, c.measureText(r[0]).width + (r[1] ? c.measureText(r[1]).width + 12 : 0)); h += LH; }
+  }
+  c.font = "bold 8px " + UI_FONT;
+  w = Math.min(VW - PANEL - 8, Math.max(w, c.measureText(POP_TITLE[g.pop]).width + 64) + pad * 2);
+  var x = clamp((hit.x0 + hit.x1) / 2 - w / 2, PANEL + 4, VW - 4 - w), y = PLAY_Y + 3, yy, xr = x + w - pad;
+  g.popRect = { x: x, y: y, w: w, h: h };
+  rct(c, x, y, w, h, "#080b14");
+  box(c, x, y, w, h, "#3a4e72");
+  rct(c, (hit.x0 + hit.x1) / 2 - 2, y - 2, 4, 2, "#3a4e72");   /* (a little tab up to the count it belongs to) */
+  txt(c, POP_TITLE[g.pop], x + pad, y + 11, 8, "#ffd94a", "left", true);
+  yy = y + 14 + LH - 2;
+  for (k = 0; k < R.length; k++) {
+    r = R[k];
+    if (r[0] === "#") {
+      if (k) yy += 3;
+      txt(c, r[1], x + pad, yy, 6, "#56698a", "left", true);
+      rct(c, x + pad + c.measureText(r[1]).width + 4, yy - 3, Math.max(0, xr - (x + pad + c.measureText(r[1]).width + 4)), 1, "#26344e");
+    } else if (r[0] === "=") {
+      var f = r[3] > 0 ? r[2] / r[3] : 0;
+      txt(c, r[1], x + pad, yy, 7, "#c8d0dc");
+      rct(c, xr - 30 - BARW, yy - 5, BARW, 5, "#1d2a42");
+      if (f > 0) rct(c, xr - 30 - BARW, yy - 5, Math.max(1, Math.round(BARW * f)), 5, r[4]);
+      txt(c, r[2] + "/" + r[3], xr, yy, 7, "#ffffff", "right", true);
+    } else {
+      var left = r[0];
+      c.font = "7px " + UI_FONT;
+      var room = w - pad * 2 - (r[1] ? c.measureText(r[1]).width + 12 : 0);
+      if (c.measureText(left).width > room) { while (left.length > 4 && c.measureText(left + "...").width > room) left = left.slice(0, -1); left += "..."; }
+      txt(c, left, x + pad, yy, 7, r[2]);
+      if (r[1]) txt(c, r[1], xr, yy, 7, "#ffffff", "right", true);
+    }
+    yy += LH;
+  }
+  txt(c, "click to close", xr, y + 11, 6, "#56698a", "right");
+}
+
 function drawOverlays(g, c) {
   var cx = PANEL + (VW - PANEL) / 2, k;
   /* the news, top right */
@@ -926,6 +1132,7 @@ function drawOverlays(g, c) {
     c.globalAlpha = 1;
   }
   if (g.thermal) drawThermalKey(c);
+  drawStatPop(g, c);
   if (g.paused) {
     rct(c, cx - 50, VH / 2 - 14, 100, 28, "rgba(0,0,0,0.75)");
     txt(c, "PAUSED", cx, VH / 2 + 1, 12, "#ffd94a", "center", true);
@@ -959,6 +1166,19 @@ function drawThermalKey(c) {
    ------------------------------------------------------------------- */
 function gameTap(g, x, y) {
   g.intro = Math.max(g.intro, 4.5);
+  /* the counts along the top open (and close) their popups. a click anywhere else closes it; a click on it is eaten */
+  if (y < PLAY_Y && x >= PANEL) {
+    for (var h = 0; h < g.hdrHit.length; h++) if (x >= g.hdrHit[h].x0 && x < g.hdrHit[h].x1) {
+      g.pop = g.pop === g.hdrHit[h].key ? null : g.hdrHit[h].key;
+      return;
+    }
+    g.pop = null; return;
+  }
+  if (g.pop) {
+    var pr = g.popRect;
+    g.pop = null;
+    if (pr && x >= pr.x && x < pr.x + pr.w && y >= pr.y && y < pr.y + pr.h) return;
+  }
   if (x >= PANEL) {
     if (!inPlay(g)) return;
     if (g.btn === 1 || g.keys.alt) { sandEyedrop(g); return; }
