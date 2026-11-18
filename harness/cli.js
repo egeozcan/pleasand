@@ -21,6 +21,7 @@ var fs = require("fs");
 var readline = require("readline");
 var lib = require("./harness.js");
 var args = require("./args.js");
+var saveinfo = require("./saveinfo.js");
 var open = lib.open;
 var parseArgs = args.parseArgs, num = args.num, list = args.list;
 
@@ -60,6 +61,8 @@ function makeHarness(o) {
     h.watch(w.expr, { id: w.id || ("w" + (i + 1)), every: num(o.every, 1) });
   });
   if (o.profile) h.profiler(true);
+  if (o.load === true) throw new Error("--load needs a save file");
+  if (o.load) h.lastLoad = h.load(String(o.load), { keyframe: o.keyframe == null ? undefined : num(o.keyframe, 0), seed: o.reseed == null ? undefined : num(o.reseed, 1), reseed: o.reseed != null });
   if (o.give) h.give(String(o.give).split(","));
   return h;
 }
@@ -89,8 +92,9 @@ function cmdRun2(h, o, extra, t0) {
   } else if (o.until) {
     res = h.until(String(o.until), { max: num(o.ticks, 20000) });
   } else {
-    res = h.step(num(o.ticks, 600));
+    res = h.step(num(o.ticks, o.load ? 0 : 600));
   }
+  if (h.lastLoad) res.load = h.lastLoad;
   res.wallMs = Date.now() - t0;
 
   if (o["trace-out"]) { fs.writeFileSync(String(o["trace-out"]), h.traceCSV() + "\n"); extra.traceFile = String(o["trace-out"]); }
@@ -105,6 +109,7 @@ function cmdRun2(h, o, extra, t0) {
   if (o.events) extra.events = h.events({ limit: num(o.events, 20) });
   if (o["scenario-out"] && !o.scenario) fs.writeFileSync(String(o["scenario-out"]), JSON.stringify(h.scenario(), null, 2) + "\n");
   if (o.checkpoint) extra.checkpoint = h.checkpoint(String(o.checkpoint));
+  if (o["save-out"]) extra.saved = h.save(String(o["save-out"]), { keyframes: o.keyframes == null ? undefined : num(o.keyframes, 3) });
   if (o["crash-out"] && h.crashReport()) fs.writeFileSync(String(o["crash-out"]), JSON.stringify(h.crashReport(), null, 2) + "\n");
 
   var wantMap = o.map !== undefined;
@@ -190,6 +195,10 @@ function textReport(h, res, o, extra) {
   if (extra.peasant) out.push("peasant " + JSON.stringify(extra.peasant));
   if (extra.why) { out.push("why " + extra.why.peasant.name + " · " + extra.why.mood + " · doing " + JSON.stringify(extra.why.doing)); out.push(extra.why.around); }
   if (extra.checkpoint) out.push("checkpoint " + extra.checkpoint);
+  if (res.load) out.push("loaded " + (res.load.loaded.file || "save") + " at tick " + res.load.tick + (res.load.deterministic ? " (with its own dice)" : " (fresh dice from seed " + h.seed + ")") +
+    (res.load.checksFailed.length ? " · FAILED CHECKS " + res.load.checksFailed.join(", ") : "") + (res.load.errors ? " · " + res.load.errors + " errors in it" : "") +
+    (res.load.keyframes.length ? " · checkpoints " + res.load.keyframes.map(function (k) { return k.id + "@" + k.tick; }).join(" ") : ""));
+  if (extra.saved) out.push("saved " + extra.saved.path + " (" + (extra.saved.bytes / 1e6).toFixed(1) + " MB, " + extra.saved.keyframes + " keyframes)");
   if (extra.traceFile) out.push("trace written to " + extra.traceFile);
   return out.join("\n");
 }
@@ -283,6 +292,9 @@ var HANDLERS = {
   scenario: function (h) { return h.scenario(); },
   replay: function (h, r) { return h.replay(r.scenario, { ticks: r.ticks }); },
   crash: function (h) { return h.crashReport(); },
+  save: function (h, r) { if (!r.path) return h.saveDoc({ keyframes: r.keyframes == null ? 0 : num(r.keyframes, 0) }); return h.save(r.path, { keyframes: r.keyframes == null ? undefined : num(r.keyframes, 3) }); },
+  load: function (h, r) { if (!r.path && !r.save) throw new Error("load needs a path (or save: the object)"); return h.load(r.path || r.save, { keyframe: r.keyframe, seed: r.seed, reseed: !!r.reseed }); },
+  saveInfo: function (h, r) { return saveinfo.info(r.path ? saveinfo.readSave(r.path) : h.saveDoc({ keyframes: 0 }), r); },
   call: function (h, r) { return h.game[r.fn].apply(null, r.args || []); }
 };
 
@@ -339,6 +351,7 @@ function help() {
     "  node harness/cli.js run [options]        load a village, play it, report back",
     "  node harness/cli.js serve [options]      keep one village; json lines in and out",
     "  node harness/cli.js selftest             check the harness itself",
+    "  node harness/cli.js save-info FILE       what is in a save: checks, errors, events, inputs, who is stuck",
     "",
     "run options",
     "  --seed N                 which village (default 1)",
@@ -367,6 +380,11 @@ function help() {
     "  --scenario FILE          replay a recorded scenario",
     "  --scenario-out FILE      write this run as a replayable scenario",
     "  --give a,b,c             teach the village ideas",
+    "  --load FILE              start from a save (the game's SAVE, or --save-out); default --ticks 0",
+    "  --keyframe N             load that save's keyframe N instead (an older copy of the world)",
+    "  --reseed N               new dice for a loaded save (browser saves always get fresh dice)",
+    "  --save-out FILE          write the end of the run as a save file the game can LOAD",
+    "  --keyframes N            how many history frames / checkpoints go in it (default 3)",
     "  --json                   one line of json instead of prose",
     "",
     "serve: send {\"id\":1,\"cmd\":\"...\"} lines. cmd=help lists them.",
@@ -386,6 +404,14 @@ function main() {
     if (cmd === "serve") return cmdServe(o);
     if (cmd === "selftest") { failed = require("./selftest.js").run(o); process.exit(failed ? 1 : 0); }
     if (cmd === "help" || cmd === "-h" || cmd === "--help") return help();
+    if (cmd === "save-info" || cmd === "info") {
+      var file = o._[0] || o.file;
+      if (!file) throw new Error("save-info needs a save file");
+      var doc = saveinfo.readSave(file);
+      if (o.json) process.stdout.write(JSON.stringify(saveinfo.info(doc, { events: num(o.events, 20), inputs: num(o.inputs, 12) })) + "\n");
+      else console.log(saveinfo.text(doc, { events: num(o.events, 20), inputs: num(o.inputs, 12) }));
+      return;
+    }
     if (cmd === "replay") {
       o.scenario = o.scenario || o._[0];
       if (!o.scenario) throw new Error("replay needs a scenario file");

@@ -295,6 +295,11 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - **1–0** pick materials, **F** firework, **E** erase, **↑/↓** cycle, **[ ]** brush size
 - **Space / P** pause, **.** single step while paused, **S** slow motion
 - **C** clear, **R** new village, **M** mute, **`** fps
+- **SAVE** / **LOAD** (top right, or **Ctrl/Cmd-S** / **Ctrl/Cmd-O**) keep the village in a
+  `.json` file and bring it back; dropping a save on the game loads it too. A save also
+  carries what happened lately (events, deaths, your clicks and keys, any errors, a trail
+  of where everybody was, and a few older copies of the world) so a bug can be chased
+  from it: `node harness/cli.js save-info FILE`, and see `harness/README.md`
 
 ## Things to try
 
@@ -336,6 +341,7 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 
 ## Files
 
+- `rng.js`: the dice: a seedable `Math.random` (the harness's own), so a save carries them; drawing and sound roll their own
 - `audio.js`: the sound department, all synthesised: bangs, babble, screams
 - `world.js`: the grid, the materials and their rules, particles, explosions, lightning, the starting village
 - `heat.js`: temperature: conduction, convection, melting, boiling, freezing and burning points, and how hot things look
@@ -347,6 +353,7 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - `oil.js`: oil in the rock, the derrick that pumps it, and rocket packs
 - `leftovers.js`: what is left over (ash, salt, glass, gunpowder, snow, ice) and what they make of it: picking it up, snowball fights, snowmen, skating, salt on the ice and on the fish, potash, black powder (blasting, fishing with it, fireworks), glass and the glasshouse, and frost on the wheat
 - `ducks.js`: the ducks
+- `save.js`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it
 - `game.js`: rendering, the picker and HUD, input, and the main loop
 - `test/`: the game without a browser (`sim.js`), and some checks that it still works (`run.js`)
 - `harness/`: the game without a screen or a browser, built for agents: deterministic runs,

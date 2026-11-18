@@ -193,6 +193,42 @@ stalled peasants or ducks. Otherwise stalls are warnings, not a clean result.
 dead-end-ladder bugs below were found; a recorded baseline is in
 `harness/soak-baseline.txt`.
 
+**Somebody sent a save.**
+The game's SAVE button (or `h.save(path)`) writes one json file: the readable
+parts first (`meta`, `summary` with every peasant/duck/site's plain fields,
+`checks` and `checksFailed`, `ui`, `history`), the game object (`state`) last.
+`history` holds the last 500 events (feed, banners, achievements, deaths with
+cause and task), the last 600 inputs (taps, keys, wheel, drags, releases; for a
+harness save, its scenario ops), errors with stacks (repeats folded), a trail
+sampled every 120 sand ticks (`p: [id, x, y, state, task]`, `d: [id, x, y, state]`,
+fire cells, the hottest cell, fps), and `prior`: the tail of the save it was
+loaded from, if any. `keyframes` are older whole worlds: in the browser one every
+15 s (last 3) plus one at the first error; from the harness, spread over its
+history frames or checkpoints.
+
+```bash
+node harness/cli.js save-info save.json           # checks, errors, deaths, who has not moved, events, inputs
+node harness/cli.js run --load save.json --std --ticks 3000 --until "g.rip > 0"
+node harness/cli.js run --load save.json --keyframe 0 --ticks 900   # from 30-45 s earlier
+node harness/cli.js run --seed 7 --ticks 5000 --save-out bug.json   # hand one to the game: LOAD it
+```
+```js
+const r = h.load("save.json");   // { tick, hash, deterministic, keyframes: [{id:"kf0", tick}], checksFailed, errors }
+h.restore("kf0");                // keyframes are checkpoints; the loaded state is checkpoint "save"
+h.save("after.json");            // { path, bytes, keyframes, checksFailed }
+```
+Every save carries its dice (`rng`, and each keyframe its own): the browser's
+`Math.random` is the harness's generator (`rng.js`, mulberry32), and drawing and
+sound roll separate side dice, so a save loaded in the harness goes on exactly
+as the browser would have, until the player's next input (a click, a key, or the
+mouse moving over the field). `--reseed N` gives fresh dice instead; a save with
+no `rng` gets them from the seed. A scenario recorded after `--load` remembers the file
+(`from`), so `replay` starts from the save, not the seed. The harness takes the
+saved cursor position too (peasants notice the cursor); the game keeps the live
+one. Buttons are let go either way. A save from a different grid size is refused.
+In `serve`: `{"cmd":"save","path":...}`, `{"cmd":"load","path":...,"keyframe":0}`,
+`{"cmd":"saveInfo","path":...}`.
+
 **Reproduce exactly.**
 ```js
 const sc = h.scenario();       // { seed, ticks, hash, ops: [{at, op, args}] }
@@ -270,6 +306,7 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 - `cli.js` — `run`, `serve`, `selftest`
 - `selftest.js` — 25 checks of the harness's own promises
 - `args.js` — the argument parser the cli and soak runner share
+- `saveinfo.js` — what is in a save file, read without loading the game (`save-info`)
 - `soak.js` — many seeds, long runs, presets, invariants and stuck-unit reports
 - `stuck.js` — sampled work/behavior progress and short-cycle detection for peasants and ducks
 - `playtests/` — duck escape/timeout regressions, replayable scenarios and the playtest report

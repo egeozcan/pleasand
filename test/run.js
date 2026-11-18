@@ -1560,6 +1560,79 @@ test("a peasant a step above a doorway's floor ducks under the lintel and walks 
   check(p.x < o.door + 0.9, "they walked into the lintel and stopped, at " + p.x.toFixed(1) + "," + p.y);
 });
 
+test("a save loads into another village and carries on exactly as the first would have", function () {
+  var open = require("../harness").open, a = open({ seed: 14 });
+  a.give(["farm", "bucket", "dig", "mine"]);
+  a.step(2500);
+  var doc = JSON.parse(JSON.stringify(a.saveDoc()));   /* through a real round of json, as a file would be */
+  var at = a.hash();
+  a.step(600);
+  var b = open({ seed: 99 }), r = b.load(doc);
+  check(r.deterministic && r.hash === at, "loaded hash " + r.hash + ", saved at " + at);
+  b.step(600);
+  check(b.hash() === a.hash(), "after 600 more ticks they differ: " + b.hash() + " vs " + a.hash());
+  check(!doc.checksFailed.length, "a healthy village failed checks: " + doc.checksFailed.join(", "));
+  /* who is who survives: hats are the game's own hats, and a pointer to a peasant is that peasant */
+  var g = b.g, hats = b.P_HATS;
+  check(g.peasants.every(function (p) { return !p.hat || hats.indexOf(p.hat) >= 0; }), "a hat is a copy, not one of P_HATS");
+  check(!g.helloP || g.peasants.indexOf(g.helloP) >= 0 || g.ghosts.indexOf(g.helloP) >= 0 || g.helloP.dead, "g.helloP is not one of the peasants any more");
+});
+
+test("the save skips what the harness's snapshots skip", function () {
+  var skip = require("../harness/snapshot.js").SKIP, h = require("../harness").open({ seed: 1 });
+  var mine = h.eval("SAVE_SKIP");
+  check(mine.length === skip.size && mine.every(function (k) { return skip.has(k); }), "SAVE_SKIP and snapshot.js SKIP differ");
+});
+
+test("a browser save keeps a journal, keyframes and errors, and loads with fresh dice", function () {
+  var h = require("../harness").open({ seed: 5 }), g = h.g;
+  h.eval("SAVE_J.on = true; saveJournalStart(g)");
+  h.step(2000);
+  h.tap(300, 150); h.key("t"); h.key("t");
+  h.g.peasants[0].vx = NaN;                       /* something an agent should spot */
+  h.eval("saveError(g, new Error('test error'), 'update')");
+  var doc = JSON.parse(JSON.stringify(h.eval("saveDocument(g)")));
+  h.eval("SAVE_J.on = false");
+  check(doc.meta.source === "browser" && !doc.meta.deterministic, "not marked as a browser save");
+  check(doc.history.trail.length >= 10, "only " + doc.history.trail.length + " trail samples");
+  check(doc.history.inputs.some(function (e) { return e.kind === "tap"; }) && doc.history.inputs.some(function (e) { return e.kind === "key" && e.k === "t"; }), "inputs not journalled");
+  check(doc.history.events.some(function (e) { return e.kind === "feed"; }), "no events journalled");
+  check(doc.history.errors.length === 1 && /test error/.test(doc.history.errors[0].message) && doc.history.errors[0].stack, "error not journalled");
+  check(doc.keyframes.length >= 2, "only " + doc.keyframes.length + " keyframes");
+  check(doc.keyframes.some(function (k) { return /first error/.test(k.why); }), "no keyframe at the first error");
+  check(doc.checksFailed.indexOf("peasants finite") >= 0, "the NaN was not caught by the checks");
+  var b = require("../harness").open({ seed: 1 }), r = b.load(doc, { seed: 3 });
+  check(!r.deterministic && Number.isNaN(b.g.peasants[0].vx), "the NaN did not survive the trip");
+  check(r.keyframes.length >= 2, "keyframes did not become checkpoints");
+  b.restore("kf0"); b.step(60);
+  var info = require("../harness/saveinfo.js").text(doc);
+  check(/FAILED peasants finite/.test(info) && /test error/.test(info), "save-info does not show what went wrong");
+});
+
+test("the browser's dice are the harness's dice, and a browser save carries them", function () {
+  var open = require("../harness").open, mk = require("../harness/loader.js").makeRng;
+  var a = open({ seed: 2 }), mine = a.eval("rngMake")(12345), theirs = mk(12345), i;
+  for (i = 0; i < 1000; i++) check(mine.random() === theirs.random(), "rngMake and makeRng differ at draw " + i);
+  check(mine.state === theirs.state, "their states differ");
+  /* play the browser: the game owns its dice, and draws a picture between ticks (on the side dice) */
+  a.eval("RNG = rngMake(777); Math.random = RNG.random");
+  var upd = a.eval("gameUpdate"), draw = a.eval("gameDrawSide"), ctx = a.eval("cv.getContext('2d')"), g = a.g;
+  function play(h, n, drawing) { for (var k = 0; k < n; k++) { if (drawing) upd(h.g, 1 / 60); else h.step(1); if (drawing && k % 2) draw(h.g, ctx); } }
+  function print(gg) {
+    var sum = 0, k;
+    for (k = 0; k < gg.m.length; k++) sum = (sum * 31 + gg.m[k] + Math.round(gg.T[k] * 16)) >>> 0;
+    return sum + " " + gg.peasants.map(function (p) { return p.id + "@" + p.x.toFixed(3) + "," + p.y.toFixed(3) + p.state; }).join(" ");
+  }
+  play(a, 1500, true);
+  var doc = JSON.parse(JSON.stringify(a.eval("saveDocument(g)")));
+  check(doc.meta.deterministic && doc.rng === a.eval("RNG.state"), "the browser save did not carry its dice");
+  play(a, 600, true);
+  var b = open({ seed: 9 }), r = b.load(doc);
+  check(r.deterministic, "the harness did not take the save's dice");
+  play(b, 600, false);
+  check(print(b.g) === print(g), "the harness went another way than the browser would have");
+});
+
 var failed = 0, t0 = Date.now();
 tests.forEach(function (t) {
   if (only && t.name.indexOf(only) < 0) return;

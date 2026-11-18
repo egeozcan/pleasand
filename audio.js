@@ -146,3 +146,8 @@ var SFX = {
     o.start(t); l.start(t); o.stop(t + dur + 0.02); l.stop(t + dur + 0.02);
   }
 };
+
+/* what only a live speaker rolls, it rolls on the side dice (rng.js): with the
+   sound on or off, in a browser or in the harness, the village rolls the same */
+tone = rngSide(tone); hiss = rngSide(hiss); actx = rngSide(actx);
+["ghost", "quack", "babble", "scream"].forEach(function (k) { SFX[k] = rngSide(SFX[k]); });

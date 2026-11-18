@@ -18,6 +18,7 @@
    moves when the harness says so, which is what makes a run repeatable.
    ===================================================================== */
 "use strict";
+var fs = require("fs");
 var loader = require("./loader.js");
 var snap = require("./snapshot.js");
 var view = require("./inspect.js");
@@ -36,6 +37,8 @@ function Harness(opts) {
   this._eval = this.loaded.eval;
   if (!this.loaded.boot()) throw new Error("harness: the game did not boot (no DOMContentLoaded handler)");
   this.g = this._eval("g");
+  this._eval("SAVE_J.on = false");   /* the browser's save journal: the harness keeps its own log */
+  this.origin = null;                /* set when the village came from a save file */
   this.seed = this.loaded.seed;
   this.ticks = 0;
   this.recording = opts.record !== false;
@@ -53,6 +56,8 @@ function Harness(opts) {
   this._profTotals = {};
   this._profStart = 0;
   this._hist = { on: false, every: 1, max: 0, frames: [] };
+  this.trail = [];
+  this._trailTick = -1;
   this._refresh();
 
   var self = this;
@@ -89,6 +94,7 @@ function Harness(opts) {
    ------------------------------------------------------------------- */
 Harness.prototype._refresh = function () {
   this._update = this._eval("gameUpdate");
+  this._trailRow = this._eval("saveTrailRow");
   this.mat = this._eval("MAT");
   this.matName = this._eval("MAT_NAME");
   this.pick = this._eval("PICK");
@@ -219,6 +225,7 @@ Harness.prototype.tickRaw = function () { this._tick(); this._afterTick(); retur
 Harness.prototype._tickQuiet = function () {
   this._tick();
   this._sample();
+  this._trailStep();
   if (this._hist.on && this.ticks % this._hist.every === 0) this._pushFrame();
 };
 
@@ -240,7 +247,9 @@ Harness.prototype.reset = function (seed) {
   this.watches.forEach(function (w) { w.rows.length = 0; });
   this.breaks.forEach(function (b) { b.has = false; b.prev = undefined; b.v = undefined; });
   this._hist.frames.length = 0;
+  this.trail.length = 0; this._trailTick = -1;
   this.lastError = null;
+  this.origin = null;
   this._refresh();
   return this;
 };
@@ -347,6 +356,9 @@ Harness.prototype.restore = function (s) {
   this.ticks = s.ticks;
   this.seed = s.seed;
   this.ops = this.ops.filter(function (o) { return o.at <= this.ticks; }, this);
+  var st = this.g.tick;
+  this.trail = this.trail.filter(function (r) { return r.tick <= st; });
+  this._trailTick = -1;
   return this;
 };
 
@@ -605,8 +617,18 @@ Harness.prototype._sample = function () {
   }
 };
 
+/* the save trail: every 120 sand ticks, where everybody is (it goes in h.save()) */
+Harness.prototype._trailStep = function () {
+  var g = this.g;
+  if (g.tick % 120 !== 0 || g.tick === this._trailTick) return;
+  this._trailTick = g.tick;
+  this.trail.push(this._trailRow(g));
+  if (this.trail.length > 450) this.trail.splice(0, this.trail.length - 450);
+};
+
 Harness.prototype._afterTick = function () {
   this._sample();
+  this._trailStep();
   if (this._hist.on && this.ticks % this._hist.every === 0) this._pushFrame();
   if (this._replaying) return null;
   var i, x, v;
@@ -978,7 +1000,10 @@ Harness.prototype.input = function (o) {
    11. REPRODUCING: the seed and every hand laid on the world
    ------------------------------------------------------------------- */
 Harness.prototype.scenario = function () {
-  return { version: 1, seed: this.seed, ticks: this.ticks, hash: this.hash(), ops: this.ops.slice() };
+  var sc = { version: 1, seed: this.seed, ticks: this.ticks, hash: this.hash(), ops: this.ops.slice() };
+  /* a village loaded from a file replays from that file, not from the seed */
+  if (this.origin && this.origin.path) sc.from = { path: this.origin.path, keyframe: this.origin.keyframe, atTick: this.origin.ticks };
+  return sc;
 };
 
 Harness.prototype._runTo = function (tick) {
@@ -1032,7 +1057,8 @@ Harness.prototype.replay = function (sc, opts) {
   this.recording = false;
   this._replaying = true;
   try {
-    this.reset(sc.seed);
+    if (sc.from && sc.from.path) this.load(sc.from.path, { keyframe: sc.from.keyframe, seed: sc.seed });
+    else this.reset(sc.seed);
     for (var i = 0; i < ops.length; i++) {
       if (ops[i].at > this.ticks) this._runTo(ops[i].at);
       this._apply(ops[i]);
@@ -1042,6 +1068,103 @@ Harness.prototype.replay = function (sc, opts) {
   } finally { this.recording = was; this._replaying = wasReplay; }
   var hash = this.hash();
   return { ticks: this.ticks, hash: hash, expected: sc.hash || null, matches: sc.hash ? hash === sc.hash : null };
+};
+
+/* -------------------------------------------------------------------
+   12. SAVE FILES: the game's own format (save.js), written and read here
+   ------------------------------------------------------------------- */
+/* the save as an object. opts.keyframes: how many history frames (or
+   checkpoints, if there is no history) to put in as keyframes (default 3) */
+Harness.prototype.saveDoc = function (opts) {
+  opts = opts || {};
+  var self = this, want = opts.keyframes == null ? 3 : opts.keyframes, pool, keys = [], i, step;
+  pool = this._hist.frames.length > 1 ? this._hist.frames.slice(0, -1).map(function (f) { return { why: "history frame", tick: f.tick, snap: f.snap }; })
+    : this.checkpointList.map(function (c) { return { why: "checkpoint " + c.id, tick: c.tick, snap: c.snap }; });
+  if (want > 0 && pool.length) {
+    /* spread out across what is kept, oldest first */
+    step = Math.max(1, Math.floor(pool.length / want));
+    for (i = pool.length - 1; i >= 0 && keys.length < want; i -= step) keys.unshift(pool[i]);
+  }
+  var crash = this.crashReport();
+  return this._eval("saveDocument")(this.g, {
+    source: "harness", seed: this.seed, updates: this.ticks, rng: this.loaded.rng.state,
+    loadedFrom: this.origin,
+    history: {
+      events: this.eventLog.slice(-500),
+      errors: crash ? [{ tick: crash.tick, message: crash.error, stack: crash.stack, where: "harness" }] : [],
+      inputs: this.ops.slice(-600),
+      trail: opts.trail || this.trail.slice()
+    },
+    keyframes: keys.map(function (k) { return { why: k.why, tick: k.snap.sandTick, t: view.round(k.snap.time, 2), updates: k.tick, rng: k.snap.rng, state: k.snap.state }; }),
+    extra: { scenario: this.scenario(), traces: this.watches.length ? this.traceReport() : null, checkpoints: this.checkpoints(), crash: crash || null, note: opts.note || null }
+  });
+};
+
+/* write the save to a file (or just return it, with no path) */
+Harness.prototype.save = function (path, opts) {
+  var doc = this.saveDoc(opts);
+  if (!path) return doc;
+  var text = JSON.stringify(doc);
+  fs.writeFileSync(String(path), text);
+  return { path: String(path), bytes: text.length, tick: this.ticks, sandTick: this.g.tick, keyframes: doc.keyframes.length, checksFailed: doc.checksFailed };
+};
+
+/* load a save: a path, json text or the parsed object. opts.keyframe loads
+   one of its keyframes instead. the dice: a save (and each keyframe)
+   carries its own, from the browser or the harness alike, so what follows
+   is what would have followed. one without them, or opts.reseed, gets fresh
+   dice from opts.seed (or the save's seed, or this harness's).
+   the save's keyframes become checkpoints ("kf0", "kf1", ...), and the
+   loaded state itself is checkpoint "save" */
+Harness.prototype.load = function (src, opts) {
+  opts = opts || {};
+  var doc = src, path = null;
+  if (typeof src === "string") {
+    if (/^\s*\{/.test(src)) doc = JSON.parse(src);
+    else { path = src; doc = JSON.parse(fs.readFileSync(src, "utf8")); }
+  }
+  var meta = doc && doc.meta || {};
+  var from = this._eval("saveLoad")(this.g, doc, { keyframe: opts.keyframe, file: path });
+  var kf = opts.keyframe != null ? doc.keyframes[opts.keyframe] : null;
+  this.seed = (opts.seed != null ? opts.seed : (meta.seed != null ? meta.seed : this.seed)) >>> 0;
+  /* the dice: the save's own (or the keyframe's) if it has them, otherwise fresh from the seed */
+  var dice = kf ? kf.rng : doc.rng;
+  if (dice != null && !opts.reseed) this.loaded.rng.state = dice;
+  else this.loaded.rng.reseed(this.seed);
+  /* harness ticks carry on from the save's; a browser save counts in sand ticks */
+  this.ticks = kf ? (kf.updates != null ? kf.updates : kf.tick || 0) : (meta.updates != null ? meta.updates : meta.tick || 0);
+  this.loaded.clock.t = this.ticks * TICK_MS;
+  this.ops.length = 0;
+  this.eventLog.length = 0;
+  this.achSeen = Object.create(null);
+  for (var k in (this.g.got || {})) this.achSeen[k] = 1;
+  this.watches.forEach(function (w) { w.rows.length = 0; });
+  this.breaks.forEach(function (b) { b.has = false; b.prev = undefined; b.v = undefined; });
+  this._hist.frames.length = 0;
+  if (this._hist.on) this._pushFrame();
+  this.trail = ((doc.history || {}).trail || []).filter(function (r) { return r.tick <= this.g.tick; }, this);
+  this._trailTick = -1;
+  this.lastError = null;
+  this.origin = { path: path, savedAt: meta.savedAt || null, source: meta.source || null, tick: meta.tick, keyframe: opts.keyframe == null ? null : opts.keyframe, ticks: this.ticks };
+  this._refresh();
+  /* checkpoints: the loaded state, and each keyframe */
+  this.checkpointList = this.checkpointList.filter(function (c) { return !/^(save|kf\d+)$/.test(c.id); });
+  this.checkpointList.push({ id: "save", tick: this.ticks, snap: this.snapshot() });
+  var decode = this._eval("saveDecode"), self = this, ids = [];
+  (doc.keyframes || []).forEach(function (f, i) {
+    if (kf && i === opts.keyframe) return;
+    var st;
+    try { st = decode(f.state); } catch (e) { return; }
+    self.checkpointList.push({ id: "kf" + i, tick: f.updates != null ? f.updates : -1, snap: {
+      version: 1, seed: self.seed, ticks: f.updates != null ? f.updates : self.ticks, sandTick: f.tick, time: f.t,
+      rng: f.rng != null ? f.rng : self.loaded.rng.state, clock: self.loaded.clock.t, state: st } });
+    ids.push({ id: "kf" + i, tick: f.tick, why: f.why });
+  });
+  return {
+    loaded: from, tick: this.ticks, sandTick: this.g.tick, time: view.round(this.g.t, 2), hash: this.hash(),
+    deterministic: dice != null && !opts.reseed, keyframes: ids,
+    checksFailed: doc.checksFailed || [], errors: ((doc.history || {}).errors || []).length
+  };
 };
 
 module.exports = { open: open, Harness: Harness, view: view, PHASES: PHASES, TICK_MS: TICK_MS };

@@ -274,6 +274,7 @@ function sandPaint(g) {
   g.lx = p.x; g.ly = p.y;
 }
 function sandRelease(g) {
+  saveInput(g, "up", { x: saveR(g.cx), y: saveR(g.cy), pick: curPick(g).name, held: g.held ? g.held.name : undefined });
   if (g.held) peasantThrow(g, g.held);
   if (g.heldDuck) duckThrow(g, g.heldDuck);
   if (g.ax == null) return;
@@ -341,6 +342,7 @@ function gameUpdate(g, dt) {
   for (var k = g.feed.length - 1; k >= 0; k--) if ((g.feed[k].t += dt) > 7) g.feed.splice(k, 1);
   if (g.banners.length && (g.banners[0].t += dt) > 3.5) g.banners.shift();
   sandSounds(g);
+  saveTick(g);
 }
 
 /* the sound department, rationed: one bang per bang, not one per grain of powder */
@@ -837,8 +839,19 @@ function drawPanel(g, c) {
     g.hdrHit.push({ key: segs[k][0], x0: hx - 3, x1: hx + sw + 3 });
     hx += sw + gap;
   }
-  if (typeof cv !== "undefined" && cv && cv.style) { var want = hot ? "pointer" : "crosshair"; if (cv.style.cursor !== want) cv.style.cursor = want; }
   txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
+  /* SAVE and LOAD, left of the sound: a file to keep, a file to open (or drop one on the game) */
+  c.font = "7px " + UI_FONT;
+  var fx = VW - 5 - c.measureText("M: SOUND OFF").width - 12;
+  ["LOAD", "SAVE"].forEach(function (lb) {
+    c.font = "bold 7px " + UI_FONT;
+    var w = c.measureText(lb).width, x0 = fx - w, over = g.my < PLAY_Y && g.mx >= x0 - 3 && g.mx < fx + 3;
+    if (over) { rct(c, x0 - 3, 2, w + 6, PLAY_Y - 4, "#17202f"); hot = lb; }
+    txt(c, lb, x0, 10, 7, over ? "#ffffff" : "#8892a8", "left", true);
+    g.hdrHit.push({ key: lb.toLowerCase(), x0: x0 - 3, x1: fx + 3 });
+    fx = x0 - 10;
+  });
+  if (typeof cv !== "undefined" && cv && cv.style) { var want = hot ? "pointer" : "crosshair"; if (cv.style.cursor !== want) cv.style.cursor = want; }
 
   /* description bar */
   var info = hov >= 0 ? PICK[hov] : curPick(g), by = VH - BAR_H;
@@ -1176,10 +1189,13 @@ function drawThermalKey(c) {
    7. INPUT
    ------------------------------------------------------------------- */
 function gameTap(g, x, y) {
+  saveInput(g, "tap", { x: saveR(x), y: saveR(y), cell: x >= PANEL && y >= PLAY_Y ? [Math.round(g.cx), Math.round(g.cy)] : null, btn: g.btn, pick: curPick(g).name });
   g.intro = Math.max(g.intro, 4.5);
   /* the counts along the top open (and close) their popups. a click anywhere else closes it; a click on it is eaten */
   if (y < PLAY_Y && x >= PANEL) {
     for (var h = 0; h < g.hdrHit.length; h++) if (x >= g.hdrHit[h].x0 && x < g.hdrHit[h].x1) {
+      if (g.hdrHit[h].key === "save") { g.pop = null; saveDownload(g); return; }
+      if (g.hdrHit[h].key === "load") { g.pop = null; saveOpenFile(g); return; }
       g.pop = g.pop === g.hdrHit[h].key ? null : g.hdrHit[h].key;
       return;
     }
@@ -1231,10 +1247,12 @@ function gameTap(g, x, y) {
   else g.tip = (g.tip + 1) % TIPS.length;
 }
 function gameWheel(g, d) {
+  saveInput(g, "wheel", { d: d });
   if (g.mx < PANEL) { var n = PICK.length; g.sel = (g.sel + n + d) % n; }   /* over the list: scroll the list */
   else g.size = clamp(g.size - d, 1, SAND_MAXSIZE);
 }
 function gameKey(g, k) {
+  saveInput(g, "key", { k: k });
   var n = PICK.length, i;
   for (i = 0; i < n; i++) if (PICK[i].key && PICK[i].key.toLowerCase() === k) { g.sel = i; return; }
   if (k === "arrowup") g.sel = (g.sel + n - 1) % n;
@@ -1273,13 +1291,16 @@ function frame(ts) {
   var steps = 0;
   while (acc >= 1 / 60 && steps < 3) {
     acc -= 1 / 60; steps++;
-    try { gameUpdate(g, 1 / 60); } catch (e) { console.error(e); }
+    try { gameUpdate(g, 1 / 60); } catch (e) { console.error(e); saveError(g, e, "update"); }
   }
   if (acc > 1 / 30) acc = 0;
-  try { gameDraw(g, ctx); } catch (e) { txt(ctx, "it fell over: " + e.message, PANEL + 10, 40, 10, "#f66"); console.error(e); }
+  try { gameDrawSide(g, ctx); } catch (e) { txt(ctx, "it fell over: " + e.message, PANEL + 10, 40, 10, "#f66"); console.error(e); saveError(g, e, "draw"); }
   drawChrome();
   g.ms = lerp(g.ms, performance.now() - t0, 0.1);
 }
+
+/* the picture rolls its own dice (rng.js), never the village's */
+var gameDrawSide = rngSide(gameDraw);
 
 /* scanlines and a vignette, because it is 2005. made once per canvas size */
 function drawChrome() {
@@ -1314,6 +1335,12 @@ function toGame(clientX, clientY) {
 
 function initInput() {
   window.addEventListener("keydown", function (e) {
+    /* ctrl/cmd-S keeps the village in a file, ctrl/cmd-O opens one */
+    if ((e.metaKey || e.ctrlKey) && !e.repeat && (e.key === "s" || e.key === "o")) {
+      e.preventDefault();
+      if (e.key === "s") saveDownload(g); else saveOpenFile(g);
+      return;
+    }
     if (e.metaKey || e.ctrlKey) return;
     var k = e.key.toLowerCase();
     if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].indexOf(k) >= 0) e.preventDefault();
@@ -1400,6 +1427,9 @@ function boot() {
   gameInit(g);
   resize();
   initInput();
+  /* the save journal is for a real browser; the harness keeps its own */
+  if (typeof HTMLCanvasElement !== "undefined") saveJournalStart(g);
+  saveDropInit(function () { return g; });
   requestAnimationFrame(frame);
 }
 
