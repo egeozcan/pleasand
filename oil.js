@@ -250,7 +250,7 @@ function oWellReach(g, p, r) {
   var h = navHere(g, p), sx = r.pump.x, sy = r.pump.y;
   /* (to where the pump is worked from, exactly as the pump task wants it: oTaskPump) */
   if (h && navFind(g, h.x, h.y, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 2; }, sx, sy)) return true;
-  for (var x = r.at - 2; x <= r.at + 2; x++) p.wellNo[x] = g.tick + 20000;   /* (for them: somebody else may be on the right side of it) */
+  p.wellNo[r.at + ":" + r.pump.x] = g.tick + 20000;   /* (that plot, with its pump that side, for them: somebody else may be on the right side of it) */
   return false;
 }
 function oPlanWell(g, p) {
@@ -273,11 +273,11 @@ function oPlanWell(g, p) {
   for (d = 0; d <= g.gw; d++) for (sd = -1; sd <= 1; sd += 2) {
     if (!d && sd > 0) continue;
     x = fx + d * sd;
-    if (x < 10 || x > g.gw - 11 || p.wellNo[x] > g.tick) continue;
+    if (x < 10 || x > g.gw - 11) continue;
     y = mGround(g, x);
     for (k = 0; k < 2; k++) {
       r = oWellPlot(g, x - 2, y > 0 ? y - 1 : fy, k);
-      if (!r) continue;
+      if (!r || p.wellNo[x + ":" + r.pump.x] > g.tick) continue;
       r.sc = r.work * 0.25 + d * 0.06 - r.oilDepth * 0.15; r.at = x;
       C.push(r);
     }
@@ -291,11 +291,10 @@ function oPlanWell(g, p) {
     M_FARMOK = true;
     C = [];
     for (x = 10; x < g.gw - 10; x++) {
-      if (p.wellNo[x] > g.tick) continue;
       y = mGround(g, x);
       for (k = 0; k < 2; k++) {
         r = oWellPlot(g, x - 2, y > 0 ? y - 1 : fy, k);
-        if (r && mFieldsUnder(g, x - 6, x + 6) <= 1 && mFieldSpare(g, r.x0 - 4, r.x0 + 8)) { r.at = x; C.push(r); }   /* (a field to spare: mines.js) */
+        if (r && !(p.wellNo[x + ":" + r.pump.x] > g.tick) && mFieldsUnder(g, x - 6, x + 6) <= 1 && mFieldSpare(g, r.x0 - 4, r.x0 + 8)) { r.at = x; C.push(r); }   /* (a field to spare: mines.js) */
       }
     }
     C.sort(function (a, b) { return a.work - b.work; });

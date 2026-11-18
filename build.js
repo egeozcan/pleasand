@@ -839,6 +839,7 @@ function bFinish(g, s, p) {
    ------------------------------------------------------------------- */
 function buildStep(g) {
   if (!g.sites || g.tick % 30) return;
+  if (g.tick % 600 === 0) mFloodClock(g);   /* (the mines' flood clocks run whether or not anybody is planning: mines.js) */
   var S = g.sites, k, s, j;
   for (k = S.length - 1; k >= 0; k--) {
     s = S[k];

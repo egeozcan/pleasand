@@ -788,10 +788,9 @@ function pSwim(g, p, sub) {
   if (struggle && p.task) p.task = null;   /* (never mind the errand) */
   /* (head under, and short of breath: the nearest open air overhead first, not a wall: under an overhang the nearest
      solid thing is no way out) */
-  if (sub && p.breath < P_BREATH - 60 && (p.anim % 15) === 0) {
-    var air = pAirDir(g, fx, fy);
-    if (air) { p.dir = air; struggle = false; }
-  }
+  if (sub && p.breath < P_BREATH - 60 && (p.anim % 15) === 0) p.airDir = pAirDir(g, fx, fy);
+  if (!sub) p.airDir = 0;
+  if (p.airDir) { if (p.airDir !== 2) p.dir = p.airDir; struggle = false; }   /* (2: air right overhead. up, and stay put) */
   if ((burns || struggle) && (p.anim % 15) === 0) {
     /* the nearest bank: something solid at about head height, either side */
     for (var bd = 2; bd <= 80; bd++) {
@@ -809,7 +808,7 @@ function pSwim(g, p, sub) {
   else if (p.vy > 0 && pGround(g, fx, fy)) p.vy = 0;
   else p.y = ny;
   /* the burning swim for it too, and the cold swim slower */
-  pStepX(g, p, (sub ? 0.1 : 0.14) * (burns ? 1.8 : 1) * (p.cold > 200 ? 0.5 : 1), true);
+  if (p.airDir !== 2) pStepX(g, p, (sub ? 0.1 : 0.14) * (burns ? 1.8 : 1) * (p.cold > 200 ? 0.5 : 1), true);   /* (under the open air: no paddling away from it) */
   var gasping = sub && p.breath < P_BREATH - 40;
   if (p.sayT <= 0 && Math.random() < (gasping ? 0.02 : 0.004)) pSay(g, p, gasping ? "glub" : "swim");
 }
@@ -1399,13 +1398,14 @@ function pHotAt(g, x, y) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.
 /* into column x from feet at row y, with no room at that height (pStepUp said a wall): room a step or two lower, and
    ground to stand on there. how far down (1 or 2), or 0 */
 /* under water at (fx, fy): which way the nearest column is with air over the water, straight up, that nothing hard
-   is in the way of (1 or -1; or 0 if it is right overhead, or there is none near) */
+   is in the way of: 1 or -1, 2 if it is right overhead, 0 if there is none near */
 function pAirDir(g, fx, fy) {
   for (var bd = 0; bd <= 40; bd++) for (var sd = -1; sd <= 1; sd += 2) {
     if (!bd && sd > 0) continue;
     var X = fx + bd * sd, Y;
     for (Y = fy - 1; Y > fy - 24 && Y > 0; Y--) { var c = pCell(g, X, Y); if (!LIQUID[c] && !P_SOFT[c]) break; }
-    if (AIRY[pCell(g, X, Y)]) return bd ? sd : 0;
+    /* (and room over the water to get a head up into: not a pocket under a roof) */
+    if (AIRY[pCell(g, X, Y)] && AIRY[pCell(g, X, Y - 1)] && AIRY[pCell(g, X, Y - 2)] && !pBody(g, X, Y - 3)) return bd ? sd : 2;
   }
   return 0;
 }
@@ -1506,7 +1506,10 @@ function pWalk(g, p, wading) {
       W.sort(function (a, b) { return a.d - b.d; });
       var help = iRescuer(g, p);
       p.fireTo = null;
-      if (W.length) { p.fireTo = { x: W[0].x, y: W[0].y, cx: fx, r: reach + 4, k: fx + "," + fy }; if (pFireGo(g, p) < 0) p.fireTo = null; }
+      /* (the search goes whether or not that look found any: water out of sight of it may still be found by the way there.
+         what it found only points the search) */
+      p.fireTo = { x: W.length ? W[0].x : fx, y: W.length ? W[0].y : fy, cx: fx, r: reach + 4, k: fx + "," + fy };
+      if (pFireGo(g, p) < 0) p.fireTo = null;
       if (help && (!p.fireTo || Math.abs(help.x - p.x) < Math.abs(p.fireTo.x - p.x))) { p.fireTo = null; p.dir = help.x < p.x ? -1 : 1; }
       else if (!p.fireTo && W.length) p.dir = W[0].x < fx ? -1 : 1;   /* (no way to any that they can see: straight at the nearest) */
       else if (!p.fireTo && Math.random() < 0.3) p.dir = -p.dir;
