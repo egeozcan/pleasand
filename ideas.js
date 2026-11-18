@@ -663,7 +663,9 @@ function iPlanFarm(g, p, wide) {
   C.sort(function (a, b) { return a.score - b.score; });
   for (k = 0; k < C.length && k < 4 && !best; k++) if (iFarmReach(g, p, C[k])) best = C[k];
   /* (anywhere in the valley: the best few, past the ones they cannot get to) */
-  for (k = 0; k < 4 && !best && wide; k++) { var w = iFarmSpot(g, -1, -1, p); if (!w) break; if (iFarmReach(g, p, w)) best = w; }   /* (a field to replace one dug up: anywhere in the valley) */
+  /* (four looks at flat ground, then four at rough: flat ground across a wall is no reason never to try the rough
+     on this side of it) */
+  for (k = 0; k < 8 && !best && wide; k++) { var w = iFarmSpot(g, -1, -1, p, k >= 4); if (!w) { if (k < 4) { k = 3; continue; } break; } if (iFarmReach(g, p, w)) best = w; }   /* (a field to replace one dug up: anywhere in the valley) */
   if (!best) return false;
   var plan = [], k, e, x0 = best.x0, x1 = x0 + I_FARM_W - 1;
   for (k = 0; k < best.dig.length; k++) plan.push(bE(g, best.dig[k][0], best.dig[k][1], MAT.EMPTY, 0));
@@ -683,15 +685,15 @@ function iFarmReach(g, p, r) {
   /* (out of reach for them, for a while: somebody else may be on the right side of it. the village's own list,
      g.farmNo, is for fields it has given up) */
   if (!p.farmNo) p.farmNo = {};
-  p.farmNo[r.x0] = g.tick + 6000;   /* (that plot, exactly: the one next to it may be on their side) */
+  for (var x = r.x0 - 3; x <= r.x0 + 3; x++) p.farmNo[x] = g.tick + 6000;   /* (that plot, and the ones overlapping it most: further along may be on their side) */
   return false;
 }
 /* field plots over columns a .. b (and a little either side) let be for t ticks */
 function iFarmNo(g, a, b, t) { if (!g.farmNo) g.farmNo = {}; for (var x = a - I_FARM_W - 2; x <= b + 2; x++) g.farmNo[x] = g.tick + t; }
 /* somewhere in the whole valley for a field, not over columns xa .. xb (and a little either side): the plot, or null */
-function iFarmSpot(g, xa, xb, p) {
+function iFarmSpot(g, xa, xb, p, rough) {
   var best = null, x0, G, r, pass;
-  for (pass = 0; pass < 2 && !best; pass++) for (x0 = 4; x0 < g.gw - I_FARM_W - 4; x0++) {
+  for (pass = rough ? 1 : 0; pass < 2 && !best; pass++) for (x0 = 4; x0 < g.gw - I_FARM_W - 4; x0++) {
     if (xa >= 0 && x0 + I_FARM_W + 3 >= xa && x0 - 3 <= xb) continue;
     if ((g.farmNo && g.farmNo[x0] > g.tick) || (p && p.farmNo && p.farmNo[x0] > g.tick)) continue;
     G = mGround(g, x0 + (I_FARM_W >> 1));

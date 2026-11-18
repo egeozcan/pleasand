@@ -27,7 +27,8 @@
 var NAV_CAP = 4000;                 /* places looked at, at most, per search */
 var NAV_REPLAN = 240;               /* ticks a route is trusted for */
 var NAV_NOROPE = false;             /* set while looking for a route for somebody who cannot use a rope just now */
-var NAV_NOLEAP = false;             /* and for somebody who cannot leap (burning) */
+var NAV_NOLEAP = false;             /* and for somebody burning: no leaps, no ladders */
+var NAV_HOTOK = false;              /* (while finding where a burning peasant starts from: hot ground will do) */
 var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder", "hook", "up", "down"];
 var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5, NAV_HOOK = 6, NAV_UP = 7, NAV_DOWN = 8;
 
@@ -43,7 +44,7 @@ function navStand(g, x, y) {
 function navBad(c) { return HOT[c] || c === MAT.ACID || c === MAT.DRAIN; }
 function navHazard(g, x, y) {
   return navBad(pCell(g, x, y + 1)) || navBad(pCell(g, x, y)) || navBad(pCell(g, x, y - 4)) || navBad(pCell(g, x, y - 7)) ||
-         pHotAt(g, x, y + 1) || pHotAt(g, x, y - 3);
+         (!NAV_HOTOK && (pHotAt(g, x, y + 1) || pHotAt(g, x, y - 3)));   /* (where a burning peasant starts from may be hot: NAV_HOTOK) */
 }
 
 /* every way on from (x, y), as add(x, y, cost, move) */
@@ -111,8 +112,9 @@ function navEdges(g, x, y, add) {
   if (up >= 0 && (y - up <= P_JUMP || !NAV_NOROPE)) add(x, up, y - up <= P_JUMP ? 4 + (y - up) * 0.3 : 25 + (y - up) * 0.6, NAV_UP);   /* (higher than a jump: the rope) */
   var dn = navSink(g, x, y);
   if (dn >= 0) add(x, dn, 2 + (dn - y) * 0.25 + (dn - y > 34 ? 40 : 0), NAV_DOWN);
-  /* a ladder, up from the foot of it to wherever it lets them off at the top */
-  var cx = bLadderNear(g, x, y);
+  /* a ladder, up from the foot of it to wherever it lets them off at the top. (not burning: they would let go of it.
+     build.js bClimbStep) */
+  var cx = NAV_NOLEAP ? -1 : bLadderNear(g, x, y);
   if (cx >= 0) {
     for (j = y; j > 0 && pCell(g, cx, j) === MAT.LADDER && !pBody(g, cx, j - 9); j--);
     if (pCell(g, cx, j) === MAT.LADDER) j = y;   /* something overhead: the climber would stop under it (bClimbStep) */
@@ -121,7 +123,7 @@ function navEdges(g, x, y, add) {
     for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * rate, NAV_LADDER);
   }
   /* and down one, from beside the top of it */
-  for (s = -1; s <= 1; s += 2) {
+  for (s = -1; s <= 1 && !NAV_NOLEAP; s += 2) {
     cx = bLadderMid(g, x + s, y + 1);
     if (cx < 0) continue;
     for (j = y; pCell(g, cx, j + 1) === MAT.LADDER && j < g.gh; j++);
@@ -238,7 +240,9 @@ function pathGo(g, p, key, tx, ty, goal) {
   /* something nasty has turned up on the next few steps (a fire somebody just lit): look again */
   if (nv && nv.key === key && nv.path.length) for (k = nv.i; k < nv.i + 4 && k < nv.path.length; k++) if (navHazard(g, nv.path[k].x, nv.path[k].y)) { nv.t = -1e9; break; }
   if (!nv || nv.key !== key || g.tick - nv.t > NAV_REPLAN || nv.off > 30 || nv.i >= nv.path.length) {
+    NAV_HOTOK = !!p.fire;   /* (burning: where they stand may be hot. the way on from there keeps out of the heat) */
     var here = navHere(g, p);
+    NAV_HOTOK = false;
     if (here && goal(here.x, here.y)) { p.nav = { key: key, path: [], i: 0, t: g.tick, off: 0 }; return 0; }
     /* (a rope they cannot use yet, after a fall off one: no routes that need it, until they can) */
     /* (burning, too: no rope, no hook, no leap. pTryHook, pTryLeap) */

@@ -788,8 +788,14 @@ function pSwim(g, p, sub) {
   if (struggle && p.task) p.task = null;   /* (never mind the errand) */
   /* (head under, and short of breath: the nearest open air overhead first, not a wall: under an overhang the nearest
      solid thing is no way out) */
-  if (sub && p.breath < P_BREATH - 60 && (p.anim % 15) === 0) p.airDir = pAirDir(g, fx, fy);
-  if (!sub) p.airDir = 0;
+  if (sub && p.breath < P_BREATH - 60 && (p.anim % 15) === 0) {
+    /* (making for air one way, and getting nowhere for a while: a lip in the way. the other way, then) */
+    if ((p.airDir === 1 || p.airDir === -1) && Math.abs(p.x - (p.airX || 0)) < 0.5 && ++p.airStuck >= 3) { p.airNo = p.airDir; p.airStuck = 0; }
+    else if (Math.abs(p.x - (p.airX || 0)) >= 0.5) p.airStuck = 0;
+    p.airX = p.x;
+    p.airDir = pAirDir(g, fx, fy, p.airNo);
+  }
+  if (!sub) { p.airDir = 0; p.airNo = 0; p.airStuck = 0; }
   if (p.airDir) { if (p.airDir !== 2) p.dir = p.airDir; struggle = false; }   /* (2: air right overhead. up, and stay put) */
   if ((burns || struggle) && (p.anim % 15) === 0) {
     /* the nearest bank: something solid at about head height, either side */
@@ -1399,8 +1405,8 @@ function pHotAt(g, x, y) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.
    ground to stand on there. how far down (1 or 2), or 0 */
 /* under water at (fx, fy): which way the nearest column is with air over the water, straight up, that nothing hard
    is in the way of: 1 or -1, 2 if it is right overhead, 0 if there is none near */
-function pAirDir(g, fx, fy) {
-  var open = { "-1": true, "1": true };   /* (a side is given up at the first wall across the way: no swimming through it) */
+function pAirDir(g, fx, fy, no) {
+  var open = { "-1": no !== -1, "1": no !== 1 };   /* (no: a way they found blocked) */   /* (a side is given up at the first wall across the way: no swimming through it) */
   for (var bd = 0; bd <= 40; bd++) for (var sd = -1; sd <= 1; sd += 2) {
     if (!bd && sd > 0) continue;
     var X = fx + bd * sd, Y;
@@ -1411,6 +1417,15 @@ function pAirDir(g, fx, fy) {
     if (AIRY[pCell(g, X, Y)] && AIRY[pCell(g, X, Y - 1)] && AIRY[pCell(g, X, Y - 2)] && !pBody(g, X, Y - 3)) return bd ? sd : 2;
   }
   return 0;
+}
+/* can p get to within a bucket's throw of q, walking (no wall between them, glass or otherwise) */
+function pCanMeet(g, p, q) {
+  var h = navHere(g, p), qx = Math.floor(q.x), qy = Math.floor(q.y);
+  if (!h) return false;
+  NAV_NOROPE = NAV_NOLEAP = true;
+  var P = navFind(g, h.x, h.y, function (x, y) { return Math.abs(x - qx) <= 3 && Math.abs(y - qy) <= 4; }, qx, qy, 300);
+  NAV_NOROPE = NAV_NOLEAP = false;
+  return !!P;
 }
 /* burning, and running for the water at p.fireTo: a step along the way there (paths.js). how far is left, or -1 if there
    is no way */
@@ -1434,7 +1449,7 @@ function pStepX(g, p, sp, swim) {
     if (k > 3 && !swim) { var dn = pDuckUnder(g, nfx, fy); if (dn) { p.y = fy + dn; p.x = nx; return true; } }
     if (k > 3) {
       /* a ladder up it: that is what it is for */
-      if (!swim && bLadderUp(g, p, fx, fy)) return false;
+      if (!swim && !p.fire && bLadderUp(g, p, fx, fy)) return false;   /* (not burning: they would only let go of it) */
       /* on a route, do what the route says (see paths.js). swimmers always try to climb out; walkers sometimes just
          turn round */
       var nm = p.navMove;
@@ -1449,7 +1464,7 @@ function pStepX(g, p, sp, swim) {
     fy -= k;
     if (!pGround(g, nfx, fy)) for (k = 1; k <= 2; k++) if (pGround(g, nfx, fy + k) && pRoom(g, nfx, fy + k)) { fy += k; break; }
     /* (onto the top of a ladder: down it. unless the route says otherwise: it may only be going across the top of it) */
-    if (!swim && !pGround(g, nfx, fy) && (!p.navMove || p.navMove === "ladder") && bLadderDown(g, p, nfx, Math.floor(p.y))) return false;
+    if (!swim && !p.fire && !pGround(g, nfx, fy) && (!p.navMove || p.navMove === "ladder") && bLadderDown(g, p, nfx, Math.floor(p.y))) return false;
     if (!swim && !pGround(g, nfx, fy)) {
       /* a route that goes over the edge (or leaps it) knows what is down there */
       if (p.navMove === "leap" && pTryLeap(g, p, fx, Math.floor(p.y))) return false;
@@ -1515,7 +1530,7 @@ function pWalk(g, p, wading) {
       if (pFireGo(g, p) < 0) p.fireTo = null;
       /* (somebody with a bucket: only if there is no way to the water, or they are a step or two off. one across a wall
          from them is no help, and the water is) */
-      if (help && (!p.fireTo || Math.abs(help.x - p.x) < 8)) { p.fireTo = null; p.dir = help.x < p.x ? -1 : 1; }
+      if (help && (!p.fireTo || (Math.abs(help.x - p.x) <= 8 && pCanMeet(g, p, help)))) { p.fireTo = null; p.dir = help.x < p.x ? -1 : 1; }
       else if (!p.fireTo && W.length) p.dir = W[0].x < fx ? -1 : 1;   /* (no way to any that they can see: straight at the nearest) */
       else if (!p.fireTo && Math.random() < 0.3) p.dir = -p.dir;
     } else if (p.fireTo) {
