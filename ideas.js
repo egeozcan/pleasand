@@ -347,7 +347,7 @@ function iPick(g, p) {
   /* (a field dug up for a mine or a well is sown again somewhere else: straight away, wherever there is room) */
   if (K.farm && g.resow && iCount(g, "farm") < Math.min(4, Math.ceil(bAlive(g) / 3)) && iPlanFarm(g, p, true)) { g.resow = 0; return true; }
   if (K.farm && !p.planCD && iCount(g, "farm") < Math.min(4, Math.ceil(bAlive(g) / 3)) && (hungry || Math.random() < 0.3)) {
-    if (iPlanFarm(g, p)) return true;
+    if (iPlanFarm(g, p, !iCount(g, "farm"))) return true;   /* (no field at all: anywhere in the valley will do) */
     p.planCD = 1800;
   }
   /* a pond wants hands, not wood, either. then filling it, and keeping it full, and planning the next */
@@ -650,13 +650,19 @@ function iFieldWork(g, p, R, kind) {
 }
 /* a field: eleven columns of sand (or ash) with open sky over them, near p, as level as can be found */
 function iPlanFarm(g, p, wide) {
-  var fx = Math.floor(p.x), fy = Math.floor(p.y), best = null, d, sd, r;
+  var fx = Math.floor(p.x), fy = Math.floor(p.y), best = null, d, sd, r, C = [], k;
+  if (!g.farmNo) g.farmNo = {};
   for (d = 0; d <= 90; d++) for (sd = -1; sd <= 1; sd += 2) {
     if (!d && sd > 0) continue;
-    r = iFarmPlot(g, fx + d * sd - (I_FARM_W >> 1), fy);
-    if (r && (!best || r.work + d * 0.2 < best.score)) { best = r; best.score = r.work + d * 0.2; }
+    var x0 = fx + d * sd - (I_FARM_W >> 1);
+    if (g.farmNo[x0] > g.tick) continue;   /* (given up there lately, or found out of reach) */
+    r = iFarmPlot(g, x0, fy);
+    if (r) { r.score = r.work + d * 0.2; C.push(r); }
   }
-  if (!best && wide) best = iFarmSpot(g, -1, -1);   /* (a field to replace one dug up: anywhere in the valley) */
+  /* (the best of them they can walk to: a few looks. the rest is let be a while) */
+  C.sort(function (a, b) { return a.score - b.score; });
+  for (k = 0; k < C.length && k < 4 && !best; k++) if (iFarmReach(g, p, C[k])) best = C[k];
+  if (!best && wide) { best = iFarmSpot(g, -1, -1); if (best && !iFarmReach(g, p, best)) best = null; }   /* (a field to replace one dug up: anywhere in the valley) */
   if (!best) return false;
   var plan = [], k, e, x0 = best.x0, x1 = x0 + I_FARM_W - 1;
   for (k = 0; k < best.dig.length; k++) plan.push(bE(g, best.dig[k][0], best.dig[k][1], MAT.EMPTY, 0));
@@ -669,11 +675,21 @@ function iPlanFarm(g, p, wide) {
   bJoin(g, p, s);
   return true;
 }
+/* can p walk to field plot r (else the plot is let be a while: g.farmNo) */
+function iFarmReach(g, p, r) {
+  var mid = r.x0 + (I_FARM_W >> 1), G = mGround(g, mid);
+  if (G > 0 && mReachable(g, p, mid, G - 1)) return true;
+  iFarmNo(g, r.x0, r.x0 + I_FARM_W - 1, 20000);
+  return false;
+}
+/* field plots over columns a .. b (and a little either side) let be for t ticks */
+function iFarmNo(g, a, b, t) { if (!g.farmNo) g.farmNo = {}; for (var x = a - I_FARM_W - 2; x <= b + 2; x++) g.farmNo[x] = g.tick + t; }
 /* somewhere in the whole valley for a field, not over columns xa .. xb (and a little either side): the plot, or null */
 function iFarmSpot(g, xa, xb) {
   var best = null, x0, G, r;
   for (x0 = 4; x0 < g.gw - I_FARM_W - 4; x0++) {
     if (xa >= 0 && x0 + I_FARM_W + 3 >= xa && x0 - 3 <= xb) continue;
+    if (g.farmNo && g.farmNo[x0] > g.tick) continue;
     G = mGround(g, x0 + (I_FARM_W >> 1));
     if (G < 0 || !(r = iFarmPlot(g, x0, G - 1))) continue;
     if (!best || r.work < best.work) { best = r; best.score = r.work; }

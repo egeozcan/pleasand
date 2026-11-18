@@ -687,6 +687,7 @@ function pStep(g, p) {
   var ground = pGround(g, fx, fy);
   /* in deep water, or standing on the bottom with your head under: swim */
   p.swimming = liquid && (!ground || sub);
+  p.swimT = p.swimming ? (p.swimT || 0) + 1 : 0;   /* (how long they have been swimming: pSwim) */
   if (p.swimming) { pSwim(g, p, sub); return; }
   if (!ground) { pFall(g, p); return; }
   if (p.falling) pLand(g, p);
@@ -782,7 +783,10 @@ function pSwim(g, p, sub) {
   var salt = pCell(g, fx, fy - 4) === MAT.SALTWATER, want = salt ? 4 : 6, err = depth - want, target;
   if (salt && p.sayT <= 0 && Math.random() < 0.004) pSay(g, p, "float");
   var burns = pCell(g, fx, fy) === MAT.ACID || pCell(g, fx, fy - 4) === MAT.ACID;
-  if (burns && (p.anim % 15) === 0) {
+  /* (stinging, short of breath, or in a long while: never mind where they were going, out at the nearest bank) */
+  var struggle = p.breath < P_BREATH - 60 || p.swimT > 900;
+  if (struggle && p.task) p.task = null;   /* (never mind the errand) */
+  if ((burns || struggle) && (p.anim % 15) === 0) {
     /* the nearest bank: something solid at about head height, either side */
     for (var bd = 2; bd <= 80; bd++) {
       if (pSolid(g, fx + bd, fy - 6) || pSolid(g, fx + bd, fy - 4)) { p.dir = 1; break; }
@@ -1386,11 +1390,20 @@ function pLeave(g, p) {
 function pHotAt(g, x, y) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.T[y * g.gw + x] > P_SCALD; }
 
 /* walking. a few cells of step up, a couple of step down, jump what is taller or wider, turn at the rest */
+/* into column x from feet at row y, with no room at that height (pStepUp said a wall): room a step or two lower, and
+   ground to stand on there. how far down (1 or 2), or 0 */
+function pDuckUnder(g, x, y) {
+  for (var d = 1; d <= 2; d++) if (pRoom(g, x, y + d) && pGround(g, x, y + d) && !navHazard(g, x, y + d)) return d;   /* (not onto a drain, or into a fire) */
+  return 0;
+}
 function pStepX(g, p, sp, swim) {
   var nx = p.x + p.dir * sp, nfx = Math.floor(nx), fx = Math.floor(p.x), fy = Math.floor(p.y), k;
   if (nx < 1 || nx > g.gw - 1) { p.dir = -p.dir; return false; }
   if (nfx !== fx) {
     k = pStepUp(g, nfx, fy);
+    /* (a lintel, or a low overhang, at head height: and room under it, a step or two down. ducking under it, down
+       they go: as a route expects, paths.js navEdges) */
+    if (k > 3 && !swim) { var dn = pDuckUnder(g, nfx, fy); if (dn) { p.y = fy + dn; p.x = nx; return true; } }
     if (k > 3) {
       /* a ladder up it: that is what it is for */
       if (!swim && bLadderUp(g, p, fx, fy)) return false;
@@ -1402,7 +1415,7 @@ function pStepX(g, p, sp, swim) {
       if (!swim && (!nm || nm === "rope") && bTryWall(g, p, fx, fy)) return false;
       /* too tall to jump: rope up it. swimmers always try; walkers now and then */
       if (!p.ropeCD && (swim || nm === "rope" || (!nm && (p.task || Math.random() < 0.35))) && pTryClimb(g, p, fx, fy)) return false;
-      if (nm) pathStale(p);   /* the route did not expect a wall here */
+      if (nm && !(nm === "rope" && p.ropeCD)) pathStale(p);   /* the route did not expect a wall here. (a rope it did: they wait until they can) */
       p.dir = -p.dir; return false;
     }
     fy -= k;
@@ -1467,7 +1480,9 @@ function pWalk(g, p, wading) {
     if (p.panic > 0 && !p.fire && !wading && !iFlee(g, p)) bHide(g, p);   /* (a house on fire is not somewhere to hide: ideas.js) */
     /* something to do: go there, and do it. (paddling about is no time for it: unless they have been in a good while,
        a pit with something runny in the bottom of it, say, or are hungry, when it is time to be off and find food) */
-    if (!scared && (!wading || p.wadeT > 300 || p.hunger > P_HUNGRY)) {
+    /* (struggling in the water, short of breath or in it a long while: nothing matters but the bank. pSwim) */
+    var struggling = wading && (p.wadeT > 900 || p.breath < P_BREATH - 60);
+    if (!scared && !struggling && (!wading || p.wadeT > 300 || p.hunger > P_HUNGRY)) {
       /* (starving, and busy with something else: down tools, and look for food first. once: if there is none to be had,
          eatCD keeps them at the job) */
       if (p.task && p.task.kind !== "eat" && p.hunger > P_HUNGRY * 4 && !p.eatCD && !p.climb && !p.rope && (p.anim % 60) === 0) {
@@ -1636,31 +1651,38 @@ function pNoField(g, p, x, y) {
   return !!f && p.noField[f.id] > g.tick;
 }
 function pFieldFood(g, p) {
-  var C = [], k, j, s, e, x, y, d, best, h = navHere(g, p);
+  var E = [], byX = {}, ids = {}, k, j, s, e, x, y, d, near = null, h = navHere(g, p);
   if (!p.noField) p.noField = {};
   for (k in p.noField) if (p.noField[k] <= g.tick) delete p.noField[k];   /* (forgotten, in time) */
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     if (s.kind !== "farm" || p.noField[s.id] > g.tick || pAvoid(g, p, s.cx)) continue;
     /* (the ripe ears are at the tops of the stalks, over the cells that were sown) */
-    for (best = null, j = 0; j < s.plan.length; j++) {
+    for (j = 0; j < s.plan.length; j++) {
       e = s.plan[j];
       if (e.v !== MAT.CROP) continue;
       x = e.i % g.gw;
       for (y = (e.i / g.gw) | 0; y >= 0 && g.m[y * g.gw + x] === MAT.CROP; y--);   /* (up the green stalk, to the ear) */
-      if (y < 0 || g.m[y * g.gw + x] !== MAT.WHEAT) continue;
+      if (y < 0 || g.m[y * g.gw + x] !== MAT.WHEAT || !pEdible(g, x, y)) continue;
       d = Math.abs(x + 0.5 - p.x) + Math.abs(y - p.y);
-      if ((!best || d < best.d) && pEdible(g, x, y)) best = { x: x, y: y, d: d, s: s };
+      var ear = { x: x, y: y, d: d, s: s };
+      E.push(ear); (byX[x] = byX[x] || []).push(ear); ids[s.id] = 1;
+      if (!near || d < near.d) near = ear;
     }
-    if (best) C.push(best);
   }
-  C.sort(function (a, b) { return a.d - b.d; });
-  /* (the nearest they can get to: a field across a lake, or past a wall, is no use to them, and is let be a while) */
-  for (k = 0; k < C.length && k < 4; k++) {
-    var c = C[k];
-    if (!h || navFind(g, h.x, h.y, pathNear(c.x, c.y, 3, 10, 2), c.x, c.y)) return c;   /* (the reach the eat task walks to: pTask) */
-    p.noField[c.s.id] = g.tick + 6000;
+  if (!near) return null;
+  if (!h) return near;
+  /* (one look for a way to any of them, the nearest first: the one they can get to is the one they go for. a field
+     with none they can reach, past a wall or across a lake, is let be a while) */
+  function reach(X, Y) {   /* (the reach the eat task walks to: pTask's pathNear(x, y, 3, 10, 2)) */
+    var best = null, bd = 1e9;
+    for (var xx = X - 3; xx <= X + 3; xx++) { var L = byX[xx]; if (L) for (var q = 0; q < L.length; q++) if (L[q].y >= Y - 10 && L[q].y <= Y + 2) {
+      var dd = Math.abs(L[q].x - X) + Math.abs(L[q].y - Y); if (dd < bd) { bd = dd; best = L[q]; } } }
+    return best;   /* (the nearest of them, from there) */
   }
+  var P = navFind(g, h.x, h.y, function (X, Y) { return !!reach(X, Y); }, near.x, near.y);
+  if (P) { var end = P.length ? P[P.length - 1] : h; return reach(end.x, end.y) || near; }
+  for (k in ids) p.noField[k] = g.tick + 6000;
   return null;
 }
 /* food is what grows up out of the ground: follow it down, through more of itself, to soil. a roof (it ends in wood)

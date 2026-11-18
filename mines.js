@@ -222,14 +222,34 @@ function mMineReach(g, p, r) {
   for (x = r.cx - 3; x <= r.cx + 3; x++) g.mineNo[x] = g.tick + 20000;
   return false;
 }
-function mPlanMine(g, p) {
-  var M = mSites(g, "mine"), k;
-  if (M.length >= M_MINES) return false;
-  for (k = 0; k < M.length; k++) {
-    /* (a mine that has stood flooded a good long while, done or not, is written off: it holds up no other) */
+/* every mine's flood clock: one that has stood flooded a good long while, done or not, is written off (flood 2), and
+   holds up no other. (the water gone down: the clock starts again next time) */
+function mFloodClock(g) {
+  var M = mSites(g, "mine");
+  for (var k = 0; k < M.length; k++) {
     if (M[k].flood === 2) continue;
-    if (mFlooded(g, M[k])) { if (!M[k].floodT) M[k].floodT = g.tick; if (g.tick - M[k].floodT > 12000) { M[k].flood = 2; continue; } }
-    else M[k].floodT = 0;   /* (the water gone down: the clock starts again next time) */
+    if (mFlooded(g, M[k])) { if (!M[k].floodT) M[k].floodT = g.tick; if (g.tick - M[k].floodT > 12000) M[k].flood = 2; }
+    else M[k].floodT = 0;
+  }
+}
+/* a mine whose head the sand keeps pouring back into: given up (what is on its pile back in p's pockets), and nowhere
+   near it tried again for a good while */
+function mGiveUpMine(g, s, p) {
+  var j = g.sites.indexOf(s), x;
+  if (j < 0) return;
+  feed(g, "the sand keeps pouring back into the mine. the village gives it up", "#c8d0dc", "plan" + s.id);
+  if (!g.mineNo) g.mineNo = {};
+  for (x = s.x0 - 6; x <= s.x1 + 6; x++) g.mineNo[x] = g.tick + 40000;
+  bGiveBack(s, p);
+  bRemove(g, j);
+}
+function mPlanMine(g, p) {
+  mFloodClock(g);
+  var M = mSites(g, "mine"), k, live = 0;
+  for (k = 0; k < M.length; k++) if (M[k].flood !== 2) live++;
+  if (live >= M_MINES) return false;
+  for (k = 0; k < M.length; k++) {
+    if (M[k].flood === 2) continue;
     if (!M[k].done || !mWorkedOut(M[k])) return false;
   }
   var fx = Math.floor(p.x), best = null, x, r, sc, C = [];
@@ -250,13 +270,17 @@ function mPlanMine(g, p) {
   /* (nowhere: then over a field, if that is the only place left) */
   if (!best && iCount(g, "farm") >= 2) {
     M_FARMOK = true;
+    var F = [];
     for (x = 24; x < g.gw - 24; x++) {
+      if (g.mineNo[x] > g.tick) continue;   /* (found out of reach lately) */
       r = mMinePlot(g, x);
       /* (and only over a field that can be spared: somewhere else for it to go, or others near enough) */
-      if (r && mFieldsUnder(g, x - r.hw - 2, x + r.hw + 2) <= 1 && (!best || r.score > best.score) && mFieldSpare(g, x - r.hw - 2, x + r.hw + 2)) best = r;
+      if (r && mFieldsUnder(g, x - r.hw - 2, x + r.hw + 2) <= 1 && mFieldSpare(g, x - r.hw - 2, x + r.hw + 2)) F.push(r);
     }
+    /* (the best of them they can get to: looked for while the field still counts as ground, so its earth is ground) */
+    F.sort(function (a, b) { return b.score - a.score; });
+    for (k = 0; k < F.length && k < 8 && !best; k++) if (mMineReach(g, p, F[k])) best = F[k];
     M_FARMOK = false;
-    if (best && !mMineReach(g, p, best)) best = null;   /* (nor a field across a wall from them) */
     if (!best) { iNoRoom(g, "another mine"); return false; }
     /* (the plot stands as it was found: the earth in it is sand again, and the wheat gone, and both are dug out) */
     mDigUpFields(g, best.cx - best.hw - 2, best.cx + best.hw + 2, "a mine");
@@ -523,6 +547,7 @@ function mUpper(m) { return m.B - M_LEVEL - M_ROOF - 3 > m.S; }
 /* the next stretch of gallery, at the bottom of any mine that is dug: the way with the most in it first, and not a
    second stretch of anything while the last is still being dug */
 function mPlanTunnel(g, p) {
+  mFloodClock(g);   /* (first: a shaft written off holds up nothing, its unfinished galleries included) */
   var M = mSites(g, "mine", true), T = mSites(g, "tunnel"), k, j, m, d, r, order;
   for (k = 0; k < T.length; k++) {
     if (T[k].done || T[k].flood === 2) continue;   /* (2: nobody could get down to it. written off for good) */
@@ -536,13 +561,8 @@ function mPlanTunnel(g, p) {
   }
   for (k = 0; k < M.length; k++) {
     m = M[k];
-    /* (the shaft itself flooded: left a good while, for the water to go down. then written off) */
-    if (mFlooded(g, m)) {
-      if (!m.floodT) m.floodT = g.tick;
-      if (g.tick - m.floodT > 12000) { m.out = { "1": true, "-1": true }; m.lv = 1; }
-      continue;
-    }
-    m.floodT = 0;
+    if (m.flood === 2) continue;   /* (written off: no more galleries off it) */
+    if (mFlooded(g, m)) continue;   /* (flooded: left a while, for the water to go down. mFloodClock) */
     /* the bottom of it worked out both ways: up the shaft, and start again from there */
     if (m.out && m.out[-1] && m.out[1] && !m.lv && mUpper(m)) {
       m.lv = 1; m.out = {};
@@ -644,6 +664,7 @@ function mFlooded(g, s) {
   /* (the water gone down again, near enough to bail the rest: back to work. a way nobody could get down to stays
      written off: s.flood 2) */
   if (s.flood === 1) s.flood = 0;
+  s.floodT = 0;   /* (dry now: a flood clock starts again from the next flood) */
   return false;
 }
 
@@ -1166,6 +1187,7 @@ function mLabel(s) {
 function mFinish(g, s, p) {
   var who = p ? p.name : "the village", o;
   if (s.kind === "mine") {
+    s.sunk = true;   /* (sunk once: a repair is never a reason to give it up. build.js bDig) */
     feed(g, who + " dug the mine down to " + (s.B - s.S) + " below the rock. now: the galleries", "#e8c8a0", "plan" + s.id);
     achieve(g, "mine");
   } else if (s.kind === "tunnel") {

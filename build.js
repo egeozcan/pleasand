@@ -137,6 +137,11 @@ function bGiveBack(s, p) {
 function bRemove(g, idx) {
   var s = g.sites[idx];
   g.sites.splice(idx, 1);
+  /* (and whoever was on their way to it, or at it, stops: there is nothing there to do now) */
+  for (var q = 0; q < g.peasants.length; q++) {
+    var t = g.peasants[q].task;
+    if (t && ((t.site === s.id && t.kind !== "sow" && t.kind !== "till" && t.kind !== "water" && t.kind !== "shoo") || t.field === s.id || t.pond === s.id)) g.peasants[q].task = null;
+  }
   bMark(g, s, 0);
   for (var k = 0; k < g.sites.length; k++) bMark(g, g.sites[k], 1);   /* (where two plans shared a cell) */
 }
@@ -612,6 +617,7 @@ function bFail(g, p, s, t, why) {
 function bTaskBuild(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || s.done) { p.task = null; p.taskDone = true; return false; }
+  if (s.kind === "tunnel" && mRetired(g, s)) { p.task = null; p.taskDone = true; return false; }   /* (its shaft written off: mines.js) */
   /* too cold to hold a hammer: down tools, and go and get warm (see bPick). the site will still be there */
   if (p.cold > 150 && !p.climb) { p.task = null; p.taskDone = true; return false; }
   k.t++;
@@ -760,6 +766,9 @@ function bDig(g, s, e, p) {
   if (!B_DIG[c]) return;
   g.dug++;   /* (a village that has done enough of this thinks of landscaping: ideas.js) */
   if (g.dug >= I_DUG && !g.dugSpark) { g.dugSpark = 1; iSpark(g, p, "dig"); }
+  /* (the head of a mine sunk through sand that pours back in as fast as it is dug: after enough of that, they leave
+     it, and sink one somewhere firmer. mines.js) */
+  if (s.kind === "mine" && !s.done && !s.repair && !s.sunk && (e.digs = (e.digs || 0) + 1) > 60) { mGiveUpMine(g, s, p); return; }   /* (the first sinking only) */
   /* down the head of a mine there is no throwing it out: it is carried up and tipped on the spoil heap (mines.js) */
   if (e.clear && s.spots) mSpotDug(g, s);   /* (sand slid in where they stand to work it: mines.js) */
   if ((s.mine || (e.clear && s.spots)) && !P_LEAF[c] && mSpoil(g, s, e.i)) { g.dug++; s.last = g.tick; g.fx.thud++; return; }
@@ -836,6 +845,13 @@ function buildStep(g) {
     /* the owner is gone. their name stays on it until somebody moves in */
     if (s.owner && !bOwner(g, s)) { s.owner = 0; if (s.kind !== "house" || !s.done) s.who = ""; }
     if (s.done) { if (((g.tick / 30) + s.id) % 4 === 0) bInspect(g, s, k); }
+    /* a field that has not come on at all in a good while (buried under a fall of sand, say, its earth out of anybody's
+       reach): given up, busy or not, so that another can be started. a village is not to starve waiting on it */
+    else if (s.kind === "farm" && !s.repair && g.tick - s.last > 5000) {   /* (a new one: one being sown again is kept) */
+      feed(g, "the village gave up on " + bLabel(s) + ". another field, somewhere else", "#c8d0dc", "plan" + s.id);
+      bGiveBack(s, bNearestLiving(g, s)); bRemove(g, k); g.resow = 1;   /* (and another, wherever there is room: ideas.js) */
+      iFarmNo(g, s.x0, s.x1, 30000);   /* (not there again, for a good while) */
+    }
     else if (g.tick - s.last > 20000 && !bBusy(g, s)) {
       /* nobody has touched it in ages. a house that is mostly up is lived in as it is; anything else is forgotten */
       if ((s.kind === "house" || s.free) && (s.repair || s.hut || bShare(g, s) > 0.6)) {

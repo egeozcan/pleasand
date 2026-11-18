@@ -1008,9 +1008,9 @@ test("sand heaped against a watchtower's door, so nobody can walk in, is dug awa
   check(w.mPlanTower(g, p), "nowhere for a tower");
   var t = sim.build(w, sites(g, "tower")[0]), o = t.spots[1];
   check(w.mDoorOpen(g, o), "the new tower's door cannot be walked into");
-  /* a ridge of sand a step high across the way in, under the lintel */
-  for (X = o.door + 1; X <= o.door + 3; X++) for (var Y = w.mGround(g, X) - 1; Y >= t.F - 1; Y--) w.sandPlace(g, Y * g.gw + X, w.MAT.SAND);
-  check(!w.mDoorOpen(g, o), "a step up to the door under its lintel is still walkable");
+  /* a bank of sand three high across the way in, under the lintel (a step or two they duck under: three, no) */
+  for (X = o.door + 1; X <= o.door + 3; X++) for (var Y = w.mGround(g, X) - 1; Y >= t.F - 3; Y--) w.sandPlace(g, Y * g.gw + X, w.MAT.SAND);
+  check(!w.mDoorOpen(g, o), "a bank three high up to the door, under its lintel, is still walkable");
   w.bInspect(g, t, g.sites.indexOf(t)); g.tick += 600; w.bInspect(g, t, g.sites.indexOf(t));   /* (blocked twice running) */
   check(t.repair, "the blocked door did not reopen the tower");
   for (k = 0; k < 6000 && !t.done; k++) { if (!p.task || p.task.site !== t.id) { p.task = btask(t.id); p.failSite = 0; } p.hunger = 0; p.tired = 0; sim.step(w, 1); }
@@ -1074,6 +1074,20 @@ test("a site nobody can ever walk to is given up after enough tries, and a furna
   var t = sites(g, "tower")[0];
   for (k = 0; k < 30 && g.sites.indexOf(t) >= 0; k++) w.bFail(g, p, t, 10, "walk");
   check(g.sites.indexOf(t) < 0, "a tower nobody could get to " + k + " times is still planned (lost " + t.lost + ")");
+});
+
+test("a peasant a step above a doorway's floor ducks under the lintel and walks in", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], k;
+  know(g, ["farm", "dig", "masonry"]);
+  check(w.mPlanTower(g, p), "nowhere for a tower");
+  var t = sim.build(w, sites(g, "tower")[0]), o = t.spots[1], X;
+  /* a ridge a step high outside the door, nothing under the lintel inside */
+  for (X = o.door + 1; X <= o.door + 3; X++) for (var Y = w.mGround(g, X) - 1; Y >= t.F - 1; Y--) w.sandPlace(g, Y * g.gw + X, w.MAT.SAND);
+  check(w.mDoorOpen(g, o), "the route finder will not duck under a lintel a step down");
+  g.peasants.forEach(function (q) { q.x = 5; });
+  p.x = o.door + 3.5; p.y = t.F - 2; p.state = "walk"; p.task = null; p.dir = -1; p.idle = 0;
+  for (k = 0; k < 60; k++) w.pStepX(g, p, 0.18);
+  check(p.x < o.door + 0.9, "they walked into the lintel and stopped, at " + p.x.toFixed(1) + "," + p.y);
 });
 
 var failed = 0, t0 = Date.now();

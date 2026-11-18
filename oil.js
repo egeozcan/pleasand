@@ -245,6 +245,14 @@ function oMood(g, p) {
    PLANNING A WELL: over oil, on level-ish ground, with room for the
    derrick, a place to stand at the pump and a place for the oil to go
    ------------------------------------------------------------------- */
+/* can p walk to the pump of well plot r (else that spot is let be a while, by them: p.wellNo) */
+function oWellReach(g, p, r) {
+  var h = navHere(g, p), sx = r.pump.x, sy = r.pump.y;
+  /* (to where the pump is worked from, exactly as the pump task wants it: oTaskPump) */
+  if (h && navFind(g, h.x, h.y, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 2; }, sx, sy)) return true;
+  for (var x = r.at - 2; x <= r.at + 2; x++) p.wellNo[x] = g.tick + 20000;   /* (for them: somebody else may be on the right side of it) */
+  return false;
+}
 function oPlanWell(g, p) {
   var W = mSites(g, "well"), live = 0, k, d, sd, r, best = null, sc, fx, fy, x0, x1, F, T, plan = [], x, y, ph;
   if (!g.know.oil) return false;
@@ -259,29 +267,39 @@ function oPlanWell(g, p) {
   if (!((p.iron || 0) >= 0.2 || g.iron >= 1)) return false;   /* the derrick is iron: they have to have smelted some */
   if (bOpenCount(g) >= B_OPEN) return false;
   fx = Math.floor(p.x); fy = Math.floor(p.y);
+  if (!p.wellNo) p.wellNo = {};
+  var C = [];
   /* anywhere in the valley there is oil (nearer is better), with the pump on whichever side there is room for it */
   for (d = 0; d <= g.gw; d++) for (sd = -1; sd <= 1; sd += 2) {
     if (!d && sd > 0) continue;
     x = fx + d * sd;
-    if (x < 10 || x > g.gw - 11) continue;
+    if (x < 10 || x > g.gw - 11 || p.wellNo[x] > g.tick) continue;
     y = mGround(g, x);
     for (k = 0; k < 2; k++) {
       r = oWellPlot(g, x - 2, y > 0 ? y - 1 : fy, k);
       if (!r) continue;
-      sc = r.work * 0.25 + d * 0.06 - r.oilDepth * 0.15;
-      if (!best || sc < best.sc) { best = r; best.sc = sc; }
+      r.sc = r.work * 0.25 + d * 0.06 - r.oilDepth * 0.15; r.at = x;
+      C.push(r);
     }
   }
+  /* (the best they can walk to the pump of: a few looks, and the ones across a wall are let be a while) */
+  C.sort(function (a, b) { return a.sc - b.sc; });
+  for (k = 0; k < C.length && k < 8 && !best; k++) if (oWellReach(g, p, C[k])) best = C[k];
+  if (!best && C.length > 8) { p.oilCD = 600; return false; }   /* (more to look at, next time) */
   /* (nowhere: then over one of two fields, dug up for it, as a mine would be: mines.js) */
   if (!best && iCount(g, "farm") >= 2) {
     M_FARMOK = true;
+    C = [];
     for (x = 10; x < g.gw - 10; x++) {
+      if (p.wellNo[x] > g.tick) continue;
       y = mGround(g, x);
       for (k = 0; k < 2; k++) {
         r = oWellPlot(g, x - 2, y > 0 ? y - 1 : fy, k);
-        if (r && mFieldsUnder(g, x - 6, x + 6) <= 1 && (!best || r.work < best.work) && mFieldSpare(g, r.x0 - 4, r.x0 + 8)) best = r;   /* (a field to spare: mines.js) */
+        if (r && mFieldsUnder(g, x - 6, x + 6) <= 1 && mFieldSpare(g, r.x0 - 4, r.x0 + 8)) { r.at = x; C.push(r); }   /* (a field to spare: mines.js) */
       }
     }
+    C.sort(function (a, b) { return a.work - b.work; });
+    for (k = 0; k < C.length && k < 8 && !best; k++) if (oWellReach(g, p, C[k])) best = C[k];
     M_FARMOK = false;
     if (best) mDigUpFields(g, best.x0 - 4, best.x0 + 8, "an oil well");
   }
@@ -436,7 +454,7 @@ function oPick(g, p, hungry) {
   if (!hungry && Math.random() < 0.5 && oGoPump(g, p)) return true;
   if (!p.oilCD && !hungry && Math.random() < 0.2) {
     if (oPlanWell(g, p)) return true;
-    p.oilCD = 1800;
+    if (!p.oilCD) p.oilCD = 1800;   /* (unless the planner said when to look again) */
   }
   return false;
 }

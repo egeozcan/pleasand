@@ -26,6 +26,7 @@
 
 var NAV_CAP = 4000;                 /* places looked at, at most, per search */
 var NAV_REPLAN = 240;               /* ticks a route is trusted for */
+var NAV_NOROPE = false;             /* set while looking for a route for somebody who cannot use a rope just now */
 var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder", "hook", "up", "down"];
 var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5, NAV_HOOK = 6, NAV_UP = 7, NAV_DOWN = 8;
 
@@ -81,6 +82,9 @@ function navEdges(g, x, y, add) {
       }
       continue;
     }
+    /* a lintel, or a low overhang: ducking under it, a step or two down (pStepX, pDuckUnder) */
+    var dn = pDuckUnder(g, nx, y);
+    if (dn && navStand(g, nx, y + dn)) { add(nx, y + dn, 1 + dn * 0.2, NAV_WALK); continue; }
     /* a wall: jump it (pTryJump) */
     var room = true;
     for (j = 9; j < 12; j++) if (pBody(g, x, y - j)) room = false;
@@ -93,17 +97,17 @@ function navEdges(g, x, y, add) {
     if (k > P_JUMP && k <= P_ROPE) {
       for (j = 9; j <= k + 9 && !pBody(g, x, y - j); j++);
       top = y - k + 1;
-      if (j > k + 9 && pSolid(g, nx, top) && pCell(g, nx, top) !== MAT.INERT && navStand(g, nx, y - k)) add(nx, y - k, 25 + k * 0.6, NAV_ROPE);
+      if (!NAV_NOROPE && j > k + 9 && pSolid(g, nx, top) && pCell(g, nx, top) !== MAT.INERT && navStand(g, nx, y - k)) add(nx, y - k, 25 + k * 0.6, NAV_ROPE);
     }
   }
   /* the end of a ledge overhead: hook it and climb up past it (pTryHook) */
-  for (s = -1; s <= 1; s += 2) {
+  for (s = -1; s <= 1 && !NAV_NOROPE; s += 2) {
     var hk = pHookGeom(g, x, y, s);
     if (hk && navStand(g, x + s, hk.stand)) add(x + s, hk.stand, 25 + hk.h * 0.6, NAV_HOOK);
   }
   /* up through a bush or a tree overhead, onto the top of it (pTryUp), and down through the one underfoot (pTrySink) */
   var up = navUp(g, x, y);
-  if (up >= 0) add(x, up, y - up <= P_JUMP ? 4 + (y - up) * 0.3 : 25 + (y - up) * 0.6, NAV_UP);
+  if (up >= 0 && (y - up <= P_JUMP || !NAV_NOROPE)) add(x, up, y - up <= P_JUMP ? 4 + (y - up) * 0.3 : 25 + (y - up) * 0.6, NAV_UP);   /* (higher than a jump: the rope) */
   var dn = navSink(g, x, y);
   if (dn >= 0) add(x, dn, 2 + (dn - y) * 0.25 + (dn - y > 34 ? 40 : 0), NAV_DOWN);
   /* a ladder, up from the foot of it to wherever it lets them off at the top */
@@ -235,7 +239,12 @@ function pathGo(g, p, key, tx, ty, goal) {
   if (!nv || nv.key !== key || g.tick - nv.t > NAV_REPLAN || nv.off > 30 || nv.i >= nv.path.length) {
     var here = navHere(g, p);
     if (here && goal(here.x, here.y)) { p.nav = { key: key, path: [], i: 0, t: g.tick, off: 0 }; return 0; }
+    /* (a rope they cannot use yet, after a fall off one: no routes that need it, until they can) */
+    NAV_NOROPE = p.ropeCD > 0;
     var path = here ? navFind(g, here.x, here.y, goal, tx, ty) : null;
+    NAV_NOROPE = false;
+    /* (no way without one: the way with one, then, and they wait at the foot of it until they can) */
+    if (!path && here && p.ropeCD > 0) path = navFind(g, here.x, here.y, goal, tx, ty);
     if (!path) { p.nav = { key: key, none: g.tick + 120, path: [], i: 0, t: g.tick, off: 0 }; return -1; }
     nv = p.nav = { key: key, path: path, i: 0, t: g.tick, off: 0 };
   }
@@ -247,12 +256,16 @@ function pathGo(g, p, key, tx, ty, goal) {
      move starts, not where it lands */
   while (nv.i < P.length) {
     var here = P[nv.i], next = P[nv.i + 1];
-    var vtol = next && (next.m === NAV_UP || next.m === NAV_DOWN) ? 0.75 : 3.5;
+    var vtol = next && (next.m === NAV_UP || next.m === NAV_DOWN || next.m === NAV_HOOK) ? 0.75 : 3.5;   /* (a hook, too: thrown from a row off, it does not catch) */
     if (!(Math.abs(p.x - here.x - 0.5) < 0.7 && Math.abs(p.y - here.y) < vtol)) break;
     nv.i++;
   }
   if (nv.i >= P.length) return 0;
   n = P[nv.i];
+  /* perched on a bush (or a tree) that the route goes along the foot of: down through it first. walking on along its
+     top, at that height, a door's lintel or a low roof is a wall */
+  var pfx = Math.floor(p.x), pfy = Math.floor(p.y);
+  if (n.y > pfy && Math.abs(n.x - pfx) <= 1 && !p.rope && !p.jumping && !p.sink && P_SOFT[pCell(g, pfx, pfy + 1)]) pTrySink(g, p, pfx, pfy, n.y - pfy + 6);
   /* wandered off it (a fall, a shove, a swim that drifted): plan again soon */
   if (Math.abs(p.x - n.x - 0.5) + Math.abs(p.y - n.y) > 14) nv.off++;
   var dx = n.x + 0.5 - p.x;
@@ -261,12 +274,13 @@ function pathGo(g, p, key, tx, ty, goal) {
   /* the route hooks a ledge from here: throw the hook (before the walking carries them on under it) */
   if (n.m === NAV_HOOK && !p.rope) {
     var hs = n.x > Math.floor(p.x) ? 1 : -1;
-    if (Math.floor(p.x) === n.x - hs) { if (!pTryHook(g, p, Math.floor(p.x), Math.floor(p.y), hs)) pathStale(p); }
+    if (Math.floor(p.x) === n.x - hs) { if (p.ropeCD) p.idle = 10; else if (!pTryHook(g, p, Math.floor(p.x), Math.floor(p.y), hs)) pathStale(p); }   /* (a rope they cannot use yet: wait) */
   }
   /* the route goes straight up through a tree from here, or down through it: as soon as they are in the column */
   if ((n.m === NAV_UP || n.m === NAV_DOWN) && !p.rope && !p.jumping && Math.floor(p.x) === n.x) {
     var ux = Math.floor(p.x), uy = Math.floor(p.y), u = n.m === NAV_UP ? navUp(g, ux, uy) : -1;
-    if (n.m === NAV_UP ? !(u >= 0 && pTryUp(g, p, ux, uy, u)) : !pTrySink(g, p, ux, uy, 76)) pathStale(p);
+    if (n.m === NAV_UP && u >= 0 && uy - u > P_JUMP && p.ropeCD) p.idle = 10;   /* (up there on a rope they cannot use yet: wait) */
+    else if (n.m === NAV_UP ? !(u >= 0 && pTryUp(g, p, ux, uy, u)) : !pTrySink(g, p, ux, uy, 76)) pathStale(p);
   }
   /* the route goes up (or down) a ladder from here: on they get, whether or not there is a wall in front of them */
   if (n.m === NAV_LADDER && !p.climb) {
