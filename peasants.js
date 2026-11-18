@@ -1400,9 +1400,12 @@ function pHotAt(g, x, y) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.
 /* under water at (fx, fy): which way the nearest column is with air over the water, straight up, that nothing hard
    is in the way of: 1 or -1, 2 if it is right overhead, 0 if there is none near */
 function pAirDir(g, fx, fy) {
+  var open = { "-1": true, "1": true };   /* (a side is given up at the first wall across the way: no swimming through it) */
   for (var bd = 0; bd <= 40; bd++) for (var sd = -1; sd <= 1; sd += 2) {
     if (!bd && sd > 0) continue;
     var X = fx + bd * sd, Y;
+    if (bd && !open[sd]) continue;
+    if (bd && pBody(g, X, fy - 2) && pBody(g, X, fy - 5) && pBody(g, X, fy - 8)) { open[sd] = false; continue; }   /* (a wall: not just the bottom shelving up) */
     for (Y = fy - 1; Y > fy - 24 && Y > 0; Y--) { var c = pCell(g, X, Y); if (!LIQUID[c] && !P_SOFT[c]) break; }
     /* (and room over the water to get a head up into: not a pocket under a roof) */
     if (AIRY[pCell(g, X, Y)] && AIRY[pCell(g, X, Y - 1)] && AIRY[pCell(g, X, Y - 2)] && !pBody(g, X, Y - 3)) return bd ? sd : 2;
@@ -1510,7 +1513,9 @@ function pWalk(g, p, wading) {
          what it found only points the search) */
       p.fireTo = { x: W.length ? W[0].x : fx, y: W.length ? W[0].y : fy, cx: fx, r: reach + 4, k: fx + "," + fy };
       if (pFireGo(g, p) < 0) p.fireTo = null;
-      if (help && (!p.fireTo || Math.abs(help.x - p.x) < Math.abs(p.fireTo.x - p.x))) { p.fireTo = null; p.dir = help.x < p.x ? -1 : 1; }
+      /* (somebody with a bucket: only if there is no way to the water, or they are a step or two off. one across a wall
+         from them is no help, and the water is) */
+      if (help && (!p.fireTo || Math.abs(help.x - p.x) < 8)) { p.fireTo = null; p.dir = help.x < p.x ? -1 : 1; }
       else if (!p.fireTo && W.length) p.dir = W[0].x < fx ? -1 : 1;   /* (no way to any that they can see: straight at the nearest) */
       else if (!p.fireTo && Math.random() < 0.3) p.dir = -p.dir;
     } else if (p.fireTo) {

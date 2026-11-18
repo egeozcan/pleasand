@@ -656,8 +656,8 @@ function mSafe(g, x, y) {
 /* a gallery whose shaft is written off (flooded for good) or gone: nobody works it */
 function mRetired(g, t) { var m = bSite(g, t.of); return !m || m.flood === 2; }
 function mFlooded(g, s) {
-  var n = 0;
-  for (var k = 0; k < s.plan.length; k++) if (LIQUID[g.m[s.plan[k].i]] && ++n > 4) {
+  var n = 0, seen = {};   /* (each wet cell once: a cell is in the plan twice, dug and laddered) */
+  for (var k = 0; k < s.plan.length; k++) if (LIQUID[g.m[s.plan[k].i]] && !seen[s.plan[k].i] && (seen[s.plan[k].i] = 1) && ++n > 4) {
     if (!s.flood) { s.flood = 1; feed(g, iCap(bLabel(s)) + " is flooded. nobody is going down there", "#c8d0dc", "flood" + s.id); }
     return true;
   }
