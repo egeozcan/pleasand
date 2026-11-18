@@ -53,10 +53,10 @@ var M_TOWERS = 2;
 var M_SMELT = 150;          /* ticks at the bellows for a bar of iron */
 var M_FORGE = 160;          /* ticks at the anvil for a set of iron tools (a bar of iron) */
 var M_WEAR = 320;           /* strokes before iron tools are worn out */
-var M_POCKET = { stone: 24, coal: 12, ore: 12, gold: 99 };   /* what fits in a pocket. the rest is kicked down the tunnel */
-var M_YIELD = []; M_YIELD[MAT.STONE] = "stone"; M_YIELD[MAT.COAL] = "coal"; M_YIELD[MAT.ORE] = "ore"; M_YIELD[MAT.GOLD] = "gold";
-var M_SEAM = new Uint8Array(NMAT); M_SEAM[MAT.COAL] = M_SEAM[MAT.ORE] = M_SEAM[MAT.GOLD] = 1;
-var M_WORTH = new Float32Array(NMAT); M_WORTH[MAT.COAL] = 2; M_WORTH[MAT.ORE] = 3; M_WORTH[MAT.GOLD] = 6;
+var M_POCKET = { stone: 24, coal: 12, ore: 12, gold: 99, salt: 12 };   /* what fits in a pocket. the rest is kicked down the tunnel */
+var M_YIELD = []; M_YIELD[MAT.STONE] = "stone"; M_YIELD[MAT.COAL] = "coal"; M_YIELD[MAT.ORE] = "ore"; M_YIELD[MAT.GOLD] = "gold"; M_YIELD[MAT.ROCKSALT] = "salt";
+var M_SEAM = new Uint8Array(NMAT); M_SEAM[MAT.COAL] = M_SEAM[MAT.ORE] = M_SEAM[MAT.GOLD] = M_SEAM[MAT.ROCKSALT] = 1;
+var M_WORTH = new Float32Array(NMAT); M_WORTH[MAT.COAL] = 2; M_WORTH[MAT.ORE] = 3; M_WORTH[MAT.GOLD] = 6; M_WORTH[MAT.ROCKSALT] = 1.5;
 
 P_SAY.idea_mine = ["what's under the sand? ROCK", "what if we dug down. a LOT", "there's something under all this sand",
   "a hole. a really deep one"];
@@ -73,6 +73,7 @@ P_SAY.pick = ["*tink*", "*chink*", "rock. more rock", "hi-ho", "solid stuff", "d
 P_SAY.coal = ["COAL!", "black rock!", "this'll burn", "coal! warm winters"];
 P_SAY.ore = ["iron ore!", "red rock!", "this one's heavy", "ooh, rusty"];
 P_SAY.gold = ["GOLD!", "GOLD! GOLD!", "we're RICH", "shiny!!", "it's GOLD", "don't tell the king"];
+P_SAY.salt = ["SALT!", "pink rock. it's salty", "rock salt! lick it", "the rock tastes of the sea"];
 P_SAY.planTower = ["a tower, right here", "we'll see for miles", "stone on stone, all the way up", "a watchtower!"];
 P_SAY.lookout = ["i can see the whole valley", "i can see my house from here", "everything's so small", "what a view",
   "is that a duck?", "nothing to report", "all quiet", "i'm the king of the castle", "you can see the pond from here"];
@@ -97,6 +98,7 @@ P_SAY.nogold = ["out of gold", "need more gold", "gold, please"];
 
 P_ACHIEVE.mine = ["THE MINE", "a hole in the ground, with a ladder in it. on purpose"];
 P_ACHIEVE.coal = ["COAL", "black rock that burns. there is more of it down there"];
+P_ACHIEVE.salt = ["ROCK SALT", "an old sea, dried out, deep in the rock. it tastes of fish"];
 P_ACHIEVE.ore = ["IRON ORE", "red rock, and heavy. it must be good for something"];
 P_ACHIEVE.gold = ["GOLD!", "it does nothing at all. everybody wants some"];
 P_ACHIEVE.tower = ["THE WATCHTOWER", "you can see the whole valley from up there"];
@@ -181,7 +183,8 @@ var M_CHIPS = {
   stone: [SAND_PAL[MAT.STONE][0], SAND_PAL[MAT.STONE][90], SAND_PAL[MAT.STONE][200]],
   coal: [SAND_PAL[MAT.COAL][0], SAND_PAL[MAT.COAL][100], SAND_PAL[MAT.STONE][90]],
   ore: [SAND_PAL[MAT.ORE][0], SAND_PAL[MAT.ORE][130], SAND_PAL[MAT.STONE][90]],
-  gold: [SAND_PAL[MAT.GOLD][0], SAND_PAL[MAT.GOLD][100], hex32("#fff6c0")]
+  gold: [SAND_PAL[MAT.GOLD][0], SAND_PAL[MAT.GOLD][100], hex32("#fff6c0")],
+  salt: [SAND_PAL[MAT.ROCKSALT][0], SAND_PAL[MAT.SALT][0], SAND_PAL[MAT.STONE][90]]
 };
 /* a stroke that breaks a cell of rock out: into their pockets with it (the air left behind keeps whatever heat the rock
    had, as with a chopped log) */
@@ -200,13 +203,13 @@ function mMine(g, s, e, p) {
   if (r === "stone") { if (p.sayT <= 0 && Math.random() < 0.03) pSay(g, p, "pick"); return; }
   /* something in the rock: the first of anything is news */
   if (g.found[r] === 1) {
-    feed(g, p.name + (r === "ore" ? " found iron ore" : " struck " + r), r === "gold" ? "#ffd94a" : "#e8c8a0", "find" + r);
+    feed(g, p.name + (r === "ore" ? " found iron ore" : r === "salt" ? " found a bed of rock salt. an old sea, dried out" : " struck " + r), r === "gold" ? "#ffd94a" : "#e8c8a0", "find" + r);
     achieve(g, r);
     pSay(g, p, r, true);
   } else if (r === "gold" || (p.sayT <= 0 && Math.random() < 0.15)) pSay(g, p, r, r === "gold");
   if (r === "gold") { sparks(g, x + 0.5, y + 0.5, 8, 0.6, M_CHIPS.gold, 12, 0.3, PK_GLINT); p.bored = 0; }
   /* whoever finds it is the one it puts ideas into the head of */
-  iSpark(g, p, r === "gold" ? (g.know.bell ? "statue" : "bell") : "smelt");
+  iSpark(g, p, r === "gold" ? (g.know.bell ? "statue" : "bell") : r === "salt" ? (g.know.salt ? "powder" : "salt") : "smelt");
 }
 
 /* -------------------------------------------------------------------
@@ -1218,6 +1221,8 @@ function mPockets(p) {
   if (p.ore >= 1) out.push(p.ore + " ore");
   if (p.iron >= 1) out.push(Math.floor(p.iron) + " iron");
   if (p.gold >= 1) out.push(Math.floor(p.gold) + " gold");
+  var lp = lPockets(p);   /* (ash, salt, glass, powder, salt fish: leftovers.js) */
+  if (lp) out.push(lp);
   return out.join(", ");
 }
 /* what they are up to, for the bar at the bottom: "" if it is none of ours */

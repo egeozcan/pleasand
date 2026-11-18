@@ -92,6 +92,8 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   def(MAT.LAMP, 1.5, 0.1);     /* a little glass and a little oil */
   def(MAT.COAL, 1.3, 0.06); def(MAT.ORE, 1.8, 0.16); def(MAT.GOLD, 1.0, 0.4);
   def(MAT.BRICK, 2.0, 0.1); def(MAT.GIRDER, 1.5, 0.36);
+  /* (leftovers.js) snow packed hard, cold as the snow it was packed from; and rock salt, which is salt, in the rock */
+  def(MAT.PACKSNOW, 1.0, 0.02, -10);   /* (packed hard, it keeps its cold a good while) */ def(MAT.ROCKSALT, 1.6, 0.14);
 
   function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
   function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
@@ -99,7 +101,9 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   lo(MAT.WATER, 0, 640); hi(MAT.WATER, 100, 1200);
   /* salt water freezes colder and boils hotter, and leaves its salt behind either way */
   lo(MAT.SALTWATER, -21, 640); hi(MAT.SALTWATER, 103, 1200);
-  hi(MAT.ICE, 0, 640); hi(MAT.SNOW, 0, 640);
+  hi(MAT.ICE, 0, 640); hi(MAT.SNOW, 0, 640); hi(MAT.PACKSNOW, 0, 640);
+  /* rock salt: past 800 it cracks out of the rock, as salt (no more to soak up than sand sintering) */
+  hi(MAT.ROCKSALT, 800, 0);
   /* steam gives back all that boiling took. clouds rain when they have lost it, which they
      mostly do up against the top of the room, where the heat gets out */
   lo(MAT.STEAM, 100, 1200);
@@ -187,6 +191,7 @@ var HEAT_HS = new Float32Array(NMAT), HEAT_HLAT = new Float32Array(NMAT);
   HEAT_HS[MAT.STEAM] = HEAT_HS[MAT.WATER] + (C[MAT.WATER] - C[MAT.STEAM]) * (HEAT_HI[MAT.WATER] - A);
   HEAT_HLAT[MAT.STEAM] = HEAT_HLAT[MAT.WATER] + HEAT_HI_L[MAT.WATER];
   HEAT_HS[MAT.SNOW] = (C[MAT.ICE] - C[MAT.SNOW]) * (HEAT_HI[MAT.ICE] - A);
+  HEAT_HS[MAT.PACKSNOW] = (C[MAT.ICE] - C[MAT.PACKSNOW]) * (HEAT_HI[MAT.ICE] - A);
   HEAT_HS[MAT.SALTWATER] = (C[MAT.ICE] - C[MAT.SALTWATER]) * (HEAT_LO[MAT.SALTWATER] - A);
   HEAT_HLAT[MAT.SALTWATER] = HEAT_LO_L[MAT.SALTWATER];
 })();
@@ -287,7 +292,8 @@ function heatUp(g, i, v) {
       if (j >= 0) paid = heatSpawn(g, i, j, MAT.STEAM);
       if (Math.random() < 0.05) g.fx.hiss++;
       return paid;
-    case MAT.ICE: case MAT.SNOW: m[i] = MAT.WATER; g.aux[i] = 0; return 0;
+    case MAT.ICE: case MAT.SNOW: case MAT.PACKSNOW: m[i] = MAT.WATER; g.aux[i] = 0; return 0;
+    case MAT.ROCKSALT: m[i] = MAT.SALT; g.aux[i] = 0; return 0;
     case MAT.STONE: case MAT.GLASS: case MAT.METAL:
       m[i] = MAT.LAVA; g.aux[i] = v === MAT.STONE ? 0 : v; return 0;
     case MAT.BRICK: m[i] = MAT.LAVA; g.aux[i] = 0; return 0;

@@ -791,13 +791,19 @@ test("oil is smelled by a mine whose workings come near it, and a dry field puts
 test("a bucket thrown from inside a bush wets the bush, it does not set fire to it", function () {
   var w = sim.load(1), g = w.g, spot = clearSpot(w, 200), x = spot.x, y = spot.gy - 6, k, j = y * g.gw + x;
   for (k = -1; k <= 1; k++) w.sandPlace(g, y * g.gw + x + k, w.MAT.PLANT);
+  var water = function () { var n = 0; for (var i = 0; i < g.m.length; i++) if (g.m[i] === w.MAT.WATER) n++; return n; }, n0 = water();
   var q = w.partAdd(g, w.PK_DEBRIS, x + 0.5, y + 0.5, 0.5, -0.2, 240, 0, w.MAT.WATER);
   g.pt[q] = 854;   /* (a bucketful of warm water: as much heat as the thrower in seed 3 carried) */
-  for (k = 0; k < 40; k++) sim.step(w, 1);
+  sim.step(w, 1);
+  var landed = 0;
+  for (var dy = -3; dy <= 3; dy++) for (var dx = -3; dx <= 3; dx++) if (g.m[(y + dy) * g.gw + x + dx] === w.MAT.WATER) landed++;
+  check(landed > 0, "the bucketful never landed as water by the bush");
+  for (k = 1; k < 40; k++) sim.step(w, 1);
   for (k = -1; k <= 1; k++) check(g.T[y * g.gw + x + k] < 120, "the bush went to " + g.T[y * g.gw + x + k].toFixed(0) + " degrees");
-  var wet = 0;
-  for (var i = 0; i < g.m.length; i++) if (g.m[i] === w.MAT.WATER && Math.abs(i % g.gw - x) < 8) wet++;
-  check(wet > 0, "the water vanished");
+  /* (it landed as water, wherever it has run off to since: it did not boil away) */
+  var steam = 0;
+  for (var i = 0; i < g.m.length; i++) if (g.m[i] === w.MAT.STEAM && Math.abs(i % g.gw - x) < 10) steam++;
+  check(water() >= n0 && !steam, "the water vanished (" + n0 + " -> " + water() + ", " + steam + " steam)");
 });
 
 test("iron is forged into tools at the furnace, which go faster and wear out", function () {
@@ -851,7 +857,7 @@ test("a gallery goes on through the rock for the stone once there is nothing bet
   for (k = 0; k < g.peasants.length && !sites(g, "mine").length; k++) { p = g.peasants[k]; w.mPlanMine(g, p); }
   var m = sim.build(w, sites(g, "mine")[0]);
   /* nothing worth having anywhere in the rock */
-  for (var j = 0; j < g.m.length; j++) if (g.m[j] === w.MAT.COAL || g.m[j] === w.MAT.ORE || g.m[j] === w.MAT.GOLD) g.m[j] = w.MAT.STONE;
+  for (var j = 0; j < g.m.length; j++) if (g.m[j] === w.MAT.COAL || g.m[j] === w.MAT.ORE || g.m[j] === w.MAT.GOLD || g.m[j] === w.MAT.ROCKSALT) g.m[j] = w.MAT.STONE;
   var r = w.mTunnelPlot(g, m, 1) || w.mTunnelPlot(g, m, -1);
   check(r && r.plan.length > 0 && !r.ore, "no gallery for the stone");
 });
@@ -937,6 +943,8 @@ test("a peasant who never eats at all starves in the end, and a newcomer does no
   var w = sim.load(1), g = w.g, p = g.peasants[0], i;
   sim.step(w, 120);
   p.hunger = w.P_STARVE - 5;
+  /* (on the ground, not halfway up a rope: a rope is no place to notice you are hungry) */
+  p.rope = null; p.climb = null; p.jumping = false; p.task = null; p.y = w.mGround(g, Math.floor(p.x)) - 1;
   for (i = 0; i < 20 && !p.dead; i++) sim.step(w, 1);
   check(p.dead, "nobody ever starves");
   var q = g.peasants[1];
@@ -1074,6 +1082,431 @@ test("a site nobody can ever walk to is given up after enough tries, and a furna
   var t = sites(g, "tower")[0];
   for (k = 0; k < 30 && g.sites.indexOf(t) >= 0; k++) w.bFail(g, p, t, 10, "walk");
   check(g.sites.indexOf(t) < 0, "a tower nobody could get to " + k + " times is still planned (lost " + t.lost + ")");
+});
+
+/* -------------------------------------------------------------------
+   what is left over (leftovers.js)
+   ------------------------------------------------------------------- */
+/* a layer of v, n deep, over the top of the ground from x0 to x1 */
+function coat(w, x0, x1, v, n) {
+  var g = w.g;
+  for (var x = x0; x <= x1; x++) {
+    var G = w.mGround(g, x);
+    if (G < 2) continue;
+    for (var k = 1; k <= n; k++) { var j = (G - k) * g.gw + x; if (w.AIRY[g.m[j]]) w.sandPlace(g, j, v); }
+  }
+}
+function count(w, v) { var n = 0; for (var i = 0; i < w.g.m.length; i++) if (w.g.m[i] === v) n++; return n; }
+
+test("loose ash and salt lying about are picked up, and the ash puts potash into a farmer's head", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], x = Math.floor(p.x);
+  know(g, ["farm"]);
+  w.iPlanFarm(g, p, true); sim.build(w, sites(g, "farm")[0]);
+  coat(w, x + 6, x + 12, w.MAT.ASH, 1);
+  p.task = null; p.bored = 800; p.lGatherT = 0;
+  check(w.lGoGather(g, p) && p.task.kind === "gather", "nobody went to pick up the ash");
+  for (var k = 0; k < 2000 && p.task && p.task.kind === "gather"; k++) sim.step(w, 1);
+  check((p.ash || 0) >= 3 && g.found.ash >= 3, "only " + (p.ash || 0) + " ash in their pockets");
+  check(p.spark === "potash" || g.know.potash, "sweeping ash by a field put nothing in their head (" + p.spark + ")");
+  /* (a lump of glass the lightning left is a find; a glass window is not) */
+  var G = w.mGround(g, x + 30);
+  for (var dx = 0; dx < 20; dx++) w.sandPlace(g, (G - 1) * g.gw + x + 20 + dx, w.MAT.GLASS);
+  check(!w.lPickable(g, p, x + 25, G - 1), "they would take a glass wall to pieces");
+});
+
+test("with snow on the ground, the bored throw snowballs at each other, and it spreads", function () {
+  var w = sim.load(1), g = w.g, x = Math.floor(g.peasants[0].x), most = 0;
+  coat(w, x - 40, x + 40, w.MAT.SNOW, 2);
+  g.peasants.forEach(function (q) { q.bored = 800; q.hunger = 0; q.lSnowT = 1e9; });   /* (no snowmen: this is about the fight) */
+  for (var t = 0; t < 5000; t++) {
+    sim.step(w, 1);
+    most = Math.max(most, g.peasants.filter(function (q) { return q.task && q.task.kind === "snowball"; }).length);
+  }
+  check(g.lfights >= 1, "nobody ever threw one back");
+  check(most >= 3 && g.got.snowball, "at most " + most + " in a snowball fight");
+});
+
+test("a snowman is built out of the snow about, with a name, and melts in the end", function () {
+  var w = sim.load(2), g = w.g, p = g.peasants[0], x = Math.floor(p.x), k, m = null;
+  coat(w, x - 50, x + 50, w.MAT.SNOW, 2);
+  g.peasants.forEach(function (q) { q.x = 5; q.task = null; });   /* (out of the way) */
+  p.x = x + 0.5; p.y = w.mGround(g, x) - 1; p.bored = 800; p.hunger = 0; p.task = null;
+  var snow = w.pFind(g, p, w.P_SNOW, 40, w.lSnowy, 10);
+  check(w.lGoSnowman(g, p, snow), "nowhere for a snowman");
+  for (k = 0; k < 3000 && !(m = g.lsnowmen.filter(function (s) { return s.up; })[0]); k++) { sim.step(w, 1); if (!p.task) p.task = { kind: "snowman", man: g.lsnowmen[0].id, t: 0, act: 0, hand: 0 }; }
+  check(m, "no snowman finished in 3000 ticks");
+  var his = w.L_SNOWMAN.filter(function (c) { return w.pCell(g, m.x + c[1], m.G - 1 - c[0]) === w.MAT.PACKSNOW; }).length;
+  check(his === w.L_SNOWMAN.length, his + " cells of packed snow, for a snowman of " + w.L_SNOWMAN.length);
+  check(g.feed.some(function (f) { return f.text.indexOf("snowman") >= 0 && f.text.indexOf(w.iName(m.name)) >= 0; }), "the snowman has no name in the news");
+  /* the thaw: packed snow melts like snow does, and he is mourned */
+  for (var i = 0; i < g.m.length; i++) if (g.m[i] === w.MAT.PACKSNOW) { g.T[i] = 10; g.lat[i] = 2000; }
+  sim.step(w, 300);
+  check(g.lsnowmen.indexOf(m) < 0 && count(w, w.MAT.PACKSNOW) === 0, "the snowman did not melt");
+  check(g.feed.some(function (f) { return f.text.indexOf("has melted") >= 0; }), "nobody noticed he melted");
+});
+
+test("a bored peasant goes skating on a stretch of ice, on purpose, back and forth", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], x = Math.floor(p.x), xx, laps = 0;
+  for (xx = x - 30; xx <= x + 30; xx++) w.sandPlace(g, w.mGround(g, xx) * g.gw + xx, w.MAT.ICE);
+  p.task = null; p.bored = 800; p.hunger = 0; p.lSkateT = 0;
+  check(w.lGoSkate(g, p), "no ice to skate on");
+  for (var t = 0; t < 2000 && p.task && p.task.kind === "skate"; t++) { sim.step(w, 1); laps = Math.max(laps, p.task ? p.task.laps : 0); }
+  check(g.got.skate, "they never got onto the ice");
+  check(laps >= 1, "they never turned round on it");
+});
+
+test("salt is flung on the ice where somebody slipped, and melts it into brine", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], x = Math.floor(p.x) + 12, xx, y = 0;
+  know(g, ["salt"]);
+  /* ice a good few cells thick, so it does not just melt on its own */
+  for (xx = x - 6; xx <= x + 6; xx++) { y = w.mGround(g, xx); for (var d = 0; d < 4; d++) w.sandPlace(g, (y + d) * g.gw + xx, w.MAT.ICE); }
+  g.lslip.push({ x: x, y: w.mGround(g, x), t: g.tick });
+  g.peasants.forEach(function (q) { q.x = 5; q.task = null; });
+  p.x = x - 14.5; p.y = w.mGround(g, x - 15) - 1; p.salt = 6; p.task = null; p.lGritT = 0;
+  check(w.lGoGrit(g, p), "nobody went to salt the ice");
+  var ice0 = count(w, w.MAT.ICE);
+  for (var t = 0; t < 2500; t++) sim.step(w, 1);
+  check(p.salt <= 4 && g.got.grit, "only " + (6 - p.salt) + " handfuls of salt flung");
+  check(count(w, w.MAT.ICE) < ice0 - 4 && count(w, w.MAT.SALTWATER) > 0, "the ice did not melt (" + ice0 + " -> " + count(w, w.MAT.ICE) + ")");
+});
+
+test("a fish caught on a full stomach is salted and kept, and eaten when they are hungry", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["salt", "fish"]);
+  p.salt = 2; p.hunger = 0;
+  check(w.lSaltFish(g, p) && p.fish === 1 && p.salt === 1, "the fish was not salted");
+  p.hunger = w.P_HUNGRY * 3; p.task = null; p.eatCD = 0;
+  w.pPickTask(g, p);
+  check(p.fish === 0 && p.hunger === w.P_HUNGRY * 3 - 1400 && g.got.saltfish, "the salt fish was not eaten");
+});
+
+test("potash makes the wheat grow faster, on its own field only, and frost stops it", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["farm", "potash"]);
+  w.iPlanFarm(g, p, true);
+  var f = sim.build(w, sites(g, "farm")[0]), i = f.plan.filter(function (e) { return e.v === w.MAT.CROP; })[0].i, x = i % g.gw;
+  g.lboost = new Uint8Array(g.gw); g.lboostY = new Int16Array(g.gw);
+  check(w.lGrowth(g, i, x) === 1, "plain wheat grows at " + w.lGrowth(g, i, x));
+  g.peasants.forEach(function (q) { q.x = 5; q.task = null; });
+  p.x = f.cx; p.y = f.G - 1; p.ash = 3; p.task = null;
+  check(w.lGoPotash(g, p), "nobody went to rake ash into the field");
+  for (var t = 0; t < 1500 && p.task; t++) sim.step(w, 1);
+  sim.step(w, 20);
+  check(f.potash > g.tick && w.lGrowth(g, i, x) === w.L_GROW, "potash did not speed it up (" + w.lGrowth(g, i, x) + ")");
+  g.T[i] = -5;
+  check(w.lGrowth(g, i, x) === 0, "frozen wheat still grows");
+  /* (the boost is the field's own: a bush in the same columns, well up a cliff over it, gets none of it) */
+  check(w.lBoost(g, x, f.G - 1) & 1 && !w.lBoost(g, x, f.G - 40), "the potash reaches up the whole column");
+});
+
+test("coal, salt and ash are ground into black powder, never by a fire", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["mine", "powder"]);
+  p.coal = 2; p.salt = 2; p.ash = 4; p.hunger = 0; p.task = { kind: "grind", t: 0, act: 0, away: 0 };
+  /* a torch burning a few steps off: they walk off from it first */
+  var fx = Math.floor(p.x) + 9, fy = Math.floor(p.y) - 2;
+  w.sandPlace(g, fy * g.gw + fx, w.MAT.TORCH);
+  for (var t = 0; t < 1200 && p.task && p.task.kind === "grind"; t++) sim.step(w, 1);
+  check(p.powder === 1 && p.coal === 1 && p.salt === 1 && p.ash === 2, "no powder made: " + w.mPockets(p));
+  check(Math.abs(p.x - fx) > 10, "they ground it right next to the torch");
+});
+
+test("a charge set in a gallery takes the face out a few columns at once, and whoever lit it stands well back", function () {
+  var w = sim.load(2), g = w.g, p = null, k;
+  know(g, ["farm", "dig", "mine", "powder"]);
+  for (k = 0; k < g.peasants.length && !sites(g, "mine").length; k++) { p = g.peasants[k]; w.mPlanMine(g, p); }
+  sim.build(w, sites(g, "mine")[0]);
+  p.task = null;
+  check(w.mPlanTunnel(g, p), "no gallery");
+  var tn = sites(g, "tunnel")[0], rock = function () { return tn.plan.filter(function (e) { return w.ROCK[g.m[e.i]]; }).length; };
+  check(!w.lFace(g, tn), "a charge would go in right by the shaft, with nowhere to stand back to");
+  /* (the first stretch dug by hand) */
+  tn.plan.forEach(function (e) { if (e.ph < 10 && w.ROCK[g.m[e.i]]) w.sandPlace(g, e.i, w.MAT.EMPTY); });
+  var r0 = rock();
+  g.peasants.forEach(function (q) { if (q !== p) { q.task = null; q.mineCD = 1e9; q.x = 5; } });
+  p.powder = 1; p.hunger = 0; p.x = tn.xa + 0.5; p.y = tn.B; p.climb = null; p.task = null;
+  check(w.lGoBlast(g, p), "no charge set");
+  var far = 0;
+  g.peasants.forEach(function (q) { if (q !== p) q.taskCD = 1e9; });   /* (nobody else down there with a pick) */
+  for (var t = 0; t < 2000 && !g.got.blast; t++) { sim.step(w, 1); if (g.lcharges.length) far = Math.abs(p.x - g.lcharges[0].x); }
+  check(r0 - rock() >= 12, "the charge took out " + (r0 - rock()) + " cells");
+  check(far >= 8, "they were " + far.toFixed(1) + " from it when it went off");
+  check(!(p.stun > 0), "whoever lit it flattened themselves");
+  check(g.got.blast && !p.dead, "no blast, or it killed them");
+});
+
+test("a charge thrown in the pond brings up fish for whoever is on the bank, and puts the ducks up", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["fish", "powder"]);
+  g.peasants.forEach(function (q) { q.task = null; q.taskCD = 1e9; });
+  p.taskCD = 0; p.powder = 1; p.hunger = 2000; p.bored = 1000; p.lBombT = 0;
+  check(w.lGoBombFish(g, p), "no pond to throw it in");
+  var h0 = 0;
+  for (var t = 0; t < 4000 && !g.got.bombfish; t++) { sim.step(w, 1); if (p.task && p.task.kind === "bombfish") h0 = p.hunger; }
+  check(g.got.bombfish && p.powder === 0, "the charge never went in the pond");
+  check(p.hunger < h0, "whoever threw it did not eat");
+});
+
+test("glass is made at the furnace out of sand and coal, and a glasshouse goes up over a field", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["farm", "dig", "mine", "smelt", "glass"]);
+  check(w.mPlanFurnace(g, p), "nowhere for a furnace");
+  var fu = sim.build(w, sites(g, "furnace")[0]);
+  fu.stock = { coal: 10 };
+  w.iPlanFarm(g, p, true);
+  var f = sim.build(w, sites(g, "farm")[0]);   /* (a field wanting a roof: that is what the glass is for) */
+  g.peasants.forEach(function (q) { q.task = null; q.mineCD = 1e9; });
+  p.task = { kind: "glassblow", site: fu.id, t: 0, act: 0, n: 0 }; p.hunger = 0;
+  for (var t = 0; t < 3600 && p.task && p.task.kind === "glassblow"; t++) sim.step(w, 1);
+  check((p.glass || 0) >= 2 && g.got.glass, "no glass made: " + w.mPockets(p));
+  p.glass = 14; p.iron = 6; p.task = null; p.planCD = 0;
+  check(w.lPlanGlasshouse(g, p), "no glasshouse planned");
+  var gh = sites(g, "glasshouse")[0];
+  check(gh.plan.every(function (e) { return e.v !== w.MAT.GLASS || ((e.i / g.gw) | 0) === f.G - w.L_ROOF; }), "the roof is not over the field");
+  check(w.P_PASS[w.MAT.GIRDER], "the posts are in everybody's way");
+  for (t = 0; t < 6000 && !gh.done; t++) sim.step(w, 1);
+  sim.step(w, 20);
+  check(gh.done && g.lboost[f.x0] & 2, "the glasshouse never went up (" + Math.round(w.bShare(g, gh) * 100) + "%)");
+  check(!w.iThirsty(g, f), "a field under glass still wants watering");
+  /* the glass keeps the warmth in: chill the field hard, and under the roof it comes back up, a little at a time */
+  var crop = f.plan.filter(function (e) { return e.v === w.MAT.CROP; }).map(function (e) { return e.i; });
+  crop.forEach(function (i) { g.T[i] = -6; });
+  check(crop.every(function (i) { return w.lGrowth(g, i, i % g.gw) === 0; }), "chilled wheat under glass still grows");
+  sim.step(w, 1200);
+  var warm = crop.filter(function (i) { return g.T[i] > w.L_FROST; }).length;
+  check(warm >= crop.length - 1, "only " + warm + " of " + crop.length + " stalks warmed back up under the glass");
+});
+
+test("a snowman is nobody's to dig up, and packed snow melts, dissolves and blows apart like snow", function () {
+  var w = sim.load(2), g = w.g, p = g.peasants[0], x = Math.floor(p.x), k;
+  coat(w, x - 50, x + 50, w.MAT.SNOW, 2);
+  var snow = w.pFind(g, p, w.P_SNOW, 40, w.lSnowy, 10);
+  check(w.lGoSnowman(g, p, snow), "nowhere for a snowman");
+  var m = g.lsnowmen[0];
+  check(w.bMarked(g, m.x, m.G - 3) && w.bMarked(g, m.x, m.G), "a snowman's spot is not marked as anybody's");
+  /* a site given up elsewhere re-marks the plans: the snowman stays marked */
+  know(g, ["farm"]); w.iPlanFarm(g, g.peasants[3], true);
+  var fi = g.sites.indexOf(sites(g, "farm")[0]); w.bRemove(g, fi);
+  check(w.bMarked(g, m.x, m.G - 3), "removing a site unmarked the snowman");
+  w.lDropMan(g, m);
+  check(!w.bMarked(g, m.x, m.G - 3), "a snowman given up still holds his spot");
+  /* packed snow: a bang melts it, it does not set it on fire */
+  var spot = clearSpot(w, 120), X = spot.x, Y = spot.gy - 6, dx, dy;
+  for (dy = 0; dy < 3; dy++) for (dx = 0; dx < 3; dx++) w.sandPlace(g, (Y + dy) * g.gw + X + dx, w.MAT.PACKSNOW);
+  w.sandBoom(g, (Y + 1) * g.gw + X - 2, 3, 1);
+  for (dy = 0; dy < 3; dy++) for (dx = 0; dx < 3; dx++) check(g.m[(Y + dy) * g.gw + X + dx] !== w.MAT.FIRE, "a bang set packed snow on fire");
+  /* and salt melts it, as it melts snow */
+  var s2 = clearSpot(w, 200), j = (s2.gy - 1) * g.gw + s2.x;
+  w.sandPlace(g, j, w.MAT.PACKSNOW); g.T[j] = -15; w.sandPlace(g, j - g.gw, w.MAT.SALT);
+  for (k = 0; k < 200 && g.m[j] === w.MAT.PACKSNOW; k++) { g.T[j] = -15; sim.step(w, 1); }
+  check(g.m[j] !== w.MAT.PACKSNOW, "salt does not melt packed snow");
+});
+
+test("full pockets of ash go into the store by the furnace, and the makings of a charge are fetched back out", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["farm", "dig", "mine", "smelt", "powder"]);
+  check(w.mPlanFurnace(g, p), "nowhere for a furnace");
+  var f = sim.build(w, sites(g, "furnace")[0]);
+  g.peasants.forEach(function (q) { q.task = null; q.taskCD = 1e9; q.mineCD = 1e9; });
+  p.taskCD = 0; p.ash = 12; p.lStoreT = 0; p.hunger = 0;
+  check(w.lGoStore(g, p) && p.task.put, "full pockets of ash went nowhere");
+  for (var t = 0; t < 2400 && p.task && p.task.kind === "store"; t++) sim.step(w, 1);
+  check(p.ash === w.L_KEEP && f.stock.ash === 12 - w.L_KEEP, "the ash did not go in the store: " + p.ash + " in hand, " + f.stock.ash + " stored");
+  /* coal and salt, and no ash (and the village has charges enough, so this is a fetch, not a grind): the ash is fetched */
+  p.ash = 0; p.coal = 2; p.salt = 2; p.powder = 1; g.peasants[1].powder = 2; p.task = null; p.lStoreT = 0;
+  check(w.lGoStore(g, p) && !p.task.put && p.task.what === "ash", "nobody went to the store for ash");
+  for (t = 0; t < 2400 && p.task && p.task.kind === "store"; t++) sim.step(w, 1);
+  check(p.ash >= 2, "no ash fetched out of the store (" + p.ash + ")");
+});
+
+test("a village short of salt boils a bucket of brine down at the furnace", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["farm", "dig", "mine", "smelt", "salt", "bucket"]);
+  check(w.mPlanFurnace(g, p), "nowhere for a furnace");
+  var fu = sim.build(w, sites(g, "furnace")[0]);
+  fu.stock = { coal: 1 };   /* (a lump of coal to boil it on) */
+  /* a little pool of brine in the ground a way off: stone round it, so it stays put */
+  var x0 = fu.x1 + 20, G = w.mGround(g, x0), x, y;
+  for (x = x0 - 1; x <= x0 + 6; x++) for (y = G; y <= G + 3; y++) w.sandPlace(g, y * g.gw + x, x === x0 - 1 || x === x0 + 6 || y === G + 3 ? w.MAT.STONE : w.MAT.SALTWATER);
+  g.peasants.forEach(function (q) { q.task = null; q.taskCD = 1e9; q.mineCD = 1e9; q.salt = 0; });
+  p.taskCD = 0; p.hunger = 0; p.lBrineT = 0; p.x = x0 - 5.5; p.y = w.mGround(g, x0 - 6) - 1; p.wade = false;
+  check(w.lGoBrine(g, p), "nobody went for brine");
+  for (var t = 0; t < 3600 && p.task && p.task.kind === "brine"; t++) sim.step(w, 1);
+  check((p.salt || 0) >= 1 && g.brineT, "no salt out of the brine (" + p.salt + ")");
+  check(fu.stock.coal === 0, "boiling it burned no coal");
+});
+
+test("a glasshouse keeps the wheat warmer than the open field through a cold snap, out of the ground's own warmth", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["farm", "dig", "mine", "smelt", "glass"]);
+  w.iPlanFarm(g, p, true); var f = sim.build(w, sites(g, "farm")[0]);
+  w.iPlanFarm(g, g.peasants[5], true); var f2 = sim.build(w, sites(g, "farm").filter(function (s) { return s !== f; })[0]);
+  p.glass = 14; p.iron = 6; p.planCD = 0;
+  check(w.lPlanGlasshouse(g, p), "no glasshouse");
+  var gh = sim.build(w, sites(g, "glasshouse")[0]);
+  function avg(F) { var c = F.plan.filter(function (e) { return e.v === w.MAT.CROP; }); return c.reduce(function (a, e) { return a + g.T[e.i]; }, 0) / c.length; }
+  function inside(x, y) { return x >= gh.x0 && x <= gh.x1 && y > gh.R && y <= f.G; }
+  for (var t = 0; t < 1000; t++) {
+    for (var y = 0; y < g.gh; y++) for (var x = 0; x < g.gw; x++) { var j = y * g.gw + x; if (g.m[j] === w.MAT.EMPTY && !inside(x, y)) g.T[j] = -15; }
+    sim.step(w, 1);
+  }
+  check(avg(f) > w.L_FROST && avg(f2) < w.L_FROST, "under glass " + avg(f).toFixed(1) + ", in the open " + avg(f2).toFixed(1));
+});
+
+test("with coal, salt and ash on the furnace's pile, somebody fetches the makings and grinds a charge", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["farm", "dig", "mine", "smelt", "powder", "salt"]);
+  check(w.mPlanFurnace(g, p), "nowhere for a furnace");
+  var f = sim.build(w, sites(g, "furnace")[0]);
+  f.stock = { coal: 4, salt: 4, ash: 8 };
+  g.peasants.forEach(function (q) { q.task = null; q.taskCD = 1e9; q.mineCD = 1e9; q.coal = q.salt = q.ash = q.powder = 0; });
+  p.taskCD = 0; p.hunger = 0;
+  for (var k = 0; k < 40 && !(p.task && p.task.kind === "store" && p.task.want < 0); k++) { p.task = null; p.lStoreT = 0; w.lGoStore(g, p); }
+  check(p.task && p.task.kind === "store" && p.task.want < 0, "nobody went to the pile for the makings of a charge");
+  for (var t = 0; t < 3000 && !(p.powder >= 1); t++) sim.step(w, 1);
+  check(p.powder >= 1, "no charge ground out of the pile: " + w.mPockets(p) + ", pile " + JSON.stringify(f.stock));
+});
+
+test("a snowman blown apart by a bang is not said to have melted", function () {
+  var w = sim.load(2), g = w.g, p = g.peasants[0], x = Math.floor(p.x), k, m = null;
+  coat(w, x - 50, x + 50, w.MAT.SNOW, 2);
+  g.peasants.forEach(function (q) { q.x = 5; q.task = null; });
+  p.x = x + 0.5; p.y = w.mGround(g, x) - 1; p.bored = 800; p.hunger = 0; p.task = null;
+  check(w.lGoSnowman(g, p, w.pFind(g, p, w.P_SNOW, 40, w.lSnowy, 10)), "nowhere for a snowman");
+  for (k = 0; k < 3000 && !(m = g.lsnowmen.filter(function (s) { return s.up; })[0]); k++) { sim.step(w, 1); if (!p.task && g.lsnowmen[0]) p.task = { kind: "snowman", man: g.lsnowmen[0].id, t: 0, act: 0, hand: 0 }; }
+  check(m, "no snowman");
+  p.x = 5;
+  w.sandBoom(g, (m.G - 3) * g.gw + m.x, 5, 1.2);
+  sim.step(w, 60);
+  check(g.lsnowmen.indexOf(m) < 0, "he survived the bang");
+  check(g.feed.some(function (f) { return f.text.indexOf("nobody saw what happened") >= 0; }), "the bang was reported as a thaw");
+});
+
+test("a blast through half-molten rock leaves no impossibly hot air, and nobody works a gallery with a lit fuse in it", function () {
+  var w = sim.load(2), g = w.g, p = null, k;
+  know(g, ["farm", "dig", "mine", "powder"]);
+  for (k = 0; k < g.peasants.length && !sites(g, "mine").length; k++) { p = g.peasants[k]; w.mPlanMine(g, p); }
+  sim.build(w, sites(g, "mine")[0]);
+  p.task = null;
+  check(w.mPlanTunnel(g, p), "no gallery");
+  var tn = sites(g, "tunnel")[0];
+  tn.plan.forEach(function (e) { if (e.ph < 10 && w.ROCK[g.m[e.i]]) w.sandPlace(g, e.i, w.MAT.EMPTY); });
+  var f = w.lFace(g, tn);
+  check(f, "no face to blast");
+  tn.plan.forEach(function (e) { if (e.ph >= f.ph && w.ROCK[g.m[e.i]]) { g.T[e.i] = 1150; g.lat[e.i] = 4400; } });
+  g.lcharges.push({ x: f.x, y: tn.B - 3, site: tn.id, ph: f.ph, who: p.id, fuse: 50 });
+  /* a builder sent to it while the fuse burns: off again */
+  var q = g.peasants.filter(function (o) { return o !== p; })[0];
+  q.task = { kind: "build", site: tn.id, t: 0, act: 0, idle: 0, wait: 0 };
+  w.bTaskBuild(g, q, q.task);
+  check(!q.task, "somebody went on digging with a lit fuse in the gallery");
+  check(!w.iFieldWork(g, q, 400, "tunnel"), "a gallery with a lit fuse in it is offered as work");
+  for (k = 0; k < 60; k++) sim.step(w, 1);
+  var hot = 0;
+  for (var i = 0; i < g.m.length; i++) if (g.T[i] > 3000) hot++;
+  check(hot === 0, hot + " cells over 3000 degrees after the blast");
+});
+
+test("a hard frost kills ripe wheat too, from the top of the stalk down", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["farm"]);
+  w.iPlanFarm(g, p, true);
+  var f = sim.build(w, sites(g, "farm")[0]), i = f.plan.filter(function (e) { return e.v === w.MAT.CROP; })[0].i;
+  w.sandPlace(g, i, w.MAT.CROP); w.sandPlace(g, i - g.gw, w.MAT.WHEAT);   /* (a stalk with a ripe ear on it) */
+  for (var k = 0; k < 60 && g.m[i - g.gw] === w.MAT.WHEAT; k++) { g.T[i] = g.T[i - g.gw] = -30; w.lFrostKill(g); }
+  check(g.m[i - g.gw] !== w.MAT.WHEAT, "the ripe ear shrugged off a hard frost");
+});
+
+test("a glasshouse past mending is let go, and a new one goes up over what is left of it", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  know(g, ["farm", "dig", "mine", "smelt", "glass"]);
+  w.iPlanFarm(g, p, true); var f = sim.build(w, sites(g, "farm")[0]);
+  p.glass = 14; p.iron = 6; p.planCD = 0;
+  check(w.lPlanGlasshouse(g, p), "no glasshouse");
+  var gh = sim.build(w, sites(g, "glasshouse")[0]), panes = gh.plan.filter(function (e) { return e.v === w.MAT.GLASS; });
+  w.lFinish(g, gh, p);
+  panes.slice(0, 11).forEach(function (e) { w.sandPlace(g, e.i, w.MAT.STONE); });
+  gh.badT = g.tick - 10000; gh.repair = false;
+  w.lStep(g);
+  check(sites(g, "glasshouse").length === 0, "a roof past mending is still somebody's job");
+  panes.slice(0, 11).forEach(function (e) { w.sandPlace(g, e.i, w.MAT.EMPTY); });
+  p.planCD = 0;
+  check(w.lPlanGlasshouse(g, p), "what was left of the old glasshouse stops a new one going up");
+});
+
+test("a miner on the far side of the gallery stands back for a lit fuse too", function () {
+  var w = sim.load(2), g = w.g, p = null, k;
+  know(g, ["farm", "dig", "mine", "powder"]);
+  for (k = 0; k < g.peasants.length && !sites(g, "mine").length; k++) { p = g.peasants[k]; w.mPlanMine(g, p); }
+  sim.build(w, sites(g, "mine")[0]);
+  p.task = null;
+  check(w.mPlanTunnel(g, p), "no gallery");
+  var tn = sites(g, "tunnel")[0];
+  tn.plan.forEach(function (e) { if (e.ph < 10 && w.ROCK[g.m[e.i]]) w.sandPlace(g, e.i, w.MAT.EMPTY); });
+  var q = g.peasants.filter(function (o) { return o !== p; })[0];
+  q.task = { kind: "build", site: tn.id, t: 0, act: 0, idle: 0, wait: 0 }; q.x = 3; q.y = w.mGround(g, 3) - 1;   /* (a long way off, on their way) */
+  p.powder = 1; p.x = w.lFace(g, tn).x - tn.dir * 3 + 0.5; p.y = tn.B; p.climb = null;
+  check(w.lGoBlast(g, p), "no charge");
+  for (k = 0; k < 200 && !g.lcharges.length; k++) sim.step(w, 1);
+  check(g.lcharges.length, "the charge was never set");
+  check(q.task && q.task.kind === "standback", "a miner on their way to the face was not told: " + (q.task && q.task.kind));
+});
+
+test("somebody who comes down into a gallery after the fuse is lit is sent back too", function () {
+  var w = sim.load(2), g = w.g, p = null, k;
+  know(g, ["farm", "dig", "mine", "powder"]);
+  for (k = 0; k < g.peasants.length && !sites(g, "mine").length; k++) { p = g.peasants[k]; w.mPlanMine(g, p); }
+  sim.build(w, sites(g, "mine")[0]);
+  p.task = null;
+  check(w.mPlanTunnel(g, p), "no gallery");
+  var tn = sites(g, "tunnel")[0];
+  tn.plan.forEach(function (e) { if (e.ph < 10 && w.ROCK[g.m[e.i]]) w.sandPlace(g, e.i, w.MAT.EMPTY); });
+  var fx = w.lFace(g, tn).x;
+  g.lcharges.push({ x: fx, y: tn.B - 3, site: tn.id, ph: 0, who: p.id, fuse: 200 });
+  var q = g.peasants.filter(function (o) { return o !== p; })[0];
+  q.x = fx - tn.dir * 3 + 0.5; q.y = tn.B; q.climb = null; q.task = null; q.state = "walk"; q.sleep = 900;   /* (having a nap down there, even) */
+  for (k = 0; k < 10; k++) sim.step(w, 1);
+  check(q.task && q.task.kind === "standback", "a late arrival by the face was not sent back: " + (q.task && q.task.kind));
+  for (k = 0; k < 190 && g.lcharges.length; k++) sim.step(w, 1);
+  check(!(q.stun > 0), "the late arrival was flattened by the blast, at " + q.x.toFixed(1) + " (face " + fx + ")");
+});
+
+test("clearing the world takes the charges, snowballs and snowmen with it", function () {
+  var w = sim.load(1), g = w.g;
+  g.lcharges.push({ x: 50, y: 50, site: 1, ph: 0, who: 1, fuse: 30 });
+  g.lballs.push({ x: 50, y: 50, vx: 0, vy: 0, from: 1, kind: "snow", t: 0 });
+  g.lsnowmen.push({ id: 99, x: 60, G: 100, n: 0, up: true, name: "TEST", who: "X" });
+  w.sandClear(g);
+  check(!g.lcharges.length && !g.lballs.length && !g.lsnowmen.length, "something of ours outlived the clear");
+});
+
+test("something lying right at their feet goes in a pocket in passing, on any errand", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], fx = Math.floor(p.x), G = w.mGround(g, fx + 1);
+  w.sandPlace(g, (G - 1) * g.gw + fx + 1, w.MAT.ASH);
+  p.task = { kind: "explore", x: fx + 60, y: G - 1, t: 0 };
+  for (var t = 0; t < 40 && !(p.ash >= 1); t++) { w.lPassBy(g, p); }
+  check(p.ash === 1 && g.found.ash === 1, "the ash at their feet was left lying");
+});
+
+test("rock salt in the rock comes up out of a mine as salt", function () {
+  var w = sim.load(2), g = w.g, p = g.peasants[0], j;
+  check(count(w, w.MAT.ROCKSALT) > 40, "no rock salt in the valley");
+  for (j = 0; j < g.m.length && g.m[j] !== w.MAT.ROCKSALT; j++);
+  var s = { plan: [], last: 0 };
+  w.mMine(g, s, { i: j }, p);
+  check(g.m[j] === w.MAT.EMPTY && p.salt === 1 && g.found.salt === 1 && g.got.salt, "rock salt did not come up as salt");
+  /* and hot enough, it cracks out of the rock as salt */
+  for (j = 0; j < g.m.length && g.m[j] !== w.MAT.ROCKSALT; j++);
+  for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++) g.T[j + dy * g.gw + dx] = 1500;
+  sim.step(w, 2);
+  check(g.m[j] === w.MAT.SALT || g.m[j] === w.MAT.EMPTY, "rock salt at 900 is still " + w.MAT_NAME[g.m[j]]);
+});
+
+test("a peasant on fire with black powder in their pockets goes off", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0];
+  p.powder = 2; w.pIgnite(g, p);
+  for (var t = 0; t < 400 && !g.got.pockets; t++) sim.step(w, 1);
+  check(g.got.pockets && !(p.powder > 0), "their pockets never went off");
 });
 
 test("a peasant a step above a doorway's floor ducks under the lintel and walks in", function () {

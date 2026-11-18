@@ -11,7 +11,8 @@
      node harness/soak.js --seeds 1-6 --preset rich --jobs 6
      node harness/soak.js --seeds 1-6 --preset chaos --json
 
-   presets: plain (a village left alone), rich (every idea, iron and
+   presets: plain (a village left alone), leftovers (snow, ice, salt, ash, glass and powder about, and the ideas for
+   them), rich (every idea, iron and
    barrels to build with), chaos (a deterministic scatter of lava, oil,
    powder, acid and ice, then a few ideas).
 
@@ -35,7 +36,7 @@ function worker(seed, ticks, preset) {
   h.standardInvariants({ every: 1, temps: 30, grid: 60 });
   inv("people-state", "g.peasants.every(function (p) { return ['walk','fly','held','space'].indexOf(p.state) >= 0; })");
   inv("ducks-state", "g.ducks.every(function (d) { return ['walk','fly','held','swim','thrown'].indexOf(d.state) >= 0; })");
-  inv("inventory", "g.peasants.every(function (p) { return (p.logs || 0) > -1e-5 && (p.boards || 0) > -1e-5 && (p.stone || 0) > -1e-5 && (p.iron || 0) > -1e-5 && (p.pack || 0) > -1e-5 && p.breath >= 0; })");
+  inv("inventory", "g.peasants.every(function (p) { return (p.logs || 0) > -1e-5 && (p.boards || 0) > -1e-5 && (p.stone || 0) > -1e-5 && (p.iron || 0) > -1e-5 && (p.pack || 0) > -1e-5 && p.breath >= 0 && ['ash','salt','glass','powder','fish','sand'].every(function (r) { return p[r] == null || (Number.isFinite(p[r]) && p[r] > -1e-5 && p[r] <= ({ ash: 12, salt: 12, glass: 12, powder: 4, fish: 3, sand: 6 })[r] + 1e-5); }); })");
   inv("ids", "(function(){var a=g.peasants.map(function(p){return p.id}),d=g.ducks.map(function(q){return q.id}),s=g.sites.map(function(x){return x.id});return new Set(a).size===a.length&&new Set(d).size===d.length&&new Set(s).size===s.length;})()", 30);
   inv("held", "(g.held === null || (g.peasants.indexOf(g.held) >= 0 && g.held.state === 'held')) && (g.heldDuck === null || g.ducks.indexOf(g.heldDuck) >= 0)");
   inv("sites", "g.sites.every(function (s) { return s.plan && s.plan.length > 0 && s.plan.every(function (e) { return e.i >= 0 && e.i < g.m.length; }) && (!s.stock || Object.keys(s.stock).every(function (k) { return s.stock[k] > -1e-5 && Number.isFinite(s.stock[k]); })); })", 30);
@@ -57,6 +58,20 @@ function worker(seed, ticks, preset) {
       h.paintDisc(x, y, 2 + Math.floor(rnd() * 4), paints[Math.floor(rnd() * paints.length)]);
     }
     h.give(["bucket", "farm", "mine", "dig", "masonry", "festival"]);
+  } else if (preset === "leftovers") {
+    /* what is left over (leftovers.js): snow and ice about the village, salt, ash, a lump of glass, a pinch of powder,
+       and the ideas that make something of them */
+    h.give(["farm", "bucket", "dig", "fish", "festival", "mine", "masonry", "smelt", "forge", "potash", "salt", "powder", "glass"]);
+    h.g.iron = 20;
+    h.eval("g.peasants.forEach(function (p, i) { p.iron = 3; p.coal = 2; p.salt = 2; p.ash = 3; if (i < 2) p.powder = 1; })");
+    var cx = Math.floor(h.eval("g.peasants[0].x"));
+    var coat = function (x0, x1, v, n) { for (var x = Math.max(4, x0); x <= Math.min(h.g.gw - 5, x1); x++) { var G = h.eval("mGround(g, " + x + ")"); for (var q = 1; q <= n && G > 2; q++) if (h.eval("AIRY[g.m[" + ((G - q) * h.g.gw + x) + "]]")) h.place(x, G - q, v); } };
+    coat(cx - 45, cx + 45, "SNOW", 2);
+    coat(cx + 50, cx + 70, "SALT", 1);
+    coat(cx - 70, cx - 50, "ASH", 1);
+    coat(cx + 75, cx + 77, "GUNPOWDER", 1);
+    coat(cx - 80, cx - 78, "GLASS", 1);
+    for (var ix = cx - 110; ix <= cx - 85; ix++) if (ix > 4) { var IG = h.eval("mGround(g, " + ix + ")"); if (IG > 2) h.place(ix, IG, "ICE"); }
   }
 
   /* Sample often enough to see shuffles and work strokes, rather than

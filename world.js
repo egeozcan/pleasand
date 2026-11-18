@@ -51,7 +51,10 @@ var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STON
             SOIL: 37, CROP: 38, WHEAT: 39, LAMP: 40,
             /* what is in the rock, for a village that digs deep enough to find it: coal, iron ore, gold. and what
                they make of it: dressed stone, and iron girders (a lift's headframe, which they walk through) */
-            COAL: 41, ORE: 42, GOLD: 43, BRICK: 44, GIRDER: 45 };
+            COAL: 41, ORE: 42, GOLD: 43, BRICK: 44, GIRDER: 45,
+            /* and what is left over, made something of (leftovers.js): snow packed hard enough to stand up on its own (a
+               snowman), and the beds of rock salt in the stone, which come up out of a mine as salt */
+            PACKSNOW: 46, ROCKSALT: 47 };
 /* how many kinds of thing there may ever be: the size of every per-thing table */
 var NMAT = 64;
 
@@ -99,13 +102,13 @@ var SAND_VMAX = 12;     /* top speed: 1 + (12 >> 2) = 4 cells a tick */
 
 /* how heavy each thing is, and which things a falling thing may push past */
 var SAND_DENS = [0, 4, 2, 1, 9, 0.5, 6, 9, 0.1, 9, 9, 4.5, 2.5, 1.5, 9, 9, 0.2, 9, 9, 4.2, 9, 0.15, 9, 3, 9, 4.1, 5, 2.2, 9, 1.8, 9,
-                 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
+                 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9];
 var SAND_FREE = [0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0,
-                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 /* the brush pours these, a few grains a frame, into empty space only. everything
    else is a solid and gets stamped down whole, over whatever was there. */
 var SAND_POUR = [0, 0.3, 0.35, 0.35, 0, 0.35, 0.35, 0, 0, 0, 0, 0.3, 0.35, 0.3, 0, 0, 0, 0, 0, 0.3, 0, 0.35, 0, 0.03, 0, 0.012, 0, 0.35, 0, 0.25, 0,
-                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 /* colours. several shades per thing; each grain is dealt one and keeps it */
 var SAND_SHADES = [
@@ -159,7 +162,10 @@ var SAND_SHADES = [
   ["#f0c040", "#ffd860", "#d8a028", "#fff0a0"],
   /* dressed stone, squared off and mortared (the mortar is drawn in game.js). an iron girder */
   ["#c2b9a2", "#b6ad96", "#cbc3ad", "#ada48c"],
-  ["#4a5260", "#555e6c", "#3e4652"]
+  ["#4a5260", "#555e6c", "#3e4652"],
+  /* packed snow: whiter than snow, and a little blue in the shadows. rock salt: pinkish, glassy, in the grey of the stone */
+  ["#f4f8fc", "#e6eef8", "#fcfeff", "#dce6f2"],
+  ["#d8c4c8", "#e8d8d8", "#c4aeb4", "#f0e6e4"]
 ];
 
 /* every (thing, shade) pair is worked out once, up here, not sixty times a second */
@@ -186,10 +192,10 @@ var SOLID = new Uint8Array(NMAT), LIQUID = new Uint8Array(NMAT), HOT = new Uint8
 [MAT.SAND, MAT.WOOD, MAT.STONE, MAT.PLANT, MAT.ICE, MAT.GUNPOWDER, MAT.ASH, MAT.FAUCET, MAT.DRAIN, MAT.EMBER,
  MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW, MAT.INERT,
  MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.SOIL, MAT.CROP, MAT.WHEAT, MAT.LAMP,
- MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER].forEach(function (v) { SOLID[v] = 1; });
+ MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER, MAT.PACKSNOW, MAT.ROCKSALT].forEach(function (v) { SOLID[v] = 1; });
 /* rock: what a pick is for (mines.js). it all stays where it is, whatever is dug out from under it */
 var ROCK = new Uint8Array(NMAT);
-[MAT.STONE, MAT.COAL, MAT.ORE, MAT.GOLD].forEach(function (v) { ROCK[v] = 1; });
+[MAT.STONE, MAT.COAL, MAT.ORE, MAT.GOLD, MAT.ROCKSALT].forEach(function (v) { ROCK[v] = 1; });
 /* wood, and everything a peasant has made out of wood: it all burns the same way, down to embers */
 var WOODY = new Uint8Array(NMAT);
 [MAT.WOOD, MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS].forEach(function (v) { WOODY[v] = 1; });
@@ -200,7 +206,7 @@ var LEAFY = new Uint8Array(NMAT);
 var STILL = new Uint8Array(NMAT);
 [MAT.EMPTY, MAT.STONE, MAT.WOOD, MAT.GLASS, MAT.FLOWER, MAT.METAL, MAT.INERT,
  MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.WHEAT, MAT.LAMP,
- MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER].forEach(function (v) { STILL[v] = 1; });
+ MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER, MAT.PACKSNOW, MAT.ROCKSALT].forEach(function (v) { STILL[v] = 1; });
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER].forEach(function (v) { LIQUID[v] = 1; });
 /* water, as far as fire, plants, peasants and lightning are concerned */
 var WET = new Uint8Array(NMAT); WET[MAT.WATER] = WET[MAT.SALTWATER] = 1;
@@ -499,7 +505,7 @@ function sandBoom(g, i, R, P) {
     if (t === MAT.GLASS) { if (r < 0.5) m[j] = MAT.SAND; }
     else if (t === MAT.WATER) heatForce(g, j, MAT.STEAM);
     else if (t === MAT.SALTWATER) heatForce(g, j, MAT.SALT);
-    else if (t === MAT.ICE || t === MAT.SNOW) heatForce(g, j, MAT.WATER);
+    else if (t === MAT.ICE || t === MAT.SNOW || t === MAT.PACKSNOW) heatForce(g, j, MAT.WATER);
     else if (t === MAT.SMOKE || t === MAT.STEAM || t === MAT.GAS) { m[j] = t === MAT.GAS ? MAT.FIRE : t; }
     else if (t === MAT.SAND || t === MAT.SOIL || t === MAT.ASH || t === MAT.SALT || t === MAT.SNOW) { if (r < 0.5) m[j] = MAT.EMPTY; }
     else if (r < 0.85) m[j] = MAT.FIRE;
@@ -522,6 +528,10 @@ function sandBoom(g, i, R, P) {
   if (g.rings.length < 8 && (big || Math.random() < 0.15)) g.rings.push({ x: x0, y: y0, r: 0, R: R * (big ? 3 : 2.2), t: 0 });
   peasantsBlast(g, x0, y0, R, P);
   ducksBlast(g, x0, y0, R, P);
+  /* (a note of it, for anybody who wants to know what just happened round here: leftovers.js) */
+  if (!g.booms) g.booms = [];
+  g.booms.push({ x: x0, y: y0, R: R, t: g.tick });
+  if (g.booms.length > 8) g.booms.shift();
 }
 
 function sandNuke(g, i) {
@@ -612,7 +622,7 @@ function sandLightning(g, cx) {
       if (t !== MAT.METAL && Math.random() < 0.15) heatForce(g, j, t === MAT.SALTWATER ? MAT.SALT : MAT.STEAM);
       else if (wet < 0) wet = j;
     }
-    else if (t === MAT.ICE || t === MAT.SNOW) heatForce(g, j, MAT.WATER);
+    else if (t === MAT.ICE || t === MAT.SNOW || t === MAT.PACKSNOW) heatForce(g, j, MAT.WATER);
     else if (t === MAT.EMPTY && Math.random() < 0.1) sandSet(g, j, MAT.FIRE);
     else if (WOODY[t] && Math.random() < 0.5) m[j] = MAT.EMBER;
     else if (t !== MAT.EMPTY) sandIgnite(g, j);
@@ -883,6 +893,7 @@ function sandPowder(g, i, x, y) {
        warm up to do it, either: the brine is as cold as the ice was */
     j = sandHas(g, x, y, MAT.ICE);
     if (j < 0) j = sandHas(g, x, y, MAT.SNOW);
+    if (j < 0) j = sandHas(g, x, y, MAT.PACKSNOW);
     if (j >= 0 && Math.random() < 0.08) { heatBecome(g, j, MAT.SALTWATER); m[i] = MAT.EMPTY; g.score++; return; }
     j = sandHas(g, x, y, MAT.PLANT);
     if (j < 0) j = sandHas(g, x, y, MAT.FLOWER);
@@ -957,7 +968,7 @@ function sandLiquid(g, i, x, y) {
       if (t === MAT.STONE || t === MAT.BRICK || t === MAT.ORE || t === MAT.COAL) p = 0.006;
       else if (t === MAT.METAL || t === MAT.GIRDER) p = 0.003;   /* (and gold not at all: that is what gold is for) */
       else if (t === MAT.SAND || t === MAT.SOIL || WOODY[t] || LEAFY[t] || t === MAT.ICE ||
-               t === MAT.GUNPOWDER || t === MAT.ASH || t === MAT.SNOW) p = 0.04;
+               t === MAT.GUNPOWDER || t === MAT.ASH || t === MAT.SNOW || t === MAT.PACKSNOW) p = 0.04;
       if (p && Math.random() < p) {
         /* the air left behind keeps its heat, but not the half-melted ice's melting heat: that is a couple of hundred
            degrees, in a cell of air */
@@ -1169,6 +1180,8 @@ function sandClear(g) {
   g.bolts.length = 0; g.rings.length = 0; g.flash = 0; g.shake = 0; g.fwGlow = null; g.zn = 0; g.zt = 0;
   g.cloneSrc = {};
   g.sites = []; if (g.bmark) g.bmark.fill(0);
+  /* and what was left over in it: charges, snowballs in the air, snowmen (leftovers.js) */
+  if (typeof lClearWorld === "function") lClearWorld(g);
 }
 
 /* no dip in the land for a pond (or the only one is under a hut): dig a small deep one, somewhere out of the huts' way
@@ -1231,6 +1244,16 @@ function sandOres(g, rock) {
     cx = irnd(gw); cy = rock[cx] + 12 + ((irnd(26) * 0.7) | 0); n = 1 + irnd(3);
     for (r = 0; r < n; r++) put(cx + irnd(3) - 1, cy + irnd(2), MAT.GOLD);
     put(cx, cy + 1, MAT.GOLD); put(cx - 1, cy + 2, MAT.GOLD); put(cx + 1, cy + 2, MAT.GOLD);
+  }
+  /* beds of rock salt, near the top of the rock: an old sea, dried out. laid down by a dice of their own, worked out
+     from the lie of the rock, so the rest of the valley (which the shared dice lay out) comes out the same as ever */
+  var h = 2166136261;
+  for (x = 0; x < gw; x++) h = Math.imul(h ^ (rock[x] + x * 31), 16777619) >>> 0;
+  function die(n) { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return (h >>> 8) % n; }
+  for (k = 0; k < 5; k++) {
+    cx = 20 + die(gw - 40); cy = rock[cx] + 5 + die(10); len = 7 + die(8);
+    for (dx = -len; dx <= len; dx++) for (dy = -2; dy <= 2; dy++)
+      if (dx * dx / (len * len) + dy * dy / 4.5 < 1 && die(5)) put(cx + dx, cy + dy + Math.round(Math.sin((cx + dx) * 0.21) * 0.8), MAT.ROCKSALT);
   }
 }
 

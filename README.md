@@ -7,7 +7,7 @@ lava, stone, metal, ice, snow, gunpowder, ash, salt, seed, glass, acid, gas,
 torch, faucet, drain, cloner, and inert: a magic block that stays where you put
 it, carries no heat and ignores everything but the eraser), plus fireworks, a
 nuke and lightning. And under the sand, in the rock, what you cannot paint:
-seams of coal, lumps of iron ore and, deep down, the odd speck of gold, and here
+seams of coal, lumps of iron ore, beds of rock salt and, deep down, the odd speck of gold, and here
 and there a pool of oil sealed in the stone, waiting for somebody to drill for it.
 
 Every pixel has a temperature. Heat flows from hot to cold, fast through metal
@@ -202,6 +202,59 @@ next idea, and the next:
   the well to fill it up from the tank, while the oil lasts. The ducks are not
   impressed
 
+And then there is what is left over: the ash of every fire, the salt a pond of
+brine boils down to, the lumps of glass the lightning leaves in the sand, snow,
+ice, the odd pinch of gunpowder somebody left lying about, and (once they
+smelt) any little lump of metal, which is scrap iron. They pick it all up (it
+might come in handy: hover over a peasant to see what is in their pockets), and the mine has beds of **rock salt** in it now, an old sea dried out,
+which comes up as salt. Some of it is just for fun:
+
+- **Snow**: with snow on the ground and nothing much to do, somebody scoops up a
+  snowball and lets fly at whoever is nearest. Whoever it hits throws one back
+  (it is cold, and down their neck), and anybody standing about joins in. Or
+  they build a **snowman**: rolled out of the snow about, a cell at a time from
+  the bottom, with coal for eyes if anybody has any, a carrot, a scarf, a hat,
+  twigs for arms, and a name. He lasts as long as the cold does, and when he
+  melts, somebody is sorry
+- **Ice**: is for skating on. On purpose. Back and forth, until the turn at the
+  end where it goes wrong
+- **Frost**: wheat out in the open grows nothing below freezing, and a hard
+  frost kills it from the top down (try the COOL brush on a field)
+
+And some of it puts ideas into their heads:
+
+- **Potash**: comes of sweeping up ash by a field. Ash raked into the furrows:
+  the wheat comes up twice as fast for a good while, and the earth goes grey
+  with it
+- **Salt**: comes of salt in a pocket and a fall on the ice (or a village that
+  fishes). Salt is flung on the ice where anybody went over, and by every door,
+  and the ice turns to brine. And a fish caught on a full stomach is salted and
+  kept, and eaten later, when they are hungry, instead of a long walk to the
+  field
+- **Black powder**: comes of finding coal, salt and ash, all three (or a pinch
+  of the real thing). Ground together in a bowl, carefully, well away from any
+  fire. A charge at the face of a gallery, a fuse, FIRE IN THE HOLE, and
+  everybody back down the gallery: four columns of rock out at once, and what
+  was in them in the pockets of whoever lit it. A charge thrown in the pond
+  brings up fish for everybody on the bank (the ducks leave). A charge or two
+  in a fireworks show makes a bigger show. And a peasant on fire with black
+  powder in their pockets has a short, eventful afternoon
+- **Glassmaking**: comes of a lump of lightning glass, a frost on the wheat, or
+  a furnace that has been hot a good long while. Sand and coal at the furnace
+  come out as panes of glass, and a field gets a **glasshouse**: a glass roof on
+  iron posts (which they walk through). Under it the ground's warmth stays in
+  (none made, none lost: it comes up out of the earth, instead of going up into
+  the sky): the wheat grows faster, needs no watering, and keeps growing through
+  a cold snap a good while after the open fields have stopped. A long hard
+  freeze gets in in the end, and a quick chill with COOL stops it under there
+  as it does anywhere
+- **The store**: once there is a furnace, pockets full of ash or salt are
+  emptied onto its pile, and whoever needs some for the bowl or the field
+  fetches it back out. With the bucket and salt both known, a village running
+  short of salt fetches a bucket of brine from any salt water about and boils
+  it down at the furnace: steam up the chimney, salt in the pan. And with salt
+  in a pocket, a pinch of it goes on a meal, which then goes further
+
 Building with stone (or iron, or gold) works as building with wood does,
 except that a site keeps a pile: whoever brings some puts it on the pile, and
 whoever is building builds from it, so somebody with stone and somebody with
@@ -275,6 +328,10 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - Hover over the rock: the black is coal, the rust is iron ore, and the glint is gold. Then watch where the galleries go
 - Hold HEAT on a lump of iron ore in the rock, and see what it sets into
 - Set fire to something once the bell is up. Everybody comes
+- Paint a field of SNOW by the houses. Then wait for somebody to get bored
+- Freeze a field with COOL. Then wait for somebody to think of glass
+- Leave a little pile of GUNPOWDER by the mine. Somebody will pick it up. Carefully
+- Burn something down, then watch them sweep up the ash and take it to the wheat
 
 ## Files
 
@@ -286,6 +343,8 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - `build.js`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
 - `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, ponds dug and filled, graves, forestry, jetties and fishing, scarecrows, fireworks shows, the statue
 - `mines.js`: what is under the sand, and what comes of digging for it: mines and their galleries, coal, iron ore and gold, watchtowers, the furnace and iron, lifts, the bell
+- `oil.js`: oil in the rock, the derrick that pumps it, and rocket packs
+- `leftovers.js`: what is left over (ash, salt, glass, gunpowder, snow, ice) and what they make of it: picking it up, snowball fights, snowmen, skating, salt on the ice and on the fish, potash, black powder (blasting, fishing with it, fireworks), glass and the glasshouse, and frost on the wheat
 - `ducks.js`: the ducks
 - `game.js`: rendering, the picker and HUD, input, and the main loop
 - `test/`: the game without a browser (`sim.js`), and some checks that it still works (`run.js`)

@@ -174,6 +174,7 @@ An invariant stop names itself and the tick.
 node harness/soak.js --seeds 1-8 --ticks 60000
 node harness/soak.js --seeds 1-6 --preset rich --jobs 6
 node harness/soak.js --seeds 1-6 --preset chaos --fail-on-stuck
+node harness/soak.js --seeds 1-6 --preset leftovers --jobs 6   # snow, ice, salt, ash, glass, powder about
 node harness/soak.js --seeds 1-6 --ticks 12000 --out soak.jsonl
 ```
 `soak.js` runs each seed in its own process with the standard invariants
@@ -222,7 +223,8 @@ h.heatBrush(x, y, +1, 6);           // the HEAT brush, radius 6
 h.spawnPeasant(x, y);
 h.spawnDuck(x, y);
 h.give(["bucket", "farm", "mine"]); // teach the village (the game's idea ids:
-// farm lamp bucket dig grave fish scarecrow festival mine masonry smelt lift bell oil rocket)
+// farm lamp bucket dig grave fish scarecrow festival mine masonry smelt lift bell oil rocket
+// forge post statue forest potash salt powder glass)
 
 // the real input path (picker, tap handler, painting, throws)
 h.select("LIGHTNING");

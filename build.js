@@ -55,10 +55,11 @@ for (var bv = 0; bv < NMAT; bv++) if (B_COST[bv]) { B_RES[bv] = "wood"; B_AMT[bv
 B_RES[MAT.BRICK] = "stone"; B_AMT[MAT.BRICK] = 0.5;
 B_RES[MAT.GIRDER] = "iron"; B_AMT[MAT.GIRDER] = 0.2;
 B_RES[MAT.GOLD] = "gold"; B_AMT[MAT.GOLD] = 0.2;
-var B_KINDS = ["wood", "stone", "iron", "gold"];
+B_RES[MAT.GLASS] = "glass"; B_AMT[MAT.GLASS] = 1;   /* (a pane of glass a cell: leftovers.js) */
+var B_KINDS = ["wood", "stone", "iron", "gold", "glass"];
 /* what a spade can shift: loose stuff, and greenery */
 var B_DIG = new Uint8Array(NMAT);
-[MAT.SAND, MAT.ASH, MAT.SNOW, MAT.SALT, MAT.SEED, MAT.PLANT, MAT.FLOWER].forEach(function (v) { B_DIG[v] = 1; });
+[MAT.SAND, MAT.ASH, MAT.SNOW, MAT.SALT, MAT.SEED, MAT.PLANT, MAT.FLOWER, MAT.PACKSNOW].forEach(function (v) { B_DIG[v] = 1; });
 /* where a board can go: thin air. not into a flame */
 var B_AIR = new Uint8Array(NMAT);
 [MAT.EMPTY, MAT.SMOKE, MAT.STEAM, MAT.GAS].forEach(function (v) { B_AIR[v] = 1; });
@@ -144,6 +145,7 @@ function bRemove(g, idx) {
   }
   bMark(g, s, 0);
   for (var k = 0; k < g.sites.length; k++) bMark(g, g.sites[k], 1);   /* (where two plans shared a cell) */
+  lMarkMen(g);   /* (and the snowmen, which are nobody's to dig up: leftovers.js) */
 }
 function bMarked(g, x, y) { return !!(g.bmark && x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.bmark[y * g.gw + x]); }
 function bSite(g, id) {
@@ -276,7 +278,7 @@ function bWood(p) { return (p.logs || 0) + (p.boards || 0) / B_BOARDS; }
 /* what they have in their pockets of a building material, in the units a cell is priced in (wood: boards) */
 function bHas(p, r) { return r === "wood" ? (p.boards || 0) + (p.logs || 0) * B_BOARDS : (p[r] || 0); }
 /* carrying anything worth bringing to a building site */
-function bCarries(p) { return bWood(p) > 0.3 || (p.stone || 0) >= 1 || (p.iron || 0) >= 0.2 || (p.gold || 0) >= 0.2; }
+function bCarries(p) { return bWood(p) > 0.3 || (p.stone || 0) >= 1 || (p.iron || 0) >= 0.2 - 1e-6 || (p.gold || 0) >= 0.2 || (p.glass || 0) >= 1; }
 /* what a cell of the plan costs: {r: what in, n: how much}. (an entry can be priced on its own: a miner's ladder is
    knocked together out of the pit props, and costs nothing anybody has to carry) */
 function bPrice(e) { var n = e.cost != null ? e.cost : B_AMT[e.v]; return n > 0 ? { r: B_RES[e.v], n: n } : null; }
@@ -321,7 +323,7 @@ function bPay(g, p, s, e) {
 }
 /* do they carry anything site s still wants */
 function bBrings(g, p, s) {
-  for (var k = 0; k < B_KINDS.length; k++) if (bHas(p, B_KINDS[k]) > 0.2 && bNeed(g, s, B_KINDS[k]) > 1e-6) return true;
+  for (var k = 0; k < B_KINDS.length; k++) if (bHas(p, B_KINDS[k]) >= 0.2 - 1e-6 && bNeed(g, s, B_KINDS[k]) > 1e-6) return true;   /* (a fifth of a bar is a girder's worth) */
   return false;
 }
 /* would they be any use on site s: they carry something it wants, or there is enough on its pile for the next cell */
@@ -601,7 +603,7 @@ function bFail(g, p, s, t, why) {
      mine they cannot get into): given up, and planned again somewhere they can get to. (a gallery is written off) */
   if (why === "walk" && s.kind !== "house" && s.kind !== "farm" && !s.mine && s.kind !== "pond" && (s.lost = (s.lost || 0) + 1) > 24) {
     var j = g.sites.indexOf(s);
-    if (j >= 0) { feed(g, "nobody can get to " + bLabel(s) + ". the village gave up on it", "#c8d0dc", "plan" + s.id); bGiveBack(s, p); bRemove(g, j); }
+    if (j >= 0) { feed(g, "nobody can get to " + bLabel(s) + ". the village gave up on it", "#c8d0dc", "plan" + s.id); if (s.kind === "glasshouse") lRefund(g, s); else bGiveBack(s, p); bRemove(g, j); }
     return;
   }
   if (why === "walk" && s.kind === "tunnel" && (s.lost = (s.lost || 0) + 1) > 24 && !s.flood) {
@@ -610,7 +612,7 @@ function bFail(g, p, s, t, why) {
   }
   if (why === "nothing" && s.kind !== "house" && !s.free && ++s.nothing > 6) {
     var k = g.sites.indexOf(s);
-    if (k >= 0) { feed(g, "the village gave up on " + bLabel(s), "#c8d0dc", "plan" + s.id); bGiveBack(s, p); bRemove(g, k); }
+    if (k >= 0) { feed(g, "the village gave up on " + bLabel(s), "#c8d0dc", "plan" + s.id); if (s.kind === "glasshouse") lRefund(g, s); else bGiveBack(s, p); bRemove(g, k); }
   }
 }
 /* one tick of building. true if they spent it working; false to walk (towards the work, or out of its way) */
@@ -618,6 +620,7 @@ function bTaskBuild(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || s.done) { p.task = null; p.taskDone = true; return false; }
   if (s.kind === "tunnel" && mRetired(g, s)) { p.task = null; p.taskDone = true; return false; }   /* (its shaft written off: mines.js) */
+  if (s.kind === "tunnel" && lChargeOn(g, s.id)) { p.task = null; p.taskCD = 120; return false; }   /* (a lit fuse down there: nobody goes near it. leftovers.js) */
   /* too cold to hold a hammer: down tools, and go and get warm (see bPick). the site will still be there */
   if (p.cold > 150 && !p.climb) { p.task = null; p.taskDone = true; return false; }
   k.t++;

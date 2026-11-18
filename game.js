@@ -55,7 +55,11 @@ var TIPS = [
   "tip: a watchtower has a ladder up the inside. a lift is quicker. iron makes a lift",
   "tip: paint some ICE where they walk. or COOL the pond and watch them cross it",
   "tip: throw a peasant onto a frozen pond. then another",
-  "tip: hold HEAT on a lump of iron ore. what runs out of it sets as iron"
+  "tip: hold HEAT on a lump of iron ore. what runs out of it sets as iron",
+  "tip: paint some SNOW by the houses and wait for somebody to get bored. then duck",
+  "tip: the peasants pick up what is left over: ash, salt, lumps of glass. hover over one to see their pockets",
+  "tip: COOL a field and the wheat stops growing. a village that makes glass knows what to do about that",
+  "tip: coal, salt and ash, ground fine, go bang. the peasants will work that out. eventually"
 ];
 
 /* -------------------------------------------------------------------
@@ -228,6 +232,7 @@ var MAT_NAME = [];
 PICK.forEach(function (p) { if (!p.tool) MAT_NAME[p.m] = p.name; });
 MAT_NAME[MAT.EMPTY] = "AIR"; MAT_NAME[MAT.STEAM] = "STEAM"; MAT_NAME[MAT.SMOKE] = "SMOKE";
 MAT_NAME[MAT.EMBER] = "EMBER"; MAT_NAME[MAT.FLOWER] = "FLOWER";
+MAT_NAME[MAT.PACKSNOW] = "PACKED SNOW"; MAT_NAME[MAT.ROCKSALT] = "ROCK SALT";
 /* the things only peasants make */
 MAT_NAME[MAT.PLANK] = "PLANKS"; MAT_NAME[MAT.DOOR] = "DOOR"; MAT_NAME[MAT.LADDER] = "LADDER"; MAT_NAME[MAT.STAIRS] = "STAIRS";
 MAT_NAME[MAT.BED] = "BED"; MAT_NAME[MAT.SAPLING] = "SAPLING";
@@ -235,7 +240,7 @@ MAT_NAME[MAT.SOIL] = "TILLED EARTH"; MAT_NAME[MAT.CROP] = "YOUNG WHEAT"; MAT_NAM
 MAT_NAME[MAT.COAL] = "COAL"; MAT_NAME[MAT.ORE] = "IRON ORE"; MAT_NAME[MAT.GOLD] = "GOLD"; MAT_NAME[MAT.BRICK] = "STONEWORK"; MAT_NAME[MAT.GIRDER] = "IRON GIRDER";
 /* a cell partway through melting, boiling or setting says so */
 var MAT_UP = [], MAT_DOWN = [];
-MAT_UP[MAT.WATER] = MAT_UP[MAT.SALTWATER] = "boiling"; MAT_UP[MAT.ICE] = MAT_UP[MAT.SNOW] = "melting";
+MAT_UP[MAT.WATER] = MAT_UP[MAT.SALTWATER] = "boiling"; MAT_UP[MAT.ICE] = MAT_UP[MAT.SNOW] = MAT_UP[MAT.PACKSNOW] = "melting";
 MAT_UP[MAT.STONE] = MAT_UP[MAT.GLASS] = MAT_UP[MAT.METAL] = MAT_UP[MAT.ORE] = MAT_UP[MAT.BRICK] = MAT_UP[MAT.GIRDER] = "melting"; MAT_UP[MAT.SAND] = MAT_UP[MAT.SOIL] = "fusing"; MAT_UP[MAT.ACID] = "boiling";
 MAT_DOWN[MAT.WATER] = MAT_DOWN[MAT.SALTWATER] = "freezing"; MAT_DOWN[MAT.STEAM] = "condensing"; MAT_DOWN[MAT.LAVA] = "setting";
 function cellReadout(g, j) {
@@ -525,10 +530,12 @@ function drawWorld(g) {
   hot += iDraw(g);
   hot += mDraw(g);
   hot += oDraw(g);
+  hot += lDraw(g);
   ducksDraw(g);
   peasantsDraw(g);
   mDrawOver(g);
   oDrawOver(g);
+  lDrawOver(g);
   return hot;
 }
 var WIN_DARK = hex32("#1e2638"), DOOR_KNOB = hex32("#e8c050");
@@ -922,7 +929,8 @@ var SITE_NAMES = { farm: ["field", "fields"], lamp: ["porch light", "porch light
   grave: ["cross", "crosses"], scarecrow: ["scarecrow", "scarecrows"], jetty: ["jetty", "jetties"], pond: ["dug pond", "dug ponds"],
   statue: ["statue", "statues"], well: ["oil well", "oil wells"], mine: ["mine", "mines"], tunnel: ["gallery", "galleries"],
   tower: ["watchtower", "watchtowers"], furnace: ["furnace", "furnaces"], lift: ["lift", "lifts"], bell: ["bell", "bells"],
-  stairs: ["flight of stairs", "flights of stairs"], ladder: ["ladder", "ladders"], bridge: ["bridge", "bridges"] };
+  stairs: ["flight of stairs", "flights of stairs"], ladder: ["ladder", "ladders"], bridge: ["bridge", "bridges"],
+  glasshouse: ["glasshouse", "glasshouses"], snowman: ["snowman", "snowmen"] };
 var POP_TITLE = { peasants: "THE VILLAGERS", rip: "IN MEMORIAM", houses: "THE BUILDINGS", ideas: "WHAT THEY KNOW", ducks: "THE DUCKS" };
 /* a peasant's age in years (a year is twenty seconds, so they make seventy to ninety-five) */
 function pYears(g, p) { return Math.max(0, Math.floor(pAge(g, p) / 1200)); }
@@ -1003,6 +1011,9 @@ function popRows(g, key) {
     if (rising) R.push(["going up", String(rising), "#f0c060"]);
     for (k in kinds) kn.push([k, kinds[k]]);
     kn.sort(function (a, b) { return b[1] - a[1]; });
+    /* (and the snowmen, while they last: leftovers.js) */
+    var men = (g.lsnowmen || []).filter(function (m) { return m.up; }).length;
+    if (men) kn.push(["snowman", men]);
     if (kn.length) {
       R.push(["#", "AND ALSO"]);
       for (k = 0; k < kn.length; k++) R.push([(SITE_NAMES[kn[k][0]] || [kn[k][0], kn[k][0] + "s"])[kn[k][1] > 1 ? 1 : 0], String(kn[k][1]), "#c8d0dc"]);

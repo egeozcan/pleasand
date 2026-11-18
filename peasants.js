@@ -576,6 +576,7 @@ function peasantsStep(g) {
   if (burning >= 3) achieve(g, "roast");
   buildStep(g);
   ideasStep(g);
+  lTick(g);   /* (snowballs in the air, and fuses burning: leftovers.js) */
   exploreNote(g);
   for (k = L.length - 1; k >= 0; k--) if (L[k].dead) L.splice(k, 1);
   if (g.hadPeasants && !L.length && !g.emptyNoted) { g.emptyNoted = true; banner(g, "THE VILLAGE IS EMPTY", "press V and click for more. you monster"); }
@@ -1632,6 +1633,7 @@ function pSlip(g, p, v) {
   if (p.pail) iSpill(g, p);   /* (a full bucket goes everywhere) */
   pSay(g, p, "slip", true); g.fx.thud++;
   g.slips = (g.slips || 0) + 1;
+  lSlipped(g, p);   /* (somewhere to put salt, and an idea: leftovers.js) */
   achieve(g, "slip");
   if (g.tick > (g.slipT || 0)) { g.slipT = g.tick + 2400; feed(g, p.name + " slipped on the ice", "#cfeaff", "slip"); }
 }
@@ -1723,8 +1725,10 @@ function pFieldFood(g, p) {
       e = s.plan[j];
       if (e.v !== MAT.CROP) continue;
       x = e.i % g.gw;
-      for (y = (e.i / g.gw) | 0; y >= 0 && g.m[y * g.gw + x] === MAT.CROP; y--);   /* (up the green stalk, to the ear) */
-      if (y < 0 || g.m[y * g.gw + x] !== MAT.WHEAT || !pEdible(g, x, y)) continue;
+      /* (up the stalk, green or ripe, to the top of it: a stalk ripe all the way down to the root has its ear up there too) */
+      for (y = (e.i / g.gw) | 0; y >= 0 && (g.m[y * g.gw + x] === MAT.CROP || g.m[y * g.gw + x] === MAT.WHEAT); y--);
+      y++;
+      if (g.m[y * g.gw + x] !== MAT.WHEAT || !pEdible(g, x, y)) continue;
       d = Math.abs(x + 0.5 - p.x) + Math.abs(y - p.y);
       var ear = { x: x, y: y, d: d, s: s };
       E.push(ear); (byX[x] = byX[x] || []).push(ear); ids[s.id] = 1;
@@ -1925,6 +1929,7 @@ function pCampOk(g, p, x, fy, stacked) {
    for food and found none gets on with other things for a while. really hungry: further, and further up and down, out
    of a mine to the fields, ripe wheat first. starving: anywhere at all) */
 function pFoodTask(g, p) {
+  if (lSnack(g, p)) return true;   /* (a salt fish out of their pocket: leftovers.js) */
   var t = null, edible = function (g2, x, y) { return !pAvoid(g2, p, x) && pEdible(g2, x, y) && !pNoField(g2, p, x, y); };
   if (p.hunger > P_HUNGRY && !p.eatCD) {
     var vh = p.hunger > P_HUNGRY * 2;
@@ -2053,7 +2058,7 @@ function pTask(g, p) {
       if (!pEdible(g, k.x, k.y)) { p.task = null; return true; }
       c = g.m[j]; g.m[j] = MAT.EMPTY; heatSync(g, j);
       pChips(g, k.x + 0.5, k.y + 0.5, 3, [SAND_PAL[MAT.PLANT][0], SAND_PAL[MAT.PLANT][100]]);
-      p.hunger = Math.max(0, p.hunger - (c === MAT.FLOWER ? 1000 : (c === MAT.WHEAT ? 900 : 700))); p.bored = Math.max(0, p.bored - 100); k.n++;
+      p.hunger = Math.max(0, p.hunger - (c === MAT.FLOWER ? 1000 : (c === MAT.WHEAT ? 900 : 700)) - lSeason(g, p)); p.bored = Math.max(0, p.bored - 100); k.n++;
       if (c === MAT.WHEAT) achieve(g, "harvest");
       if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, c === MAT.FLOWER && Math.random() < 0.5 ? "flower" : (c === MAT.WHEAT && Math.random() < 0.6 ? "wheat" : "eat"));
       more = p.hunger > 300 && k.n < P_BITES ? pFind(g, p, P_FOOD, 3, pEdible) : null;

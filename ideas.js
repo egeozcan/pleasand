@@ -215,7 +215,16 @@ var IDEAS = [
   { id: "oil", name: "the oil well", title: "THE OIL WELL", sub: "there is oil under the rock. bring it up", hint: "a smell of oil",
     ready: function (g) { return !!g.oilSeen && g.iron >= 1; } },
   { id: "rocket", name: "the rocket pack", title: "ROCKET PACKS", sub: "oil, a tank, a nozzle, and one brave peasant", hint: "oil enough",
-    ready: function (g) { return !!g.know.oil && (g.barrels || 0) >= O_ROCKET_OIL && g.iron >= 2; } }
+    ready: function (g) { return !!g.know.oil && (g.barrels || 0) >= O_ROCKET_OIL && g.iron >= 2; } },
+  /* and what is left over: ash, salt, glass, gunpowder (leftovers.js) */
+  { id: "potash", name: "potash", title: "POTASH", sub: "ash from the fire, raked into the furrows. the wheat comes up twice as fast", hint: "ash, swept up, and a field",
+    ready: function (g) { return !!g.know.farm && (g.found.ash || 0) >= 6 && iCount(g, "farm") > 0; } },
+  { id: "salt", name: "salt", title: "SALT", sub: "salt on the ice, and nobody falls over. salt on a fish, and it keeps", hint: "salt in a pocket, and a fall on the ice (or a fish)",
+    ready: function (g) { return (g.found.salt || 0) >= 3 && ((g.slips || 0) >= 1 || !!g.know.fish); } },
+  { id: "powder", name: "black powder", title: "BLACK POWDER", sub: "coal, salt and ash, ground fine. it goes bang. on purpose, this time", hint: "coal, salt and ash, all three (or a pinch of the real thing)",
+    ready: function (g) { return !!g.know.mine && (((g.found.coal || 0) >= 3 && (g.found.salt || 0) >= 3 && (g.found.ash || 0) >= 3) || (g.found.powder || 0) >= 1); } },
+  { id: "glass", name: "glassmaking", title: "GLASSMAKING", sub: "sand, in a fire hot enough, runs clear. a glass roof for the wheat", hint: "a lump of glass, a frost, or a furnace hot a long while",
+    ready: function (g) { return !!g.know.smelt && mSites(g, "furnace", true).length > 0 && ((g.found.glass || 0) >= 1 || (g.iron || 0) >= 8 || !!g.got.frost); } }
 ];
 
 /* -------------------------------------------------------------------
@@ -229,9 +238,11 @@ function ideasReset(g) {
   g.readyT = {}; g.treeless = 0; g.dugSpark = 0; g.noRoom = {}; g.tools = 0;
   /* what has come up out of the ground so far, and how much iron they have made of it (mines.js). rock: how often
      anybody has stood on bare rock, and wondered */
-  g.found = { stone: 0, coal: 0, ore: 0, gold: 0, oil: 0 }; g.iron = 0; g.rock = 0;
+  g.found = { stone: 0, coal: 0, ore: 0, gold: 0, oil: 0, salt: 0, ash: 0, glass: 0, powder: 0 }; g.iron = 0; g.rock = 0;
   /* and what comes up out of a well, and what they make of it (oil.js) */
   g.oilSeen = 0; g.barrels = 0; g.packs = 0;
+  /* and what is left over, and what they make of it (leftovers.js) */
+  lReset(g);
 }
 function iKnown(g) { var n = 0; for (var k in g.know) n++; return n; }
 function iHouses(g) {
@@ -344,6 +355,8 @@ function iPick(g, p) {
   if (K.farm && !hungry && iGoShoo(g, p)) return true;
   /* a field wants hands, not wood: anybody will do */
   if (K.farm && (s = iFieldWork(g, p, 160))) { bJoin(g, p, s); return true; }
+  /* snow on the ground, or ice to skate on, and time on their hands: that is what it is for (leftovers.js) */
+  if (!hungry && lPlay(g, p)) return true;
   /* (a field dug up for a mine or a well is sown again somewhere else: straight away, wherever there is room) */
   if (K.farm && g.resow && iCount(g, "farm") < Math.min(4, Math.ceil(bAlive(g) / 3)) && iPlanFarm(g, p, true)) { g.resow = 0; return true; }
   if (K.farm && !p.planCD && iCount(g, "farm") < Math.min(4, Math.ceil(bAlive(g) / 3)) && (hungry || Math.random() < 0.3)) {
@@ -369,6 +382,8 @@ function iPick(g, p) {
     if (iPlanPost(g, p)) return true;
     g.postT = g.tick + 1500;
   }
+  /* a charge of black powder in the pocket, and a gallery with rock ahead: before the pick gets them (leftovers.js) */
+  if (K.powder && !hungry && (p.powder || 0) >= 1 && Math.random() < 0.5 && lGoBlast(g, p)) return true;
   /* the mine, and everything that comes up out of it (mines.js) */
   if (mPick(g, p, hungry)) return true;
   /* the oil well, and the rocket pack (oil.js) */
@@ -389,6 +404,8 @@ function iPick(g, p) {
   }
   if (K.grave && p.bored > 600 && Math.random() < 0.1 && iGoVisit(g, p)) return true;
   if (K.festival && p.bored > 900 && p.hunger < I_FED * 2 && iPlanFestival(g, p)) return true;
+  /* what is left over (ash, salt, glass, gunpowder, snow, ice), and what they make of it (leftovers.js) */
+  if (lPick(g, p, hungry)) return true;
   /* coal in the pocket, a long evening, and nobody's fire to stand round: a fire of coal, and the neighbours come */
   if ((p.coal || 0) >= 3 && p.bored > 1200 && Math.random() < 0.08 && !bFindFire(g, p, 60)) {
     var cx = Math.floor(p.x) + p.dir * 5;
@@ -425,6 +442,8 @@ function iTask(g, p, k) {
   if (k.kind === "admire") return iTaskAdmire(g, p, k);
   var r = mTask(g, p, k);
   if (r !== undefined) return r;
+  r = lTask(g, p, k);
+  if (r !== undefined) return r;
   return oTask(g, p, k);
 }
 function iDone(p, ok) { p.task = null; p.taskDone = !!ok; return false; }
@@ -444,9 +463,10 @@ function iWalk(g, p, k, key, x, y, goal) {
 }
 
 /* what somebody will drop to go and watch the fireworks */
-var I_FUN = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, light: 1, lookout: 1, admire: 1 };
+var I_FUN = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, light: 1, lookout: 1, admire: 1, gather: 1, snowball: 1, snowman: 1, skate: 1 };
 /* once a third of a second or so: what is on fire */
-var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1, shoo: 1, lookout: 1, smelt: 1, forge: 1, pump: 1, pack: 1, refuel: 1, launch: 1, admire: 1 };
+var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1, shoo: 1, lookout: 1, smelt: 1, forge: 1, pump: 1, pack: 1, refuel: 1, launch: 1, admire: 1,
+  gather: 1, snowball: 1, snowman: 1, skate: 1, grit: 1, potash: 1, grind: 1, bombfish: 1, glassblow: 1, store: 1, brine: 1 };
 /* what somebody will drop when the alarm goes up: anything they are only doing for fun, or that can wait (a snack, a
    chat round the campfire, a bit of hammering) */
 function iCanWait(p, k) {
@@ -483,6 +503,7 @@ function ideasStep(g) {
   /* furnaces, bells (mines.js), and the smell of oil under the rock (oil.js) */
   mStep(g);
   oStep(g);
+  lStep(g);
   /* the bell, ringing for a fire, wakes the whole valley, buckets or no buckets */
   if (g.blaze.length && mRinging(g)) for (k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
@@ -626,14 +647,17 @@ function cropGrow(g, i, x, y) {
   var m = g.m, gw = g.gw, up = y > 0 ? m[i - gw] : MAT.STONE, r = Math.random(), h, b, W = MAT.WATER;
   /* salt water does for wheat what it does for any plant */
   if (sandHas(g, x, y, MAT.SALTWATER) >= 0) { if (r < 0.01) { m[i] = MAT.EMPTY; heatSync(g, i); } return; }
-  if (up === MAT.WHEAT) { if (r < 0.01) heatBecome(g, i, MAT.WHEAT); return; }
+  /* frost stops it out in the open (a hard one kills it); potash and a glass roof speed it up (leftovers.js) */
+  var fast = lGrowth(g, i, x);
+  if (!fast || g.m[i] !== MAT.CROP) return;
+  if (up === MAT.WHEAT) { if (r < 0.01 * fast) heatBecome(g, i, MAT.WHEAT); return; }
   if (up === MAT.CROP) return;
-  if (r > (up === W ? 0.03 : 0.008)) return;
+  if (r > (up === W ? 0.03 : 0.008) * fast) return;
   for (h = 1; h < 9 && y + h < g.gh && (m[i + h * gw] === MAT.CROP || m[i + h * gw] === MAT.WHEAT); h++);
   b = i + h * gw;
   if (y + h >= g.gh || m[b] !== MAT.SOIL) return;   /* uprooted: it stays as it is */
-  var wet = up === W || sandHas(g, x, y + h, W) >= 0 || sandHas(g, x, y + h - 1, W) >= 0 || sandHas(g, x, y, W) >= 0;
-  if (!wet && r > 0.002) return;
+  var wet = up === W || lWetUnderGlass(g, x) || sandHas(g, x, y + h, W) >= 0 || sandHas(g, x, y + h - 1, W) >= 0 || sandHas(g, x, y, W) >= 0;
+  if (!wet && r > 0.002 * fast) return;
   if (h < I_CROP_H + (x * 5) % 3 && (up === MAT.EMPTY || up === W)) { sandSet(g, i - gw, MAT.CROP); return; }
   heatBecome(g, i, MAT.WHEAT);   /* as tall as it gets: the ear ripens */
 }
@@ -642,7 +666,7 @@ function iFieldWork(g, p, R, kind) {
   var best = null, bd = R, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind !== (kind || "farm") || s.done || (p.failSite === s.id && p.failT > g.tick) || iCrew(g, "build", s.id) >= 3 || s.flood === 2 || (s.mine && mFlooded(g, s)) || (s.kind === "tunnel" && mRetired(g, s))) continue;
+    if (s.kind !== (kind || "farm") || s.done || (p.failSite === s.id && p.failT > g.tick) || iCrew(g, "build", s.id) >= 3 || s.flood === 2 || (s.mine && mFlooded(g, s)) || (s.kind === "tunnel" && (mRetired(g, s) || lChargeOn(g, s.id)))) continue;
     d = Math.abs(s.cx - p.x) + Math.abs(s.cy - p.y) * 2;
     if (d < bd && bNext(g, s, null)) { bd = d; best = s; }
   }
@@ -770,6 +794,7 @@ function iGoWater(g, p) {
 /* the tops of the stalks still growing in a field, if none of them has water near it. else null */
 function iThirsty(g, s) {
   var tips = [], k, e, x, y, c;
+  if (lWetUnderGlass(g, s.x0)) return null;   /* (under glass it keeps its own damp: leftovers.js) */
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
     if (e.v !== MAT.CROP) continue;
@@ -1345,7 +1370,9 @@ function iCatch(g, p, k) {
   var cooked = g.T[j] > 60, lb = 1 + irnd(r > 0.9 ? 12 : 6);
   pSay(g, p, cooked ? "cooked" : "fish", true);
   iLand(g, p, b, cooked ? [hex32("#e0a070"), hex32("#c88050")] : [hex32("#c8d4e0"), hex32("#8aa0b8"), hex32("#f0a040")]);
-  p.hunger = Math.max(0, p.hunger - 1400); p.bored = Math.max(0, p.bored - 600);
+  /* (salted and kept for later, on a full stomach with salt about them: leftovers.js) */
+  if (cooked || !lSaltFish(g, p)) p.hunger = Math.max(0, p.hunger - 1400);
+  p.bored = Math.max(0, p.bored - 600);
   /* the news: the first fish, a cooked one, and the big ones */
   if (lb >= 8 || cooked || !g.got.fish) feed(g, p.name + " caught a " + (cooked ? "cooked " : "") + lb + "-pound fish", "#9ad0ff", "fish");
   achieve(g, "fish");
@@ -1707,10 +1734,10 @@ function iTaskFestival(g, p, k) {
        for more rockets, and a nugget of gold for a golden finale */
     k.on = true; k.act = 0;
     g.festT = g.tick + I_FEST_GAP + irnd(I_FEST_GAP);
-    var coal = iChipIn(g, "coal", 3), gold = iChipIn(g, "gold", 1), oil = iBarrel(g);
-    k.n += coal + (oil ? 2 : 0); k.gold = gold > 0;
+    var coal = iChipIn(g, "coal", 3), gold = iChipIn(g, "gold", 1), oil = iBarrel(g), powder = iChipIn(g, "powder", 2);
+    k.n += coal + (oil ? 2 : 0) + powder * 2; k.gold = gold > 0;
     pSay(g, p, "festival", true);
-    feed(g, p.name + " is putting on a fireworks show" + (k.gold ? ", with a golden finale" : (coal ? ", a big one" : "")), "#ffd94a", "fest");
+    feed(g, p.name + " is putting on a fireworks show" + (k.gold ? ", with a golden finale" : (powder ? ", with black powder in it" : (coal ? ", a big one" : ""))), "#ffd94a", "fest");
     for (var q = 0; q < g.peasants.length; q++) {
       var o = g.peasants[q];
       if (o === p || o.dead || o.state !== "walk" || o.sleep || o.fire || (o.task && !I_FUN[o.task.kind]) || Math.abs(o.x - k.x) > 160 || Math.random() < 0.15) continue;
@@ -1843,7 +1870,7 @@ function iLabel(s) {
   if (s.kind === "pond") return "the pond";
   if (s.kind === "statue") return "the statue of " + pTitle(s.of);
   if (s.kind === "well") return oLabel(s);
-  return mLabel(s);
+  return lLabel(s) || mLabel(s);
 }
 /* a site of ours is finished. true if it was one of ours */
 function iFinish(g, s, p) {
@@ -1874,7 +1901,7 @@ function iFinish(g, s, p) {
     /* and a flower, at the foot of it */
     var x = Math.round(s.cx - 0.5) + (Math.random() < 0.5 ? -1 : 1), j = s.y1 * g.gw + x;
     if (g.m[j] === MAT.EMPTY && pSolid(g, x, s.y1 + 1)) { sandSet(g, j, MAT.FLOWER); g.sh[j] = irnd(42) * 6 + 1 + irnd(5); }
-  } else if (!oFinish(g, s, p)) return mFinish(g, s, p);
+  } else if (!oFinish(g, s, p) && !lFinish(g, s, p)) return mFinish(g, s, p);
   return true;
 }
 /* what the village knows, and who thought of it, and what might put the rest into their heads: for the bar at the
@@ -1896,6 +1923,8 @@ function iMood(g, p) {
   if (mm) return mm;
   var om = oMood(g, p);
   if (om) return om;
+  var lm = lMood(g, p);
+  if (lm) return lm;
   if (!k) return "";
   if (k.kind === "build" && (s = bSite(g, k.site)) && s.kind === "farm")
     return (s.sow ? "is sowing " : "is working on ") + bLabel(s) + ". it takes no wood, just elbow grease";
