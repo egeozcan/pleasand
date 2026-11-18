@@ -557,7 +557,7 @@ function iRescuer(g, p) {
 }
 /* a bucket over somebody: they are out. the water goes where they stand, and then on down */
 function iDouse(g, p, v) {
-  v.fire = 0; g.fx.hiss++;
+  v.fire = 0; v.fireTo = null; g.fx.hiss++;
   pSay(g, v, "phew", true);
   if (p.sayT <= 0) pSay(g, p, "douse");
   sparks(g, v.x, v.y - 8, 6, 0.4, [hex32("#c0d0e0")], 14, 0.6, PK_GLINT);
@@ -662,7 +662,8 @@ function iPlanFarm(g, p, wide) {
   /* (the best of them they can walk to: a few looks. the rest is let be a while) */
   C.sort(function (a, b) { return a.score - b.score; });
   for (k = 0; k < C.length && k < 4 && !best; k++) if (iFarmReach(g, p, C[k])) best = C[k];
-  if (!best && wide) { best = iFarmSpot(g, -1, -1, p); if (best && !iFarmReach(g, p, best)) best = null; }   /* (a field to replace one dug up: anywhere in the valley) */
+  /* (anywhere in the valley: the best few, past the ones they cannot get to) */
+  for (k = 0; k < 4 && !best && wide; k++) { var w = iFarmSpot(g, -1, -1, p); if (!w) break; if (iFarmReach(g, p, w)) best = w; }   /* (a field to replace one dug up: anywhere in the valley) */
   if (!best) return false;
   var plan = [], k, e, x0 = best.x0, x1 = x0 + I_FARM_W - 1;
   for (k = 0; k < best.dig.length; k++) plan.push(bE(g, best.dig[k][0], best.dig[k][1], MAT.EMPTY, 0));
@@ -682,7 +683,7 @@ function iFarmReach(g, p, r) {
   /* (out of reach for them, for a while: somebody else may be on the right side of it. the village's own list,
      g.farmNo, is for fields it has given up) */
   if (!p.farmNo) p.farmNo = {};
-  for (var x = r.x0 - I_FARM_W - 2; x <= r.x0 + I_FARM_W + 1; x++) p.farmNo[x] = g.tick + 6000;
+  p.farmNo[r.x0] = g.tick + 6000;   /* (that plot, exactly: the one next to it may be on their side) */
   return false;
 }
 /* field plots over columns a .. b (and a little either side) let be for t ticks */
