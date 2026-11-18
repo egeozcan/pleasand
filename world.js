@@ -337,6 +337,15 @@ function partKill(g, q) {
 /* a grain that ends up somewhere other than a free cell to land in leaves its heat in the cell it is in, or the
    nearest one that will take heat (inert will not). off the edge of the room, the heat goes with it. false if
    there is nowhere at all to leave it, yet: then the grain hangs on to it */
+/* the nearest cell of air to (ix, iy), a few cells at most: its index, or -1 */
+function partRoom(g, ix, iy) {
+  for (var r = 1; r <= 3; r++) for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    var nx = ix + dx, ny = iy + dy;
+    if (nx >= 0 && ny >= 0 && nx < g.gw && ny < g.gh && AIRY[g.m[ny * g.gw + nx]]) return ny * g.gw + nx;
+  }
+  return -1;
+}
 function partDrop(g, q, x, y) {
   var ix = Math.floor(x), iy = Math.floor(y), gw = g.gw, r, dx, dy, j;
   if (g.pk[q] !== PK_DEBRIS || !g.pt[q] || ix < 0 || iy < 0 || ix >= gw || iy >= g.gh) return true;
@@ -395,7 +404,8 @@ function partStep(g) {
     else {
       /* a rocket: accelerates up, wobbles, leaves a trail */
       vy = Math.max(-2.6, vy - 0.07); vx += (Math.random() - 0.5) * 0.12;
-      partAdd(g, PK_SPARK, x, y + 1, (Math.random() - 0.5) * 0.3, 0.4 + Math.random() * 0.3, 6 + irnd(12), pick(SPARK_HOT));
+      /* (once it is going properly, a dozen cells up, its trail is spent long before it comes down: it lights nothing) */
+      partAdd(g, vy < -1.6 ? PK_GLINT : PK_SPARK, x, y + 1, (Math.random() - 0.5) * 0.3, 0.4 + Math.random() * 0.3, 6 + irnd(12), pick(SPARK_HOT));
       if (y < 4) { fwBurst(g, x, y); partKill(g, q); continue; }
     }
     if (vy > 4) vy = 4;
@@ -417,6 +427,9 @@ function partStep(g) {
         /* land in the last free cell it passed through */
         ix = Math.floor(x); iy = Math.floor(y);
         j = iy >= 0 && iy < gh ? iy * gw + ix : -1;
+        /* (it never got out of whatever it started in, a bush, say: the nearest free cell, then. its heat goes with it,
+           not into the leaves, which would take a bucket of warm water's worth of heat very badly) */
+        if (j >= 0 && !AIRY[m[j]]) j = partRoom(g, ix, iy);
         if (j >= 0 && AIRY[m[j]]) {
           /* it lands: the cell becomes it, with its heat and the heat of whatever air it pushed out */
           var qa = heatQ(g, j);
@@ -542,6 +555,7 @@ function sandLaunch(g, j) {
 }
 function fwBurst(g, x, y) {
   var c1 = pick(FW_COLORS), c2 = pick(FW_COLORS), style = irnd(3), n = 70 + irnd(50), k, a, s;
+  if (g.goldBurst > g.tick) { c1 = SAND_PAL[MAT.GOLD][0]; c2 = hex32("#fff6c0"); n += 40; }   /* (gold, for a finale: ideas.js) */
   for (k = 0; k < n; k++) {
     a = Math.random() * 6.2832;
     s = style === 0 ? 0.4 + Math.random() * 1.3 : (style === 1 ? 1.3 + Math.random() * 0.15 : (k & 1 ? 1.4 : 0.7));
@@ -1191,21 +1205,32 @@ function sandOres(g, rock) {
     var j = y * gw + x;
     if (g.m[j] === MAT.STONE) g.m[j] = v;
   }
+  var seams = [];
   for (k = 0; k < 11; k++) {
     cx = irnd(gw); len = 12 + irnd(22); cy = rock[cx] + 6 + irnd(20); n = 1 + irnd(3);
     for (dx = -(len >> 1); dx <= len >> 1; dx++) {
       y = cy + Math.round(Math.sin((cx + dx) * 0.17 + k) * 1.5);
       for (dy = 0; dy < n + (Math.random() < 0.3 ? 1 : 0); dy++) put(cx + dx, y + dy, MAT.COAL);
     }
+    seams.push([cx, cy + n + 4, len]);
+  }
+  /* ironstone: a lens of ore a few cells under every seam of coal (where there is coal, there is iron, more often than
+     not), off to one end of it */
+  for (k = 0; k < seams.length; k++) {
+    cx = seams[k][0] + ((k & 1) ? 1 : -1) * (seams[k][2] >> 2); cy = seams[k][1]; r = 2 + (k % 3) * 0.6;
+    for (dy = -3; dy <= 3; dy++) for (dx = -5; dx <= 5; dx++)
+      if (dx * dx / (r * r * 1.8) + dy * dy / (r * r * 0.6) < 1 && ((dx * 7 + dy * 13 + k) & 3)) put(cx + dx, cy + dy, MAT.ORE);
   }
   for (k = 0; k < 10; k++) {
     cx = irnd(gw); cy = rock[cx] + 9 + irnd(28); r = 2 + Math.random() * 2.5;
     for (dy = -4; dy <= 4; dy++) for (dx = -6; dx <= 6; dx++)
       if (dx * dx / (r * r * 1.8) + dy * dy / (r * r * 0.6) < 1 && Math.random() < 0.75) put(cx + dx, cy + dy, MAT.ORE);
   }
+  /* (a nugget, and a little vein round it: deep, but not so deep the galleries go under it) */
   for (k = 0; k < 10; k++) {
-    cx = irnd(gw); cy = rock[cx] + 14 + irnd(26); n = 1 + irnd(3);
+    cx = irnd(gw); cy = rock[cx] + 12 + ((irnd(26) * 0.7) | 0); n = 1 + irnd(3);
     for (r = 0; r < n; r++) put(cx + irnd(3) - 1, cy + irnd(2), MAT.GOLD);
+    put(cx, cy + 1, MAT.GOLD); put(cx - 1, cy + 2, MAT.GOLD); put(cx + 1, cy + 2, MAT.GOLD);
   }
 }
 

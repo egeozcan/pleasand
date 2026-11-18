@@ -29,7 +29,9 @@ it. On ice they take a while to get going and a good deal longer to stop:
 turn round in a hurry, or run, and down they go, sliding along on their
 back until the ice runs out, or a wall comes, or somebody else's legs do
 (thrown onto a frozen pond, they do not stop either). They have names. The
-game keeps count. There are ducks, too: they
+game keeps count. They grow old, too, and in the end die of old age, quietly, in bed or
+sitting about (or, if nobody ever feeds them, of hunger) (and get a cross, once somebody has thought of crosses); and a
+valley with room in it gets somebody new walking in from the edge now and then. There are ducks, too: they
 waddle, swim, dabble, fly, eat seeds, push through bushes and flowers, and
 sometimes bring ducklings.
 
@@ -50,13 +52,21 @@ of it or down through it) to wherever they are going, go exploring
 when they are bored (somewhere high, somewhere nobody has been lately), put back what you burn down (and mourn what you burn right
 down), and plant saplings where they cut trees down, which grow into trees.
 
+A peasant who is really hungry drops everything (the mine, the building
+stone in their arms) and goes for the ripe wheat in the nearest field,
+however far off it is.
+
 And when they have eaten well, they think. Every tick a peasant spends well
 fed, and not frightened, freezing or asleep, goes towards a bright idea (twice
 as fast at home, round a campfire, holding a fishing rod or standing about by
 lamplight). When it comes, a
 light bulb goes on over their head, the village hears about it, and from then
 on they all know it. Something has to put an idea into somebody's head first:
-nobody thinks of buckets until something has gone up in flames. Hover over IDEAS
+nobody thinks of buckets until something has gone up in flames. And it is
+whoever it happened to who thinks of it: the one who struck the ore thinks of
+smelting, the one watching the fire thinks of buckets, the one who went for
+wood and found none thinks of forestry. Otherwise, it is mostly whatever has
+been on everybody's minds longest. Hover over IDEAS
 at the top to see what they know, and what might give them the rest. What they
 think of:
 
@@ -67,7 +77,7 @@ think of:
   a well-fed village, and a well-fed village has more ideas
 - **Lanterns**: one on a bracket by each door, burning in a warm pool of light
 - **The bucket**: once something has burned (or been set alight by somebody
-  bored), a fire at anything
+  bored), or once they know about digging and have a field to keep watered, a fire at anything
   of theirs sends everybody who was only doing something for fun to the pond
   with a bucket (on the near side of the fire: they are brave, not daft). On
   a quiet day they water the wheat. The alarm wakes everybody in a burning
@@ -85,7 +95,12 @@ think of:
   runs low. They need level-ish sand to do it, so a pond only goes in where
   the ground allows
 - **Gravestones**: once somebody has died, a wooden cross for each of the
-  dead, in a row, saying how. Now and then somebody visits, and leaves a flower
+  dead, in a row, saying how. Now and then somebody visits, and leaves a flower (or, with gold to spare,
+  a nugget of it: the statues get those too)
+- **Forestry**: comes of going for wood and finding not a tree left standing.
+  After that, whenever the woods about them run thin, somebody plants a
+  sapling where it has room to grow (a crown's width from the next tree, and
+  well away from anybody's house), and in time there is wood again
 - **Fishing**: a jetty out over the pond, and somebody on the end of it with a
   rod. A fish, mostly. Sometimes a boot, or a duck. If you boiled the pond,
   the fish come out cooked
@@ -95,7 +110,10 @@ think of:
   duck in the wheat, arms going, until it takes off (ducklings are left alone,
   and a fire comes first)
 - **Fireworks**: once they have a couple of houses and a couple of ideas, now
-  and then somebody puts on a show, and everybody comes to watch
+  and then somebody puts on a show (well away from anything that burns), and
+  everybody comes to watch. Coal out of anybody's pockets makes for more
+  rockets, a nugget of gold for a golden finale, and a barrel of oil from a
+  well's tank for a bigger show
 
 And under the sand there is rock. What comes up out of it gives them the
 next idea, and the next:
@@ -107,42 +125,82 @@ next idea, and the next:
   bottom can always climb out, and the spoil tipped on a heap beside it. Then
   galleries off the bottom, pushed out a stretch at a time, towards whatever
   is worth having (they look a good way along the rock), following a seam up
-  into the roof and down into the floor. Timber props every few steps, the
+  into the roof and down into the floor. Timber props every few steps (iron
+  ones, a bar a prop, once there is a forge and iron to spare), the
   rock dark, and a warm pool of candlelight round every miner. A pick takes a
   cell at a time, and what comes out goes in their pockets: stone, coal, iron
-  ore, gold. The first of each is news. A mine takes no wood, just a pick:
-  anybody lends a hand. When it is worked out both ways, they sink another
+  ore, gold. The first of each is news, and where nothing has been found yet is
+  worth going a long way to dig. (When there is nowhere at all left in the
+  valley for a mine, they dig up a field for it, if they have one to
+  spare (two more besides, one of them close by) or somewhere else to sow it, and sow it again there if they can.) A mine takes no wood, just a pick:
+  anybody lends a hand. When the bottom of it is worked out both ways, a deep
+  enough shaft gets an upper level, halfway up, and that is worked out too;
+  then they sink another. (The spoil heap is kept a good way from the shaft,
+  low, and well away from where anybody stands to work a furnace, a pump or a
+  tower's door, so it does not slide in over them. If sand gets in anyway,
+  the site is reopened and it is dug out; if it keeps sliding back as fast as
+  they clear it, they leave it for a good while. A site nobody can get to at
+  all, after enough tries, is given up.)
 - **Masonry**: comes of a heap of stone. A watchtower, seven wide and two dozen
   high: a door at the foot of each side, so it is in nobody's way, a ladder
   up the inside, built a row at a time with the walls round it so whoever is
   building it climbs what they have built, and a lookout on top, jutting out
   on corbels, with battlements and a lantern. The bored go up and look out
-  over the valley (and shout if they see smoke), and the explorers love it
-- **Smelting**: comes of finding both coal and iron ore. A furnace by the
+  over the valley (and shout if they see smoke), and the explorers love it.
+  And with stone to spare, a new house goes up in stone, whatever burns
+  out of an old one is put back in stone, and the old wooden houses are done
+  over in stone, a house at a time, which does not burn (the doors, the
+  window and the bed are still wood, and the old boards go in somebody's
+  pocket)
+- **Smelting**: comes of finding both coal and iron ore (and coal is good for
+  a campfire, too, when there are no logs: it smoulders a long while). A furnace by the
   mine, with a mouth and a chimney. Everybody's ore and coal goes in it, and
   whoever is there works the bellows: the hearth glows, the chimney smokes,
   and out comes a bar of iron. And with iron, iron picks: mining goes
   nearly twice as fast
+- **The forge**: comes of iron to spare. Whoever has no tools goes to the
+  furnace and beats a bar of iron into an axe, a hoe and a hammer: chopping,
+  hoeing, digging and building all go faster. They wear out, a stroke at a
+  time, and then it is back to the furnace: the worn heads are good for half a
+  bar of scrap, and the rest has to come out of the mine
+- **Street lamps**: comes of a forge, lanterns, and a good deal of iron lying
+  about. An iron post six tall (half a bar a section) with a lantern on top,
+  on level ground between the houses, clear of the doors and the fields: one
+  at a time, a dozen paces apart, up to three for every house. Nobody has to
+  walk round one (they step through ironwork), and the street glows at night
 - **The lift**: comes of iron, and a long ladder. An iron headframe over the
   top of a mine shaft or a tower, a wheel, a chain, and a cage, which comes
   to whoever wants it and runs up and down four times as fast as anybody
   climbs. They work out their routes by it, too
-- **The bell**: comes of gold, and a tower to hang it from. A golden bell on a
-  bracket out over the battlements. It rings for every new idea, and when
+- **The bell**: comes of gold, and a tower to hang it from (or, with no tower,
+  the beam of a lift, or the eaves of a house). A golden bell on a bracket out over the battlements. It rings for every new idea, and when
   anything of theirs is on fire it rings and rings, and the whole valley
   hears it: the sleepers wake, and the bucket brigade comes from however far
-- **The oil well**: comes of a smell of oil under the rock (a mine dug to the
-  bottom of it will find one) and of iron enough for a derrick. An iron deck,
+- **The statue**: comes of gold to spare, and of somebody who has had three
+  bright ideas or more. A likeness of whoever has had the most, in dressed
+  stone on a plinth, one arm up, with a head of gold and a light bulb over it
+  that never goes out. The bored stand in front of it and think (twice as
+  fast), say what its subject thought of, and, if they are its subject,
+  admire it. Later, gold and stone to spare, the next greatest mind gets one
+  too (three, at most), whether they are still about or not
+- **The oil well**: comes of a smell of oil under the rock (a mine whose
+  workings come near a pool of it will smell it) and of iron enough for a derrick. An iron deck,
   a frame of iron legs and braces, and a ladder up the inside to build it by. Somebody
-  works the pump at the foot of it, and every stroke brings up a barrel. The
+  works the pump at the foot of it, and every stroke brings up a barrel (the
+  bore can be turned, down in the rock, towards oil that is off to one side). The
   first few go in the tank; after that the well overflows, and the oil pools at
   the foot of the derrick, black and patient and extremely flammable. The oil is
   finite: when the pool under it is empty the well runs dry, and they sink
-  another. (Do not bring a torch.)
+  another. (With nowhere else for a derrick, they dig up one of their fields
+  for it, if they have one to spare or somewhere else to sow it.) (Do not bring a torch.)
 - **Rocket packs**: comes of a tank of oil and a bar of iron, and somebody with
   more nerve than sense. A peasant puts one together at the well: a tank, a
   nozzle, a seat, and no brakes. Then, when they are bored enough, they light it
-  and go up. They come down again, mostly. The ducks are not impressed
+  and go up (pointed at the valley, not the edge of the world; with a roof or a
+  tree over them, they walk out to somewhere with open sky first). They come down
+  again, mostly. A full pack is good for two flights; after that it is back to
+  the well to fill it up from the tank, while the oil lasts. The ducks are not
+  impressed
 
 Building with stone (or iron, or gold) works as building with wood does,
 except that a site keeps a pile: whoever brings some puts it on the pile, and
@@ -226,7 +284,7 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - `peasants.js`: the villagers, what they say, how they die, and how they are drawn
 - `paths.js`: how the villagers find their way: A* over everywhere a peasant could stand, using the moves a peasant really makes (steps, drops, leaps, jumps, ladders, ropes, swims)
 - `build.js`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
-- `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, ponds dug and filled, graves, jetties and fishing, scarecrows, fireworks shows
+- `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, ponds dug and filled, graves, forestry, jetties and fishing, scarecrows, fireworks shows, the statue
 - `mines.js`: what is under the sand, and what comes of digging for it: mines and their galleries, coal, iron ore and gold, watchtowers, the furnace and iron, lifts, the bell
 - `ducks.js`: the ducks
 - `game.js`: rendering, the picker and HUD, input, and the main loop

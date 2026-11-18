@@ -25,6 +25,7 @@ var P_ROPE = 45, P_HOOK_V = 4, P_REEL = 0.22, P_ABSEIL = 0.35;
 var P_CHUTE_V = 1.6, P_CHUTE_H = 30, P_CHUTE_SINK = 0.35, P_CHUTE_FAIL = 0.15;
 /* chores and mischief: hungry enough to go looking for food, bored enough to go and chop wood, bored enough
    to light something (if it is no bigger than P_LIGHT_MAX cells), and how many logs they can carry */
+var P_STARVE = 18000;   /* ticks of hunger that kill */
 var P_HUNGRY = 2500, P_BORED_CHOP = 1200, P_BORED_FIRE = 2700, P_LIGHT_MAX = 40, P_LOGS = 6;
 /* bites per meal, cells per chopping session, and how long before they will chop again */
 var P_BITES = 5, P_CHOPS = 3, P_CHOP_CD = 2400;
@@ -123,6 +124,9 @@ var P_SAY = {
 };
 
 var P_DEATH = {
+  starve: ["{n} starved", "{n} wasted away", "{n} forgot to eat. for a very long time", "{n} died hungry"],
+  old: ["{n} died of old age, in bed", "{n} had a good long life", "{n} lived to a ripe old age", "{n} nodded off, and did not wake up",
+        "{n} went peacefully, full of ideas"],
   fire: ["{n} was flambéed", "{n} is extra crispy now", "{n} got toasted", "{n} became a campfire", "{n} was too hot to handle", "{n} burned out"],
   lava: ["{n} took a lava bath", "{n} is soup now", "{n} found out the floor was lava", "{n} went for a very warm dip"],
   drown: ["{n} couldn't find the surface", "{n} sleeps with the fishes", "{n} drank most of the pond", "{n} should have stayed dry"],
@@ -528,6 +532,7 @@ function peasantsStep(g) {
     P_SINK = !!L[k].sink; pStep(g, L[k]); P_SINK = false;
     iThink(g, L[k]);   /* and a full stomach, whatever it is up to, has time to think (ideas.js) */
   }
+  if ((g.tick % 60) === 0) pLife(g);
   /* fire is contagious; neighbours say hello */
   if ((g.tick & 3) === 0) {
     for (k = 0; k < L.length; k++) {
@@ -549,7 +554,8 @@ function peasantsStep(g) {
   for (k = 0; k < L.length; k++) {
     p = L[k];
     if (p.fire && !p.dead) burning++;
-    if (p.dead || p.state !== "fly" || p.vx * p.vx + p.vy * p.vy < 2) continue;
+    /* (a rocket pack goes up, not through people: the one on it is steering, after a fashion) */
+    if (p.dead || p.state !== "fly" || p.launch || p.vx * p.vx + p.vy * p.vy < 2) continue;
     for (var j2 = 0; j2 < L.length; j2++) {
       q = L[j2];
       if (q === p || q.dead || q.state === "fly" || q.state === "held" || q.state === "space") continue;
@@ -1184,6 +1190,8 @@ function pFly(g, p) {
   n = Math.ceil(spd * 2) || 1;
   for (s = 0; s < n; s++) {
     nx = p.x + p.vx / n; ny = p.y + p.vy / n;
+    /* (on a rocket pack the edge of the world is as good as a wall: they had it pointed at the valley) */
+    if (p.launch && (nx < 1 || nx > gw - 1)) { p.vx = -p.vx * 0.5; nx = p.x; }
     if (nx < -4 || nx > gw + 4 || ny > g.gh + 12) { pLeave(g, p); return; }
     if (ny < -40) { pSpace(g, p); return; }
     if (!pStiffAt(g, nx, ny)) { p.x = nx; p.y = ny; continue; }
@@ -1317,6 +1325,50 @@ function pChute(g, p) {
   if (LIQUID[pCell(g, fx, Math.floor(p.y) - 4)]) { p.chute = null; p.chuteCD = 60; p.falling = false; p.fallY = p.y; p.vy = Math.min(p.vy, 0.3); }
 }
 
+/* -------------------------------------------------------------------
+   OLD AGE, AND NEWCOMERS. a peasant lives a long while (how long is
+   rolled when they are made), and then, asleep or sitting
+   about, goes quietly. and a valley with room in it, and houses, gets
+   somebody new walking in from the edge of it now and then
+   ------------------------------------------------------------------- */
+var P_AGE0 = 40000;         /* how old the first villagers are, at the most, when the valley begins */
+var P_LIFE = 84000;         /* ticks a peasant lives, at the least */
+var P_LIFE_MORE = 30000;    /* and up to this many more */
+var P_ARRIVE = 2400;        /* ticks between newcomers, at the least */
+/* (how old they are, and how long they have, is in their voice: rolled when they were made, so no two villages alike) */
+function pAge(g, p) { if (p.born == null) p.born = (g.tick || 0) - ((p.voice * 7919) | 0) % P_AGE0; return g.tick - p.born; }
+function pLifespan(p) { return P_LIFE + ((p.voice * 104729) | 0) % P_LIFE_MORE; }
+function pLife(g) {
+  var L = g.peasants, k, p, alive = 0;
+  for (k = 0; k < L.length; k++) {
+    p = L[k];
+    if (p.dead) continue;
+    alive++;
+    /* (quietly: in bed or sitting about, on the ground, not in the middle of anything) */
+    if (pAge(g, p) > pLifespan(p) && p.state === "walk" && !p.climb && !p.fire && !p.panic && (p.sleep > 0 || (!p.task && p.idle > 0))) {
+      pDie(g, p, "old"); alive--;
+      /* (somebody new comes along in a while: not the same day) */
+      g.arriveT = Math.max(g.arriveT || 0, g.tick + 1500 + ((p.voice * 31) | 0) % 3000);
+    }
+  }
+  if (g.popGoal == null) { if (g.tick > 60 && alive) g.popGoal = alive; return; }
+  /* somebody new: from whichever edge of the valley has ground to walk in on */
+  if (alive >= g.popGoal || g.tick < (g.arriveT || 0) || !g.hadPeasants || !g.popGoal) return;
+  g.arriveT = g.tick + P_ARRIVE;
+  for (var t = 0; t < 200; t++) {
+    /* (in from one edge, or the other, as far as there is somewhere to stand) */
+    var side = (t & 1) === ((g.tick / P_ARRIVE | 0) % 2) ? 1 : -1, x = side > 0 ? 4 + (t >> 1) : g.gw - 5 - (t >> 1), y = mGround(g, x);
+    if (y < 10 || !pRoom(g, x, y - 1)) continue;
+    var q = peasantSpawn(g, x + 0.5, y - 1, true);
+    if (!q) return;
+    q.born = g.tick - 20000 - ((q.voice * 7919) | 0) % 15000;   /* (grown up, and not yet old) */
+    q.dir = x < g.gw / 2 ? 1 : -1;
+    feed(g, q.name + " has moved to the valley", "#a8e08a", "arrive");
+    pSay(g, q, "arrive", true);
+    if (!g.got.arrive) achieve(g, "arrive");
+    return;
+  }
+}
 function pSpace(g, p) {
   p.state = "space"; p.spaceT = 200 + irnd(300);
   feed(g, p.name + " has gone to space", "#9ad0ff");
@@ -1382,6 +1434,7 @@ function pWalk(g, p, wading) {
   /* water is fine. a bit wet */
   if (wading && !p.wade && !p.fire && Math.random() < 0.3) pSay(g, p, "wade");
   p.wade = wading;
+  p.wadeT = wading ? (p.wadeT || 0) + 1 : 0;
   if (p.idle > 0 && !scared && !(p.cold > 150 && !p.byFire)) { p.idle--; if (Math.random() < 0.008) p.dir = -p.dir; if (p.ivx) pGlide(g, p); }
   else {
     /* look where you are going */
@@ -1412,8 +1465,14 @@ function pWalk(g, p, wading) {
     }
     /* things going bang: home, if there is one to run to */
     if (p.panic > 0 && !p.fire && !wading && !iFlee(g, p)) bHide(g, p);   /* (a house on fire is not somewhere to hide: ideas.js) */
-    /* something to do: go there, and do it */
-    if (!scared && !wading) {
+    /* something to do: go there, and do it. (paddling about is no time for it: unless they have been in a good while,
+       a pit with something runny in the bottom of it, say, or are hungry, when it is time to be off and find food) */
+    if (!scared && (!wading || p.wadeT > 300 || p.hunger > P_HUNGRY)) {
+      /* (starving, and busy with something else: down tools, and look for food first. once: if there is none to be had,
+         eatCD keeps them at the job) */
+      if (p.task && p.task.kind !== "eat" && p.hunger > P_HUNGRY * 4 && !p.eatCD && !p.climb && !p.rope && (p.anim % 60) === 0) {
+        pFoodTask(g, p);
+      }
       if (!p.task && !p.taskCD && (p.anim % 20) === 0) pPickTask(g, p);
       if (p.task) {
         var busy = pTask(g, p);
@@ -1440,6 +1499,9 @@ function pWalk(g, p, wading) {
   }
   /* time passes. stomachs rumble, and nothing happens, and nothing goes on happening */
   p.hunger = (p.hunger || 0) + 1;
+  /* (a very long time without anything: weak with it, and in the end, gone. it takes the best part of five minutes) */
+  if (p.hunger > P_STARVE) { pDie(g, p, "starve"); return; }
+  if (p.hunger > P_STARVE * 0.6 && p.sayT <= 0 && Math.random() < 0.003) pSay(g, p, "starving", true);
   p.tired = (p.tired || 0) + 1;
   if (scared) p.bored = 0; else p.bored = (p.bored || 0) + 1;
   if (!scared && --p.chat <= 0) {
@@ -1565,6 +1627,42 @@ function pFind(g, p, set, R, ok, far) {
   }
   return null;
 }
+/* the nearest ripe wheat in any field, however far: where the really hungry go (a field is what it is there for, and
+   somebody got to it to sow it), rather than a bush up a cliff somewhere they cannot get to */
+/* is (x, y) in a field p has lately found it cannot get to (pFieldFood, pGiveUp) */
+function pNoField(g, p, x, y) {
+  if (!p.noField || !P_FOOD[pCell(g, x, y)]) return false;
+  var f = bSiteAround(g, x, y, "farm", 1);
+  return !!f && p.noField[f.id] > g.tick;
+}
+function pFieldFood(g, p) {
+  var C = [], k, j, s, e, x, y, d, best, h = navHere(g, p);
+  if (!p.noField) p.noField = {};
+  for (k in p.noField) if (p.noField[k] <= g.tick) delete p.noField[k];   /* (forgotten, in time) */
+  for (k = 0; k < g.sites.length; k++) {
+    s = g.sites[k];
+    if (s.kind !== "farm" || p.noField[s.id] > g.tick || pAvoid(g, p, s.cx)) continue;
+    /* (the ripe ears are at the tops of the stalks, over the cells that were sown) */
+    for (best = null, j = 0; j < s.plan.length; j++) {
+      e = s.plan[j];
+      if (e.v !== MAT.CROP) continue;
+      x = e.i % g.gw;
+      for (y = (e.i / g.gw) | 0; y >= 0 && g.m[y * g.gw + x] === MAT.CROP; y--);   /* (up the green stalk, to the ear) */
+      if (y < 0 || g.m[y * g.gw + x] !== MAT.WHEAT) continue;
+      d = Math.abs(x + 0.5 - p.x) + Math.abs(y - p.y);
+      if ((!best || d < best.d) && pEdible(g, x, y)) best = { x: x, y: y, d: d, s: s };
+    }
+    if (best) C.push(best);
+  }
+  C.sort(function (a, b) { return a.d - b.d; });
+  /* (the nearest they can get to: a field across a lake, or past a wall, is no use to them, and is let be a while) */
+  for (k = 0; k < C.length && k < 4; k++) {
+    var c = C[k];
+    if (!h || navFind(g, h.x, h.y, pathNear(c.x, c.y, 3, 10, 2), c.x, c.y)) return c;   /* (the reach the eat task walks to: pTask) */
+    p.noField[c.s.id] = g.tick + 6000;
+  }
+  return null;
+}
 /* food is what grows up out of the ground: follow it down, through more of itself, to soil. a roof (it ends in wood)
    and a tree's crown (it ends in air) are not food. and leave a few of every patch, so it can grow back. (not wheat:
    wheat is grown to be eaten, all of it, and the field is sown again) */
@@ -1605,7 +1703,16 @@ function pBuilt(g, x0, y0) {
   }
   return false;
 }
-function pChoppable(g, x, y) { return !bMarked(g, x, y) && !pBuilt(g, x, y); }
+function pChoppable(g, x, y) { return !bMarked(g, x, y) && !pBuilt(g, x, y) && !pGrowing(g, x, y); }
+/* a tree still growing: its trunk goes up into a live sapling tip. nobody chops one of those (it was planted for later) */
+function pGrowing(g, x, y) {
+  for (var k = 0; k < 16 && y - k >= 0; k++) {
+    var c = g.m[(y - k) * g.gw + x];
+    if (c === MAT.SAPLING) return true;
+    if (c !== MAT.WOOD) return false;
+  }
+  return false;
+}
 /* the next stroke of a cut: wood near the last stroke on the same row, else the lowest near it */
 function pFindCut(g, p, cx, row) {
   var fy = Math.floor(p.y), fx = Math.floor(p.x), best = null, x, y;
@@ -1707,18 +1814,20 @@ function pSafeToLight(g, p, x0, y0) {
 function pClear(p, b) { return p.x < b.x1 ? b.x1 - p.x : (p.x > b.x2 + 1 ? p.x - b.x2 - 1 : 0); }
 /* somewhere they could build a campfire at x: flat ground, open sky over it, nothing flammable near, nobody else
    close, and them a few cells off to one side of it */
+/* what a campfire is built of: logs, or coal out of the mine */
+function pFuel(c) { return c === MAT.WOOD || c === MAT.COAL; }
 function pCampOk(g, p, x, fy, stacked) {
   var k, y, c, clear = pClear(p, { x1: x - 1, x2: x + 1 });
   if (clear < 2.5 || clear > 5 || Math.abs(p.y - fy) > 1.5) return false;
   if (bSiteAround(g, x, fy, null, 3)) return false;   /* not on somebody's field, or by their cross: the bucket brigade would only put it out */
   for (k = -1; k <= 1; k++) {
-    if (!pSolid(g, x + k, fy + 1) && !(stacked && pCell(g, x + k, fy + 1) === MAT.WOOD)) return false;
-    /* empty, or (once they have stacked them) their own logs */
-    for (y = fy - 1; y <= fy; y++) { c = pCell(g, x + k, y); if (!AIRY[c] && !(stacked && c === MAT.WOOD)) return false; }
+    if (!pSolid(g, x + k, fy + 1) && !(stacked && pFuel(pCell(g, x + k, fy + 1)))) return false;
+    /* empty, or (once they have stacked them) their own logs, or coal */
+    for (y = fy - 1; y <= fy; y++) { c = pCell(g, x + k, y); if (!AIRY[c] && !(stacked && pFuel(c))) return false; }
   }
   for (y = fy - 20; y <= fy + 1; y++) for (k = -5; k <= 5; k++) {
     c = pCell(g, x + k, y);
-    if ((P_FLAM[c] && !(y >= fy - 1 && Math.abs(k) <= 1 && c === MAT.WOOD)) || (y < fy - 1 && SOLID[c] && Math.abs(k) <= 2)) return false;
+    if ((P_FLAM[c] && !(y >= fy - 1 && Math.abs(k) <= 1 && pFuel(c))) || (y < fy - 1 && SOLID[c] && Math.abs(k) <= 2)) return false;
   }
   for (k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
@@ -1726,29 +1835,42 @@ function pCampOk(g, p, x, fy, stacked) {
   }
   return true;
 }
+/* something to eat, if they are hungry and there is some to be had: an eat task, and true. (a peasant who went looking
+   for food and found none gets on with other things for a while. really hungry: further, and further up and down, out
+   of a mine to the fields, ripe wheat first. starving: anywhere at all) */
+function pFoodTask(g, p) {
+  var t = null, edible = function (g2, x, y) { return !pAvoid(g2, p, x) && pEdible(g2, x, y) && !pNoField(g2, p, x, y); };
+  if (p.hunger > P_HUNGRY && !p.eatCD) {
+    var vh = p.hunger > P_HUNGRY * 2;
+    t = (vh && pFieldFood(g, p)) || pFind(g, p, P_FOOD, p.hunger > P_HUNGRY * 4 ? g.gw : (vh ? 220 : 60), edible, vh ? 90 : 40);
+    if (!t) p.eatCD = vh ? 400 : 900;
+  }
+  else if (p.hunger > 900) t = pFind(g, p, P_FOOD, 4, edible);   /* a snack, if it is right there */
+  if (!t) return false;
+  p.task = { kind: "eat", x: t.x, y: t.y, t: 0, act: 0, n: 0, want: p.hunger > P_HUNGRY * 2 };   /* (a long walk, for the really hungry) */
+  return true;
+}
 function pPickTask(g, p) {
   var t = null, b;
   /* the village is on fire, and they know about buckets: that comes before anything (ideas.js) */
   if (iUrgent(g, p)) return;
+  /* really hungry: food comes before rocket packs and building (pFoodTask again, below, for the merely peckish) */
+  if (p.hunger > P_HUNGRY * 2 && pFoodTask(g, p)) return;
   /* iron in their pocket and oil in a tank: a rocket pack (oil.js) */
   if (oFirst(g, p)) return;
   /* wood in hand and something to build with it: that comes before lunch */
-  if (bCarries(p) && p.cold <= 80) { var bs = bNearestSite(g, p, 170); if (bs) { bJoin(g, p, bs); return; } }
-  var edible = function (g2, x, y) { return !pAvoid(g2, p, x) && pEdible(g2, x, y); };
+  if (bCarries(p) && p.cold <= 80 && p.hunger <= P_HUNGRY * 2) {   /* (unless they are really hungry) */ var bs = bNearestSite(g, p, 170); if (bs) { bJoin(g, p, bs); return; } }
   var choppable = function (g2, x, y) { return !pAvoid(g2, p, x) && pChoppable(g2, x, y); };
-  /* (a peasant who went looking for food and found none gets on with other things for a while) */
-  if (p.hunger > P_HUNGRY && !p.eatCD) { t = pFind(g, p, P_FOOD, 60, edible, 40); if (!t) p.eatCD = 900; }
-  else if (p.hunger > 900) t = pFind(g, p, P_FOOD, 4, edible);   /* a snack, if it is right there */
-  if (t) { p.task = { kind: "eat", x: t.x, y: t.y, t: 0, act: 0, n: 0 }; return; }
+  if (pFoodTask(g, p)) return;
   /* bed, warmth, building, planting: see build.js. bright ideas, and what came of them: ideas.js */
   if (bPick(g, p)) return;
   if (iPick(g, p)) return;
   if (p.bored > P_BORED_FIRE && Math.random() < 0.25) {
     t = pFind(g, p, P_TINDER, 40);
     if (t && (b = pSafeToLight(g, p, t.x, t.y))) { p.task = { kind: "light", x: t.x, y: t.y, b: b, t: 0, act: 0 }; return; }
-    if ((p.logs || 0) >= 3) {
+    if ((p.logs || 0) >= 3 || (p.coal || 0) >= 3) {
       var cx = Math.floor(p.x) + p.dir * 5;   /* the near log three to four cells off */
-      if (pCampOk(g, p, cx, Math.floor(p.y))) { p.task = { kind: "camp", x: cx, y: Math.floor(p.y), t: 0, act: 0 }; return; }
+      if (pCampOk(g, p, cx, Math.floor(p.y))) { p.task = { kind: "camp", x: cx, y: Math.floor(p.y), t: 0, act: 0, coal: (p.logs || 0) < 3 }; return; }
     }
   }
   /* wood: when bored, or when there is something to build with it */
@@ -1757,6 +1879,7 @@ function pPickTask(g, p) {
     t = pFind(g, p, P_WOOD, want ? 140 : (p.bored > P_BORED_CHOP ? 40 : 3), choppable, want ? 60 : 0);
     if (t) { p.task = { kind: "chop", x: t.x, y: t.y, t: 0, act: 0, n: 0, want: want }; return; }
     /* wood wanted, and not a tree left standing: somebody had better plant some */
+    if (want) iTreeless(g, p);   /* (and somebody had better think about that: ideas.js) */
     if (want && !p.plantCD) { p.wantPlant = true; p.plantCD = 2400; }
   }
 }
@@ -1768,7 +1891,12 @@ function pStuck(p, k, d) {
 }
 /* give up on a job they could not get to, and steer clear of that spot for a while */
 function pGiveUp(g, p, x) {
-  if (p.task && p.task.kind === "eat") p.eatCD = 900;
+  if (p.task && p.task.kind === "eat") {
+    p.eatCD = p.hunger > P_HUNGRY * 2 ? 300 : 900;
+    /* (a field they could not get to is let be a while: there may be another they can. pFieldFood) */
+    var f = bSiteAround(g, p.task.x, p.task.y, "farm", 1);
+    if (f) { if (!p.noField) p.noField = {}; p.noField[f.id] = g.tick + 6000; }
+  }
   p.avoidX = x; p.avoidT = g.tick + 2400; p.task = null; p.taskCD = 120;
 }
 function pAvoid(g, p, x) { return p.avoidT > g.tick && Math.abs(x - p.avoidX) < 10; }
@@ -1777,7 +1905,7 @@ function pTask(g, p) {
   var k = p.task, b = bTask(g, p, k);
   if (b !== undefined) return b;
   var gw = g.gw, fx = Math.floor(p.x), fy = Math.floor(p.y), j = k.y * gw + k.x, c, set, more, ok;
-  if (++k.t > (k.want ? 2400 : 900)) { p.task = null; return false; }
+  if (++k.t > (k.want ? 2400 : 900)) { if (k.kind === "eat") pGiveUp(g, p, k.x); else p.task = null; return false; }   /* (food they never got to: let be) */
   set = k.kind === "eat" ? P_FOOD : (k.kind === "chop" ? P_WOOD : (k.kind === "light" ? P_TINDER : null));
   ok = k.kind === "eat" ? pEdible : (k.kind === "chop" ? pChoppable : null);
   /* the thing went away (somebody else ate it, it burned...): find another like it close by, or give up */
@@ -1816,8 +1944,10 @@ function pTask(g, p) {
   }
   k.act++;
   if (k.kind === "chop") {
-    p.pose = (k.act % 24) < 12 ? "chopA" : "chopB";
-    if (k.act % 24 === 12) {
+    var cb = p.tools ? 14 : 24;   /* (an iron axe bites deeper: mines.js) */
+    p.pose = (k.act % cb) < (cb >> 1) ? "chopA" : "chopB";
+    if (k.act % cb === (cb >> 1)) {
+      mWear(g, p);
       if (pBuilt(g, k.x, k.y)) { p.task = null; return true; }   /* on second thoughts, somebody lives in that */
       g.m[j] = MAT.EMPTY; heatSync(g, j); g.fx.thud++;   /* (the air keeps the heat the wood had) */
       pChips(g, k.x + 0.5, k.y + 0.5, 5, [SAND_PAL[MAT.WOOD][40], SAND_PAL[MAT.WOOD][200]]);
@@ -1867,9 +1997,10 @@ function pTask(g, p) {
     if ((k.act === 20 || k.act === 60) && !pCampOk(g, p, k.x, k.y, k.act === 60)) { p.task = null; return false; }
     if (k.act === 20) {
       var stack = [[k.x - 1, k.y], [k.x + 1, k.y], [k.x, k.y], [k.x, k.y - 1]], placed = 0;
-      for (var s = 0; s < stack.length && p.logs > 0; s++) {
+      var fuel = k.coal ? "coal" : "logs";
+      for (var s = 0; s < stack.length && p[fuel] > 0; s++) {
         var si = stack[s][1] * gw + stack[s][0];
-        if (g.m[si] === MAT.EMPTY) { sandSet(g, si, MAT.WOOD); p.logs--; placed++; }
+        if (g.m[si] === MAT.EMPTY) { sandSet(g, si, k.coal ? MAT.COAL : MAT.WOOD); p[fuel]--; placed++; }
       }
       if (!placed) { p.task = null; return false; }
       g.fx.thud++;
@@ -1878,10 +2009,10 @@ function pTask(g, p) {
     if (k.act === 60) {
       /* light one of the logs they stacked (not whatever drifted into the gap) */
       var log = -1;
-      for (var lx = k.x - 1; lx <= k.x + 1 && log < 0; lx++) for (var ly = k.y; ly >= k.y - 1 && log < 0; ly--) if (g.m[ly * gw + lx] === MAT.WOOD) log = ly * gw + lx;
+      for (var lx = k.x - 1; lx <= k.x + 1 && log < 0; lx++) for (var ly = k.y; ly >= k.y - 1 && log < 0; ly--) if (pFuel(g.m[ly * gw + lx])) log = ly * gw + lx;
       if (log < 0) { p.task = null; return false; }
       pIgniteCell(g, log);
-      feed(g, p.name + " made a campfire", "#ffb070");
+      feed(g, p.name + (k.coal ? " made a fire of coal. it will be going for a while" : " made a campfire"), "#ffb070", k.coal ? "coalfire" : null);
       achieve(g, "camp");
       pSay(g, p, "camp", true);
       p.bored = 0; p.calmT = 600; p.task = null; p.taskDone = true; p.idle = 150;   /* and stand there admiring it */
@@ -1896,9 +2027,9 @@ function pIgniteCell(g, j, spread) {
   /* a match: no heat to speak of. the burning makes the heat. the cell keeps exactly the heat it had */
   heatSync(g, j);
   var q = heatQ(g, j);
-  if (v === MAT.WOOD) g.m[j] = MAT.EMBER;
-  else { g.m[j] = MAT.FIRE; g.sh[j] = irnd(128); }
-  g.aux[j] = 0;
+  if (v === MAT.WOOD) { g.m[j] = MAT.EMBER; g.aux[j] = 0; }
+  else if (v === MAT.COAL) { g.m[j] = MAT.EMBER; g.aux[j] = 1; }   /* (coal smoulders a long while: heat.js) */
+  else { g.m[j] = MAT.FIRE; g.sh[j] = irnd(128); g.aux[j] = 0; }
   heatSetQ(g, j, q);
   g.fx.whoosh++;
   /* a match held to a bush catches a few twigs, not just the one */
