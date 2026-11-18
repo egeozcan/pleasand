@@ -686,28 +686,30 @@ function iFarmReach(g, p, r) {
 function iFarmNo(g, a, b, t) { if (!g.farmNo) g.farmNo = {}; for (var x = a - I_FARM_W - 2; x <= b + 2; x++) g.farmNo[x] = g.tick + t; }
 /* somewhere in the whole valley for a field, not over columns xa .. xb (and a little either side): the plot, or null */
 function iFarmSpot(g, xa, xb) {
-  var best = null, x0, G, r;
-  for (x0 = 4; x0 < g.gw - I_FARM_W - 4; x0++) {
+  var best = null, x0, G, r, pass;
+  for (pass = 0; pass < 2 && !best; pass++) for (x0 = 4; x0 < g.gw - I_FARM_W - 4; x0++) {
     if (xa >= 0 && x0 + I_FARM_W + 3 >= xa && x0 - 3 <= xb) continue;
     if (g.farmNo && g.farmNo[x0] > g.tick) continue;
     G = mGround(g, x0 + (I_FARM_W >> 1));
-    if (G < 0 || !(r = iFarmPlot(g, x0, G - 1))) continue;
+    if (G < 0 || !(r = iFarmPlot(g, x0, G - 1, pass === 1))) continue;   /* (flat first: then the lumpy, if that is all there is) */
     if (!best || r.work < best.work) { best = r; best.score = r.work; }
   }
   return best;
 }
-function iFarmPlot(g, x0, fy) {
+function iFarmPlot(g, x0, fy, loose) {
   var x1 = x0 + I_FARM_W - 1, gy = [], dig = [], lo = 1e9, hi = -1, x, y, c, k, G;
+  /* (loose: lumpier ground will do, a field following the lie of the land, when there is no flat ground left at all) */
+  var step = loose ? 2 : 1, lump = loose ? 4 : 2;
   if (x0 < 4 || x1 > g.gw - 5) return null;
   for (x = x0; x <= x1; x++) {
     G = bGround(g, x, fy);
     if (G < 0 || bMarked(g, x, G)) return null;
     c = pCell(g, x, G);
     if (c !== MAT.SAND && c !== MAT.ASH && c !== MAT.SOIL) return null;
-    if (gy.length && Math.abs(G - gy[gy.length - 1]) > 1) return null;
+    if (gy.length && Math.abs(G - gy[gy.length - 1]) > step) return null;
     gy.push(G); lo = Math.min(lo, G); hi = Math.max(hi, G);
   }
-  if (hi - lo > 2) return null;
+  if (hi - lo > lump) return null;
   for (k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (x1 + 3 >= s.x0 && x0 - 3 <= s.x1 && hi + 3 >= s.y0 && lo - 12 <= s.y1) return null;

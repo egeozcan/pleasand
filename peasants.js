@@ -799,7 +799,7 @@ function pSwim(g, p, sub) {
   else target = 0;
   p.vy += (target - p.vy) * 0.2 + Math.sin(p.anim * 0.12) * 0.01;   /* a little bob */
   var ny = p.y + p.vy;
-  if (p.vy < 0 && pSolid(g, fx, Math.floor(ny) - 8)) p.vy = 0;
+  if (p.vy < 0 && pBody(g, fx, Math.floor(ny) - 8)) p.vy = 0;   /* (up through leaves, weed, a bush grown out over the water: only something hard stops them) */
   else if (p.vy > 0 && pGround(g, fx, fy)) p.vy = 0;
   else p.y = ny;
   /* the burning swim for it too, and the cold swim slower */
@@ -1467,13 +1467,24 @@ function pWalk(g, p, wading) {
          for the nearest bucket too, and looks further (ideas.js) */
       var best = 999, reach = g.know.bucket ? 120 : 50;
       if (pTryDive(g, p, fx, fy)) return;   /* (on a bridge: the water is right under them) */
+      /* (on a bush over a pond: down through it, into the water) */
+      for (var dd = 1; dd <= 10; dd++) {
+        var cd = pCell(g, fx, fy + dd);
+        if (WET[cd]) { if (!p.sink) { p.sink = fy + dd; p.sinkT = 60; p.hold = true; } return; }
+        if (!P_SOFT[cd] && !AIRY[cd]) break;
+      }
+      /* (up a slope, or down one: water a good way above or below them counts too, and a way to it is looked for) */
+      var wy = -1;
       for (var dx = -reach; dx <= reach; dx += 2) {
-        var c0 = pCell(g, fx + dx, fy + 1), c1 = pCell(g, fx + dx, fy + 3);
-        if ((WET[c0] || WET[c1]) && Math.abs(dx) < Math.abs(best)) best = dx;
+        if (Math.abs(dx) >= Math.abs(best)) continue;
+        for (var dy = -16; dy <= 14; dy += 2) if (WET[pCell(g, fx + dx, fy + dy)] && !WET[pCell(g, fx + dx, fy + dy - 2)]) { best = dx; wy = fy + dy; break; }
       }
       var help = iRescuer(g, p);
-      if (help && Math.abs(help.x - p.x) < Math.abs(best)) best = help.x - p.x;
-      if (best !== 999) p.dir = best < 0 ? -1 : 1;
+      if (help && Math.abs(help.x - p.x) < Math.abs(best)) { best = help.x - p.x; wy = -1; }
+      if (best !== 999) {
+        var wx = fx + best, gone = wy < 0 ? -1 : pathGo(g, p, "wet" + wx + "," + wy, wx, wy, function (x, y) { return Math.abs(x - wx) <= 3 && y >= wy - 4 && y <= wy + 6; });
+        if (gone < 0) p.dir = best < 0 ? -1 : 1;   /* (no way there that they can see: straight at it) */
+      }
       else if (Math.random() < 0.3) p.dir = -p.dir;
     }
     /* things going bang: home, if there is one to run to */

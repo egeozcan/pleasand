@@ -27,6 +27,7 @@
 var NAV_CAP = 4000;                 /* places looked at, at most, per search */
 var NAV_REPLAN = 240;               /* ticks a route is trusted for */
 var NAV_NOROPE = false;             /* set while looking for a route for somebody who cannot use a rope just now */
+var NAV_NOLEAP = false;             /* and for somebody who cannot leap (burning) */
 var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder", "hook", "up", "down"];
 var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5, NAV_HOOK = 6, NAV_UP = 7, NAV_DOWN = 8;
 
@@ -68,7 +69,7 @@ function navEdges(g, x, y, add) {
         else add(nx, ny + d, 3 + d * 0.25 + (d > 34 ? 40 : 0), NAV_DROP);
       }
       /* or leap it, if it is a real gap and there is a far side close enough (pTryLeap) */
-      if (d > 6 && navCanLeap(g, x, y)) {
+      if (d > 6 && !NAV_NOLEAP && navCanLeap(g, x, y)) {
         /* the landing pTryLeap would aim for is the first one it finds: the leap is only a route if that one is safe */
         for (j = 3; j <= P_GAP; j++) {
           var lx = x + s * j, hit = false;
@@ -240,11 +241,12 @@ function pathGo(g, p, key, tx, ty, goal) {
     var here = navHere(g, p);
     if (here && goal(here.x, here.y)) { p.nav = { key: key, path: [], i: 0, t: g.tick, off: 0 }; return 0; }
     /* (a rope they cannot use yet, after a fall off one: no routes that need it, until they can) */
-    NAV_NOROPE = p.ropeCD > 0;
+    /* (burning, too: no rope, no hook, no leap. pTryHook, pTryLeap) */
+    NAV_NOROPE = p.ropeCD > 0 || !!p.fire; NAV_NOLEAP = !!p.fire;
     var path = here ? navFind(g, here.x, here.y, goal, tx, ty) : null;
-    NAV_NOROPE = false;
+    NAV_NOROPE = NAV_NOLEAP = false;
     /* (no way without one: the way with one, then, and they wait at the foot of it until they can) */
-    if (!path && here && p.ropeCD > 0) path = navFind(g, here.x, here.y, goal, tx, ty);
+    if (!path && here && p.ropeCD > 0 && !p.fire) path = navFind(g, here.x, here.y, goal, tx, ty);
     if (!path) { p.nav = { key: key, none: g.tick + 120, path: [], i: 0, t: g.tick, off: 0 }; return -1; }
     nv = p.nav = { key: key, path: path, i: 0, t: g.tick, off: 0 };
   }
