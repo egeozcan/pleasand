@@ -626,7 +626,7 @@ function pStep(g, p) {
   } else if (p.acid > 0) p.acid = Math.max(0, p.acid - 0.3);
   var liquid = LIQUID[cm] || LIQUID[cf], sub = LIQUID[ch] && ch !== MAT.LAVA;
   if (p.fire && (WET[cm] || WET[cf] || WET[ch] || WET[cb])) {
-    p.fire = 0; g.fx.hiss++;
+    p.fire = 0; p.fireTo = null; g.fx.hiss++;
     pSay(g, p, "phew", true);
     sparks(g, p.x, p.y - 8, 6, 0.4, [hex32("#c0d0e0")], 14, 0.6, PK_GLINT);   /* steam, not sparks */
   }
@@ -1392,6 +1392,12 @@ function pHotAt(g, x, y) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.
 /* walking. a few cells of step up, a couple of step down, jump what is taller or wider, turn at the rest */
 /* into column x from feet at row y, with no room at that height (pStepUp said a wall): room a step or two lower, and
    ground to stand on there. how far down (1 or 2), or 0 */
+/* burning, and running for the water at p.fireTo: a step along the way there (paths.js). how far is left, or -1 if there
+   is no way */
+function pFireGo(g, p) {
+  var t = p.fireTo;
+  return pathGo(g, p, "wet" + t.x + "," + t.y, t.x, t.y, function (x, y) { return Math.abs(x - t.x) <= 3 && y >= t.y - 4 && y <= t.y + 6; });
+}
 function pDuckUnder(g, x, y) {
   for (var d = 1; d <= 2; d++) if (pRoom(g, x, y + d) && pGround(g, x, y + d) && !navHazard(g, x, y + d)) return d;   /* (not onto a drain, or into a fire) */
   return 0;
@@ -1473,19 +1479,20 @@ function pWalk(g, p, wading) {
         if (WET[cd]) { if (!p.sink) { p.sink = fy + dd; p.sinkT = 60; p.hold = true; } return; }
         if (!P_SOFT[cd] && !AIRY[cd]) break;
       }
-      /* (up a slope, or down one: water a good way above or below them counts too, and a way to it is looked for) */
-      var wy = -1;
-      for (var dx = -reach; dx <= reach; dx += 2) {
-        if (Math.abs(dx) >= Math.abs(best)) continue;
-        for (var dy = -16; dy <= 14; dy += 2) if (WET[pCell(g, fx + dx, fy + dy)] && !WET[pCell(g, fx + dx, fy + dy - 2)]) { best = dx; wy = fy + dy; break; }
-      }
+      /* (up a slope, or down one: water a good way above or below them counts too. the nearest few they can find a
+         way to: the first of those is where they run, along the way, every step of it. pFireGo) */
+      var W = [];
+      for (var dx = -reach; dx <= reach; dx += 2)
+        for (var dy = -16; dy <= 14; dy += 2) if (WET[pCell(g, fx + dx, fy + dy)] && !WET[pCell(g, fx + dx, fy + dy - 2)]) { W.push({ x: fx + dx, y: fy + dy, d: Math.abs(dx) }); break; }
+      W.sort(function (a, b) { return a.d - b.d; });
       var help = iRescuer(g, p);
-      if (help && Math.abs(help.x - p.x) < Math.abs(best)) { best = help.x - p.x; wy = -1; }
-      if (best !== 999) {
-        var wx = fx + best, gone = wy < 0 ? -1 : pathGo(g, p, "wet" + wx + "," + wy, wx, wy, function (x, y) { return Math.abs(x - wx) <= 3 && y >= wy - 4 && y <= wy + 6; });
-        if (gone < 0) p.dir = best < 0 ? -1 : 1;   /* (no way there that they can see: straight at it) */
-      }
-      else if (Math.random() < 0.3) p.dir = -p.dir;
+      p.fireTo = null;
+      for (var wk = 0; wk < W.length && wk < 3 && !p.fireTo; wk++) { p.fireTo = W[wk]; if (pFireGo(g, p) < 0) p.fireTo = null; }
+      if (help && (!p.fireTo || Math.abs(help.x - p.x) < Math.abs(p.fireTo.x - p.x))) { p.fireTo = null; p.dir = help.x < p.x ? -1 : 1; }
+      else if (!p.fireTo && W.length) p.dir = W[0].x < fx ? -1 : 1;   /* (no way to any that they can see: straight at the nearest) */
+      else if (!p.fireTo && Math.random() < 0.3) p.dir = -p.dir;
+    } else if (p.fireTo) {
+      pFireGo(g, p);   /* (on along the way to the water, between looks) */
     }
     /* things going bang: home, if there is one to run to */
     if (p.panic > 0 && !p.fire && !wading && !iFlee(g, p)) bHide(g, p);   /* (a house on fire is not somewhere to hide: ideas.js) */
@@ -1692,7 +1699,10 @@ function pFieldFood(g, p) {
     return best;   /* (the nearest of them, from there) */
   }
   var P = navFind(g, h.x, h.y, function (X, Y) { return !!reach(X, Y); }, near.x, near.y);
-  if (P) { var end = P.length ? P[P.length - 1] : h; return reach(end.x, end.y) || near; }
+  if (P) {
+    if (!P.length) { var here = reach(h.x, h.y); return here && Math.abs(near.x - h.x) <= 3 && near.y >= h.y - 10 && near.y <= h.y + 2 ? near : (here || near); }   /* (in reach already: the nearest) */
+    var end = P[P.length - 1]; return reach(end.x, end.y) || near;
+  }
   for (k in ids) p.noField[k] = g.tick + 6000;
   return null;
 }

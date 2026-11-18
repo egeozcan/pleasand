@@ -276,12 +276,12 @@ function pathGo(g, p, key, tx, ty, goal) {
   /* the route hooks a ledge from here: throw the hook (before the walking carries them on under it) */
   if (n.m === NAV_HOOK && !p.rope) {
     var hs = n.x > Math.floor(p.x) ? 1 : -1;
-    if (Math.floor(p.x) === n.x - hs) { if (p.ropeCD) p.idle = 10; else if (!pTryHook(g, p, Math.floor(p.x), Math.floor(p.y), hs)) pathStale(p); }   /* (a rope they cannot use yet: wait) */
+    if (Math.floor(p.x) === n.x - hs) { if (p.ropeCD) p.hold = true; else if (!pTryHook(g, p, Math.floor(p.x), Math.floor(p.y), hs)) pathStale(p); }   /* (a rope they cannot use yet: wait) */
   }
   /* the route goes straight up through a tree from here, or down through it: as soon as they are in the column */
   if ((n.m === NAV_UP || n.m === NAV_DOWN) && !p.rope && !p.jumping && Math.floor(p.x) === n.x) {
     var ux = Math.floor(p.x), uy = Math.floor(p.y), u = n.m === NAV_UP ? navUp(g, ux, uy) : -1;
-    if (n.m === NAV_UP && u >= 0 && uy - u > P_JUMP && p.ropeCD) p.idle = 10;   /* (up there on a rope they cannot use yet: wait) */
+    if (n.m === NAV_UP && u >= 0 && uy - u > P_JUMP && p.ropeCD) p.hold = true;   /* (up there on a rope they cannot use yet: wait) */
     else if (n.m === NAV_UP ? !(u >= 0 && pTryUp(g, p, ux, uy, u)) : !pTrySink(g, p, ux, uy, 76)) pathStale(p);
   }
   /* the route goes up (or down) a ladder from here: on they get, whether or not there is a wall in front of them */
