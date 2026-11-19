@@ -254,7 +254,9 @@ function pathGo(g, p, key, tx, ty, goal) {
     if (!path) { p.nav = { key: key, none: g.tick + 120, path: [], i: 0, t: g.tick, off: 0 }; return -1; }
     nv = p.nav = { key: key, path: path, i: 0, t: g.tick, off: 0 };
   }
-  var P = nv.path, n;
+  var P = nv.path, n, py = p.y;
+  /* (swimming: where they are is the top of the water, as the route has it, not their feet down in it) */
+  if (p.swimming) { var sh = navHere(g, p); if (sh) py = sh.y; }
   /* past the places already reached. a step through a tree needs the row to be
      exactly right: a couple of rows of walking slack would otherwise count as
      arriving at the top of the bush, and the sink from up there goes nowhere.
@@ -263,7 +265,7 @@ function pathGo(g, p, key, tx, ty, goal) {
   while (nv.i < P.length) {
     var here = P[nv.i], next = P[nv.i + 1];
     var vtol = next && (next.m === NAV_UP || next.m === NAV_DOWN || next.m === NAV_HOOK) ? 0.75 : 3.5;   /* (a hook, too: thrown from a row off, it does not catch) */
-    if (!(Math.abs(p.x - here.x - 0.5) < 0.7 && Math.abs(p.y - here.y) < vtol)) break;
+    if (!(Math.abs(p.x - here.x - 0.5) < 0.7 && Math.abs(py - here.y) < vtol)) break;
     nv.i++;
   }
   if (nv.i >= P.length) return 0;
@@ -273,14 +275,17 @@ function pathGo(g, p, key, tx, ty, goal) {
   var pfx = Math.floor(p.x), pfy = Math.floor(p.y);
   if (n.y > pfy && Math.abs(n.x - pfx) <= 1 && !p.rope && !p.jumping && !p.sink && P_SOFT[pCell(g, pfx, pfy + 1)]) pTrySink(g, p, pfx, pfy, n.y - pfy + 6);
   /* wandered off it (a fall, a shove, a swim that drifted): plan again soon */
-  if (Math.abs(p.x - n.x - 0.5) + Math.abs(p.y - n.y) > 14) nv.off++;
-  var dx = n.x + 0.5 - p.x;
+  if (Math.abs(p.x - n.x - 0.5) + Math.abs(py - n.y) > 14) nv.off++;
+  /* (a hook is thrown from the column beside the ledge, the place before it on the route: that is where to be, not
+     under the ledge. a swimmer drifts on past it otherwise) */
+  var hx = n.m === NAV_HOOK ? (nv.i > 0 ? P[nv.i - 1].x : (n.x > Math.floor(p.x) ? n.x - 1 : n.x + 1)) : n.x;
+  var dx = hx + 0.5 - p.x;
   if (Math.abs(dx) > 0.3) p.dir = dx < 0 ? -1 : 1;
   p.navMove = NAV_MOVES[n.m];
   /* the route hooks a ledge from here: throw the hook (before the walking carries them on under it) */
   if (n.m === NAV_HOOK && !p.rope) {
-    var hs = n.x > Math.floor(p.x) ? 1 : -1;
-    if (Math.floor(p.x) === n.x - hs) { if (p.ropeCD) p.hold = true; else if (!pTryHook(g, p, Math.floor(p.x), Math.floor(p.y), hs)) pathStale(p); }   /* (a rope they cannot use yet: wait) */
+    var hs = n.x > hx ? 1 : -1;
+    if (Math.floor(p.x) === hx) { if (p.ropeCD) p.hold = true; else if (!pTryHook(g, p, Math.floor(p.x), Math.floor(p.y), hs)) pathStale(p); }   /* (a rope they cannot use yet: wait) */
   }
   /* the route goes straight up through a tree from here, or down through it: as soon as they are in the column */
   if ((n.m === NAV_UP || n.m === NAV_DOWN) && !p.rope && !p.jumping && Math.floor(p.x) === n.x) {

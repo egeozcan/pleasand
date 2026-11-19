@@ -990,6 +990,50 @@ test("a peasant who never eats at all starves in the end, and a newcomer does no
   check(q.dead && g.arriveT > g.tick + 1000, "a newcomer is due the moment somebody dies (" + (g.arriveT - g.tick) + ")");
 });
 
+/* a shelf of stone drawn in the sky over the left of the valley, filled to the brim with a lake, and a pillar at its
+   right-hand end leaning out over the water (as somebody drew it in a village where everybody ended up in it) */
+function skyLake(w) {
+  var g = w.g, x, y;
+  function put(x, y, v) { w.sandPlace(g, y * g.gw + x, v); }
+  [[26, 117, 120], [27, 116, 121], [28, 116, 121], [29, 116, 122], [30, 117, 122], [31, 117, 123], [32, 117, 123], [33, 118, 124],
+   [34, 118, 125], [35, 119, 125], [36, 119, 125], [37, 120, 125], [38, 120, 125], [39, 120, 126], [40, 121, 127], [41, 120, 128],
+   [42, 120, 129], [43, 120, 129], [44, 120, 129], [45, 120, 129], [46, 120, 129]]
+    .forEach(function (r) { for (x = r[1]; x <= r[2]; x++) put(x, r[0], w.MAT.STONE); });
+  for (y = 47; y < 56; y++) for (x = 0; x <= 129; x++) put(x, y, w.MAT.STONE);
+  for (y = 36; y < 47; y++) for (x = 0; x < 120; x++) if (!w.SOLID[g.m[y * g.gw + x]]) put(x, y, w.MAT.WATER);
+}
+
+test("a peasant swimming in a lake whose only bank leans out over the water ropes up it, and gets out", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], t, rip = g.rip;
+  sim.step(w, 120);
+  skyLake(w);
+  p.x = 100.5; p.y = 41; p.task = null; p.rope = null; p.climb = null; p.jumping = false; p.falling = false; p.nav = null;
+  for (t = 0; t < 6000 && (p.swimming || p.rope || p.y > 36 && p.y < 47); t++) sim.step(w, 1);
+  check(!p.swimming && !p.dead && g.rip === rip, "still in the lake after 6000 ticks, at " + Math.floor(p.x) + "," + Math.floor(p.y));
+});
+
+test("somebody new walks in on the ground the village lives on, not onto a shelf or a pond in the sky", function () {
+  var w = sim.load(1), g = w.g, i, x, y;
+  sim.step(w, 120);
+  g.sites.forEach(function (s) { sim.build(w, s); });
+  check(g.sites.some(function (s) { return s.done; }), "(the test wants something built)");
+  skyLake(w);
+  /* and a dry shelf over the right-hand edge */
+  for (y = 45; y < 52; y++) for (x = 200; x < g.gw; x++) w.sandPlace(g, y * g.gw + x, w.MAT.STONE);
+  var floor = function (x) { for (var y = 60; y < g.gh; y++) if (!w.AIRY[g.m[y * g.gw + x]]) return y; return -1; };
+  /* under the lake on the left, and under the dry shelf on the right: the valley floor, not the top of either */
+  [8, 226].forEach(function (x) {
+    var y = w.pArriveY(g, x);
+    check(y > 60 && Math.abs(y - floor(x)) < 3, "at column " + x + " they would walk in at " + y + ", not on the valley floor (" + floor(x) + ")");
+  });
+  var n = g.peasants.length;
+  g.popGoal = g.peasants.filter(function (q) { return !q.dead; }).length + 1; g.arriveT = 0;
+  for (i = 0; i < 60 && g.peasants.length === n; i++) sim.step(w, 1);
+  check(g.peasants.length > n, "nobody new came");
+  var q = g.peasants[g.peasants.length - 1];
+  check(q.y > 60 && !q.swimming, q.name + " walked in at " + Math.floor(q.x) + "," + Math.floor(q.y) + ", up in the sky");
+});
+
 test("gold to spare is left at the foot of a statue, for luck", function () {
   var w = sim.load(1), g = w.g, p = g.peasants[0], q = g.peasants[1], i, n0 = 0, n1 = 0;
   know(g, ["farm", "dig", "mine", "masonry"]);

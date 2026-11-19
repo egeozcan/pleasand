@@ -800,12 +800,19 @@ function pSwim(g, p, sub) {
   }
   if (!sub) { p.airDir = 0; p.airNo = 0; p.airStuck = 0; }
   if (p.airDir) { if (p.airDir !== 2) p.dir = p.airDir; struggle = false; }   /* (2: air right overhead. up, and stay put) */
-  if ((burns || struggle) && (p.anim % 15) === 0) {
-    /* the nearest bank: something solid at about head height, either side */
-    for (var bd = 2; bd <= 80; bd++) {
-      if (pSolid(g, fx + bd, fy - 6) || pSolid(g, fx + bd, fy - 4)) { p.dir = 1; break; }
-      if (pSolid(g, fx - bd, fy - 6) || pSolid(g, fx - bd, fy - 4)) { p.dir = -1; break; }
+  /* (in a long while, and not choking or stinging: a way out, rope, hook and all, to somewhere dry. a bank that is a
+     wall leaning out over the water is no way out by paddling at it) */
+  var routed = struggle && !burns && !p.airDir && p.swimT > 900 && pathGo(g, p, "bank", fx, fy, pDryGoal(g)) > 0;
+  if ((burns || struggle) && !routed && (p.anim % 15) === 0) {
+    /* the nearest bank: something solid at about head height, either side. (in a very long while with no way out at
+       that one: the other one, by turns) */
+    var other = p.swimT > P_SWIM_TRY && ((p.swimT / P_SWIM_TRY) | 0) % 2 === 1, near = 0, far = 0;
+    for (var bd = 2; bd <= 80 && !far; bd++) {
+      var r = pSolid(g, fx + bd, fy - 6) || pSolid(g, fx + bd, fy - 4), l = pSolid(g, fx - bd, fy - 6) || pSolid(g, fx - bd, fy - 4);
+      if (!near) near = r ? 1 : (l ? -1 : 0);
+      if (near && ((near > 0 && l) || (near < 0 && r))) far = -near;
     }
+    if (near) p.dir = other && far ? far : near;
   }
   if (sub) target = burns ? -0.5 : -0.3;              /* head under: swim for the air. faster, if it stings */
   else if (err > 0) target = -Math.min(0.2, 0.05 * err);
@@ -820,6 +827,12 @@ function pSwim(g, p, sub) {
   if (p.airDir !== 2) pStepX(g, p, (sub ? 0.1 : 0.14) * (burns ? 1.8 : 1) * (p.cold > 200 ? 0.5 : 1), true);   /* (under the open air: no paddling away from it) */
   var gasping = sub && p.breath < P_BREATH - 40;
   if (p.sayT <= 0 && Math.random() < (gasping ? 0.02 : 0.004)) pSay(g, p, gasping ? "glub" : "swim");
+}
+/* ticks of paddling at one bank before trying the other, when there is no way out that a route can find */
+var P_SWIM_TRY = 1800;
+/* a route's goal: somewhere to stand on something solid, out of the water, head and all */
+function pDryGoal(g) {
+  return function (x, y) { return navStand(g, x, y) === 1 && !WET[pCell(g, x, y)] && !WET[pCell(g, x, y - 4)]; };
 }
 /* leave the ground on purpose: up at vy, sideways at jx */
 function pLeap(p, vy, jx) {
@@ -1373,9 +1386,11 @@ function pLife(g) {
   /* somebody new: from whichever edge of the valley has ground to walk in on */
   if (alive >= g.popGoal || g.tick < (g.arriveT || 0) || !g.hadPeasants || !g.popGoal) return;
   g.arriveT = g.tick + P_ARRIVE;
-  for (var t = 0; t < 200; t++) {
-    /* (in from one edge, or the other, as far as there is somewhere to stand) */
-    var side = (t & 1) === ((g.tick / P_ARRIVE | 0) % 2) ? 1 : -1, x = side > 0 ? 4 + (t >> 1) : g.gw - 5 - (t >> 1), y = mGround(g, x);
+  for (var t = 0; t < 400; t++) {
+    /* (in from one edge, or the other, as far as there is somewhere to stand: on the ground the village lives on, and
+       if there is none of that near either edge, the first ground there is) */
+    var u = t % 200, side = (u & 1) === ((g.tick / P_ARRIVE | 0) % 2) ? 1 : -1, x = side > 0 ? 4 + (u >> 1) : g.gw - 5 - (u >> 1);
+    var y = t < 200 ? pArriveY(g, x) : mGround(g, x);
     if (y < 10 || !pRoom(g, x, y - 1)) continue;
     var q = peasantSpawn(g, x + 0.5, y - 1, true);
     if (!q) return;
@@ -1386,6 +1401,30 @@ function pLife(g) {
     if (!g.got.arrive) achieve(g, "arrive");
     return;
   }
+}
+/* where somebody walking into the valley at column x comes in: onto the ground the village lives on. every ground
+   down the column that is not water, a tree or a roof, with room over it, is somewhere they might; the one with the
+   most of the village's finished buildings about its height wins, and the highest of those that tie. (so not onto a
+   shelf drawn in the sky, or a pond up there, while the houses are all down below. with nothing built yet, or no
+   such ground at all: the first ground from the top, as it always was) */
+var P_ARRIVE_LEVEL = 24;    /* how far above or below that ground a building still counts as on it */
+function pArriveY(g, x) {
+  var gw = g.gw, y, c, open = true, best = -1, most = 0, k, n, s;
+  for (y = 0; y < g.gh; y++) {
+    c = g.m[y * gw + x];
+    if (open && bMarked(g, x, y)) break;   /* (a roof, or somebody's site: nobody walks in under that) */
+    if (AIRY[c] || P_LEAF[c] || WOODY[c] || P_SOFT[c]) { open = true; continue; }   /* (a bush or a tree: the ground under it) */
+    if (!open) continue;   /* (inside something: its top has been looked at already) */
+    open = false;
+    if (y < 10 || LIQUID[c] || !pRoom(g, x, y - 1)) continue;
+    for (n = 0, k = 0; k < g.sites.length; k++) { s = g.sites[k]; if (s.done && Math.abs(s.y1 - y) <= P_ARRIVE_LEVEL) n++; }
+    if (best < 0 || n > most) { best = y; most = n; }
+  }
+  /* (nothing built anywhere: the first ground from the top. buildings, but none about any ground here: not this
+     column. pLife looks on along the edge, and falls back on the first ground from the top only if nowhere will do) */
+  if (most) return best;
+  for (k = 0; k < g.sites.length; k++) if (g.sites[k].done) return -1;
+  return mGround(g, x);
 }
 function pSpace(g, p) {
   p.state = "space"; p.spaceT = 200 + irnd(300);
