@@ -400,6 +400,7 @@ function mSpoil(g, s, j) {
   y = y - 1;
   if (x < 0 || y < 1) return false;
   sandSwap(g, j, y * g.gw + x);
+  tSpoiled(g, x);   /* (and that ground is the spoil heap's: not a pile for anybody to tidy away. tidy.js) */
   return true;
 }
 /* the ground at column x, if spoil can go on it: not on anybody's site (a furnace, a tower's door), and not in water.

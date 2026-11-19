@@ -400,6 +400,7 @@ function pDie(g, p, cause) {
   g.rip++;
   if (g.causes) g.causes[cause] = (g.causes[cause] || 0) + 1;
   iSpill(g, p, true);   /* a bucket of water they were carrying (ideas.js) goes where they fell */
+  tCarry(g, p);         /* and an armful of sand off somebody's roof (tidy.js) */
   var line = pick(P_DEATH[cause]);
   feed(g, line.replace("{n}", p.name), "#ff9a8a");
   iMourn(g, p, line);   /* remembered, for a grave (ideas.js) */
@@ -1482,6 +1483,7 @@ function pStepX(g, p, sp, swim) {
 }
 function pWalk(g, p, wading) {
   iPail(g, p);   /* (a full bucket and nothing to throw it at: it gets put down. ideas.js) */
+  tCarry(g, p);  /* (and an armful of sweepings, the same: tidy.js) */
   if (p.stun > 0) { p.stun--; return; }
   if (p.sleep > 0 && bSleeping(g, p)) return;
   /* down on the ice: sliding along on their back until they stop, then up again */
@@ -1544,7 +1546,8 @@ function pWalk(g, p, wading) {
        a pit with something runny in the bottom of it, say, or are hungry, when it is time to be off and find food) */
     /* (struggling in the water, short of breath or in it a long while: nothing matters but the bank. pSwim) */
     var struggling = wading && (p.wadeT > 900 || p.breath < P_BREATH - 60);
-    if (!scared && !struggling && (!wading || p.wadeT > 300 || p.hunger > P_HUNGRY)) {
+    /* (paddling in a puddle on purpose, to bail it out, or across a wet floor to sweep a roof, is not wading: tidy.js) */
+    if (!scared && !struggling && (!wading || p.wadeT > 300 || p.hunger > P_HUNGRY || (p.task && (p.task.src || p.task.kind === "tidy") && !p.swimming))) {
       /* (starving, and busy with something else: down tools, and look for food first. once: if there is none to be had,
          eatCD keeps them at the job) */
       if (p.task && p.task.kind !== "eat" && p.hunger > P_HUNGRY * 4 && !p.eatCD && !p.climb && !p.rope && (p.anim % 60) === 0) {

@@ -93,8 +93,50 @@ think of:
   takes no wood, so anybody lends a hand), the banks dug back a cell at a time
   so the sand stands, then filled bucket by bucket from the nearest fresh water.
   The brigade finds it like any other water, and somebody tops it up when it
-  runs low. They need level-ish sand to do it, so a pond only goes in where
-  the ground allows
+  runs low (from real water: never out of another pond, or two ponds would
+  keep the brigade carrying the same water back and forth for ever). Water
+  sealed in a cave under the house is no use to a bucket, and salt water no
+  use to wheat, so neither counts as water nearby. They need level-ish sand to
+  do it, so a pond only goes in where the ground allows (and a pond dug where
+  nobody can get to it to finish it is given up, and the next one goes in
+  somewhere else).
+- **Tidying**: once they know landscaping, the rest of the valley starts to
+  look untidy. A puddle lying about the village (a spilt bucket, a melted
+  snowman) is bailed out and carried to a pond that is short of water, or a
+  field that is thirsty. Water on somebody's floor, on the bridge or at the
+  foot of the tower is in the way: all of it is bailed, however much was spilt
+  (they paddle in it to get the last of it, filling the bucket as they go),
+  and goes in whatever real water is a short walk off, or else out of the door
+  and over the nearest bush, which can do with a drink (somewhere lower than
+  the floor, so it does not run back in). Whoever lives there sees to their
+  own floor, and their own roof, before the graves, the mine or the rest of
+  the valley's tidying. A drop or two is left to dry, one bucket goes to a
+  puddle, nobody throws a bucket through a wall (it only comes back down on
+  the floor), and a puddle in a field, a pond or a mine is that place's own
+  business. Salt water is left well alone. Sand that has come down on
+  something they built (a roof, the thatch on the old huts, a bridge deck, the
+  stairs, the lookout), or drifted up against a door so nobody can get in, is
+  swept off (or dug away) a handful at a time and carried off an armful at a
+  time until the roof is clean, which is worth mentioning. Ash and salt off it
+  go in a pocket, sand too if they make glass, and the rest is tipped into a
+  hole in the ground somewhere, which it fills in (they are pleased with
+  themselves when it comes out level: a crater, or a pond they gave up on), or
+  else on the village heap, on flat ground well away from anybody's house,
+  which grows. The heap is the village's own: nobody builds on it, sows a
+  field over it or plants a tree in it, and once it is a proper heap somebody
+  sticks a stick in the top of it, with a rag tied on, so everybody knows.
+  A pile of sand tipped out in the village where the ground was level (out of
+  the sky, by a blast, by somebody's dropped armful) is shovelled up and
+  carried off the same way, a couple of armfuls at a time, until the ground
+  is as it was; the lie of the land (a dune, the spoil by a mine, a hollow
+  filled flush) is let be. A bush that has grown up in somebody's doorway is
+  cut back, a snip at a time (a door, not a hedge), and let grow a good while
+  before anybody looks at it again. Something more urgent comes up, and the
+  armful goes down where they stand once they are clear of the house, not into
+  thin air.
+  A roof or a door that a dune keeps burying is let be a while once it is
+  swept, and a house or a roof nobody can get to, after a couple of tries, a
+  good while: the village says so
 - **Gravestones**: once somebody has died, a wooden cross for each of the
   dead, in a row, saying how. Now and then somebody visits, and leaves a flower (or, with gold to spare,
   a nugget of it: the statues get those too)
@@ -351,6 +393,7 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, ponds dug and filled, graves, forestry, jetties and fishing, scarecrows, fireworks shows, the statue
 - `mines.js`: what is under the sand, and what comes of digging for it: mines and their galleries, coal, iron ore and gold, watchtowers, the furnace and iron, lifts, the bell
 - `oil.js`: oil in the rock, the derrick that pumps it, and rocket packs
+- `tidy.js`: tidying up: puddles bailed to where water does some good, sand swept off roofs and dug away from doors, piles shovelled up, bushes cut back out of doorways, and the village heap
 - `leftovers.js`: what is left over (ash, salt, glass, gunpowder, snow, ice) and what they make of it: picking it up, snowball fights, snowmen, skating, salt on the ice and on the fish, potash, black powder (blasting, fishing with it, fireworks), glass and the glasshouse, and frost on the wheat
 - `ducks.js`: the ducks
 - `save.js`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it

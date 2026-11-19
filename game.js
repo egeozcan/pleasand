@@ -47,6 +47,7 @@ var TIPS = [
   "tip: ducks love wheat. the peasants will think of something",
   "tip: peasants who farm will chase ducks out of the wheat. throw one in and see",
   "tip: a village that knows buckets and landscaping, and lives a long way from water, digs itself a pond",
+  "tip: spill a puddle on somebody's floor, or tip a pile of sand by their door, once they know landscaping. they will tidy it up",
   "tip: there is coal, iron ore and gold in the rock. a village that has dug enough holes will go looking for it",
   "tip: deep in the rock there is oil. a mine can smell it, and then they want a derrick",
   "tip: an oil well pours its overflow at the foot of the derrick. do not bring a torch",
@@ -533,6 +534,7 @@ function drawWorld(g) {
   hot += mDraw(g);
   hot += oDraw(g);
   hot += lDraw(g);
+  tDraw(g);
   ducksDraw(g);
   peasantsDraw(g);
   mDrawOver(g);

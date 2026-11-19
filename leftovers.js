@@ -1563,6 +1563,7 @@ function lWetUnderGlass(g, x) { return !!(g.lboost && (g.lboost[x] & 2)); }
    ------------------------------------------------------------------- */
 function lLabel(s) {
   if (s.kind === "glasshouse") return "the glasshouse";
+  if (s.kind === "heap") return "the village heap";   /* (tidy.js) */
   return "";
 }
 function lFinish(g, s, p) {

@@ -1633,6 +1633,730 @@ test("the browser's dice are the harness's dice, and a browser save carries them
   check(print(b.g) === print(g), "the harness went another way than the browser would have");
 });
 
+/* the old huts finished and a village that knows landscaping and the bucket: for the tidying tests */
+function tidyVillage(seed) {
+  var w = sim.load(seed || 1), g = w.g;
+  sim.step(w, 120);
+  know(g, ["dig", "bucket", "farm"]);
+  sites(g, "house").forEach(function (s) { sim.build(w, s); });
+  sim.step(w, 30);
+  return w;
+}
+/* a pond, dug, beside house h (and the water in it, if full) */
+function pondBy(w, h, full) {
+  var g = w.g, p = g.peasants[0], s, k, y;
+  w.eval("globalThis.__pf = iPondFor; iPondFor = function (g, p) { return g.sites.filter(function (s) { return s.kind === 'house'; })[" + g.sites.filter(function (q) { return q.kind === "house"; }).indexOf(h) + "]; }");
+  var ok = w.iPlanPond(g, p);
+  w.eval("iPondFor = globalThis.__pf");
+  if (!ok) return null;
+  s = sites(g, "pond")[sites(g, "pond").length - 1];
+  sim.build(w, s);
+  if (full) for (k = 0; k < w.I_POND_W; k++) for (y = s.L; y < s.S[k]; y++) w.sandPlace(g, y * g.gw + s.px0 + k, w.MAT.WATER);
+  p.task = null;
+  return s;
+}
+
+test("a pond is filled from real water, never out of another pond (which would have them carrying it back and forth for ever)", function () {
+  var w = tidyVillage(1), g = w.g, hs = sites(g, "house");
+  var full = pondBy(w, hs[0], true), empty = pondBy(w, hs[0], false) || pondBy(w, hs[1], false);
+  check(full && empty && full !== empty, "(the test wants two ponds)");
+  check(w.iPondNeed(g, full) === 0 && w.iPondNeed(g, empty) > w.I_POND_KEEP, "(the test wants one pond full and one empty)");
+  /* standing on the bank of the full one: filling the empty one, its water is not to be had; watering the wheat, it is */
+  var bank = { x: full.px0 - 1, y: full.L - 1 };
+  check(!w.iFindWater(g, bank, 20, null, true, w.iBarred(g, empty), true), "the full pond was fetched from to fill the empty one");
+  check(w.iFindWater(g, bank, 20, null, true, w.iBarred(g, null), true), "a full pond was not there to water the wheat from");
+  check(w.iBarred(g, null).indexOf(empty) >= 0, "a pond still being filled was fetched from for the wheat");
+});
+
+test("water sealed in a cave under a house is no use to a bucket: it does not count as water near it", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], x, y;
+  /* (no other water near it: what water there is, far off on the other side of the valley) */
+  check(!w.iWaterNear(g, { x: h.cx, y: h.y1 - 1 }, w.I_POND_NEAR, false), "(the test wants a house a long way from water)");
+  /* a sealed pocket of water in the rock, right under it */
+  for (y = h.y1 + 6; y < h.y1 + 10; y++) for (x = Math.floor(h.cx) - 3; x <= Math.floor(h.cx) + 3; x++) w.sandPlace(g, y * g.gw + x, w.MAT.WATER);
+  for (x = Math.floor(h.cx) - 4; x <= Math.floor(h.cx) + 4; x++) w.sandPlace(g, (h.y1 + 5) * g.gw + x, w.MAT.STONE);
+  check(!w.iWaterNear(g, { x: h.cx, y: h.y1 - 1 }, w.I_POND_NEAR, false), "the water sealed under the floor counted as water near the house");
+  /* (and the same water, opened up to the sky, does count) */
+  for (x = Math.floor(h.cx) - 4; x <= Math.floor(h.cx) + 4; x++) for (y = h.y1 - 12; y <= h.y1 + 5; y++) if (!w.AIRY[g.m[y * g.gw + x]] || y >= h.y1) w.sandSet(g, y * g.gw + x, w.MAT.EMPTY);
+  check(w.iWaterNear(g, { x: h.cx, y: h.y1 - 1 }, w.I_POND_NEAR, false), "a pool of water with the sky over it did not count as water near the house");
+  /* and a broad shallow stream is water near it too (a bucket fills from it as well as from a pond), a puddle is not */
+  var sx = h.x1 + 12, sg = w.bGround(g, sx, h.y1);
+  for (x = sx; x < sx + 20; x++) for (y = sg - 12; y < sg + 3; y++) w.sandSet(g, y * g.gw + x, y < sg ? w.MAT.EMPTY : w.MAT.STONE);
+  for (x = sx + 1; x < sx + 19; x++) for (y = sg - 2; y < sg; y++) w.sandPlace(g, y * g.gw + x, w.MAT.WATER);
+  for (x = sx; x < sx + 20; x += 19) for (y = sg - 3; y < sg; y++) w.sandSet(g, y * g.gw + x, w.MAT.STONE);
+  var at = { x: sx + 10, y: sg - 3 };
+  check(w.iWaterNear(g, at, 15, false), "a stream two deep and eighteen across did not count as water near");
+  for (x = sx + 1; x < sx + 19; x++) for (y = sg - 2; y < sg; y++) w.sandSet(g, y * g.gw + x, w.MAT.EMPTY);
+  for (x = sx + 9; x < sx + 12; x++) w.sandPlace(g, (sg - 1) * g.gw + x, w.MAT.WATER);
+  check(!w.iWaterNear(g, at, 15, false), "a puddle of three counted as water near");
+});
+
+test("a pond nobody can get to while it is first being dug is given up, and not planned there again; one that was dug once is mended", function () {
+  var w = tidyVillage(1), g = w.g, p = g.peasants[0], h = sites(g, "house")[0];
+  w.eval("globalThis.__pf = iPondFor; iPondFor = function (g, p) { return g.sites.filter(function (s) { return s.kind === 'house'; })[0]; }");
+  check(w.iPlanPond(g, p), "(the test wants a pond)");
+  var s = sites(g, "pond")[0], k;
+  for (k = 0; k < 30 && g.sites.indexOf(s) >= 0; k++) w.bFail(g, p, s, 10, "walk");
+  check(g.sites.indexOf(s) < 0, "a pond nobody could get to was never given up, and no other pond could be planned");
+  var again = w.iPlanPond(g, p), s2 = sites(g, "pond")[0];
+  check(!again || s2.x1 < s.x0 || s2.x0 > s.x1, "the pond was planned again right where they had just given it up");
+  if (!again) { g.pondNo = {}; check(w.iPlanPond(g, p), "(the test wants another pond)"); }
+  w.eval("iPondFor = globalThis.__pf");
+  s = sites(g, "pond")[0]; sim.build(w, s); s.done = false; s.repair = true;
+  for (k = 0; k < 30; k++) w.bFail(g, p, s, 10, "walk");
+  check(g.sites.indexOf(s) >= 0, "a pond being mended was given up");
+});
+
+test("a puddle on a hut floor is bailed out, a bucket at a time, and carried off to real water", function () {
+  var w = tidyVillage(2), g = w.g, h = sites(g, "house")[0], dx, t, rip = g.rip;
+  function lake() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === w.MAT.WATER && (j % g.gw < h.x0 || j % g.gw > h.x1)) n++; return n; }
+  var water0 = lake();
+  var fl = h.y1 - 2;   /* (the hut floor is the row over the ground) */
+  for (; fl > h.y0 && !w.AIRY[g.m[fl * g.gw + Math.floor(h.cx)]]; fl--);
+  for (; fl < h.y1 && w.AIRY[g.m[(fl + 1) * g.gw + Math.floor(h.cx)]]; fl++);
+  for (dx = -3; dx <= 3; dx++) w.sandPlace(g, fl * g.gw + Math.floor(h.cx) + dx, w.MAT.WATER);
+  function wet() { var n = 0; for (var y = h.y0; y <= h.y1; y++) for (var x = h.x0; x <= h.x1; x++) if (g.m[y * g.gw + x] === w.MAT.WATER) n++; return n; }
+  check(wet() === 7, "(the test wants a puddle in the hut)");
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  nearHouse(w, p, h); g.bailT = 0;
+  check(w.tGoBail(g, p), "nobody went to bail out the puddle in the hut");
+  check(p.task.src && p.task.of === h.id && p.task.dump, "the bailing job did not know where the puddle was, or where it was going");
+  for (t = 0; t < 5000 && p.task && p.task.src; t++) sim.step(w, 1);
+  check(wet() === 0, wet() + " cells of the puddle still on the hut floor");
+  sim.step(w, 120);   /* (the last bucketful, still in the air) */
+  check(lake() >= water0 + 6, "the water out of the hut did not end up in the water outside (" + (lake() - water0) + " more)");
+  check(g.bailed >= 1 && g.feed.some(function (f) { return /bailed out a puddle/.test(f.text); }), "the first puddle bailed was not news");
+  check(g.rip === rip, "somebody died bailing");
+});
+
+test("a puddle in a field or a pond is theirs, and salt water and a pond's worth of water are not puddles", function () {
+  var w = tidyVillage(4), g = w.g, p = g.peasants[0], x, y;
+  check(w.iPlanFarm(g, p, true), "(the test wants a field)");
+  var f = sites(g, "farm")[0]; sim.build(w, f);
+  var e = f.plan.filter(function (q) { return q.v === w.MAT.SOIL; })[0], ex = e.i % g.gw, ey = (e.i / g.gw) | 0;
+  w.sandPlace(g, (ey - 1) * g.gw + ex, w.MAT.WATER);
+  var c = w.tPuddleOf(g, ex, ey - 1);
+  check(c && w.tOwned(g, c), "a puddle on the field was not the field's own");
+  /* a big body of water, away from everything: no puddle */
+  for (y = 20; y < 26; y++) for (x = 120; x < 126; x++) w.sandPlace(g, y * g.gw + x, w.MAT.WATER);
+  check(!w.tPuddleOf(g, 122, 20), "thirty-six cells of water counted as a puddle");
+  /* a splash on the bank of a pond is the pond's */
+  var pond = pondBy(w, sites(g, "house")[1], true) || pondBy(w, sites(g, "house")[0], true);
+  check(pond, "(the test wants a pond)");
+  w.sandPlace(g, (pond.L - 2) * g.gw + pond.x0 - 1, w.MAT.WATER);
+  var bank = w.tPuddleOf(g, pond.x0 - 1, pond.L - 2);
+  check(!bank || w.tOwned(g, bank), "a splash on the pond's bank was nobody's");
+  /* and salt water on a hut floor is left well alone */
+  var h = sites(g, "house")[0], cx = Math.floor(h.cx), fl = h.y1 - 2;
+  for (; fl > h.y0 && !w.AIRY[g.m[fl * g.gw + cx]]; fl--);
+  for (; fl < h.y1 && w.AIRY[g.m[(fl + 1) * g.gw + cx]]; fl++);
+  for (x = cx - 3; x <= cx + 3; x++) w.sandPlace(g, fl * g.gw + x, w.MAT.SALTWATER);
+  var q = g.peasants.filter(function (r) { return !r.dead; })[0];
+  g.bailT = 0; q.task = null;
+  check(!w.tHousePuddle(g, h), "salt water on the hut floor counted as water to bail");
+  check(!w.tGoBail(g, q) || q.task.of !== h.id, "salt water on the hut floor was bailed (into the pond, where it would kill the wheat)");
+});
+
+test("sand on a roof is swept off and tipped out of everybody's way; ash on it goes in a pocket", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], x, y, n = 0, rip = g.rip;
+  for (x = h.x0; x <= h.x1; x++) {
+    for (y = h.y0 - 10; y < h.y1 && w.AIRY[w.pCell(g, x, y)]; y++);
+    if (y < h.y1 - 5) { w.sandPlace(g, (y - 1) * g.gw + x, x % 3 ? w.MAT.SAND : w.MAT.ASH); n++; }
+  }
+  function litter() { var c = 0; for (var x = h.x0 - 1; x <= h.x1 + 1; x++) for (var y = h.y0 - 12; y < h.y1; y++) if (w.tLitterAt(g, x, y)) c++; return c; }
+  var before = litter();
+  check(before >= 10, "(the test wants sand on the roof: " + before + ")");
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0], heap = null;
+  g.tidyT = 0; p.task = null;
+  check(w.tGoTidy(g, p), "nobody went to sweep the roof");
+  for (var t = 0; t < 8000 && p.task && p.task.kind === "tidy"; t++) { sim.step(w, 1); if (p.task && p.task.heap && !heap) { heap = p.task.heap; heap.near = g.sites.filter(function (s) { return s.kind !== "heap" && heap.x >= s.x0 - w.TD_HEAP_PAD + 1 && heap.x <= s.x1 + w.TD_HEAP_PAD - 1 && heap.y >= s.y0 - w.TD_HEAP_PAD + 1 && heap.y <= s.y1 + w.TD_HEAP_PAD - 1; })[0]; } }   /* (the village's heap is a site of its own) */
+  check(litter() <= 2, "the roof is still covered: " + litter() + " of " + before);
+  check(g.tidied >= 1, "the sweeping was never tipped anywhere");
+  check((p.ash || 0) >= 1, "the ash off the roof did not go in a pocket");
+  if (!litter()) check(g.cleanNewsT > 0, "a roof swept clean was not news");
+  check(heap && !heap.near, "the sand was tipped next to somebody's site" + (heap && heap.near ? ": " + heap.near.kind : ""));
+  check(g.rip === rip, "somebody died sweeping the roof");
+});
+
+test("sand on a field, or on a grave, is not litter; sand on a bridge or a stair is", function () {
+  var w = tidyVillage(2), g = w.g, p = g.peasants[0];
+  check(w.iPlanFarm(g, p, true), "(the test wants a field)");
+  var f = sites(g, "farm")[0]; sim.build(w, f);
+  var e = f.plan.filter(function (q) { return q.v === w.MAT.SOIL; })[0], ex = e.i % g.gw, ey = (e.i / g.gw) | 0;
+  for (var y = ey - 1; y > ey - 8 && !w.AIRY[g.m[y * g.gw + ex]]; y--) w.sandSet(g, y * g.gw + ex, w.MAT.EMPTY);
+  w.sandPlace(g, (ey - 1) * g.gw + ex, w.MAT.SAND);
+  check(!w.tLitterAt(g, ex, ey - 1), "sand on the field was swept up as litter");
+  /* a board of somebody's, made by hand, with sand on it */
+  var at = clearSpot(w, 140), s = w.bNew(g, "bridge", p, [w.bE(g, at.x, at.gy - 4, w.MAT.PLANK, 0)], [at.x, at.gy - 4, at.x, at.gy - 4], {});
+  sim.build(w, s);
+  w.sandPlace(g, (at.gy - 5) * g.gw + at.x, w.MAT.SAND);
+  check(w.tLitterAt(g, at.x, at.gy - 5) === s, "sand on a bridge deck was not litter");
+  s.kind = "grave";
+  check(!w.tLitterAt(g, at.x, at.gy - 5), "a grave was swept");
+});
+
+/* stand p by house h (off any rope, with no route in mind): a bailer is whoever is about, not anybody in the valley */
+function nearHouse(w, p, h) { p.x = h.x0 + 2.5; p.y = w.tFloor(w.g, h) - 1; p.rope = null; p.nav = null; p.vx = p.vy = 0; p.task = null; }
+/* a puddle on the floor of the first hut: its row, and the hut */
+function hutPuddle(w, n) {
+  var g = w.g, h = sites(g, "house")[0], cx = Math.floor(h.cx), fl = h.y1 - 2, dx;
+  for (; fl > h.y0 && !w.AIRY[g.m[fl * g.gw + cx]]; fl--);
+  for (; fl < h.y1 && w.AIRY[g.m[(fl + 1) * g.gw + cx]]; fl++);
+  for (dx = -(n >> 1); dx < n - (n >> 1); dx++) w.sandPlace(g, fl * g.gw + cx + dx, w.MAT.WATER);
+  return h;
+}
+
+test("tidying needs landscaping, and a bailer needs the bucket too", function () {
+  var w = tidyVillage(2), g = w.g, p = g.peasants[0], k;
+  hutPuddle(w, 7);
+  g.know = { farm: "TEST" };
+  w.eval("globalThis.__tp = tPick; globalThis.__tpHit = false; tPick = function () { globalThis.__tpHit = true; return false; }");
+  for (k = 0; k < 200; k++) { p.task = null; p.planCD = 0; w.iPick(g, p); }
+  var hit = w.eval("globalThis.__tpHit");
+  w.eval("tPick = globalThis.__tp");
+  check(!hit, "a village that does not know landscaping went tidying");
+  g.know = { dig: "TEST" };
+  for (k = 0; k < 200; k++) { p.task = null; g.bailT = 0; w.tPick(g, p, false); check(!(p.task && p.task.src), "a village with no buckets bailed a puddle"); }
+  g.know = { dig: "TEST", bucket: "TEST" };
+  nearHouse(w, p, sites(g, "house")[0]);
+  for (k = 0; k < 200 && !(p.task && p.task.src); k++) { p.task = null; g.bailT = 0; w.tPick(g, p, false); }
+  check(p.task && p.task.src, "(and with buckets, they do)");
+});
+
+test("an armful of sweepings is put down, not lost, when something else comes up", function () {
+  var w = tidyVillage(1), g = w.g, p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  function sand() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === w.MAT.SAND) n++; return n; }
+  /* (the top of the nearest sand, a handful at a time) */
+  function top() { for (var d = 0; d < 60; d++) for (var y = 1; y < g.gh; y++) { var x = Math.floor(p.x) + d; if (g.m[y * g.gw + x] === w.MAT.SAND && w.AIRY[g.m[(y - 1) * g.gw + x]]) return [x, y]; } }
+  var x = Math.floor(p.x), y = Math.floor(p.y), before = sand(), t;
+  for (var k = 0; k < 4; k++) { t = top(); w.tSweep(g, p, { n: 0 }, t[0], t[1]); }
+  check(sand() === before - 4 && w.tHeld(p) === 4, "(the test wants four handfuls in their arms)");
+  /* (the next tick of theirs puts it down: tCarry, from pWalk. the rest of the village goes on digging and tilling round
+     them, so the sand is counted as it is put down) */
+  p.task = { kind: "eat", x: x, y: y, t: 0 };
+  w.tCarry(g, p);
+  check(w.tHeld(p) === 0 && sand() === before, "the sweepings went missing when the job changed: " + (before - sand()) + " cells gone");
+  for (k = 0; k < 4; k++) { t = top(); w.tSweep(g, p, { n: 0 }, t[0], t[1]); }
+  for (k = 0; k < 120 && w.tHeld(p); k++) sim.step(w, 1);
+  check(w.tHeld(p) === 0, "a peasant kept an armful of sweepings with no sweeping job");
+  before = sand();
+  /* and on dying */
+  for (k = 0; k < 3; k++) { t = top(); w.tSweep(g, p, { n: 0 }, t[0], t[1]); }
+  p.task = { kind: "tidy", site: 0, x: 0, y: 0, t: 0, act: 0, n: 0, tipping: true };
+  w.pDie(g, p, "old");
+  check(w.tHeld(p) === 0 && sand() === before, "the sweepings went missing with whoever died carrying them");
+});
+
+test("a puddle in nobody's way with no real water to go to is let be, and the edge of a river is not a puddle", function () {
+  var w = tidyVillage(1), g = w.g, j, x, y;
+  for (j = 0; j < g.m.length; j++) if (g.m[j] === w.MAT.WATER) w.sandSet(g, j, w.MAT.EMPTY);
+  /* a puddle out in the open, in nobody's way, and no pond or field that wants it, nor water to tip it in */
+  var h = sites(g, "house")[0], ox = h.x1 + 30, og = w.bGround(g, ox, h.y1), p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  for (x = ox - 3; x <= ox + 3; x++) for (y = og - 6; y < og + 2; y++) w.sandSet(g, y * g.gw + x, y < og ? w.MAT.EMPTY : w.MAT.STONE);
+  for (x = ox - 2; x <= ox + 2; x++) w.sandPlace(g, (og - 1) * g.gw + x, w.MAT.WATER);
+  check(!w.bSiteAround(g, ox, og, null, 2), "(the test wants open ground)");
+  g.bailT = 0; p.task = null;
+  check(!w.tGoBail(g, p), "a puddle in nobody's way was bailed with nowhere at all to carry it (it would only be poured out again)");
+  /* a body of water, and a cell off its corner: the river's */
+  for (y = 30; y < 36; y++) for (x = 120; x < 126; x++) w.sandPlace(g, y * g.gw + x, w.MAT.WATER);
+  w.sandPlace(g, 29 * g.gw + 126, w.MAT.WATER);
+  check(!w.tPuddleOf(g, 126, 29), "a cell at the corner of a pond was a puddle");
+  w.sandPlace(g, 28 * g.gw + 128, w.MAT.WATER);
+  check(!w.tPuddleOf(g, 128, 28), "a splash a cell off the pond was a puddle");
+});
+
+test("a bailer whose pond fills up on the way takes the rest of the puddle to real water, not back where it was", function () {
+  var w = tidyVillage(4), g = w.g, h = sites(g, "house")[0], pond = pondBy(w, h, false);
+  check(pond, "(the test wants a pond)");
+  hutPuddle(w, 9);
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  nearHouse(w, p, h); g.bailT = 0;
+  check(w.tGoBail(g, p) && p.task.pond === pond.id, "the puddle was not taken to the pond that wanted it");
+  /* the pond fills up before they get going */
+  for (var k = 0; k < w.I_POND_W; k++) for (var y = pond.L; y < pond.S[k]; y++) w.sandPlace(g, y * g.gw + pond.px0 + k, w.MAT.WATER);
+  check(!w.iPondThirst(g, pond), "(the test wants the pond full)");
+  var job = p.task;
+  w.tBailScoop(g, p, job);
+  /* (the full pond is no longer where it goes: the real water it found to fall back on is) */
+  check(p.task === job && job.dump && w.tBailTarget(g, job) === job.dump, "the job did not go on to somewhere else real for the water: " + JSON.stringify({ same: p.task === job, pond: job.pond, dump: job.dump }));
+  check(job.dump.x < h.x0 - 3 || job.dump.x > h.x1 + 3, "the water was to be tipped back in the hut");
+});
+
+test("a drop or two is let dry, and a crack outside the hut wall nobody can get a bucket into is not bailed for ever", function () {
+  var w = tidyVillage(2), g = w.g, h = hutPuddle(w, 2), p = g.peasants.filter(function (q) { return !q.dead; })[0], k, jobs = 0, prev = null;
+  g.bailT = 0; p.task = null;
+  check(!w.tGoBail(g, p), "two cells of water on the floor got a bucket");
+  /* a crack a cell wide, just outside the wall, with water in the bottom of it, and a puddle on the floor inside */
+  var gy = w.bGround(g, h.x0 - 1, h.y1), cx = h.x0 - 1;
+  hutPuddle(w, 6);
+  for (var y = gy; y < gy + 4; y++) w.sandSet(g, y * g.gw + cx, w.MAT.EMPTY);
+  w.sandPlace(g, (gy + 3) * g.gw + cx, w.MAT.WATER);
+  for (k = 0; k < 15000; k++) {
+    sim.step(w, 1);
+    g.peasants.forEach(function (q) { if (q.task && q.task.src && q.task !== prev) { prev = q.task; jobs++; } });
+  }
+  check(jobs <= 4, jobs + " bailing jobs, round and round, for a crack and a floor");
+});
+
+test("sweepings are tipped in a hole in the ground, and fill it in", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], p = g.peasants.filter(function (q) { return !q.dead; })[0], x, y, t;
+  /* a level stretch of rock well away from everything, with a hole in it five wide and three deep */
+  var hx = h.x1 + 40, Gf = w.bGround(g, hx, h.y1);
+  check(Gf > 0 && !w.bSiteAround(g, hx, Gf, null, 22), "(the test wants open ground)");
+  for (x = hx - 14; x <= hx + 14; x++) for (y = Gf - 24; y <= Gf + 6; y++) w.sandSet(g, y * g.gw + x, y < Gf ? w.MAT.EMPTY : w.MAT.STONE);
+  for (x = hx - 2; x <= hx + 2; x++) for (y = Gf; y < Gf + 3; y++) w.sandSet(g, y * g.gw + x, w.MAT.EMPTY);
+  p.x = hx - 9.5; p.y = Gf - 1; p.task = null;
+  var spot = w.tHeapSpot(g, p, Gf - 1);
+  check(spot && spot.dip && Math.abs(spot.x - hx) <= 2, "the hole was not where the sweepings were to go: " + JSON.stringify(spot));
+  /* an armful, off a roof (sand made up on the spot, away up in the air), and off to tip it */
+  for (x = 0; x < 6; x++) { w.sandPlace(g, 20 * g.gw + 20 + x, w.MAT.SAND); w.tSweep(g, p, { n: 0 }, 20 + x, 20); }
+  check(w.tHeld(p) === 6, "(the test wants an armful)");
+  /* standing on the rim, with the armful, the job picks its own spot and tips it */
+  p.x = spot.x - 2.5; p.y = Gf - 1; p.rope = null; p.nav = null; p.vx = p.vy = 0;   /* (off the rope they were exploring on) */
+  var k = { kind: "tidy", site: h.id, x: 0, y: 0, t: 0, act: 0, n: 6, trips: 9, tipping: true };
+  p.task = k;
+  for (t = 0; t < 1500 && p.task === k; t++) sim.step(w, 1);
+  check(k.heap && k.heap.dip, "the job did not pick the hole to tip in: " + JSON.stringify(k.heap));
+  check(!w.tHeld(p), "the armful would not go in the hole");
+  var sand = 0;
+  for (x = hx - 2; x <= hx + 2; x++) for (y = Gf - 2; y < Gf + 3; y++) if (g.m[y * g.gw + x] === w.MAT.SAND) sand++;
+  check(sand >= 5, "the hole has " + sand + " of the six handfuls in it");
+  check(g.filled >= 1, "filling the hole was not counted");
+});
+
+test("sweepings are not tipped into a bush, and the job only says it tipped what it tipped", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], x, y;
+  var hx = h.x1 + 40, Gf = w.bGround(g, hx, h.y1);
+  for (x = hx - 14; x <= hx + 14; x++) for (y = Gf - 24; y <= Gf + 6; y++) w.sandSet(g, y * g.gw + x, y < Gf ? w.MAT.EMPTY : w.MAT.STONE);
+  check(w.tHeapOk(g, hx, Gf, w.TD_HEAP_PAD), "(the test wants open level ground)");
+  for (x = hx - 14; x <= hx + 14; x++) w.sandPlace(g, (Gf - 1) * g.gw + x, w.MAT.PLANT);
+  check(!w.tHeapOk(g, hx, Gf, w.TD_HEAP_PAD), "a bush was somewhere to tip sweepings");
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0], tidied = g.tidied || 0;
+  p.sweep = [{ m: w.MAT.SAND, sh: 3, q: 0 }];
+  var k = { kind: "tidy", site: h.id, x: 0, y: 0, t: 0, act: 0, n: 1, tipping: true, heap: { x: hx, y: Gf, dip: false } };
+  p.task = k; p.x = hx - 2.5; p.y = Gf - 2;
+  for (var t = 0; t < 40 && p.task === k; t++) w.tTaskTip(g, p, k);
+  /* (nowhere to put it on the bush: nothing tipped, so nothing counted, and no news of a heap) */
+  check(!k.tipped, "a handful went into the bush");
+  check((g.tidied || 0) === tidied, "a job that tipped nothing was counted as tidying");
+  check(!g.feed.some(function (f) { return /tipped it/.test(f.text); }), "a job that tipped nothing said it had");
+});
+
+test("a puddle on a hut floor with no water near is poured out over a bush, from inside the hut, a full bucket at a time", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], t, rip = g.rip;
+  check(!w.iFindWater(g, { x: h.cx, y: h.y1 - 1 }, w.TD_CARRY, null, true, null, true), "(the test wants a hut a long way from water)");
+  hutPuddle(w, 10);
+  function wet() { var n = 0; for (var y = h.y0; y <= h.y1; y++) for (var x = h.x0; x <= h.x1; x++) if (g.m[y * g.gw + x] === w.MAT.WATER) n++; return n; }
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0], outside = 0, loads = [];
+  g.bailT = 0; p.task = null;
+  check(w.tGoBail(g, p) && p.task.dump, "nobody bailed a puddle with no water near enough to tip it in");
+  var job = p.task, had = 0;
+  w.eval("globalThis.__sc2 = tScoopCells; tScoopCells = function (g, c, x, y, r) { if ((x <= " + h.x0 + " || x >= " + h.x1 + ") && !tAtDoor(g, bSite(g, " + h.id + "), x, y)) globalThis.__out = (globalThis.__out || 0) + 1; return globalThis.__sc2(g, c, x, y, r); }");
+  for (t = 0; t < 8000 && p.task === job; t++) {
+    sim.step(w, 1);
+    if (p.pail && !had) loads.push(0);
+    if (p.pail) loads[loads.length - 1] = p.pail.length;
+    had = p.pail ? 1 : 0;
+  }
+  outside = w.eval("globalThis.__out || 0");
+  w.eval("tScoopCells = globalThis.__sc2");
+  check(wet() === 0, wet() + " cells of the puddle still on the floor");
+  check(!outside, "they bailed from outside the hut, through the wall");   /* (from the doorway is from the doorway) */
+  check(loads.length <= 3, loads.length + " trips for ten cells of water: " + loads.join(","));
+  check(/bush|yard/.test(job.into), "the water went to " + job.into);
+  check(g.rip === rip, "somebody died bailing");
+});
+
+test("nobody waters the wheat (or bails a puddle) by throwing the bucket through the wall of a hut", function () {
+  var w = tidyVillage(2), g = w.g, h = sites(g, "house")[1], x, y;
+  /* standing on the floor just inside the west wall, throwing at a spot well outside it */
+  var fy = h.y1 - 1;
+  for (; fy > h.y0 && !w.AIRY[g.m[fy * g.gw + h.x0 + 2]]; fy--);
+  for (; fy < h.y1 && w.AIRY[g.m[(fy + 1) * g.gw + h.x0 + 2]]; fy++);
+  var t = { x: h.x0 - 10, y: fy };
+  check(w.iThrowFrom(g, h.x0 + 2, fy, t), "(the test wants a throw in range)");
+  check(!w.iClearArc(g, h.x0 + 2, fy, t), "a bucket thrown from inside the hut cleared its wall");
+  check(!w.iClearArc(g, h.x0 + 1, fy, t), "a bucket thrown from right inside the door went out through it");
+});
+
+test("a roof nobody can climb onto does not hide the puddle on the floor under it, and is let be after a couple of tries", function () {
+  var w = tidyVillage(2), g = w.g, h = sites(g, "house")[0], x;
+  hutPuddle(w, 7);
+  for (x = h.x0 - 2; x <= h.x1 + 2; x++) w.tNoGo(g, x);   /* (every sweeper who tried the roof gave up) */
+  check(w.tPuddleNear(g, { of: h.id }), "the roof's give-ups hid the puddle on the floor");
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  nearHouse(w, p, h); g.bailT = 0;
+  check(w.tGoBail(g, p) && p.task.of === h.id, "nobody bailed the floor under a roof nobody could get onto");
+  w.tGaveUp(g, h, "tidy");
+  check(!(h.tidyRest > g.tick), "one try was enough to give the roof up");
+  w.tGaveUp(g, h, "tidy");
+  check(h.tidyRest > g.tick, "a roof nobody could get onto, twice running, was not let be");
+  w.sandPlace(g, (h.y0 - 1) * g.gw + Math.floor(h.cx), w.MAT.SAND);
+  check(!w.tFindLitter(g, p, 300, h), "a roof being let be was swept anyway");
+});
+
+test("sand on a roof swept clean is swept again, unless it keeps coming back", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  var k = { kind: "tidy", site: h.id, n: 5 };
+  /* (nothing left on it: the old huts may have a drift at a door of their own, which is not this test's business) */
+  w.eval("globalThis.__fl = tFindLitter; tFindLitter = function () { return null; }");
+  p.task = k; w.tSwept(g, p, k);
+  check(!(h.sweptT > g.tick), "a roof swept clean once was let be");
+  g.tick += 100; p.task = k; w.tSwept(g, p, k);
+  var rest = h.sweptT > g.tick;
+  w.eval("tFindLitter = globalThis.__fl");
+  check(rest, "a roof swept clean twice in a row (sand coming back) was not let be");
+});
+
+test("their own floor and their own roof, they see to themselves", function () {
+  var w = tidyVillage(2), g = w.g, h = sites(g, "house")[0];
+  var o = g.peasants.filter(function (q) { return !q.dead && w.bHome(g, q) === h; })[0] || g.peasants.filter(function (q) { return !q.dead; })[0];
+  o.home = h.id; h.owner = o.id;
+  hutPuddle(w, 7);
+  o.task = null; o.homeT = 0; g.bailT = 1e9;   /* (the village is not looking for puddles just now: only the owner) */
+  check(w.tHome(g, o) && o.task.src && o.task.of === h.id, "the owner did not see to the puddle on their own floor");
+  o.task = null; o.homeT = 0;
+  var x, y; for (x = h.x0; x <= h.x1; x++) for (y = h.y0; y <= h.y1; y++) if (g.m[y * g.gw + x] === w.MAT.WATER) w.sandSet(g, y * g.gw + x, w.MAT.EMPTY);
+  for (x = h.x0 + 2; x <= h.x1 - 2; x++) { for (y = h.y0 - 10; y < h.y1 && w.AIRY[w.pCell(g, x, y)]; y++); if (y < h.y1 - 5) w.sandPlace(g, (y - 1) * g.gw + x, w.MAT.SAND); }
+  check(w.tHome(g, o) && o.task.kind === "tidy" && o.task.site === h.id, "the owner did not sweep their own roof");
+});
+
+test("sand drifted up against a hut's door is dug away, before the roof", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  var d = w.tDoors(g, h).filter(function (q) { return q.side > 0; })[0], x, y;
+  check(d, "(the test wants a door on the east side)");
+  /* (the old huts' walls are wood, which a peasant pushes through, door or no door: a plank lintel over it, as a
+     house the village built has) */
+  for (y = d.top - 4; y < d.top; y++) w.sandSet(g, y * g.gw + d.x, w.MAT.PLANK);
+  for (x = d.x + 1; x <= d.x + 3; x++) for (y = d.bot - 4; y <= d.bot; y++) if (w.AIRY[g.m[y * g.gw + x]]) w.sandPlace(g, y * g.gw + x, w.MAT.SAND);
+  check(w.tBlocked(g, d), "(the test wants the door drifted shut)");
+  p.home = h.id;   /* (their own door: the one they use) */
+  w.sandPlace(g, (h.y0 - 1) * g.gw + Math.floor(h.cx), w.MAT.SAND);
+  var t = w.tFindLitter(g, p, 300, h);
+  check(t && t.drift, "sand against the door was not seen to: " + JSON.stringify(t));
+  g.tidyT = 0; p.task = null; p.rope = null;
+  check(w.tGoTidy(g, p) && p.task.drift, "nobody went to dig out the door");
+  for (var k = 0; k < 6000 && p.task && p.task.kind === "tidy"; k++) sim.step(w, 1);
+  check(!w.tBlocked(g, d), "the door is still drifted shut");
+});
+
+test("a door with a lantern by it is still dug out when it is drifted shut; a back door against a dune, with the front open, is let be", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], p = g.peasants.filter(function (q) { return !q.dead; })[0], x, y;
+  var ds = w.tDoors(g, h), e = ds.filter(function (q) { return q.side > 0; })[0], o = ds.filter(function (q) { return q.side < 0; })[0];
+  [e, o].forEach(function (d) { for (y = d.top - 4; y < d.top; y++) w.sandSet(g, y * g.gw + d.x, w.MAT.PLANK); });   /* (plank lintels: see above) */
+  /* (and the west door's way in clear, whatever the dunes have done to it) */
+  for (x = o.x - 3; x <= o.x - 1; x++) for (y = o.top - 4; y <= o.bot; y++) if (!w.bMarked(g, x, y)) w.sandSet(g, y * g.gw + x, w.MAT.EMPTY);
+  /* the east door drifted shut, with a lantern over the drift */
+  for (x = e.x + 1; x <= e.x + 3; x++) for (y = e.top - 2; y <= e.bot; y++) if (w.AIRY[g.m[y * g.gw + x]]) w.sandPlace(g, y * g.gw + x, w.MAT.SAND);
+  w.bNew(g, "lamp", p, [w.bE(g, e.x + 1, e.top - 4, w.MAT.LAMP, 0)], [e.x + 1, e.top - 4, e.x + 1, e.top - 4], {});
+  w.sandSet(g, (e.top - 4) * g.gw + e.x + 1, w.MAT.LAMP);
+  check(w.tBlocked(g, e) && !w.tShut(g, h), "(the test wants the east door shut, the west open): " + w.tBlocked(g, e) + " " + w.tBlocked(g, o));
+  var q = g.peasants.filter(function (r) { return !r.dead && r !== p; })[0] || p;
+  q.home = 0; p.home = h.id;
+  check(!w.tFindLitter(g, q, 300, h) || !w.tFindLitter(g, q, 300, h).drift, "a back door against a dune was dug out while the front was open");
+  var t = w.tFindLitter(g, p, 300, h);
+  check(t && t.drift, "the owner's own door, drifted shut under a lantern, was not seen to");
+  /* both doors shut: anybody digs */
+  for (x = o.x - 3; x <= o.x - 1; x++) for (y = o.top - 2; y <= o.bot; y++) if (w.AIRY[g.m[y * g.gw + x]]) w.sandPlace(g, y * g.gw + x, w.MAT.SAND);
+  check(w.tShut(g, h), "(the test wants both doors shut)");
+  t = w.tFindLitter(g, q, 300, h);
+  check(t && t.drift, "a house drifted shut all round was not dug out");
+});
+
+test("a puddle that dries up before the bailer gets there is let be a while, not walked to all day", function () {
+  var w = tidyVillage(2), g = w.g, h = hutPuddle(w, 4), p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  nearHouse(w, p, h); g.bailT = 0;
+  check(w.tGoBail(g, p), "(the test wants a bailer)");
+  var k = p.task, x, y;
+  /* half of it gone (soaked away, say) before they get there */
+  var cells = w.tPuddleNear(g, { of: h.id });
+  w.sandSet(g, cells[0], w.MAT.EMPTY); w.sandSet(g, cells[1], w.MAT.EMPTY);
+  w.tBailScoop(g, p, k);
+  check(p.task !== k, "(the test wants the job over)");
+  g.bailT = 0; p.task = null;
+  check(!w.tGoBail(g, p) || p.task.of !== h.id, "the same drop was gone after again straight away");
+});
+
+test("a big spill on a hut floor is bailed, however much of it there is, and a bailer gone astray holds nobody else up", function () {
+  var w = tidyVillage(2), g = w.g, h = sites(g, "house")[0], x, y, n = 0;
+  var cx = Math.floor(h.cx), fl = h.y1 - 2;
+  for (; fl > h.y0 && !w.AIRY[g.m[fl * g.gw + cx]]; fl--);
+  for (; fl < h.y1 && w.AIRY[g.m[(fl + 1) * g.gw + cx]]; fl++);
+  for (y = fl; y > fl - 3; y--) for (x = h.x0 + 3; x <= h.x1 - 3; x++) if (w.AIRY[g.m[y * g.gw + x]]) { w.sandPlace(g, y * g.gw + x, w.MAT.WATER); n++; }
+  sim.step(w, 30);
+  var cells = w.tHousePuddle(g, h);
+  check(n > 20 && cells && cells.length > w.TD_PUDDLE, "(the test wants more than a puddle's worth on the floor: " + (cells && cells.length) + ")");
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0], q = g.peasants.filter(function (r) { return !r.dead && r !== p; })[0];
+  nearHouse(w, p, h); nearHouse(w, q, h); g.bailT = 0;
+  check(w.tGoBail(g, p) && p.task.of === h.id, "a floor with " + cells.length + " cells of water on it was not bailed");
+  /* the bailer is gone a long while (swimming the lake, say): somebody else may have the floor */
+  p.task.t0 = g.tick - w.TD_LONG - 10;
+  g.bailT = 0; q.task = null;
+  check(w.tGoBail(g, q) && q.task.of === h.id, "a bailing job gone on for ever kept everybody else off the floor");
+});
+
+test("a sweep that swept nothing does not count the roof as clean", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  w.eval("globalThis.__fl2 = tFindLitter; tFindLitter = function () { return null; }");
+  var k = { kind: "tidy", site: h.id, n: 0 };
+  p.task = k; w.tSwept(g, p, k); g.tick += 50; p.task = k; w.tSwept(g, p, k);
+  var rest = h.sweptT > g.tick, clean = h.cleanT;
+  w.eval("tFindLitter = globalThis.__fl2");
+  check(!rest && !clean, "two empty sweeps put the roof to rest as if sand kept coming back to it");
+});
+
+test("a flooded floor with a drop or two outside the door is a floor, not the lake come in", function () {
+  var w = tidyVillage(2), g = w.g, h = sites(g, "house")[0], x, y, n = 0;
+  var cx = Math.floor(h.cx), fl = h.y1 - 2;
+  for (; fl > h.y0 && !w.AIRY[g.m[fl * g.gw + cx]]; fl--);
+  for (; fl < h.y1 && w.AIRY[g.m[(fl + 1) * g.gw + cx]]; fl++);
+  for (y = fl; y > fl - 3; y--) for (x = h.x0 + 1; x <= h.x1 - 1; x++) if (w.AIRY[g.m[y * g.gw + x]]) { w.sandPlace(g, y * g.gw + x, w.MAT.WATER); n++; }
+  /* two drops on the step outside the east door */
+  var G = w.bGround(g, h.x1 + 1, h.y1);
+  w.sandPlace(g, (G - 1) * g.gw + h.x1 + 1, w.MAT.WATER); w.sandPlace(g, (G - 1) * g.gw + h.x1 + 2, w.MAT.WATER);
+  var c = w.tHousePuddle(g, h);
+  check(c && c.length >= n - 2, "a flooded floor with two drops outside it was taken for the lake come in: " + (c && c.length) + " of " + n);
+  /* and the lake itself, at the door, is the lake */
+  for (x = h.x1 + 1; x <= h.x1 + 16; x++) for (y = fl - 3; y <= G + 1; y++) w.sandPlace(g, y * g.gw + x, y <= fl ? w.MAT.WATER : w.MAT.STONE);
+  check(!w.tHousePuddle(g, h), "the lake come in at the door was bailed");
+});
+
+test("a bailer who ends up swimming gives it up, and water uphill of a puddle is not where it goes", function () {
+  var w = tidyVillage(2), g = w.g, h = hutPuddle(w, 7), p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  nearHouse(w, p, h); g.bailT = 0;
+  check(w.tGoBail(g, p), "(the test wants a bailer)");
+  var k = p.task;
+  p.swimming = 1;
+  for (var t = 0; t < 400; t += 20) { g.tick += 20; p.swimming = 1; w.tStep(g); }
+  check(p.task !== k, "a bailer swimming the lake kept the job");
+  /* and a sweeper the same */
+  var sk = { kind: "tidy", site: h.id, x: h.x0 + 3, y: h.y0, t: 0, t0: g.tick, act: 0, n: 0, trips: 0 };
+  p.task = sk;
+  for (t = 0; t < 400; t += 20) { g.tick += 20; p.swimming = 1; w.tStep(g); }
+  check(p.task !== sk && w.tNo(g, h.x0 + 3), "a sweeper treading water kept the job, or will make for the same spot again");
+  p.swimming = 0;
+  /* a pool a little way up the slope from a puddle, and nothing else: no destination */
+  var cells = w.tHousePuddle(g, h), top = w.tTop(g, cells, cells[0] % g.gw);
+  var fake = w.eval("(function (cells, x, y) { var r = iFindWater; iFindWater = function () { return { x: x, y: y - 1 }; }; var d = tBailDest(g, cells, g.sites.filter(function (s) { return s.kind === 'house'; })[0]); iFindWater = r; return d; })");
+  var up = fake(cells, top.x + 6, top.y - 4);
+  check(!up || up.dump.x !== top.x + 6, "water uphill of the puddle, close by, was chosen to tip it in");
+  var level = fake(cells, top.x + 30, top.y);
+  check(level && level.dump.x === top.x + 30, "(water level with it, further off, is somewhere to tip it: the test checks the uphill rule, not nothing)");
+});
+
+test("a bailer is not sent across the lake, water on a roof is bailed too, and a swim gives up on where it was going, not the floor", function () {
+  var w = tidyVillage(2), g = w.g, hs = sites(g, "house"), h = hs[0], far = hs[1];
+  check(Math.abs(far.cx - h.cx) > w.TD_CARRY + 30, "(the test wants two houses a long way apart)");
+  hutPuddle(w, 7);
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  p.x = far.cx; p.y = far.y1 - 1; p.rope = null; p.task = null; g.bailT = 0;
+  /* (a flooded floor is anybody's business, from anywhere they can walk there from with dry feet: not across the lake) */
+  var sent = w.tGoBail(g, p);
+  check(!sent || w.tCanGet(g, p, p.task.src.x, p.task.src.y, 5), "somebody at the far end of the valley was sent to bail a floor at the other, with no dry way there");
+  p.task = null;
+  /* water on the roof of the far house: a puddle in its way */
+  var x, y, top = w.tInsideTop(g, far), done = 0;
+  for (x = far.x0 + 2; x <= far.x1 - 2 && done < 5; x++) {
+    for (y = far.y0 - 10; y < top && w.AIRY[w.pCell(g, x, y)]; y++);
+    if (y < top && w.AIRY[w.pCell(g, x, y - 1)]) { w.sandPlace(g, (y - 1) * g.gw + x, w.MAT.WATER); done++; }
+  }
+  g.bailT = 0;
+  var ok = w.tGoBail(g, p);
+  check(ok && p.task.src.y < top, "water on a roof was never bailed" + (ok ? " (" + JSON.stringify(p.task.src) + ")" : ""));
+  /* the far house's floor job, swimming to a pond it wanted: the pond is written off, not the floor */
+  var job = { kind: "bucket", src: { x: h.x0 + 3, y: h.y1 - 2 }, at: { x: h.x0 + 3, y: h.y1 - 2 }, of: h.id, pond: 0, field: 0, dump: { x: h.x1 + 40, y: h.y1 }, n: 1, t0: g.tick };
+  p.task = job; p.pail = [{ m: w.MAT.WATER, sh: 0, q: 0 }];
+  for (var t = 0; t < 400; t += 20) { g.tick += 20; p.swimming = 1; w.tStep(g); }
+  check(p.task !== job && !w.tNo(g, h.x0 + 3, true) && w.tNo(g, h.x1 + 40, true), "a swim on the way to the water blamed the floor, not where it was going");
+  p.swimming = 0; p.pail = null;
+});
+
+test("water poured out of a house goes nowhere near anybody's site, and a pond too far off is not where a puddle goes", function () {
+  /* (every house in a few villages: wherever tOutside would pour its floor out, it is clear of everybody's site) */
+  [1, 2, 3, 4].forEach(function (seed) {
+    var w = tidyVillage(seed), g = w.g;
+    sites(g, "house").forEach(function (h) {
+      var o = w.tOutside(g, h);
+      if (!o) return;
+      var near = g.sites.filter(function (s) { return s !== h && o.x >= s.x0 - 1 && o.x <= s.x1 + 1 && o.y + 1 >= s.y0 - 1 && o.y + 1 <= s.y1 + 1; })[0];
+      check(!near, "seed " + seed + ": the floor of " + w.bLabel(h) + " would be poured out into " + (near && w.bLabel(near)));
+      for (var y = o.y - 2; y <= o.y + 2; y++) for (var x = o.x - 2; x <= o.x + 2; x++) check(!w.HOT[w.pCell(g, x, y)], "poured out onto something hot");
+    });
+  });
+  /* a thirsty pond at the far end of the valley: the puddle goes out of the door instead */
+  var w = tidyVillage(1), g = w.g, hs = sites(g, "house"), far = hs.slice().sort(function (a, b) { return Math.abs(b.cx - hs[0].cx) - Math.abs(a.cx - hs[0].cx); })[0];
+  var pd = pondBy(w, far, false);
+  check(pd && Math.abs(pd.cx - hs[0].cx) > w.TD_CARRY + 40, "(the test wants a pond a long way off)");
+  check(w.iPondThirst(g, pd), "(the test wants the pond thirsty)");
+  hutPuddle(w, 7);
+  var d = w.tBailDest(g, w.tHousePuddle(g, hs[0]), hs[0]);
+  check(d && !d.pond, "a puddle was sent " + Math.round(Math.abs(pd.cx - hs[0].cx)) + " columns to a pond");
+});
+
+test("a flood on a hut floor is bailed out in a few minutes, not a quarter of an hour", function () {
+  var w = tidyVillage(1), g = w.g, h = hutPuddle(w, 1), k, n0;
+  /* (the whole floor, a few cells deep) */
+  var top = w.tInsideTop(g, h), fl = w.tFloor(g, h);
+  for (var y = fl - 1; y >= fl - 4 && y >= top; y--) for (var x = h.x0 + 1; x <= h.x1 - 1; x++) if (w.AIRY[g.m[y * g.gw + x]] && !w.bMarked(g, x, y)) w.sandPlace(g, y * g.gw + x, w.MAT.WATER);
+  n0 = (w.tHousePuddle(g, h, true) || []).length;
+  check(n0 >= 40, "(the test wants a flood: " + n0 + ")");
+  for (k = 0; k < 15000 && (w.tHousePuddle(g, h, true) || []).length > 2; k += 50) sim.step(w, 50);
+  var left = (w.tHousePuddle(g, h, true) || []).length;
+  check(left <= 2, n0 + " cells of water on the floor, and " + left + " still there after " + k + " ticks");
+});
+
+test("a grain on its way past is not litter; a roof nobody can get onto is let be, however well the rest of it went", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], x = Math.floor(h.cx), y;
+  for (y = h.y0 - 12; y < h.y1 && w.AIRY[w.pCell(g, x, y)]; y++);
+  var j = (y - 1) * g.gw + x;
+  w.sandPlace(g, j, w.MAT.SAND);
+  g.stamp[j] = g.tick;
+  check(!w.tLitterAt(g, x, y - 1), "a grain that has only just landed on the roof is litter already");
+  g.stamp[j] = g.tick - 100;
+  check(w.tLitterAt(g, x, y - 1) === h, "a grain lying on the roof a while is not litter");
+  /* two give-ups, with a good sweep in between: still let be */
+  w.tGaveUp(g, h, "tidy");
+  w.tSwept(g, g.peasants[0], { kind: "tidy", site: h.id, n: 3, trips: 0 });
+  w.tGaveUp(g, h, "tidy");
+  check(h.tidyRest > g.tick, "a roof given up on twice was not let be, because a sweep in between went well");
+});
+
+test("a pile of sand tipped out beside a hut is carried off, onto the village's heap, until the ground is level; the lie of the land is let be", function () {
+  var w = tidyVillage(3), g = w.g, h = sites(g, "house")[0], X = -1, d, sd, x, G, r, dx, put = 0;
+  sim.step(w, 600);   /* (the ground as it was, looked at) */
+  check(g.tGround, "nobody looked at the ground");
+  check(!g.tLumps.length, "the valley as it was, before anybody tipped anything, has piles in it: " + JSON.stringify(g.tLumps));
+  for (d = 6; d < 40 && X < 0; d++) for (sd = 1; sd >= -1 && X < 0; sd -= 2) {
+    x = Math.round(sd > 0 ? h.x1 + d : h.x0 - d); G = w.mGround(g, x);
+    if (G > 0 && !w.tGroundBusy(g, x - 6, G) && !w.tGroundBusy(g, x, G) && !w.tGroundBusy(g, x + 6, G) && w.tVillage(g, x)) X = x;
+  }
+  check(X > 0, "(the test wants open ground by the hut)");
+  for (r = 0; put < 50 && r < 12; r++) for (dx = -(6 - r); dx <= 6 - r && put < 50; dx++) {
+    G = w.mGround(g, X + dx);
+    if (G > 1 && w.AIRY[g.m[(G - 1) * g.gw + X + dx]]) { w.sandPlace(g, (G - 1) * g.gw + X + dx, w.MAT.SAND); put++; }
+  }
+  sim.step(w, 400);
+  check(g.tLumps.some(function (L) { return L.x0 <= X && L.x1 >= X; }), "a pile of " + put + " handfuls by the hut is not a pile: " + JSON.stringify(g.tLumps));
+  var lev = function () { var n = 0; for (var q = X - 8; q <= X + 8; q++) n += Math.max(0, g.tGround[q] - w.mGround(g, q)); return n; };
+  for (var t = 0; t < 20000 && lev() > 2; t += 100) sim.step(w, 100);
+  check(lev() <= 2, "the pile is still there: " + lev() + " handfuls over the ground as it was");
+  check(g.tidied >= 3, "the ground went level by itself, not by anybody carrying it off");
+  var heap = g.tip && w.bSite(g, g.tip.site);
+  check(heap && heap.kind === "heap" && w.bLabel(heap) === "the village heap", "the village's heap is not somewhere of its own");
+  check(Math.abs(g.tip.x - X) > 12, "the heap is where the pile was");
+});
+
+test("a pile in a village with a mine is still a pile: only where the spoil goes is the spoil heap's", function () {
+  var w = tidyVillage(1), g = w.g, p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  know(g, ["farm", "dig", "bucket", "mine"]);
+  for (var k = 0; k < g.peasants.length && !sites(g, "mine").length; k++) w.mPlanMine(g, g.peasants[k]);
+  check(sites(g, "mine").length, "(the test wants a mine)");
+  var m = sites(g, "mine")[0], col = m.col != null ? m.col : Math.round(m.cx), x, G, busy = 0, looked = 0;
+  /* (the ground round about the mine, outside its box, is nobody's yet) */
+  for (x = col - 40; x <= col + 40; x++) {
+    if (x >= m.x0 - 4 && x <= m.x1 + 4) continue;
+    G = w.mGround(g, x);
+    if (G < 0 || g.sites.some(function (s) { return x >= s.x0 - 3 && x <= s.x1 + 3 && G >= s.y0 - 8 && G <= s.y1 + 4; })) continue;
+    looked++;
+    if (w.tGroundBusy(g, x, G)) busy++;
+  }
+  check(looked > 10 && !busy, busy + " of " + looked + " columns round a mine were let off being tidied, with no spoil on them");
+  /* (a spadeful of spoil carried up and tipped: where it went is the spoil heap's) */
+  var j = -1;
+  for (var q = 0; q < m.plan.length && j < 0; q++) if (g.m[m.plan[q].i] === w.MAT.SAND) j = m.plan[q].i;
+  check(j >= 0, "(the test wants sand in the mine's way)");
+  var before = {}; for (x = 0; x < g.gw; x++) before[x] = w.mGround(g, x);
+  check(w.mSpoil(g, m, j), "(the spoil went nowhere)");
+  var landed = -1; for (x = 0; x < g.gw && landed < 0; x++) if (w.mGround(g, x) !== before[x]) landed = x;
+  check(landed >= 0 && w.tGroundBusy(g, landed, w.mGround(g, landed)), "the spoil heap at column " + landed + " is a pile to be tidied away");
+});
+
+test("a bush grown up in a doorway is cut back, and a bucket for a puddle is not thrown through a bush", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house").filter(function (s) { return !s.hut; })[0] || sites(g, "house")[0];
+  var d = w.tDoors(g, h)[0], y, x = d.x + 2 * d.side, put = 0;
+  for (y = d.bot - 4; y <= d.bot; y++) if (w.AIRY[w.pCell(g, x, y)]) { w.sandPlace(g, y * g.gw + x, w.MAT.PLANT); put++; }
+  check(put >= 3, "(the test wants room for a bush on the step)");
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  nearHouse(w, p, h);
+  check(w.tGoWeed(g, p) && p.task.weed && p.task.site === h.id, "nobody went to cut back the bush in the doorway");
+  for (var t = 0; t < 3000 && p.task && p.task.weed; t++) sim.step(w, 1);
+  var left = 0; for (y = d.top - 1; y <= d.bot; y++) for (var a = 0; a <= 3; a++) if (w.tWeedAt(g, h, d.x + a * d.side, y)) left++;
+  check(left === 0, left + " cells of bush still in the doorway");
+  check(h.weedT > g.tick, "a doorway just cut back is not let be a while");
+  /* (a throw over a bush: a fire does not care, a puddle does) */
+  var fy = w.tFloor(g, h) - 1, tx = x + 12 * d.side, ty = fy;
+  for (var k = 0; k < 60 && w.iClearArc(g, x, fy, { x: tx, y: ty }); k++) {
+    var X = x + d.side * (3 + (k % 6)), Y = fy - 9 - ((k / 6) | 0);
+    if (w.AIRY[w.pCell(g, X, Y)]) w.sandPlace(g, Y * g.gw + X, w.MAT.PLANT);
+  }
+  check(!w.iClearArc(g, x, fy, { x: tx, y: ty }, true), "a bucket for a puddle is thrown through a bush");
+});
+
+test("a roof somebody is already sweeping sends the next one to the next roof; the heap is not started under a bush; a flood gets two buckets", function () {
+  var w = tidyVillage(1), g = w.g, hs = sites(g, "house"), ps = g.peasants.filter(function (q) { return !q.dead; });
+  function sand(h) {
+    for (var x = h.x0 + 1; x <= h.x1 - 1; x++) { for (var y = h.y0 - 12; y < h.y1 && w.AIRY[w.pCell(g, x, y)]; y++); if (y < h.y1) { w.sandPlace(g, (y - 1) * g.gw + x, w.MAT.SAND); g.stamp[(y - 1) * g.gw + x] = 0; } }
+  }
+  sand(hs[0]); sand(hs[1]);
+  var p = ps[0], q = ps[1];
+  nearHouse(w, p, hs[0]);
+  q.task = { kind: "tidy", site: hs[0].id, x: hs[0].x0, y: hs[0].y0, t: 0, t0: g.tick, act: 0, n: 0, trips: 0 };
+  var t = w.tFindLitter(g, p, w.TD_LOOK);
+  check(t && t.site === hs[1].id, "with somebody on the nearest roof, the next one in looked no further: " + JSON.stringify(t));
+  q.task = null;
+  /* (a bush hanging over a bit of open ground: no place for a heap) */
+  var x0 = Math.floor(hs[0].x1) + 30, G = w.mGround(g, x0);
+  w.sandPlace(g, (G - 4) * g.gw + x0, w.MAT.PLANT);
+  check(!w.tHeapOk(g, x0, G, 0), "the heap would be started under a bush");
+  /* (a flood: two on it, a puddle: one) */
+  check(w.tBailCrew({ length: 40 }) === 2 && w.tBailCrew({ length: 8 }) === 1, "a flood and a puddle get the same number of buckets");
+});
+
+test("a pool more than a puddle, standing against a hut by its door (run off the roof), is bailed; one out in the open is a pond", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], d = w.tDoors(g, h)[0], p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  var n = 0, x, y, G;
+  for (x = d.x + d.side; Math.abs(x - d.x) <= 8 && n < 26; x += d.side) {
+    G = w.mGround(g, x);
+    for (y = G - 1; y >= G - 3 && n < 26; y--) if (w.AIRY[g.m[y * g.gw + x]]) { w.sandPlace(g, y * g.gw + x, w.MAT.WATER); n++; }
+  }
+  check(n > w.TD_PUDDLE, "(the test wants a pool bigger than a puddle: " + n + ")");
+  nearHouse(w, p, h); g.bailT = 0;
+  check(w.tGoBail(g, p) && p.task.src && Math.abs(p.task.src.x - d.x) <= 10, "a pool against the door of the hut was let be as a pond");
+});
+
+test("nothing is tipped on top of a buried house, and a swim into a flooded floor counts against it", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0];
+  check(!w.tHeapOk(g, Math.floor(h.cx), h.y0 - 8, 2) && !w.tHeapOk(g, Math.floor(h.cx), h.y0 - 8, 5, true), "sand heaped over a buried roof is somewhere to tip more");
+  var p = g.peasants.filter(function (q) { return !q.dead; })[0];
+  p.task = { kind: "bucket", src: { x: h.x0 + 3, y: h.y1 - 2 }, at: { x: h.x0 + 3, y: h.y1 - 2 }, of: h.id, n: 0, t0: g.tick };
+  for (var t = 0; t < 400; t += 20) { g.tick += 20; p.swimming = 1; w.tStep(g); }
+  p.swimming = 0;
+  check(h.bailFail === 1, "a bailer who swam in the flood and gave up was not counted");
+});
+
+test("a pond is not planned on a pile of loose sand somebody tipped out", function () {
+  var w = tidyVillage(1), g = w.g, x0, r = null, fy = 0;
+  sites(g, "house").forEach(function (h) { for (var d = 3; d < 40 && !r; d++) for (var sd = -1; sd <= 1 && !r; sd += 2) { x0 = sd > 0 ? Math.floor(h.x1) + d : Math.floor(h.x0) - d - w.I_POND_W; fy = Math.floor(h.y1); r = w.iPondPlot(g, x0, fy); } });
+  x0++;
+  check(r, "(the test wants somewhere for a pond)");
+  x0--;
+  g.tLumps = [{ x0: x0 + 4, x1: x0 + 8, lev: fy }];
+  check(!w.iPondPlot(g, x0, fy), "a pond was planned on a pile");
+  g.tLumps = [];
+});
+
+test("a door buried over its lintel is shut, and the heap is full by its height over where it was started", function () {
+  var w = tidyVillage(1), g = w.g, h = sites(g, "house")[0], d = w.tDoors(g, h)[0], x = d.x + d.side, y;
+  for (y = d.top - 6; y <= d.bot; y++) if (w.AIRY[g.m[y * g.gw + x]]) w.sandSet(g, y * g.gw + x, w.MAT.SAND);
+  check(w.tBlocked(g, d), "a door with sand heaped up over its lintel reads as open");
+  var X = Math.floor(h.x1) + 40, G = w.mGround(g, X);
+  g.tip = { x: X, y: G, site: 0, n: 3 };
+  for (y = G - 1; y >= G - w.TD_HEAP_HIGH - 1; y--) w.sandSet(g, y * g.gw + X, w.MAT.SAND);
+  for (y = G - 1; y >= G - w.TD_HEAP_HIGH - 1; y--) { w.sandSet(g, y * g.gw + X - 6, w.MAT.SAND); w.sandSet(g, y * g.gw + X + 6, w.MAT.SAND); }
+  check(w.tTipFull(g), "a heap as high again as a heap goes over its own ground is not full, because the sand beside it went up too");
+  g.tip = null;
+});
+
 var failed = 0, t0 = Date.now();
 tests.forEach(function (t) {
   if (only && t.name.indexOf(only) < 0) return;

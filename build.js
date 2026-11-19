@@ -600,10 +600,17 @@ function bFail(g, p, s, t, why) {
   p.failSite = s.id; p.failT = g.tick + t; p.task = null; p.taskCD = 120;
   /* a stair or a bridge that nobody can find a way to add to, time after time, is not going to happen */
   /* nor anything nobody can find a way to, time after time (a grave across the lake from everybody, a gallery down a
-     mine they cannot get into): given up, and planned again somewhere they can get to. (a gallery is written off) */
-  if (why === "walk" && s.kind !== "house" && s.kind !== "farm" && !s.mine && s.kind !== "pond" && (s.lost = (s.lost || 0) + 1) > 24) {
+     mine they cannot get into, a pond dug where nobody can get to it to finish it): given up, and planned again
+     somewhere they can get to. (a gallery is written off. a pond that was dug once is mended, not given up) */
+  if (why === "walk" && s.kind !== "house" && s.kind !== "farm" && !s.mine && (s.kind !== "pond" || !s.repair) && (s.lost = (s.lost || 0) + 1) > 24) {
     var j = g.sites.indexOf(s);
-    if (j >= 0) { feed(g, "nobody can get to " + bLabel(s) + ". the village gave up on it", "#c8d0dc", "plan" + s.id); if (s.kind === "glasshouse") lRefund(g, s); else bGiveBack(s, p); bRemove(g, j); }
+    if (j >= 0) {
+      feed(g, "nobody can get to " + bLabel(s) + ". the village gave up on it", "#c8d0dc", "plan" + s.id);
+      if (s.kind === "glasshouse") lRefund(g, s); else bGiveBack(s, p);
+      /* (and a pond is not planned on the same spot again for a good long while: ideas.js iPlanPond) */
+      if (s.kind === "pond") { if (!g.pondNo) g.pondNo = {}; for (var x = s.x0 >> 2; x <= s.x1 >> 2; x++) g.pondNo[x] = g.tick + 30000; }
+      bRemove(g, j);
+    }
     return;
   }
   if (why === "walk" && s.kind === "tunnel" && (s.lost = (s.lost || 0) + 1) > 24 && !s.flood) {

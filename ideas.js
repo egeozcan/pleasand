@@ -28,7 +28,10 @@
                  spade. with that and the bucket, a house or a field
                  that is a long way from any water gets a pond of its
                  own: a bowl dug into the sand beside it, and filled,
-                 bucket by bucket, from the nearest water there is
+                 bucket by bucket, from the nearest water there is (real
+                 water: never out of another pond). and the rest of the
+                 valley is tidied: puddles carried to the pond, sand
+                 swept off the roofs and into the holes (tidy.js)
      GRAVESTONES a wooden cross for everybody who died, in a row,
                  saying how. now and then somebody visits, and leaves
                  a flower
@@ -182,7 +185,7 @@ var IDEAS = [
     ready: function (g) { return iHouses(g) > 0; } },
   { id: "bucket", name: "the bucket", title: "THE BUCKET", sub: "water goes on fires, and on the wheat. we have a fire brigade", hint: "a fire, or a dry field",
     ready: function (g) { return g.burnt || (!!g.know.dig && iCount(g, "farm") > 0); } },
-  { id: "dig", name: "digging", title: "LANDSCAPING", sub: "a hole in the ground is a pond, once it has water in it", hint: "some hoeing",
+  { id: "dig", name: "digging", title: "LANDSCAPING", sub: "a hole in the ground is a pond, once it has water in it. and everything else has its place", hint: "some hoeing",
     ready: function (g) { return g.dug >= I_DUG; } },
   { id: "grave", name: "the gravestone", title: "GRAVESTONES", sub: "somewhere to remember them by", hint: "a loss",
     ready: function (g) { return g.dead.length > 0; } },
@@ -236,6 +239,7 @@ function ideasReset(g) {
   /* when each idea first could have been thought of (the longer something has been on their minds, the likelier it is
      to be next), and how often somebody has gone for wood and found no tree */
   g.readyT = {}; g.treeless = 0; g.dugSpark = 0; g.noRoom = {}; g.tools = 0;
+  g.pondNo = {};   /* (where a pond was lately given up: iPondNo) */
   /* what has come up out of the ground so far, and how much iron they have made of it (mines.js). rock: how often
      anybody has stood on bare rock, and wondered */
   g.found = { stone: 0, coal: 0, ore: 0, gold: 0, oil: 0, salt: 0, ash: 0, glass: 0, powder: 0 }; g.iron = 0; g.rock = 0;
@@ -243,6 +247,8 @@ function ideasReset(g) {
   g.oilSeen = 0; g.barrels = 0; g.packs = 0;
   /* and what is left over, and what they make of it (leftovers.js) */
   lReset(g);
+  /* and how tidy they keep it (tidy.js) */
+  tReset(g);
 }
 function iKnown(g) { var n = 0; for (var k in g.know) n++; return n; }
 function iHouses(g) {
@@ -370,6 +376,8 @@ function iPick(g, p) {
     if (iPlanPond(g, p)) return true;
     p.planCD = 1800;
   }
+  /* a puddle on their own floor, sand on their own roof: that is theirs to see to, before the rest (tidy.js) */
+  if (K.dig && !hungry && tHome(g, p)) return true;
   /* somebody gone, with no cross yet: that comes before the mine, too */
   if (K.grave && bOpenCount(g) < B_OPEN && (bWood(p) >= 1 || Math.random() < 0.3) && g.tick > (g.graveT || 0) && iGraveDue(g) && iPlanGrave(g, p)) return true;
   /* the bell, while there is none (and gold enough about for it): before the mine gets them, too */
@@ -382,6 +390,10 @@ function iPick(g, p) {
     if (iPlanPost(g, p)) return true;
     g.postT = g.tick + 1500;
   }
+  /* and with a spade in hand, the rest of the valley looks untidy: puddles carried to the pond, sand swept off the
+     roofs and into the holes. after the dead and the bell and the statue, but before the mine, which would have
+     everybody for ever (tidy.js) */
+  if (K.dig && tPick(g, p, hungry)) return true;
   /* a charge of black powder in the pocket, and a gallery with rock ahead: before the pick gets them (leftovers.js) */
   if (K.powder && !hungry && (p.powder || 0) >= 1 && Math.random() < 0.5 && lGoBlast(g, p)) return true;
   /* the mine, and everything that comes up out of it (mines.js) */
@@ -444,6 +456,8 @@ function iTask(g, p, k) {
   if (r !== undefined) return r;
   r = lTask(g, p, k);
   if (r !== undefined) return r;
+  r = tTask(g, p, k);
+  if (r !== undefined) return r;
   return oTask(g, p, k);
 }
 function iDone(p, ok) { p.task = null; p.taskDone = !!ok; return false; }
@@ -466,14 +480,15 @@ function iWalk(g, p, k, key, x, y, goal) {
 var I_FUN = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, light: 1, lookout: 1, admire: 1, gather: 1, snowball: 1, snowman: 1, skate: 1 };
 /* once a third of a second or so: what is on fire */
 var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1, shoo: 1, lookout: 1, smelt: 1, forge: 1, pump: 1, pack: 1, refuel: 1, launch: 1, admire: 1,
-  gather: 1, snowball: 1, snowman: 1, skate: 1, grit: 1, potash: 1, grind: 1, bombfish: 1, glassblow: 1, store: 1, brine: 1 };
+  gather: 1, snowball: 1, snowman: 1, skate: 1, grit: 1, potash: 1, grind: 1, bombfish: 1, glassblow: 1, store: 1, brine: 1, tidy: 1 };
 /* what somebody will drop when the alarm goes up: anything they are only doing for fun, or that can wait (a snack, a
    chat round the campfire, a bit of hammering) */
 function iCanWait(p, k) {
-  return !k || I_IDLE[k.kind] || (k.kind === "eat" && p.hunger < P_HUNGRY * 2) || (k.kind === "warm" && k.social) || (k.kind === "bucket" && (k.field || k.pond));
+  return !k || I_IDLE[k.kind] || (k.kind === "eat" && p.hunger < P_HUNGRY * 2) || (k.kind === "warm" && k.social) || (k.kind === "bucket" && (k.field || k.pond || (k.src && !p.pail)));
 }
 function ideasStep(g) {
   if (g.tick % 20) return;
+  tStep(g);   /* (a bailer gone swimming: tidy.js) */
   var S = g.sites, k, j, s, f;
   if (g.tick % 120 === 0) iReadyScan(g);
   iFestSweep(g);
@@ -807,7 +822,10 @@ function iThirsty(g, s) {
   return tips.length >= 3 ? tips : null;
 }
 function iTaskBucket(g, p, k) {
-  if (++k.t > 4000) return iDone(p, false);
+  /* a puddle to bail (k.src): filled out of that, not out of the pond, and by the clock, not by this. the throwing is
+     the same as any other bucket's (tidy.js) */
+  var r = k.src ? tBailStep(g, p, k) : ++k.t > 4000 ? iDone(p, false) : undefined;
+  if (r !== undefined) return r;
   var fx = Math.floor(p.x), fy = Math.floor(p.y), fresh = !!(k.field || k.pond), j;
   var pond = k.pond && bSite(g, k.pond);
   if (!p.pail) {
@@ -836,13 +854,15 @@ function iTaskBucket(g, p, k) {
     return false;
   }
   /* bucket full: off to the fire (the nearest bit of it, looked for again now and then), or the thirstiest stalk */
-  var tgt = k.last && k.aim > g.tick ? k.last : (k.site ? iBlazeTarget(g, k.site, p) : (k.pond ? iPondTarget(g, pond) : iWaterTarget(g, k.field)));
+  var tgt = k.last && k.aim > g.tick ? k.last : (k.site ? iBlazeTarget(g, k.site, p) : k.src ? tBailTarget(g, k) : (k.pond ? iPondTarget(g, pond) : iWaterTarget(g, k.field)));
   if (tgt !== k.last) k.aim = g.tick + 60;
   /* it went out on the way: thrown on for luck, if they are standing somewhere they could; else never mind */
   if (!tgt && k.last && iThrowFrom(g, fx, fy, k.last)) tgt = k.last;
   if (!tgt) { iSpill(g, p); if (k.site && p.sayT <= 0) pSay(g, p, "out"); return iDone(p, true); }
   k.last = tgt;
-  var good = function (x, y) { return iThrowFrom(g, x, y, tgt); };
+  /* (watering, or a puddle: from somewhere the bucket clears. thrown from indoors, it goes into the wall and comes down
+     on the floor, which is where the next puddle comes from. a fire is another matter: anywhere it reaches will do) */
+  var good = function (x, y) { return iThrowFrom(g, x, y, tgt) && (!!k.site || iClearArc(g, x, y, tgt, !!k.src)); };
   if (good(fx, fy) && !p.swimming) {
     p.dir = tgt.x + 0.5 < p.x ? -1 : 1;
     p.pose = ++k.act < 10 ? "hammerA" : "hammerB";
@@ -852,16 +872,41 @@ function iTaskBucket(g, p, k) {
       var s = k.site && bSite(g, k.site);
       if (s) s.doused = (s.doused || 0) + 1;
       k.aim = 0;
-      if (p.sayT <= 0 && Math.random() < 0.4) pSay(g, p, k.site ? "douse" : (k.pond ? "pond" : "water"));
+      if (p.sayT <= 0 && Math.random() < 0.4) pSay(g, p, k.site ? "douse" : k.src ? tBailSay(k) : (k.pond ? "pond" : "water"));
     }
     return true;
   }
   k.act = 0;
-  var left = pathGo(g, p, "throw" + (k.site || k.field || k.pond), tgt.x, tgt.y, good);
+  var left = pathGo(g, p, "throw" + (k.site || k.field || k.pond || "bail"), tgt.x, tgt.y, good);
   /* no way they can see to anywhere good to throw from: closer, while it is cool enough; back off, if it is not */
-  if (left < 0) { var toward = tgt.x + 0.5 < p.x ? -1 : 1; p.dir = iSafe(g, fx, fy) ? toward : -toward; }
-  if (pStuck(p, k, left > 0 ? left : Math.abs(tgt.x + 0.5 - p.x))) { iSpill(g, p); pGiveUp(g, p, tgt.x); }
+  /* (a puddle: no way to anywhere it could be thrown from is no reason to wade into the lake after it: tidy.js) */
+  if (left < 0 && !(k.src && tBailLost(k))) { var toward = tgt.x + 0.5 < p.x ? -1 : 1; p.dir = iSafe(g, fx, fy) ? toward : -toward; }
+  if (pStuck(p, k, left > 0 ? left : Math.abs(tgt.x + 0.5 - p.x))) {
+    /* (a puddle has somewhere else to try first: tidy.js) */
+    if (k.src && tBailStuck(g, k, tgt, fx)) return false;
+    iSpill(g, p); pGiveUp(g, p, tgt.x);
+  }
   return false;
+}
+/* does a bucket thrown from feet at (x, y) clear everything on its way to t: the arc iThrow throws it on, every cell
+   of it thin air (or leaves, or water), but for the last few, where it lands */
+/* (leafy: a bush is in the way too. a bucket of water thrown into a bush half stays in it and drips back down: for a
+   puddle on a floor, down outside the door, and back in. and the drops spread out a little as they go, upwards: iThrow,
+   so the arc is looked along from a row or two higher too) */
+function iClearArc(g, x, y, t, leafy) {
+  var d = t.x + 0.5 < x + 0.5 ? -1 : 1, k, c, X, Y, up;
+  function clear(c) { return AIRY[c] || LIQUID[c] || (!leafy && P_LEAF[c]); }
+  /* (and from their hands to where it leaves the bucket: a door, a wall, right in front of them, is in the way too) */
+  for (k = 1; k <= 2; k++) if (!clear(pCell(g, x + d * k, y - 8)) || !clear(pCell(g, x + d * k, y - 7))) return false;
+  for (up = 0; up <= (leafy ? 2 : 0); up++) {
+    var sx = x + 0.5 + d * 1.5, sy = y - 8 - up, dx = t.x + 0.5 - sx, dy = t.y + 0.5 - sy;
+    var tf = clamp(Math.abs(dx) / 0.8, 10, 28), vx = dx / tf * 1.04, vy = Math.max(-3.4, (dy - 0.055 * tf * tf) / tf);
+    for (k = 0; k < tf - 3; k++) {
+      X = Math.floor(sx + vx * k); Y = Math.floor(sy + vy * k + 0.055 * k * k);
+      if (Y >= 0 && !clear(pCell(g, X, Y))) return false;
+    }
+  }
+  return true;
 }
 /* could they throw a bucket from feet at (x, y) at t: in range, and somewhere cool enough to stand */
 function iThrowFrom(g, x, y, t) {
@@ -935,13 +980,15 @@ function iFindWater(g, p, R, b, fresh, bar, deep) {
   }
   return null;
 }
-/* the ponds nobody takes water out of, for whatever they are doing: not the one they are filling, and not any other
+/* the ponds nobody takes water out of, for whatever they are doing. filling a pond (pond, or true for one not dug
+   yet): none of them. a pond is filled from real water, never from another pond: two ponds filled out of each other
+   would have the brigade carrying the same water back and forth between them for ever. watering the wheat: not any
    that is still short of water (that is for a fire, and nothing less). null for a fire */
 function iBarred(g, pond) {
-  var out = pond ? [pond] : [], k, s;
+  var out = [], k, s;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind === "pond" && s !== pond && iPondNeed(g, s) > I_POND_KEEP) out.push(s);
+    if (s.kind === "pond" && (pond || iPondNeed(g, s) > I_POND_KEEP)) out.push(s);
   }
   return out;
 }
@@ -1008,18 +1055,10 @@ function iSpill(g, p, dying, cx, cy) {
    filled, a bucketful at a time, from the nearest water there is. the sides slope in one step to the cell, which is as
    steep as sand will stand, down to a level floor three cells below the waterline
    ------------------------------------------------------------------- */
-/* fresh water (any, if fresh is false) in a band of columns R either side of cx, near row cy: how many cells, counted
-   only up to a dozen */
-function iWaterCount(g, cx, cy, R, fresh) {
-  var n = 0, x, y, c, x0 = Math.max(0, Math.floor(cx - R)), x1 = Math.min(g.gw - 1, Math.floor(cx + R));
-  for (y = Math.max(0, Math.floor(cy) - 20); y <= cy + 30 && y < g.gh; y++) for (x = x0; x <= x1; x++) {
-    c = g.m[y * g.gw + x];
-    if (fresh ? c === MAT.WATER : WET[c] === 1) { if (++n >= 12) return n; }
-  }
-  return n;
-}
-/* a house or a field that a pond would do some good: done, and no water (and no pond of theirs, dug or being dug, to
-   be filled) anywhere near it, with fresh water somewhere that a bucket could be carried from */
+/* a house or a field that a pond would do some good: done, and no water a bucket could be filled from (fresh, for a
+   field: salt water kills the wheat) anywhere near it, and no pond of theirs, dug or being dug, to be filled. (water
+   sealed in a cave under them, or a puddle, is no use to anybody with a bucket.) and real water somewhere that a bucket
+   could be carried from: not another pond (iBarred) */
 function iPondFor(g, p) {
   var best = null, bd = 220, k, j, s, d, has;
   for (k = 0; k < g.sites.length; k++) {
@@ -1029,10 +1068,19 @@ function iPondFor(g, p) {
     if (d >= bd) continue;
     for (j = 0, has = false; j < g.sites.length; j++) if (g.sites[j].kind === "pond" && (g.sites[j].serves === s.id || Math.abs(g.sites[j].cx - s.cx) < I_POND_NEAR)) has = true;
     /* (the water to fill it from has to be what a bucket can be filled from, the same as when they come to do it) */
-    if (has || iWaterCount(g, s.cx, s.cy, I_POND_NEAR, false) >= 12 || !iFindWater(g, { x: s.cx, y: s.y1 - 1 }, 160, null, true, null, true)) continue;
+    var at = { x: s.cx, y: s.y1 - 1 };
+    if (has || iWaterNear(g, at, I_POND_NEAR, s.kind === "farm") || !iFindWater(g, at, 160, null, true, iBarred(g, true), true)) continue;
     bd = d; best = s;
   }
   return best;
+}
+/* is there water near at (R columns either way) that a bucket can be filled from, again and again: a pond's worth, or a
+   broad stream, shallow as it may be. not a puddle (tidy.js), which is one bucketful and gone, and not water sealed
+   in a cave under the floor. (fresh only, for a field: salt water kills the wheat) */
+function iWaterNear(g, at, R, fresh) {
+  if (iFindWater(g, at, R, null, fresh, null, true)) return true;
+  var w = iFindWater(g, at, R, null, fresh, null, false);
+  return !!w && !tPuddleOf(g, w.x, w.y + 1);
 }
 /* a pond for somewhere that wants one: one at a time, and not more than three in the valley */
 function iPlanPond(g, p) {
@@ -1042,6 +1090,7 @@ function iPlanPond(g, p) {
   fy = Math.floor(s.y1);
   for (d = 0; d <= 34 && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) {
     x0 = sd > 0 ? s.x1 + 3 + d : s.x0 - 3 - d - (I_POND_W - 1);
+    if (iPondNo(g, x0)) continue;
     r = iPondPlot(g, x0, fy);
   }
   if (!r) return false;
@@ -1054,6 +1103,12 @@ function iPlanPond(g, p) {
   bJoin(g, p, site);
   return true;
 }
+/* is (x0 .. x0 + I_POND_W - 1) where a pond was given up lately (nobody could get to it: build.js bFail) */
+function iPondNo(g, x0) {
+  if (!g.pondNo) return false;
+  for (var x = x0 >> 2; x <= (x0 + I_POND_W - 1) >> 2; x++) if (g.pondNo[x] > g.tick) return true;
+  return false;
+}
 /* is (x0 .. x0 + I_POND_W - 1) a place for a pond, near row fy: sand, with clear sky over it and a solid floor under
    it, nobody else's site, nothing hot or wet about. the water comes up to the row under the highest-up bit of the
    lowest ground in it (the banks outside hold it in), and the bowl goes down as far as the sand does: the sand is only
@@ -1064,6 +1119,8 @@ function iPlanPond(g, p) {
 function iPondPlot(g, x0, fy) {
   var W = I_POND_W, x1 = x0 + W - 1, gy = {}, hi = -1, x, y, k, c, G, L, S = [], dig = [], vol = 0, bx0 = x0, bx1 = x1;
   if (x0 < 16 || x1 > g.gw - 17) return null;
+  /* (not on a pile of loose sand somebody tipped out: it slides back into the bowl as fast as it is dug. tidy.js) */
+  for (x = x0 - 3; x <= x1 + 3; x++) if (tByLump(g, x, null, 3)) return null;
   /* the ground under column x (-1: not ground a pond can go on) */
   function ground(x) {
     if (gy[x] != null) return gy[x];
@@ -1925,6 +1982,8 @@ function iMood(g, p) {
   if (om) return om;
   var lm = lMood(g, p);
   if (lm) return lm;
+  var tm = tMood(g, p);
+  if (tm) return tm;
   if (!k) return "";
   if (k.kind === "build" && (s = bSite(g, k.site)) && s.kind === "farm")
     return (s.sow ? "is sowing " : "is working on ") + bLabel(s) + ". it takes no wood, just elbow grease";
@@ -1967,7 +2026,14 @@ function iDrawGear(g, p, ox, oy) {
     iPut(g, ox, oy - 7, I_BULB_MID, true);
     iPut(g, ox, oy - 6, I_BULB_BASE);
   }
-  if (!k || p.state !== "walk" || p.climb || p.rope || p.swimming || p.sleep) return;
+  if (p.state !== "walk" || p.climb || p.rope || p.swimming || p.sleep) return;
+  if (p.sweep && p.sweep.length) {
+    /* an armful of sweepings, hugged to the chest: a heap of it, the more there is (tidy.js) */
+    var c0 = p.sweep[0], ax = ox + d, ay = oy + 1, n = p.sweep.length;
+    for (var q = 0; q < n && q < 6; q++) iPut(g, ax + d * (q % 2), ay - (q >> 1), SAND_PAL[c0.m][(c0.sh + q * 41) & 255]);
+    if (n > 3) iPut(g, ax - d, ay, SAND_PAL[c0.m][(c0.sh + 200) & 255]);
+  }
+  if (!k) return;
   if (k.kind === "bucket") {
     var up = p.pose === "hammerA", by = up ? oy - 4 : oy + 1, bx = ox + d * 2;
     iPut(g, bx, by, p.pail ? I_PAIL_WET : I_PAIL_RIM); iPut(g, bx + d, by, p.pail ? I_PAIL_WET : I_PAIL_RIM);
