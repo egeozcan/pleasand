@@ -233,10 +233,11 @@ function wPick(g, p, hungry) {
       d = W_DEFS[k];
       if (!d.plan || !g.know[d.id] || (g.wDone && g.wDone[d.id] && !d.again) || iCount(g, d.id) || (!d.exempt && wGreat(g))) continue;
       if (g.wNo && g.wNo[d.id] > g.tick) continue;
+      if (d.wait && d.wait(g)) continue;   /* (not for want of room: the ice palace, waiting for a freeze. pleasures.js) */
       if (d.plan(g, p)) return true;
       if (!g.wNo) g.wNo = {};
       g.wNo[d.id] = g.tick + 6000;
-      iNoRoom(g, d.idea ? "the " + d.idea.name : d.id);
+      iNoRoom(g, d.idea ? d.idea.name : d.id);   /* (the name has its "the" already: "the baths") */
     }
   }
   /* and the ones that stand: what they are for */
@@ -551,7 +552,7 @@ function wTaskKiln(g, p, k) {
     var out = k.r === "lime" ? 2 : 1;
     p[k.r] = (p[k.r] || 0) + out; k.n += out;
   }
-  g.fx.clang++;
+  g.fx.clang++; g.kilnN = (g.kilnN || 0) + 1;   /* (a batch: the furnace worked once more. the organ counts them: pleasures.js) */
   sparks(g, f.fc + 0.5, f.G - 2, 8, 0.6, SPARK_HOT, 10, 0.4, PK_GLINT);
   if (k.r === "lime" && !g.got.concrete) { feed(g, p.name + " burnt the first lime. add sand and water, and stir", "#e0e0d4", "lime"); }
   if (k.n >= k.want) k.carry = true;
@@ -824,6 +825,8 @@ function wTaskAudience(g, p, k) {
    THE GOINGS ON: every W_STRIDE ticks (from peasantsStep)
    ------------------------------------------------------------------- */
 function wStep(g) {
+  /* (a wonder that wants a look every tick, while it stands: the organ, listening at its pipes. pleasures.js) */
+  if (g.wTick) for (var t = 0; t < g.sites.length; t++) { var ts = g.sites[t], td = ts.wonder && wOf(ts.kind); if (td && td.tick) td.tick(g, ts); }
   if (g.tick % W_STRIDE) return;
   wDraughtStep(g);
   /* anything here going on at all: a wonder (or one of the two plain ideas they need) thought of, or a wonder site.
@@ -835,6 +838,8 @@ function wStep(g) {
   g.wAny = any;
   /* (is there anywhere to cut stone, for a pyramid: looked at now and then, once it could matter) */
   if (g.know.masonry && (g.kingDied || g.thinkerDied) && !g.know.pyramid && g.tick % 600 === 0) g.wQuarryOk = !!mSites(g, "quarry").length || !!wQuarryPlot(g, g.gw >> 1);
+  /* (a wonder's own look at whether anybody has had it put into their head: no dice. pleasures.js) */
+  for (k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].watch && !g.know[W_DEFS[k].id]) W_DEFS[k].watch(g);
   if (!any) return;
   M_IRON_SPARE = wIronHeld(g) ? W_IRON_HOLD : 10;
   g.kiln = wKilnOrders(g);

@@ -919,6 +919,7 @@ function bBusy(g, s) {
    earth blown out of a field is not put back (it is tilled where it lies, never brought), but it counts towards a ruin */
 function bInspect(g, s, idx) {
   var gw = g.gw, n = 0, gone = 0, broken = 0, crops = 0, silt = 0, k, e, x, y;
+  if (s.melts) return;   /* (the ice palace melts, and is mourned, not mended: pleasures.js) */
   mSpotSilt(g, s);   /* (sand slid over the place to stand at a furnace, or a pump: mines.js) */
   for (y = s.y0; y <= s.y1; y++) for (x = s.x0; x <= s.x1; x++) {
     var c = pCell(g, x, y);

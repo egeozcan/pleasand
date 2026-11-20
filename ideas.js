@@ -370,11 +370,14 @@ function iPick(g, p) {
   if (K.farm && !hungry && iGoShoo(g, p)) return true;
   /* a field wants hands, not wood: anybody will do */
   if (K.farm && (s = iFieldWork(g, p, 160))) { bJoin(g, p, s); return true; }
+  /* (an ice palace going up, before the thaw: before snowmen and snowballs, anybody free lends a hand. pleasures.js) */
+  if (g.wAny && !hungry && pIceFirst(g, p)) return true;
   /* snow on the ground, or ice to skate on, and time on their hands: that is what it is for (leftovers.js) */
   if (!hungry && lPlay(g, p)) return true;
   /* (a field dug up for a mine or a well is sown again somewhere else: straight away, wherever there is room) */
-  if (K.farm && g.resow && iCount(g, "farm") < Math.min(4, Math.ceil(bAlive(g) / 3)) && iPlanFarm(g, p, true)) { g.resow = 0; return true; }
-  if (K.farm && !p.planCD && iCount(g, "farm") < Math.min(4, Math.ceil(bAlive(g) / 3)) && (hungry || Math.random() < 0.3)) {
+  /* (a terrace of the hanging gardens is a field that does not count against the cap: iFields. pleasures.js) */
+  if (K.farm && g.resow && iFields(g) < Math.min(4, Math.ceil(bAlive(g) / 3)) && iPlanFarm(g, p, true)) { g.resow = 0; return true; }
+  if (K.farm && !p.planCD && iFields(g) < Math.min(4, Math.ceil(bAlive(g) / 3)) && (hungry || Math.random() < 0.3)) {
     if (iPlanFarm(g, p, !iCount(g, "farm"))) return true;   /* (no field at all: anywhere in the valley will do) */
     p.planCD = 1800;
   }
@@ -482,6 +485,8 @@ function iCrew(g, kind, id) {
   return n;
 }
 function iCount(g, kind) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === kind) n++; return n; }
+/* fields, for the cap on them: a terrace of the hanging gardens is a field, but not one of those (pleasures.js) */
+function iFields(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "farm" && !g.sites[k].terrace) n++; return n; }
 /* walk p towards somewhere goal likes, near (x, y), as every errand here does. true once they are stuck for good */
 function iWalk(g, p, k, key, x, y, goal) {
   var left = pathGo(g, p, key, x, y, goal);
@@ -723,7 +728,7 @@ function iPlanFarm(g, p, wide) {
   /* (four looks at flat ground, then four at rough: flat ground across a wall is no reason never to try the rough
      on this side of it) */
   for (k = 0; k < 8 && !best && wide; k++) { var w = iFarmSpot(g, -1, -1, p, k >= 4); if (!w) { if (k < 4) { k = 3; continue; } break; } if (iFarmReach(g, p, w)) best = w; }   /* (a field to replace one dug up: anywhere in the valley) */
-  if (!best) return false;
+  if (!best) { if (g.know.concrete) pGardensNoRoom(g, p, wide); return false; }   /* (no room for one: the hanging gardens. pleasures.js) */
   var plan = [], k, e, x0 = best.x0, x1 = x0 + I_FARM_W - 1;
   for (k = 0; k < best.dig.length; k++) plan.push(bE(g, best.dig[k][0], best.dig[k][1], MAT.EMPTY, 0));
   for (k = 0; k < I_FARM_W; k++) plan.push(bE(g, x0 + k, best.gy[k], MAT.SOIL, 1));
@@ -933,7 +938,7 @@ function iThrowFrom(g, x, y, t) {
 }
 /* a full bucket and no bucket job (they waded, or something better came up): they put it down. where they stand */
 function iPail(g, p) {
-  if (p.pail && !(p.task && p.task.kind === "bucket")) iSpill(g, p);
+  if (p.pail && !(p.task && (p.task.kind === "bucket" || p.task.kind === "pfill"))) iSpill(g, p);   /* (pfill: a wonder's pool, or tank. pleasures.js) */
 }
 /* somewhere to stand by a fire: nothing hot in it, under it or either side of it. the brigade is brave, not daft */
 function iSafe(g, x, y) {
@@ -1313,6 +1318,7 @@ function iTaskShoo(g, p, k) {
     if (d && !d.dead && d.state === "fly" && k.near) {
       if (p.sayT <= 0 && Math.random() < 0.6) pSay(g, p, "shooed");
       achieve(g, "shoo"); p.bored = Math.max(0, p.bored - 300);
+      if (g.raids >= 40) pShooed(g, p);   /* (if you can't beat them, house them: pleasures.js) */
       return iDone(p, true);
     }
     return iDone(p, false);
@@ -1846,6 +1852,7 @@ function iTaskFestival(g, p, k) {
     k.n += coal + (oil ? 2 : 0) + powder * 2; k.gold = gold > 0;
     pSay(g, p, "festival", true);
     feed(g, p.name + " is putting on a fireworks show" + (k.gold ? ", with a golden finale" : (powder ? ", with black powder in it" : (coal ? ", a big one" : ""))), "#ffd94a", "fest");
+    if (g.wAny) { g.festX = k.x; pOrganPlay(g, "show"); }   /* (the steam organ plays at every show: pleasures.js) */
     for (var q = 0; q < g.peasants.length; q++) {
       var o = g.peasants[q];
       if (o === p || o.dead || o.state !== "walk" || o.sleep || o.fire || (o.task && !I_FUN[o.task.kind]) || Math.abs(o.x - k.x) > 160 || Math.random() < 0.15) continue;

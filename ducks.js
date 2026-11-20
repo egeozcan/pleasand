@@ -382,6 +382,9 @@ function dHeading(g, d) {
       });
       if (hit && hit.n < Math.abs(best)) { best = hit.n * s; d.seed = hit.at; }
     }
+    /* (seed in the duck palace's trough: looked for a good deal further off than that, and liked better than wheat.
+       pleasures.js) */
+    if (g.wDuckPalace && (!d.seed || pCell(g, d.seed.x, d.seed.y) !== MAT.SEED)) d.seed = pPalaceSeed(g, d) || d.seed;
     if (!d.seed && d.state === "walk" && Math.random() < 0.6) {
       /* water it could waddle to: go and get in it */
       for (s = -1; s <= 1; s += 2) {
@@ -570,7 +573,10 @@ function duckArrivals(g) {
   var grown = 0;
   for (var k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead && !g.ducks[k].baby) grown++;
   if (grown >= D_ARRIVE_UPTO) return;
-  duckWalkIn(g, Math.random() < 0.25 ? 3 + irnd(3) : 0);
+  /* (a duck at home on the duck palace's deck: twice the chance of ducklings, and they hatch there. pleasures.js) */
+  var mum = g.wDuckPalace ? pPalaceMother(g) : null, n = Math.random() < (mum ? 0.5 : 0.25) ? 3 + irnd(3) : 0;
+  if (mum && n && pPalaceHatch(g, mum, n)) return;
+  duckWalkIn(g, n);
 }
 /* a duck from one edge or the other, wherever there is ground to stand on near it; n ducklings behind, towards the edge */
 function duckWalkIn(g, n) {
