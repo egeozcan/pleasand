@@ -156,7 +156,10 @@ function bRemove(g, idx) {
   /* (and whoever was on their way to it, or at it, stops: there is nothing there to do now) */
   for (var q = 0; q < g.peasants.length; q++) {
     var t = g.peasants[q].task;
-    if (t && ((t.site === s.id && t.kind !== "sow" && t.kind !== "till" && t.kind !== "water" && t.kind !== "shoo") || t.field === s.id || t.pond === s.id)) g.peasants[q].task = null;
+    if (t && ((t.site === s.id && t.kind !== "sow" && t.kind !== "till" && t.kind !== "water" && t.kind !== "shoo") || t.field === s.id || t.pond === s.id)) {
+      if (t.kind === "cbail" && t.load) mTipOut(g, g.peasants[q], t, true);   /* (a pail of the crypt's water, carried: tipped out, not lost. monuments.js) */
+      g.peasants[q].task = null;
+    }
   }
   bMark(g, s, 0);
   for (var k = 0; k < g.sites.length; k++) bMark(g, g.sites[k], 1);   /* (where two plans shared a cell) */

@@ -329,6 +329,19 @@ module.exports = function (test, check, sim) {
     console.log("      (" + n + " cells bailed in " + (g.tick - t0) + " ticks, " + (s.bailed || 0) + " pails)");
   });
 
+  test("cathedral: pulled down while somebody is carrying the crypt's water up, the pail is tipped out, not lost", function () {
+    var C = cathedral(true), w = C.w, g = C.g, s = C.s, M = w.MAT, x, y, k;
+    for (y = s.F + 7; y <= s.F + 9; y++) for (x = s.x0 + 5; x <= s.x0 + 14; x++) w.sandPlace(g, y * g.gw + x, M.WATER);
+    idleBy(w, s);
+    function wet() { var n = 0; for (var j = 0; j < g.m.length; j++) if (w.WET[g.m[j]]) n++; return n; }
+    var bailer = null;
+    for (k = 0; k < 20000 && !bailer; k++) { sim.step(w, 1); bailer = g.peasants.filter(function (q) { return q.task && q.task.kind === "cbail" && q.task.load; })[0]; }
+    check(!!bailer, "(the test wants somebody carrying a pail up out of the crypt)");
+    var n0 = wet() + bailer.task.load.length;
+    w.bRemove(g, g.sites.indexOf(s));
+    check(wet() === n0, "water went from " + n0 + " to " + wet() + " as the cathedral went");
+  });
+
   test("cathedral: the bored go down to the crypt with a candle, to somebody's niche", function () {
     var C = cathedral(true), w = C.w, g = C.g, s = C.s;
     s.niches = [{ name: "GARY THE BOLD", gone: true, t: 0 }];
