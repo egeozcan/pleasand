@@ -359,6 +359,37 @@ test("there is oil in the rock, and a mine can smell it", function () {
   check(idea && idea.ready(g), "nobody thought of an oil well");
 });
 
+/* a shelf of rock right across the valley, high over everybody's heads, too thin to sink a shaft in: the ground under
+   open sky is on top of it, and everything worth having is under the valley floor, under it */
+function shelf(w) {
+  var g = w.g, x, y, hi = 1e9;
+  for (x = 0; x < g.gw; x++) { y = w.mSurface(g, x, false, 0); if (y >= 0) hi = Math.min(hi, y); }
+  var y0 = hi - 40, y1 = hi - 28;
+  check(y0 > 0, "(the test wants room over the valley for a shelf)");
+  for (y = y0; y <= y1; y++) for (x = 0; x < g.gw; x++) if (g.m[y * g.gw + x] === w.MAT.EMPTY) w.sandPlace(g, y * g.gw + x, w.MAT.STONE);
+  return y1;
+}
+test("a shelf of rock over the valley: the mine and the well go in on the floor under it", function () {
+  var w = sim.load(2), g = w.g, x, k, p;
+  know(g, ["farm", "dig", "mine"]);
+  var under = shelf(w);
+  /* (nowhere on top of the shelf: it is too thin. the old way, from the sky down, found nothing) */
+  for (x = 24; x < g.gw - 24; x++) check(!w.mMinePlot(g, x), "a mine plot on top of a shelf too thin for a shaft, at " + x);
+  check(w.mFloors(g, 60, true).length >= 2, "the shelf and the floor under it are not two floors");
+  for (k = 0; k < g.peasants.length && !sites(g, "mine").length; k++) { p = g.peasants[k]; w.mPlanMine(g, p); }
+  var m = sites(g, "mine")[0];
+  check(m, "nowhere for a mine under the shelf");
+  check(m.y0 > under && m.ref > under, "the mine went in on the shelf, not under it");
+  sim.build(w, m);
+  w.oSmell(g);
+  check(g.oilSeen, "the mine under the shelf did not smell the oil");
+  g.know.oil = "TEST"; g.iron = 5;
+  p = g.peasants.find(function (q) { return w.oPlanWell(g, q); });
+  check(p, "nowhere under the shelf for a well");
+  var s = sites(g, "well")[0];
+  check(s.T > under && s.pump.y > under, "the derrick went up on top of the shelf");
+});
+
 function planOilWell(w) {
   var g = w.g;
   g.know.oil = "TEST"; g.iron = 5;
@@ -956,7 +987,7 @@ test("with nowhere else for a mine, one of two fields is dug up for it, and neve
   know(g, ["farm", "dig", "mine"]);
   /* two fields, then every other plot in the valley ruled out by a mine already there */
   for (k = 0; k < 2; k++) { p.planCD = 0; check(w.iPlanFarm(g, p), "(the test wants two fields)"); sim.build(w, sites(g, "farm")[k]); }
-  w.eval("var __mp = mMinePlot; mMinePlot = function (g, cx) { var r = M_FARMOK ? __mp(g, cx) : null; return r && mFieldsUnder(g, cx - r.hw - 2, cx + r.hw + 2) ? r : null; }");
+  w.eval("var __mp = mMinePlot; mMinePlot = function (g, cx, ref) { var r = M_FARMOK ? __mp(g, cx, ref) : null; return r && mFieldsUnder(g, cx - r.hw - 2, cx + r.hw + 2) ? r : null; }");
   var fields = sites(g, "farm").length, ok = w.mPlanMine(g, p);
   if (ok) {
     check(sites(g, "farm").length === fields - 1, "the mine went in without digging up exactly one field");

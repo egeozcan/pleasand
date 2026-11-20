@@ -1152,7 +1152,7 @@ function lTaskGlass(g, p, k) {
     return true;
   }
   /* then the furnace mouth, and the bellows */
-  var sx = s.sx, sy = mGround(g, sx) > 0 ? mGround(g, sx) - 1 : s.sy, fy = Math.floor(p.y);
+  var sx = s.sx, sy = mSpotRow(g, s), fy = Math.floor(p.y);
   if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(fy - sy) > 3) {
     if (iWalk(g, p, k, "glass" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 3; })) pGiveUp(g, p, sx);
     p.idle = 0;
@@ -1222,7 +1222,7 @@ function lFieldWanting(g) {
 function lTaskStore(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 2400) return iDone(p, false);
-  var sx = s.sx, sy = mGround(g, sx) > 0 ? mGround(g, sx) - 1 : s.sy;
+  var sx = s.sx, sy = mSpotRow(g, s);
   if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(Math.floor(p.y) - sy) > 3) {
     if (iWalk(g, p, k, "store" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 3; })) pGiveUp(g, p, sx);
     p.idle = 0;
@@ -1302,7 +1302,7 @@ function lTaskBrine(g, p, k) {
     if (p.sayT <= 0 || Math.random() < 0.4) pSay(g, p, "brine");
     return true;
   }
-  var sx = s.sx, sy = mGround(g, sx) > 0 ? mGround(g, sx) - 1 : s.sy;
+  var sx = s.sx, sy = mSpotRow(g, s);
   if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(Math.floor(p.y) - sy) > 3) {
     if (iWalk(g, p, k, "boil" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 3; })) pGiveUp(g, p, sx);
     p.idle = 0;

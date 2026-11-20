@@ -250,9 +250,17 @@ function oWellReach(g, p, r) {
   var h = navHere(g, p), sx = r.pump.x, sy = r.pump.y;
   /* (to where the pump is worked from, exactly as the pump task wants it: oTaskPump) */
   if (h && navFind(g, h.x, h.y, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 2; }, sx, sy)) return true;
-  p.wellNo[r.at + ":" + r.pump.x] = g.tick + 20000;   /* (that plot, with its pump that side, for them: somebody else may be on the right side of it) */
+  p.wellNo[oWellKey(r.at, r)] = g.tick + 20000;   /* (that plot, with its pump that side, for them: somebody else may be on the right side of it) */
   return false;
 }
+/* the rows a derrick in column x could stand on: every floor of it (mines.js mFloors), and the row fy they are on, if
+   the top of it is no ground (water, say) */
+function oFloors(g, x, fy) {
+  var L = mFloors(g, x, false);
+  return mGround(g, x) > 0 ? L : [fy].concat(L);
+}
+/* a plot, as p.wellNo remembers it was out of reach: the column, the side the pump is, and the floor */
+function oWellKey(x, r) { return x + ":" + r.pump.x + ":" + r.pump.y; }
 function oPlanWell(g, p) {
   var W = mSites(g, "well"), live = 0, k, d, sd, r, best = null, sc, fx, fy, x0, x1, F, T, plan = [], x, y, ph;
   if (!g.know.oil) return false;
@@ -274,11 +282,12 @@ function oPlanWell(g, p) {
     if (!d && sd > 0) continue;
     x = fx + d * sd;
     if (x < 10 || x > g.gw - 11) continue;
-    y = mGround(g, x);
-    for (k = 0; k < 2; k++) {
-      r = oWellPlot(g, x - 2, y > 0 ? y - 1 : fy, k);
-      if (!r || p.wellNo[x + ":" + r.pump.x] > g.tick) continue;
-      r.sc = r.work * 0.25 + d * 0.06 - r.oilDepth * 0.15; r.at = x;
+    /* (on any floor of it: the rock under a shelf has oil in it as well as the rock under open sky) */
+    var L = oFloors(g, x, fy);
+    for (var n = 0; n < L.length; n++) for (k = 0; k < 2; k++) {
+      r = oWellPlot(g, x - 2, L[n], k);
+      if (!r || p.wellNo[oWellKey(x, r)] > g.tick) continue;
+      r.sc = r.work * 0.25 + d * 0.06 - r.oilDepth * 0.15 + Math.abs(r.F - 1 - fy) * 0.06; r.at = x;
       C.push(r);
     }
   }
@@ -291,10 +300,10 @@ function oPlanWell(g, p) {
     M_FARMOK = true;
     C = [];
     for (x = 10; x < g.gw - 10; x++) {
-      y = mGround(g, x);
-      for (k = 0; k < 2; k++) {
-        r = oWellPlot(g, x - 2, y > 0 ? y - 1 : fy, k);
-        if (r && !(p.wellNo[x + ":" + r.pump.x] > g.tick) && mFieldsUnder(g, x - 6, x + 6) <= 1 && mFieldSpare(g, r.x0 - 4, r.x0 + 8)) { r.at = x; C.push(r); }   /* (a field to spare: mines.js) */
+      var LF = oFloors(g, x, fy);
+      for (var nf = 0; nf < LF.length; nf++) for (k = 0; k < 2; k++) {
+        r = oWellPlot(g, x - 2, LF[nf], k);
+        if (r && !(p.wellNo[oWellKey(x, r)] > g.tick) && mFieldsUnder(g, x - 6, x + 6) <= 1 && mFieldSpare(g, r.x0 - 4, r.x0 + 8)) { r.at = x; C.push(r); }   /* (a field to spare: mines.js) */
       }
     }
     C.sort(function (a, b) { return a.work - b.work; });
@@ -343,7 +352,7 @@ function oWellPlot(g, x0, fy, flip) {
   var hi = -1;
   /* (a grown tree on the plot, or by the pump, is felled first: mines.js mFellable) */
   for (x = x0; x <= x1; x++) {
-    G = mGround(g, x, true);
+    G = mGroundNear(g, x, true, fy);   /* (the floor that row fy is on: mines.js) */
     if (G < 0 || Math.abs(G - fy) > 16 || !pSolid(g, x, G)) return null;
     gy.push(G); if (G < F) F = G; if (G > hi) hi = G;
   }
@@ -353,7 +362,7 @@ function oWellPlot(g, x0, fy, flip) {
   T = F - O_H;
   if (T < 16) return null;
   /* the pump goes on one side, the oil comes out the other. both about level (a step or so up or down), with room */
-  gp = mGround(g, pumpX, true); gs = mGround(g, spillX, true);
+  gp = mGroundNear(g, pumpX, true, fy); gs = mGroundNear(g, spillX, true, fy);
   if (gp < 0 || gs < 0 || Math.abs(gp - F) > 4 || Math.abs(gs - F) > 4) return null;
   if (!pSolid(g, pumpX, gp) || !pSolid(g, spillX, gs)) return null;
   pumpY = gp - 1;

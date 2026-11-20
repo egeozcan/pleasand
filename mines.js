@@ -220,10 +220,22 @@ function mMine(g, s, e, p) {
 /* can p walk to the head of mine plot r: the ground at its shaft, trees felled or not (the ones across a lake are let be
    a while: g.mineNo) */
 function mMineReach(g, p, r) {
-  var top = mGround(g, r.cx, true), x;
+  var top = mGroundNear(g, r.cx, true, r.ref);
   if (top >= 1 && mReachable(g, p, r.cx, top - 1)) return true;
-  for (x = r.cx - 3; x <= r.cx + 3; x++) g.mineNo[x] = g.tick + 20000;
+  /* (that floor there, not the ones over or under it: a shelf of rock can be out of reach with a good floor under it) */
+  if (!g.mineFar) g.mineFar = [];
+  g.mineFar.push({ x: r.cx, y: r.ref, t: g.tick + 20000 });
   return false;
+}
+/* a plot for a mine in column x on each of its floors (the ones lately found out of reach let be): those that will do */
+function mMinePlots(g, x) {
+  var out = [], L = mFloors(g, x, true), k, n, r, far = g.mineFar || [];
+  for (k = 0; k < L.length; k++) {
+    for (n = 0; n < far.length; n++) if (far[n].t > g.tick && Math.abs(far[n].x - x) <= 3 && Math.abs(far[n].y - L[k]) <= 8) break;
+    if (n < far.length) continue;
+    if ((r = mMinePlot(g, x, L[k]))) out.push(r);
+  }
+  return out;
 }
 /* every mine's flood clock: one that has stood flooded a good long while, done or not, is written off (flood 2), and
    holds up no other. (the water gone down: the clock starts again next time) */
@@ -258,12 +270,12 @@ function mPlanMine(g, p) {
   var fx = Math.floor(p.x), best = null, x, r, sc, C = [];
   if (!g.mineNo) g.mineNo = {};
   /* (anywhere in the valley: what they have not found yet is worth going a long way for) */
+  /* (on any floor of it: a shelf of rock over the valley floor has a floor of its own, and so may the valley under it) */
+  if (g.mineFar) g.mineFar = g.mineFar.filter(function (f) { return f.t > g.tick; });
   for (x = 24; x < g.gw - 24; x++) {
     if (g.mineNo[x] > g.tick) continue;
-    r = mMinePlot(g, x);
-    if (!r) continue;
-    r.sc = r.score - Math.abs(x - fx) * 0.05;
-    C.push(r);
+    var R = mMinePlots(g, x);
+    for (k = 0; k < R.length; k++) { r = R[k]; r.sc = r.score - Math.abs(x - fx) * 0.05 - Math.abs(r.ref - p.y) * 0.05; C.push(r); }
   }
   /* (the best of them they can walk to the top of: a few looks, and the ones across a lake are let be a while) */
   C.sort(function (a, b) { return b.sc - a.sc; });
@@ -275,10 +287,10 @@ function mPlanMine(g, p) {
     M_FARMOK = true;
     var F = [];
     for (x = 24; x < g.gw - 24; x++) {
-      if (g.mineNo[x] > g.tick) continue;   /* (found out of reach lately) */
-      r = mMinePlot(g, x);
+      if (g.mineNo[x] > g.tick) continue;   /* (given up near here lately) */
+      var RF = mMinePlots(g, x);
       /* (and only over a field that can be spared: somewhere else for it to go, or others near enough) */
-      if (r && mFieldsUnder(g, x - r.hw - 2, x + r.hw + 2) <= 1 && mFieldSpare(g, x - r.hw - 2, x + r.hw + 2)) F.push(r);
+      for (k = 0; k < RF.length; k++) { r = RF[k]; if (mFieldsUnder(g, x - r.hw - 2, x + r.hw + 2) <= 1 && mFieldSpare(g, x - r.hw - 2, x + r.hw + 2)) F.push(r); }
     }
     /* (the best of them they can get to: looked for while the field still counts as ground, so its earth is ground) */
     F.sort(function (a, b) { return b.score - a.score; });
@@ -310,7 +322,7 @@ function mPlanMine(g, p) {
   }
   for (k = 0; k < plan.length; k++) if (plan[k].v === MAT.EMPTY) plan[k].drain = true;
   var s = bNew(g, "mine", p, plan, [cx - best.hw, best.top - 1, cx + best.hw, B],
-               { free: true, mine: true, col: cx, S: S, B: B, out: {}, lv: 0 });
+               { free: true, mine: true, col: cx, S: S, B: B, out: {}, lv: 0, ref: best.ref });
   feed(g, p.name + " is sinking a mine", "#e8c8a0", "plan" + s.id);
   pSay(g, p, "planMine", true);
   bJoin(g, p, s);
@@ -320,10 +332,12 @@ function mPlanMine(g, p) {
    the ladder), B (the floor of the shaft, where their feet go), hw (how far the head of it reaches out either side), top
    (the highest ground in it), dig (sand to shovel), pick (rock over the top of the shaft), collar (timbers to hold the
    sand back), score} or null */
-function mMinePlot(g, cx) {
+function mMinePlot(g, cx, ref) {
   var gw = g.gw, gh = g.gh, x, y, c, k, G, S = -1, B, hw, edge, top = 1e9, dig = [], pick = [], collar = [], ore = 0, gr = {};
   if (cx < 24 || cx > gw - 25) return null;
-  function ground(x) { if (gr[x] === undefined) gr[x] = mGround(g, x, true); return gr[x]; }
+  /* (on the floor whose ground is just under row ref: the one under open sky, if there is no ref) */
+  if (ref == null) { G = mGround(g, cx, true); if (G < 1) return null; ref = G - 1; }
+  function ground(x) { if (gr[x] === undefined) gr[x] = mGroundNear(g, x, true, ref); return gr[x]; }
   /* the rock under the middle five columns, through no more than a little sand: the lowest of it (the rest is picked) */
   for (x = cx - 2; x <= cx + 2; x++) {
     G = ground(x);
@@ -381,7 +395,7 @@ function mMinePlot(g, cx) {
   /* what is worth having near enough the bottom to get at, and in the shaft itself */
   for (y = B - M_ROOF - 3; y <= B + 2; y++) for (x = cx - M_LOOK; x <= cx + M_LOOK; x++) ore += mWorth(g, pCell(g, x, y));
   for (y = S; y < B - M_ROOF - 3; y++) for (x = cx - 1; x <= cx + 1; x++) ore += mWorth(g, pCell(g, x, y));
-  return { cx: cx, S: S, B: B, hw: hw, top: top, dig: dig, pick: pick, collar: collar, score: ore - dig.length * 0.05 + (B - S) * 0.5 };
+  return { cx: cx, ref: ref, S: S, B: B, hw: hw, top: top, dig: dig, pick: pick, collar: collar, score: ore - dig.length * 0.05 + (B - S) * 0.5 };
 }
 /* a spadeful of sand out of the head of mine s (cell j), carried up and tipped on the heap beside it: on the downhill
    side, so it does not roll back in, a few steps from the collar, into the air on top of the ground, heat and all.
@@ -406,7 +420,9 @@ function mSpoil(g, s, j) {
 /* the ground at column x, if spoil can go on it: not on anybody's site (a furnace, a tower's door), and not in water.
    -1 if not */
 function mSpoilAt(g, s, x) {
-  var G = x > 0 && x < g.gw - 1 ? mGround(g, x) : -1, k, t;
+  var m = s.kind === "tunnel" ? bSite(g, s.of) || s : s;
+  /* (on the floor the mine is on) */
+  var G = x > 0 && x < g.gw - 1 ? (m.ref != null ? mGroundNear(g, x, false, m.ref) : mGround(g, x)) : -1, k, t;
   if (G < 2 || !AIRY[g.m[(G - 1) * g.gw + x]]) return -1;
   for (k = 0; k < g.sites.length; k++) {
     t = g.sites[k];
@@ -417,15 +433,50 @@ function mSpoilAt(g, s, x) {
   return G;
 }
 /* the ground in column x, under open sky: the first thing down from the top that is not air, or a bush. -1 if that is
-   not ground (water, a tree, somebody's roof) */
-function mGround(g, x, trees) {
-  for (var y = 0; y < g.gh; y++) {
-    var c = g.m[y * g.gw + x];
-    if (AIRY[c] || P_LEAF[c] || (trees && mFellable(g, x, y, c))) continue;
-    if (M_FARMOK && mFarmCell(g, x, y)) { if (c === MAT.SOIL) return y; continue; }   /* (a field to be dug up: its ground) */
-    return LIQUID[c] || WOODY[c] || P_SOFT[c] || bMarked(g, x, y) ? -1 : y;
+   not ground (water, a tree, somebody's roof). (the floors under that one: mGroundNear, mFloors) */
+function mGround(g, x, trees) { return mGroundFrom(g, x, trees, 0); }
+/* where to stand at site s's place to stand (s.sx, s.sy): about where it was, on whatever has piled up there since */
+function mSpotRow(g, s) { var G = mGroundNear(g, s.sx, false, s.sy); return G > 0 ? G - 1 : s.sy; }
+/* (the same, from row y0 down: the first thing at or under it that is not air, or a bush) */
+function mGroundFrom(g, x, trees, y0) {
+  var y = mSurface(g, x, trees, y0);
+  if (y < 0) return -1;
+  var c = g.m[y * g.gw + x];
+  if (M_FARMOK && c === MAT.SOIL && mFarmCell(g, x, y)) return y;   /* (a field to be dug up: its ground) */
+  return LIQUID[c] || WOODY[c] || P_SOFT[c] || bMarked(g, x, y) ? -1 : y;
+}
+/* what the ground is looked for through: air, a bush, a tree that can come down (trees), and the wheat on a field
+   that can be dug up */
+function mSeeThrough(g, x, y, c, trees) {
+  return AIRY[c] || P_LEAF[c] || (trees && mFellable(g, x, y, c)) || (M_FARMOK && c !== MAT.SOIL && mFarmCell(g, x, y));
+}
+/* the first row at or under y0 in column x that is not see-through. -1 if there is none */
+function mSurface(g, x, trees, y0) {
+  for (var y = Math.max(0, y0); y < g.gh; y++) if (!mSeeThrough(g, x, y, g.m[y * g.gw + x], trees)) return y;
+  return -1;
+}
+/* the ground in column x about level with row y (where somebody stands, or a site's floor): under it, if y is in the
+   open; the top of it, if y is in the ground itself, and the top is no more than a heap's height up. -1 if not ground.
+   (a valley can have floors one over another, a shelf of rock with a cave under it: this is the one y is on) */
+function mGroundNear(g, x, trees, y) {
+  if (x < 0 || x >= g.gw) return -1;
+  y = Math.max(0, Math.min(g.gh - 1, y));
+  for (var k = 0; k <= 16 && y - k >= 0; k++) {
+    if (mSeeThrough(g, x, y - k, g.m[(y - k) * g.gw + x], trees)) return mGroundFrom(g, x, trees, y - k);
   }
   return -1;
+}
+/* every floor in column x, from the top down: the row just over the ground at the bottom of each stretch of open air
+   with ground under it (the first is the one under open sky: mGround) */
+function mFloors(g, x, trees) {
+  var out = [], y = 0, G;
+  while (y < g.gh) {
+    G = mSurface(g, x, trees, y);
+    if (G < 0) break;
+    if (G > 0 && mGroundFrom(g, x, trees, G) === G) out.push(G - 1);
+    for (y = G; y < g.gh && !mSeeThrough(g, x, y, g.m[y * g.gw + x], trees); y++);
+  }
+  return out;
 }
 /* the last resort, when there is nowhere else for a mine (or a derrick): a field, dug up, and sown again somewhere
    else. while M_FARMOK is set, a plot can go over a field: its earth is ground, and its earth and wheat dig out */
@@ -836,7 +887,7 @@ function mTaskLookout(g, p, k) {
    just the one */
 function mPlanFurnace(g, p) {
   if (mSites(g, "furnace").length) return false;
-  var m = mSites(g, "mine")[0], cx = m ? m.col : Math.floor(p.x), d, sd, r = null, k;
+  var m = mSites(g, "mine")[0], cx = m ? m.col : Math.floor(p.x), d, sd, r = null, k, ref = m ? m.ref : null;   /* (on the mine's floor) */
   /* (somewhere they can walk to: not across a lake from them, say) */
   /* (a dozen looks at most, a search each: a valley split by a lake would otherwise have them search every plot in it) */
   var looks = 0;
@@ -852,9 +903,9 @@ function mPlanFurnace(g, p) {
     g.furnaceNo[key] = g.tick + 20000;
     return null;
   }
-  for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(mFurnacePlot(g, sd > 0 ? cx + d : cx - d - 4, -sd));
+  for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(mFurnacePlot(g, sd > 0 ? cx + d : cx - d - 4, -sd, ref));
   /* (nowhere with its mouth to the mine: then with its back to it. the ore will find its way round) */
-  for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(mFurnacePlot(g, sd > 0 ? cx + d : cx - d - 4, sd));
+  for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(mFurnacePlot(g, sd > 0 ? cx + d : cx - d - 4, sd, ref));
   if (!r) { p.planCD = 1500; iNoRoom(g, "a furnace"); return false; }
   var x0 = r.x0, x1 = x0 + 4, G = r.G, mouth = r.mouth, fc = mouth < 0 ? x0 : x1, bc = mouth < 0 ? x1 : x0, chim = mouth < 0 ? x0 + 3 : x0 + 1;
   var plan = [], x;
@@ -880,17 +931,19 @@ function mPlanFurnace(g, p) {
 /* is (x0 .. x0 + 4) somewhere for a furnace, its mouth facing way mouth: level, or near enough (blocks under the low
    end), clear over it, somewhere to stand at the mouth, and nothing that burns close by. {x0, G (the row it stands on:
    its bottom course is the row over that), fill (blocks under the low end), mouth} or null */
-function mFurnacePlot(g, x0, mouth) {
+function mFurnacePlot(g, x0, mouth, ref) {
   var x1 = x0 + 4, G = 1e9, x, y, c, k, sx = mouth < 0 ? x0 - 2 : x1 + 2, gy = [], fill = [], dig = [];
   if (x0 < 8 || x1 > g.gw - 9) return null;
-  for (x = x0; x <= x1; x++) { y = mGround(g, x, true); if (y < 0 || !pSolid(g, x, y)) return null; gy.push(y); G = Math.min(G, y); }
+  /* (on the floor whose ground is just under row ref, if there is one: the mine's) */
+  function ground(x, trees) { return ref == null ? mGround(g, x, trees) : mGroundNear(g, x, trees, ref); }
+  for (x = x0; x <= x1; x++) { y = ground(x, true); if (y < 0 || !pSolid(g, x, y)) return null; gy.push(y); G = Math.min(G, y); }
   for (k = 0; k < 5; k++) { if (gy[k] - G > 5) return null; for (y = gy[k] - 1; y >= G; y--) fill.push([x0 + k, y]); }
   /* (somewhere to stand at the mouth, about level with it, give or take a step, and with room to stand) */
-  var sg = y = mGround(g, sx);   /* (sg: kept, the loops below use y) */
-  if (y < 0 || Math.abs(y - G) > 2 || Math.abs(mGround(g, sx - mouth) - y) > 2 || !pRoom(g, sx, y - 1)) return null;
+  var sg = y = ground(sx);   /* (sg: kept, the loops below use y) */
+  if (y < 0 || Math.abs(y - G) > 2 || Math.abs(ground(sx - mouth) - y) > 2 || !pRoom(g, sx, y - 1)) return null;
   /* (and not at the foot of a heap of sand, that would slide down over it) */
   for (k = 1; k <= 8; k++) {
-    var gd = mGround(g, sx + mouth * k);
+    var gd = ground(sx + mouth * k);
     if (gd >= 0 && pCell(g, sx + mouth * k, gd) === MAT.SAND && y - gd > k + 2) return null;
   }
   /* clear over it (a bush or a heap of sand is dug out of the way first), and nothing wet or touchy about, nor
@@ -930,7 +983,7 @@ function mTaskSmelt(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || ++k.t > 3000) return iDone(p, false);
   /* (somewhere to stand at the mouth: about where it was, give or take whatever has piled up there since) */
-  if (k.sy == null) k.sy = mGround(g, s.sx) > 0 ? mGround(g, s.sx) - 1 : s.sy;
+  if (k.sy == null) k.sy = mSpotRow(g, s);
   var sx = s.sx, sy = k.sy, fy = Math.floor(p.y), st = s.stock || (s.stock = {});
   if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(fy - sy) > 3) {
     if (iWalk(g, p, k, "smelt" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 3; })) pGiveUp(g, p, sx);
@@ -980,7 +1033,7 @@ function mGoForge(g, p) {
 function mTaskForge(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || ++k.t > 2400 || p.tools) return iDone(p, false);
-  var sx = s.sx, sy = mGround(g, sx) > 0 ? mGround(g, sx) - 1 : s.sy, fy = Math.floor(p.y);
+  var sx = s.sx, sy = mSpotRow(g, s), fy = Math.floor(p.y);
   if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(fy - sy) > 3) {
     if (iWalk(g, p, k, "forge" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 3; })) pGiveUp(g, p, sx);
     return false;
