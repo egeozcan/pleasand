@@ -1443,8 +1443,11 @@ function hHeld(g, p) {
 }
 /* the nearest place to them in the valley that a peasant can stand, and be safe, and get away from: ground under it
    (the floor of the world too), room over it, nothing wet, and in nobody's site; nothing that would kill them
-   anywhere near (a drain, fire, acid: what the walking does, paths.js navLethalNear); and a way from it to open sky.
-   open sky over it is better than a roof, however much nearer. {x, y} or null */
+   anywhere near (a drain, fire, acid: what the walking does, paths.js navLethalNear); and a way from it on foot to
+   where the village lives (hHome: a house's floor, or the ground in the middle of them), not just out to the sky: a
+   shaft open to the sky is no use with no way up it. open sky over it is tried first, however much nearer a roof is;
+   every candidate is tried, each search bounded (H_REACH). {x, y} or null */
+var H_REACH = 2500;
 function hRelease(g, p) {
   var C = [], x, y, k, px = p.x, py = p.y;
   for (x = 1; x < g.gw - 1; x++) for (y = 9; y < g.gh; y++) {
@@ -1453,13 +1456,30 @@ function hRelease(g, p) {
     for (k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1) break; }
     if (k < g.sites.length) continue;
     var sky = hSky(g, x, y);
-    C.push({ x: x, y: y, sky: sky, d: (x + 0.5 - px) * (x + 0.5 - px) + (y - py) * (y - py) + (sky ? 0 : 1e9) });
+    C.push({ x: x, y: y, d: (x + 0.5 - px) * (x + 0.5 - px) + (y - py) * (y - py) + (sky ? 0 : 1e9) });
   }
   C.sort(function (a, b) { return a.d - b.d; });
-  for (k = 0; k < C.length && k < 24; k++) {
-    if (C[k].sky || navFind(g, C[k].x, C[k].y, function (x2, y2) { return hSky(g, x2, y2); }, null, null, 6000)) return { x: C[k].x, y: C[k].y };
-  }
+  var home = hHome(g);
+  for (k = 0; k < C.length; k++) if (home.at(C[k].x, C[k].y) || navFind(g, C[k].x, C[k].y, home.at, home.x, home.y, H_REACH)) return { x: C[k].x, y: C[k].y };
   return null;
+}
+/* where the village lives, to be got to on foot: the floor of any house, or the ground at the middle of them (wMiddle).
+   {x, y, at(x, y)} */
+function hHome(g) {
+  /* (the first footing from the top in the middle column, or the nearest column to it that has any) */
+  var m0 = Math.round(wMiddle(g)), mx = -1, my = -1, d, x, y;
+  for (d = 0; d <= 40 && mx < 0; d++) for (var sd = -1; sd <= 1 && mx < 0; sd += 2) {
+    x = m0 + sd * d;
+    if (x < 1 || x > g.gw - 2) continue;
+    for (y = 9; y < g.gh; y++) if (navStand(g, x, y) === 1) { mx = x; my = y; break; }
+  }
+  if (mx < 0) { mx = Math.max(1, Math.min(g.gw - 2, m0)); my = g.gh - 1; }
+  var H = g.sites.filter(function (s) { return s.kind === "house" && s.done; });
+  return { x: mx, y: my, at: function (x, y) {
+    if (Math.abs(x - mx) <= 3 && Math.abs(y - my) <= 4) return true;
+    for (var k = 0; k < H.length; k++) if (x >= H[k].x0 && x <= H[k].x1 && Math.abs(y - H[k].y1) <= 1) return true;
+    return false;
+  } };
 }
 /* nothing but air over (x, y), to the top of the world */
 function hSky(g, x, y) {
