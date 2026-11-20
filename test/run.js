@@ -2472,13 +2472,14 @@ test("a door buried over its lintel is shut, and the heap is full by its height 
 require("./wonders.js")(test, check, sim);
 require("./monuments.js")(test, check, sim);
 require("./pleasures.js")(test, check, sim);
+require("./heavens.js")(test, check, sim);
 
 var failed = 0, t0 = Date.now();
 tests.forEach(function (t) {
   if (only && t.name.indexOf(only) < 0) return;
   var t1 = Date.now();
   try { t.fn(); console.log("ok    " + t.name + "  (" + ((Date.now() - t1) / 1000).toFixed(1) + "s)"); }
-  catch (e) { failed++; console.log("FAIL  " + t.name + "\n      " + (e && e.message)); }
+  catch (e) { failed++; console.log("FAIL  " + t.name + "\n      " + (e && e.message)); if (process.env.STACK) console.log(e && e.stack); }
 });
 console.log((failed ? failed + " failed" : "all passed") + " in " + ((Date.now() - t0) / 1000).toFixed(0) + "s");
 process.exit(failed ? 1 : 0);

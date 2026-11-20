@@ -12,6 +12,7 @@ var GW = Math.floor((VW - PANEL) / CELL), GH = Math.floor((VH - PLAY_Y - BAR_H) 
 var ROW0 = PLAY_Y + 2, ROWH = 10, FUN_N = 7, FUN_GAP = 4;
 var SIZE_Y = 351, BTN_Y = 363, BTN2_Y = 375, BTN3_Y = 387;   /* (the picker runs down to 350) */
 /* how fast time goes: sand ticks per frame, slowest first. SPEED_1 is normal */
+var SKY_MOON = null;   /* the moon in the sky: where it is, and how big (gameInit; the flag on it is heavens.js) */
 var SPEEDS = [0.25, 0.5, 1, 2, 4], SPEED_NAMES = ["1/4", "1/2", "1x", "2x", "4x"], SPEED_1 = 2;
 var TIPS = [
   "tip: pick PEASANT, grab one, and throw it at the hut",
@@ -176,6 +177,7 @@ function gameInit(g) {
     near[x] = GH * 0.62 + Math.sin(x * 0.05 + ph * 2) * 9 + Math.sin(x * 0.017 + ph) * 12;
   }
   var mx = Math.round(GW * (0.65 + Math.random() * 0.25)), my = 26, mr = 9;
+  SKY_MOON = { x: mx, y: my, r: mr };   /* (where it is, for the flag on it: heavens.js) */
   for (y = 0; y < GH; y++) {
     var t = y / (GH - 1), col = t < 0.6 ? [lerp(top[0], mid[0], t / 0.6), lerp(top[1], mid[1], t / 0.6), lerp(top[2], mid[2], t / 0.6)]
                                       : [lerp(mid[0], bot[0], (t - 0.6) / 0.4), lerp(mid[1], bot[1], (t - 0.6) / 0.4), lerp(mid[2], bot[2], (t - 0.6) / 0.4)];

@@ -609,9 +609,11 @@ function pStep(g, p) {
   if (p.state === "held") { pHeld(g, p); return; }
   if (p.state === "space") {
     if (--p.spaceT <= 0) {
-      p.state = "fly"; p.x = 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = Math.random() - 0.5; p.vy = 1.5;
+      /* (back from the moon: over the pad they went up from. heavens.js) */
+      var sx = p.spaceX; p.spaceX = null;
+      p.state = "fly"; p.x = sx != null ? sx : 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = Math.random() - 0.5; p.vy = 1.5;
       p.fromSpace = 240; p.flyT = 0;
-      feed(g, p.name + " is back from space", "#9ad0ff");
+      feed(g, p.name + (sx != null ? " is back from the moon" : " is back from space"), "#9ad0ff");
       pSay(g, p, "space", true);
     }
     return;
@@ -821,6 +823,8 @@ function pSwim(g, p, sub) {
       if (near && ((near > 0 && l) || (near < 0 && r))) far = -near;
     }
     if (near) p.dir = other && far ? far : near;
+    var lh = hBeacon(g, p);   /* (a lighthouse lit, within sight: that way. heavens.js) */
+    if (lh) p.dir = lh;
   }
   if (sub) target = burns ? -0.5 : -0.3;              /* head under: swim for the air. faster, if it stings */
   else if (err > 0) target = -Math.min(0.2, 0.05 * err);
