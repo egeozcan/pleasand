@@ -74,6 +74,21 @@ function hGo(g, p, k, key, x, y, dx, dy) {
   if (iWalk(g, p, k, key, x, y, function (X, Y) { return Math.abs(X - x) <= dx && Math.abs(Y - y) <= dy; })) pGiveUp(g, p, x);
   return true;
 }
+/* a barrel already in hand (a fetch that timed out, or the job taken off them): taken where it is wanted before anybody
+   fetches another, the rocket's tank or a lighthouse's lamp (wonders.js wPick, first). with nowhere wanting it yet, it is
+   kept till somewhere does. true if they have somewhere to take it */
+function hDeliverBarrel(g, p) {
+  if (!p.barrel) return false;
+  var k, s, best = null, bd = 1e9;
+  for (k = 0; k < g.sites.length; k++) {
+    s = g.sites[k];
+    if (!s.done || s.repair) continue;
+    var want = (s.kind === "moonrocket" && !s.gone && (s.oil || 0) < H_FUEL) || (s.kind === "lighthouse" && s.fuel < H_BARREL);
+    if (want && Math.abs(s.cx - p.x) < bd) { bd = Math.abs(s.cx - p.x); best = s; }
+  }
+  if (best) { p.task = { kind: best.kind === "lighthouse" ? "keep" : "fuel", site: best.id, t: 0, act: 0 }; if (best.kind === "lighthouse") best.keeper = p.id; return true; }
+  return false;   /* (nowhere wants it yet: kept, till somewhere does) */
+}
 /* a barrel of oil out of the nearest well's tank, at its pump: for the keeper and the rocket. 1 once they have it, 0
    while they are on their way, -1 if there is none to be had */
 function hFetchBarrel(g, p, k) {

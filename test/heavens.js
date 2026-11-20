@@ -186,6 +186,15 @@ module.exports = function (test, check, sim) {
     check(hit, "(the test wants a bolt in the lantern)");
     check(s.fuel === 0, "the bolt struck the lantern and the oil did not catch (it was left to a look at the bolt, later)");
   });
+  test("lighthouse: a keeper's fetch timed out with the barrel in hand: they take it up to the lamp, and the light comes back", function () {
+    var L = lighthouse(true), w = L.w, g = L.g, s = L.s, k;
+    s.fuel = 0; s.noOil = g.tick + 1e9;   /* (no oil in any well's tank, to send anybody for) */
+    var q = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
+    q.barrel = 1; q.task = null; q.hunger = 0; q.x = s.cx - 12; q.y = L.G - 1;
+    for (k = 0; k < 8000 && !(s.fuel > 0); k++) sim.step(w, 1);
+    check(s.fuel > 0 && !q.barrel, "the barrel in hand never went up to the lamp: fuel " + s.fuel + ", barrel " + q.barrel);
+  });
   test("lighthouse: never planned where it would leave a swimmer in the lake no way out", function () {
     var L = lighthouse(true), w = L.w, g = L.g, s = L.s, sx = s.side > 0 ? 190 : 185;
     var out = w.navFind(g, sx, L.G + 1, w.pDryGoal(g), s.cx, L.G - 1, 20000);
@@ -469,6 +478,15 @@ module.exports = function (test, check, sim) {
     for (var k = 0; k < 20000 && !s.done; k++) sim.step(w, 1);
     check(s.done, "the rocket was not built in 20000 ticks (" + Math.round(w.bShare(g, s) * 100) + "% up): " + s.note);
     shot(w, "rocket", s, 10);
+  });
+  test("moon rocket: a fetch for its last barrel timed out with the barrel in hand: it is still taken to the rocket", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, k;
+    s.oil = 11; s.noOil = g.tick + 1e9;
+    var q = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
+    q.barrel = 1; q.task = null; q.hunger = 0;
+    for (k = 0; k < 8000 && s.oil < 12; k++) sim.step(w, 1);
+    check(s.oil === 12 && !q.barrel, "the barrel in hand never went into the rocket: " + s.oil + " barrels, barrel " + q.barrel);
   });
   test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;

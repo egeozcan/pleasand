@@ -279,6 +279,8 @@ function wSpilt(g, p, fx, fy) {
 function wPick(g, p, hungry) {
   if (hungry || p.cold > 80) return false;
   var S = wUp(g), k, s, d;
+  /* a barrel of oil in hand: where it is wanted, before anything else (heavens.js) */
+  if (p.barrel && hDeliverBarrel(g, p)) return true;
   /* carrying what only a great work wants (lime, firebrick, coloured glass, cast iron), and one of them wants it: there
      with it first, before they are taken on at another (a pocketful of lime at the cathedral's crypt is no use to the
      organ waiting on it) */
@@ -792,6 +794,8 @@ function wDropAll(g, p) {
     sandSet(g, j, v);
     if (v === MAT.CONCRETE) p.lump--; else p.moonrock--;
   }
+  /* (a barrel of oil: into the nearest well's tank there is room in, where barrels are kept) */
+  if (p.barrel) { var wl = oTankFor(g, p, 0); if (wl && wl.tank < O_TANK) { wl.tank++; p.barrel = 0; } }
   var any = false;
   W_KEEP.forEach(function (rr) { if ((p[rr] || 0) > 0) any = true; });
   if (!any && !(p.lump > 0) && !(p.moonrock > 0)) return;
