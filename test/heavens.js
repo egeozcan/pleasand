@@ -274,6 +274,22 @@ module.exports = function (test, check, sim) {
     for (k = 0; k < 2500; k++) { sim.step(w, 1); for (var j = 0; j < s.cells.length; j++) if (g.m[s.cells[j]] === w.MAT.METAL || g.m[s.cells[j]] === w.MAT.LAVA) hi = Math.max(hi, g.T[s.cells[j]]); }
     check(hi < 760, "unworked, the iron in it got to " + Math.round(hi));
   });
+  test("foundry: the charge conserves iron: the founder's own only bar is not counted twice, and what there is no room for goes back", function () {
+    /* (the village's one bar in the founder's pocket, and the charge wanting two) */
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, k;
+    F.p.iron = 1;
+    var i0 = ironOf(F);
+    for (k = 0; k < 3000 && s.phase === 1; k++) sim.step(w, 1);
+    check(s.phase === 2, "(the test wants it charged: phase " + s.phase + ")");
+    check(Math.abs(ironOf(F) - i0) < 1e-6, "iron went from " + i0 + " to " + ironOf(F) + " in the charging");
+    /* (two bars, and room in the chamber for only three cells of iron) */
+    var F2 = foundry("plate"), w2 = F2.w, g2 = F2.g, s2 = F2.s, M = w2.MAT, free = 0;
+    for (k = s2.cells.length - 1; k >= 0; k--) { var j = s2.cells[k]; if (k >= 2 && free < 3) { free++; continue; } if (k >= 2) w2.sandPlace(g2, j, M.BRICK); }
+    var i2 = ironOf(F2);
+    for (k = 0; k < 3000 && s2.phase === 1; k++) sim.step(w2, 1);
+    check(s2.phase === 2, "(the test wants it charged: phase " + s2.phase + ")");
+    check(Math.abs(ironOf(F2) - i2) < 1e-6, "iron went from " + i2 + " to " + ironOf(F2) + " into a chamber with room for three cells");
+  });
   test("foundry: a charge of two bars, tapped, sets in the plate mould and is prised out as plates; the iron is all there, none of it outside, and the ash is raked out", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F), fb = fireb(F), first = 0, set = 0;
     var mould = w.hMould(g, s, "plate");

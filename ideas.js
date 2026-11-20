@@ -1902,11 +1902,11 @@ function iBarrel(g) {
 }
 /* up to n of resource r out of the village's pockets, a lump at a time from whoever has most: how much */
 /* n of resource r, a whole one at a time, out of the pockets of whoever has most of it (only those within R of column x,
-   if those are given: it is carried, not wished there). how many they found */
-function iChipIn(g, r, n, x, R) {
+   if those are given: it is carried, not wished there; never off but, who is the one asking). how many they found */
+function iChipIn(g, r, n, x, R, but) {
   var got = 0, k, best;
   while (got < n) {
-    for (best = null, k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && (q[r] || 0) >= 1 && (R == null || Math.abs(q.x - x) <= R) && (!best || q[r] > best[r])) best = q; }
+    for (best = null, k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (q !== but && !q.dead && (q[r] || 0) >= 1 && (R == null || Math.abs(q.x - x) <= R) && (!best || q[r] > best[r])) best = q; }
     if (!best) break;
     best[r] -= 1; got++;
   }

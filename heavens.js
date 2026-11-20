@@ -1029,7 +1029,7 @@ function hTaskFound(g, p, k) {
     if (k.act < 60) return true;
     c = hChamber(g, s);
     var bars = Math.max(0, Math.ceil((H_CHARGE - c.met - c.liq) / 5));
-    if (bars > 0 && (p.iron || 0) < bars) p.iron = (p.iron || 0) + iChipIn(g, "iron", bars - Math.floor(p.iron || 0));
+    if (bars > 0 && (p.iron || 0) < bars) { var chip = iChipIn(g, "iron", bars - Math.floor(p.iron || 0), null, null, p); p.iron = (p.iron || 0) + chip; }
     bars = Math.min(bars, Math.floor(p.iron || 0));
     if (bars <= 0 && c.met + c.liq < 5) { if (p.sayT <= 0) pSay(g, p, "noiron"); s.phase = 0; return iDone(p, false); }
     var metal = bars * 5, put = 0;
@@ -1042,7 +1042,8 @@ function hTaskFound(g, p, k) {
       else if (hCoal(g, p, s)) { sandPlace(g, j, MAT.EMBER); g.aux[j] = 1; }
       heatAccept(g, j);
     }
-    p.iron -= bars; s.bars = (s.bars || 0) + bars;
+    /* (what there was no room for in the chamber goes back in their pocket: iron in is the iron that went in) */
+    p.iron -= bars - metal / 5; s.bars = (s.bars || 0) + bars - metal / 5;
     g.fx.thud++;
     if (p.sayT <= 0) pSay(g, p, "charge");
     s.phase = 2; s.meltT = g.tick; k.act = 0;
