@@ -1343,6 +1343,9 @@ function hTaskBoard(g, p, k) {
   /* aboard: in the shell, not drawn, and kept there (as in space) until it goes */
   p.aboard = s.id; p.task = null; p.state = "space"; p.spaceT = 0;
   p.x = s.rx + 0.5; p.y = s.R0 - 8; p.vx = p.vy = 0;
+  /* (and somewhere to come out to, if it does not go: the ground just off the pad, by the gantry's foot) */
+  var ox = s.x0 - 2 >= 1 ? s.x0 - 2 : s.x1 + 2, oG = mGround(g, ox, false);
+  p.safe = oG > 0 ? { x: ox + 0.5, y: oG - 1 } : null;
   pSay(g, p, "board", true);
   return false;
 }
@@ -1353,8 +1356,11 @@ function hAboardOf(g, p) {
 }
 /* out of a rocket that is not there any more: down on the ground where they were, as they were before they got in */
 function hDisembark(g, p) {
-  var x = Math.max(1, Math.min(g.gw - 2, Math.floor(p.x))), G = mGround(g, x, false);
-  p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0;
+  /* (out where they were told they would come out when they got in, just off the pad: not down onto the engine, inside
+     the hull, where there is no way out. an old save without it: the ground under them) */
+  var sf = p.safe, sx = sf ? Math.floor(sf.x) : Math.max(1, Math.min(g.gw - 2, Math.floor(p.x))), G = mGround(g, sx, false);
+  p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0; p.safe = null;
+  if (sf) p.x = sf.x;
   if (G > 0) { p.state = "walk"; p.y = G - 1; } else { p.state = "fly"; p.flyT = 0; }
   p.fallY = p.y;
 }
@@ -1465,9 +1471,13 @@ function hRocketStep(g, s) {
   if (s.count > 0 && g.tick - s.countT >= 60 * (11 - s.count)) {
     feed(g, s.count === 10 ? "THE MOON ROCKET: 10" : String(s.count), "#ffd94a", "count" + s.id);
     if (s.count === 3) mHouseOf(g, s).forEach(function (q) { if (Math.random() < 0.4) pSay(g, q, "watchLaunch", true); });
+    /* (the hull looked over as it goes: a plate gone since it was last looked at, and it does not) */
+    if (s.count === 1 && !hHullWhole(g, s)) { s.done = false; s.repair = true; s.last = g.tick; return; }
     if (--s.count === 0) hLiftOff(g, s);
   }
 }
+/* every cell of the rocket itself in place */
+function hHullWhole(g, s) { for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (e.rk && !bOk(g, e)) return false; } return true; }
 function mHouseOf(g, s) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "audience" && q.task.site === s.id; }); }
 /* fire, embers or something molten by the rocket (not in its trench, once it is going) */
 function hRocketAlight(g, s) {
@@ -1499,7 +1509,7 @@ function hLiftOff(g, s) {
   s.crew.forEach(function (id, n) {
     var q = lAlive(g, id);
     if (!q || q.aboard !== s.id) return;
-    q.aboard = 0; q.state = "space"; q.spaceT = H_AWAY + n * 90; q.spaceX = s.rx - 3 + n * 3; q.moon = 1; q.moonrock = 2;
+    q.aboard = 0; q.safe = null; q.state = "space"; q.spaceT = H_AWAY + n * 90; q.spaceX = s.rx - 3 + n * 3; q.moon = 1; q.moonrock = 2;
     g.astronauts = (g.astronauts || 0) + 1;
     feed(g, q.name + " has gone to the moon", "#9ad0ff", "moon" + q.id);
     wTale(g, "moon", q, "", s.rx, s.R0);

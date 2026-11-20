@@ -504,6 +504,20 @@ module.exports = function (test, check, sim) {
     check(s.repair, "(the test wants it seen to want mending)");
     check(!s.gone && !s.count, "it went (or is still counting down) with a plate gone");
     check(crew.every(function (q) { return !q.aboard && q.state !== "space"; }), "the crew are still aboard a rocket that wants mending: " + crew.map(function (q) { return q.state + " " + q.aboard; }).join(", "));
+    check(crew.every(function (q) { return q.x < s.x0 || q.x > s.x1 + 1; }), "the crew came out inside the rocket's pad: " + crew.map(function (q) { return q.x.toFixed(1); }).join(", ") + " (" + s.x0 + "-" + s.x1 + ")");
+  });
+  test("moon rocket: a plate gone the tick before it goes, between lookings-over, and it does not go", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
+    s.oil = 12;
+    g.peasants[2].flights = 3; g.peasants[4].flights = 1;
+    for (k = 0; k < 6000 && !(s.count === 1 && g.tick - s.countT === 60 * 10 - 1); k++) sim.step(w, 1);
+    check(s.count === 1, "(the test wants the last second of the countdown)");
+    var plate = s.plan.filter(function (e) { return e.rk && g.m[e.i] === M.METAL; })[0];
+    w.sandPlace(g, plate.i, M.EMPTY);
+    s.done = true; s.repair = false;   /* (not looked over yet) */
+    s.countT = g.tick - 60 * 10;   /* (its last second up) */
+    w.hRocketStep(g, s);
+    check(!s.gone, "it went with a plate gone");
   });
   test("moon rocket: fire by a fuelled rocket blows it up, and anybody aboard is thrown clear", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
