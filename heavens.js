@@ -576,8 +576,22 @@ wDef({
   mood: function (g, p, k) { return k.kind === "keep" ? (p.barrel ? "is carrying a barrel of oil up the lighthouse" : "is fetching oil for the lighthouse") : ""; }
 });
 /* the biggest body of water in the valley: every so often, once a lighthouse could be thought of. {n, x0, x1, top, id}.
-   (the labels are kept off g: they are worked out again whenever they are wanted) */
+   (H_LBL is scratch for the one call: nothing in it is looked at afterwards) */
 var H_LBL = null;
+/* is the water at cell j one body of n cells or more (filled out from j, no further than it has to) */
+function hBodyAtLeast(g, j, n) {
+  var gw = g.gw, m = g.m, seen = {}, st = [j], c = 0, i;
+  seen[j] = 1;
+  while (st.length && c < n) {
+    i = st.pop(); c++;
+    var x = i % gw;
+    if (x > 0 && !seen[i - 1] && WET[m[i - 1]]) { seen[i - 1] = 1; st.push(i - 1); }
+    if (x < gw - 1 && !seen[i + 1] && WET[m[i + 1]]) { seen[i + 1] = 1; st.push(i + 1); }
+    if (i >= gw && !seen[i - gw] && WET[m[i - gw]]) { seen[i - gw] = 1; st.push(i - gw); }
+    if (i + gw < m.length && !seen[i + gw] && WET[m[i + gw]]) { seen[i + gw] = 1; st.push(i + gw); }
+  }
+  return c >= n;
+}
 function hLakeScan(g) {
   var n = g.m.length, gw = g.gw, m = g.m, k, j, st = [], id = 0, best = null;
   if (!H_LBL || H_LBL.length !== n) H_LBL = new Int32Array(n);
@@ -608,13 +622,14 @@ function hLightTick(g) {
   if (g.know.oil && g.know.glass && g.know.masonry && !g.know.lighthouse) {
     /* (looked at now and then; and whenever somebody is in the water and it has not been looked at lately) */
     var swim = g.peasants.some(function (q) { return !q.dead && q.swimming; });
-    if (!H_LBL || !g.hLake || g.tick - (g.hLakeT || 0) >= (swim ? 300 : 1200)) { hLakeScan(g); g.hLakeT = g.tick; }
-    var L = g.hLake;
-    if (L && L.n >= H_LAKE && swim) for (var k = 0; k < g.peasants.length; k++) {
+    if (!g.hLake || g.tick - (g.hLakeT || 0) >= (swim ? 300 : 1200)) { hLakeScan(g); g.hLakeT = g.tick; }
+    /* (whether the water they are in is a lake is looked at in the water as it is now: nothing kept off g, so a village
+       loaded into a game that had another one open thinks what it would have thought) */
+    if (swim) for (var k = 0; k < g.peasants.length; k++) {
       var p = g.peasants[k];
       if (p.dead || !p.swimming) continue;
       var j = (Math.floor(p.y) - 3) * g.gw + Math.floor(p.x);
-      if (j >= 0 && j < g.m.length && H_LBL[j] === L.id) { wSpark(g, p, "lighthouse"); break; }
+      if (j >= 0 && j < g.m.length && WET[g.m[j]] && hBodyAtLeast(g, j, H_LAKE)) { wSpark(g, p, "lighthouse"); break; }
     }
   }
 }

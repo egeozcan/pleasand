@@ -137,6 +137,23 @@ module.exports = function (test, check, sim) {
     check(g.hLake && g.hLake.n >= 200, "the lake was not seen: " + JSON.stringify(g.hLake));
     check(p.spark === "lighthouse", "the swimmer did not think of a lighthouse (" + p.spark + ", swimming " + p.swimming + ")");
   });
+  test("lighthouse: a swimmer in a lake thinks of it the same, loaded into a game that had another valley open", function () {
+    var L = lake(), w = L.w, g = L.g, p = g.peasants[0];
+    sim.step(w, 31);   /* (the lake looked at once, swimmer or none) */
+    var doc = JSON.parse(JSON.stringify(w.saveDocument(g, { source: "test" })));
+    /* another game, with a different lake in it looked at (its own labels), then the first village loaded into it */
+    var O = lake(), w2 = O.w, g2 = O.g, x, y;
+    for (x = 169; x <= 210; x++) for (y = O.G; y <= O.G + 12; y++) w2.sandPlace(g2, y * g2.gw + x, w2.MAT.STONE);
+    for (x = 60; x <= 100; x++) for (y = O.G - 8; y < O.G; y++) w2.sandPlace(g2, y * g2.gw + x, w2.MAT.WATER);
+    w2.hLakeScan(g2);
+    w2.saveLoad(g2, doc);
+    [[w, g], [w2, g2]].forEach(function (P, n) {
+      var q = P[1].peasants[0], k;
+      q.x = 190.5; q.y = L.G + 8; q.state = "walk";
+      for (k = 0; k < 400 && q.spark !== "lighthouse"; k++) sim.step(P[0], 1);
+      check(q.spark === "lighthouse", (n ? "loaded into another game, " : "") + "the swimmer did not think of a lighthouse (" + q.spark + ")");
+    });
+  });
   function lighthouse(build) {
     var L = lake(), w = L.w, g = L.g;
     know(g, ["lighthouse"]);
