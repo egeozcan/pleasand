@@ -1848,6 +1848,7 @@ function iTaskFestival(g, p, k) {
     k.n += coal + (oil ? 2 : 0) + powder * 2; k.gold = gold > 0;
     pSay(g, p, "festival", true);
     feed(g, p.name + " is putting on a fireworks show" + (k.gold ? ", with a golden finale" : (powder ? ", with black powder in it" : (coal ? ", a big one" : ""))), "#ffd94a", "fest");
+    if (g.wAny) { g.festX = k.x; pOrganPlay(g, "show"); }   /* (the steam organ plays at every show: pleasures.js) */
     for (var q = 0; q < g.peasants.length; q++) {
       var o = g.peasants[q];
       if (o === p || o.dead || o.state !== "walk" || o.sleep || o.fire || (o.task && !I_FUN[o.task.kind]) || Math.abs(o.x - k.x) > 160 || Math.random() < 0.15) continue;

@@ -392,6 +392,7 @@ function sandSounds(g) {
     if (ok("bell", 0.6)) SFX.bell();
     if (ok("clap", 0.5)) SFX.clap();
   }
+  if (g.wAny) pOrganSounds(g);   /* (the steam organ's notes, each its own pitch: pleasures.js) */
   for (var k in f) f[k] = 0;
 }
 

@@ -114,6 +114,13 @@ var SFX = {
   },
   /* applause: a crowd's worth of hands, a burst of noise at a time (wonders.js) */
   clap: function () { for (var k = 0; k < 14; k++) hiss(0.03, 0.05 + Math.random() * 0.05, 3500, 1800, k * 0.06 + Math.random() * 0.04, "bandpass"); },
+  /* a steam organ's pipe: a breathy square wave, the pitch by the pipe (f), quieter with less steam (v 0..1), a touch
+     of hiss for the breath (pleasures.js) */
+  organ: function (f, v) {
+    v = v == null ? 1 : v;
+    tone(f, 0.42, "square", 0.022 * v); tone(f * 2, 0.36, "triangle", 0.01 * v);
+    hiss(0.3, 0.025 * v, f * 3, f * 1.5, 0, "bandpass");
+  },
   /* a rubber duck */
   squeak: function () { tone(900, 0.12, "sine", 0.05, 1500); tone(1400, 0.08, "triangle", 0.02, 1100, 0.1); },
   /* the little animal-crossing mumble a peasant makes when it talks */

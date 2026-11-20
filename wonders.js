@@ -548,7 +548,7 @@ function wTaskKiln(g, p, k) {
     var out = k.r === "lime" ? 2 : 1;
     p[k.r] = (p[k.r] || 0) + out; k.n += out;
   }
-  g.fx.clang++;
+  g.fx.clang++; g.kilnN = (g.kilnN || 0) + 1;   /* (a batch: the furnace worked once more. the organ counts them: pleasures.js) */
   sparks(g, f.fc + 0.5, f.G - 2, 8, 0.6, SPARK_HOT, 10, 0.4, PK_GLINT);
   if (k.r === "lime" && !g.got.concrete) { feed(g, p.name + " burnt the first lime. add sand and water, and stir", "#e0e0d4", "lime"); }
   if (k.n >= k.want) k.carry = true;

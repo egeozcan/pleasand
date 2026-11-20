@@ -680,3 +680,387 @@ function pDrawGardens(g, s) {
   }
   return 0;
 }
+
+/* =====================================================================
+   THE STEAM ORGAN: the kettle sang, so what if a lot of kettles sang.
+   a firebrick firebox, an iron tank of forty cells of water over it,
+   and on the tank's lid a rack of seven pipes, each a channel of thin
+   air one cell wide walled with tinned stone, six to eighteen high, each
+   with a valve where it leaves the lid (a length of girder the
+   organist takes out and puts back). the organist fires the boiler
+   well before a show, and once it is boiling opens the valves to a
+   tune: the steam goes up whichever pipe is open, and every cell of it
+   that leaves the top of a pipe plays that pipe's note. a concert is
+   about thirty notes, and about a tankful. the loop is open: the steam
+   goes up to the top of the sky, cools, and rains back down about
+   where it rose. what falls in the gutter at its foot, or back down
+   the pipes, the organist bails back into the tank; the rest is rain
+   on whatever is next to the organ. and the tank is topped up from the
+   pond, a bucket at a time
+   ===================================================================== */
+var P_OW = 19;                     /* the organ, across: the stand and the ladder, the tank and its rack, the gutter */
+var P_OH = [6, 8, 10, 12, 14, 16, 18];   /* the pipes, left to right: the tallest is the lowest note */
+var P_OHZ = [494, 440, 392, 349, 330, 294, 262];   /* and their notes: B A G F E D C */
+var P_OTANK = 39;                  /* cells of water in a full tank */
+var P_OSHOW = 30;                  /* a tank wants at least this much in it to give a concert */
+var P_OGAP = 14000;                /* ticks between concerts it gives of its own accord, at the least */
+var P_OLEAD = 1800;                /* and how long before one the organist starts firing it */
+var P_ONOTE = 220;                 /* ticks a valve stays open for a note that will not come, before the next */
+/* the tunes: [note (0 is the lowest, C; 6 is B), breaths (steam cells for it: one, or two for a long one)] */
+var W_TUNES = [
+  { name: "the one about the duck", n: [[2, 1], [2, 1], [3, 1], [4, 1], [4, 1], [3, 1], [2, 1], [1, 1], [0, 1], [0, 1], [1, 1], [2, 1], [2, 2], [1, 1], [1, 2],
+                                        [2, 1], [2, 1], [3, 1], [4, 1], [4, 1], [3, 1], [2, 1], [1, 1], [0, 1], [0, 1], [1, 1], [2, 1], [1, 2], [0, 1], [0, 2]] },
+  { name: "brother john, are you sleeping", n: [[0, 1], [1, 1], [2, 1], [0, 1], [0, 1], [1, 1], [2, 1], [0, 1], [2, 1], [3, 1], [4, 2], [2, 1], [3, 1], [4, 2],
+                                        [4, 1], [5, 1], [4, 1], [3, 1], [2, 1], [0, 1], [4, 1], [5, 1], [4, 1], [3, 1], [2, 1], [0, 1], [0, 1], [4, 1], [0, 2], [0, 2]] },
+  { name: "the long walk home", n: [[0, 1], [2, 1], [4, 1], [2, 1], [0, 1], [2, 1], [4, 2], [1, 1], [3, 1], [5, 1], [3, 1], [1, 1], [3, 1], [5, 2], [2, 1],
+                                        [4, 1], [6, 1], [4, 1], [2, 1], [4, 1], [6, 2], [5, 1], [4, 1], [3, 1], [2, 1], [1, 1], [0, 1], [4, 1], [2, 1], [0, 2]] }
+];
+
+P_SAY.idea_organ = ["the kettle sang. what if a lot of kettles sang. at once", "steam, but music", "a kettle the size of a house", "it hissed in tune. nearly"];
+P_SAY.planOrgan = ["pipes. lots of pipes", "a kettle, and a lot of chimneys", "it's going to be LOUD", "an organ! a steam one!"];
+P_SAY.organFire = ["get it boiling", "more coal, she's not singing yet", "*clunk*", "nearly there"];
+P_SAY.organist = ["and... the next bit", "*pulls a lever*", "this is the good part", "from the top", "nobody clap yet"];
+P_SAY.breathe = ["let it breathe", "she's building up. open one", "too much steam in her", "*pssssh*"];
+P_SAY.bitLoud = ["it's a bit loud", "IT'S A BIT LOUD", "lovely. what?", "is that the one about the duck", "*sways*", "my ears"];
+P_SAY.bail = ["*slosh*", "back in you go", "the rain's come back", "every drop counts"];
+
+wDef({
+  id: "organ",
+  idea: { name: "the steam organ", title: "THE STEAM ORGAN", sub: "the kettle sang. what if a lot of kettles sang. at once", hint: "concrete, a show, and a furnace worked hard",
+          ready: function (g) { return !!g.know.concrete && !!g.know.festival && (g.iron || 0) + (g.kilnN || 0) >= 50; } },
+  achieve: ["THE STEAM ORGAN", "a boiler, a tank and seven pipes. it plays at shows. it is a bit loud"],
+  watch: pOrganWatch,
+  plan: pPlanOrgan,
+  pick: pOrganPick,
+  task: function (g, p, k) { return k.kind === "organ" ? pTaskOrgan(g, p, k) : (k.kind === "pfill" ? pTaskFill(g, p, k) : undefined); },
+  step: pOrganStep,
+  tick: pOrganTick,
+  partOfIt: function (g, s, f) { for (var k = 0; k < f.length; k++) { var u = f[k] % g.gw - s.x0, y = (f[k] / g.gw) | 0; if (y !== s.G - 1 || u < 8 || u > 10) return false; } return true; },
+  draw: pDrawOrgan,
+  finish: function (g, s, p) {
+    feed(g, "the steam organ is built. it wants filling, then a show", "#ffd94a", "plan" + s.id);
+    var V = [0, 1, 2, 3, 4, 5, 6].map(function (n) { return pOValve(g, s, n); });
+    s.plan = s.plan.filter(function (e) { return V.indexOf(e.i) < 0; });   /* (the valves are the organist's now) */
+    s.nextT = g.tick + 4000; g.wTick = true;
+  },
+  dry: function (g, s) { return pOrganDry(g, s); },
+  spout: function (g, s) { return { x: s.x0, y: s.G - 1 }; },
+  label: function () { return "the steam organ"; },
+  readout: function (g, s) {
+    if (!s.done) return "";
+    var w = P_OTANK - wBathNeed(g, s), t = pOrganT(g, s);
+    if (s.state === "playing") return "playing " + W_TUNES[s.tune].name + ": note " + (s.ni + 1) + " of " + W_TUNES[s.tune].n.length;
+    return "the tank: " + w + " of " + P_OTANK + ", at " + Math.round(t) + "°" + (s.state === "firing" ? ". being fired for a concert" : "") +
+           (s.concerts ? ". " + s.concerts + " concert" + (s.concerts > 1 ? "s" : "") + " so far" : "");
+  },
+  mood: function (g, p, k) {
+    if (k.kind === "organ") { var s = bSite(g, k.site); return !s ? "" : s.state === "playing" ? "is playing the steam organ" : (k.coal === false ? "is fetching coal for the steam organ" : "is firing the steam organ"); }
+    if (k.kind === "audience" && k.of === "concert") return "is listening to the steam organ. it is a bit loud";
+    return "";
+  }
+});
+/* the furnace worked hard, a show, concrete: whoever is at the furnace has it put into their head (the kettle on the
+   furnace, hissing) */
+function pOrganWatch(g) {
+  var I = wIdea("organ");
+  if (!I.ready(g)) return;
+  for (var k = 0; k < g.peasants.length; k++) {
+    var q = g.peasants[k];
+    if (!q.dead && q.task && (q.task.kind === "smelt" || q.task.kind === "kiln" || q.task.kind === "forge")) { wSpark(g, q, "organ"); return; }
+  }
+}
+/* the organ's cells, by u (0 .. P_OW - 1) across and rows over the apron (G) */
+function pOPipeX(s, n) { return s.x0 + 3 + 2 * n; }
+/* where it goes: on level ground with a lot of sky over it, near where the shows go up */
+function pPlanOrgan(g, p) {
+  var r = wPlot(g, { w: P_OW, sky: 27, rough: 2, pad: 2, near: g.festX || wMiddle(g), fit: pOrganFit });
+  if (!r) return false;
+  var x0 = r.x0, G = r.r.G;
+  /* (the tips stone to begin with, and gilded afterwards if there is gold about: wonders.js wRegild. a tip of gold at the top of a
+     pipe, waiting on gold, would hold up the rest) */
+  var plan = wCleared(g, r, r.r.plan);
+  plan.forEach(function (e) { if (e.v === MAT.GOLD) { e.v = MAT.BRICK; e.gild = true; } });
+  var s = bNew(g, "organ", p, plan, [x0, G - 6 - P_OH[6] - 1, x0 + P_OW - 1, G],
+               { wonder: true, G: G, bath: true, L: G - 5, px0: x0 + 3, bw: 13, bh: 3, state: "idle", tune: 0, ni: 0, cur: -1,
+                 notes: 0, concerts: 0, caught: 0, exits: [0, 0, 0, 0, 0, 0, 0], mo: [0, 0, 0, 0, 0, 0, 0] });
+  feed(g, p.name + " is building a steam organ. it is going to be loud", "#ffd94a", "plan" + s.id);
+  pSay(g, p, "planOrgan", true);
+  if (bCarries(p)) bJoin(g, p, s);
+  return true;
+}
+/* the organ at x0 on ground gy: an apron of concrete at the ground's row G (a gutter with a lip at the right-hand end),
+   a plinth of brick with the firebox in the middle of it, the tank, the lid, the rack, and a ladder up the left of
+   it to the first pipe (the rack is a stair from there, for whoever builds it and whoever mends it) */
+function pOrganFit(g, x0, gy, hi, lo) {
+  var G = lo, plan = [], u, y, c, x, n;
+  function put(u, y, v, ph, cost) { var e = bE(g, x0 + u, y, v, ph); if (cost != null) e.cost = cost; plan.push(e); return e; }
+  for (u = 0; u < P_OW; u++) {
+    x = x0 + u;
+    /* (the ground made level: anything over the apron's row dug out, and something firm under it) */
+    for (y = gy[u]; y < G; y++) { c = pCell(g, x, y); if (!B_DIG[c]) return null; put(u, y, MAT.EMPTY, 0); }
+    if (!pSolid(g, x, G + 1)) return null;
+    c = pCell(g, x, G);
+    if (!AIRY[c] && !B_DIG[c] && !ROCK[c]) return null;
+    put(u, G, u >= 7 && u <= 11 ? MAT.FIREBRICK : MAT.CONCRETE, 1);
+  }
+  put(18, G - 1, MAT.BRICK, 2); put(18, G - 2, MAT.BRICK, 3);   /* (the gutter's lip: brick, which stands up on its own, as wet concrete would not) */
+  /* the plinth, and the firebox in the middle of it */
+  for (u = 2; u <= 16; u++) {
+    if (u >= 8 && u <= 10) continue;
+    put(u, G - 1, u === 7 || u === 11 ? MAT.FIREBRICK : MAT.BRICK, 3);
+  }
+  /* the tank: an iron floor, two iron sides, an iron lid with a valve under each pipe */
+  for (u = 2; u <= 16; u++) { put(u, G - 2, MAT.GIRDER, 4); put(u, G - 6, MAT.GIRDER, 9); }
+  for (y = G - 5; y <= G - 3; y++) { put(2, y, MAT.GIRDER, 5 + G - 3 - y); put(16, y, MAT.GIRDER, 5 + G - 3 - y); }
+  /* the rack: a wall each side of each pipe, as high as the taller of the two, gilded at the tips of the three tallest if
+     there is gold. (dressed stone, thin, and tinned: iron, a peasant walks through, as they do the lattice of a lift's
+     headframe, and nobody could stand on the rack to build it any higher. as it is, it is a stair, from the ladder) */
+  for (u = 2; u <= 16; u += 2) {
+    var h = Math.max(u > 2 ? P_OH[(u - 4) >> 1] : 0, u < 16 ? P_OH[(u - 2) >> 1] : 0);
+    for (y = G - 7; y >= G - 6 - h; y--) put(u, y, y === G - 6 - h && u >= 12 ? MAT.GOLD : MAT.BRICK, 10 + G - 7 - y, 0.1);
+  }
+  /* the ladder, up the left of it to the first pipe's top */
+  for (y = G - 1; y >= G - 6 - P_OH[0] - 1; y--) put(1, y, MAT.LADDER, 10 + G - 1 - y);
+  /* (sky over all of it, and no tree or roof to stop the steam on its way up) */
+  for (u = 0; u < P_OW; u++) for (y = G - 6 - P_OH[6] - 2; y >= Math.max(0, G - 60); y -= 3) { c = pCell(g, x0 + u, y); if (!AIRY[c]) return null; }
+  for (n = 0; n < plan.length; n++) if (plan[n].v === MAT.GOLD) plan[n].cost = null;
+  return { plan: plan, G: G, score: 20 };
+}
+function pOrganT(g, s) {
+  var t = 0, n = 0;
+  for (var x = s.px0; x < s.px0 + 13; x++) for (var y = s.L; y < s.L + 3; y++) { var j = y * g.gw + x; if (WET[g.m[j]]) { t += g.T[j]; n++; } }
+  return n ? t / n : AMBIENT;
+}
+/* the steam in the tank, up under the lid */
+function pOrganSteam(g, s) {
+  var n = 0;
+  for (var x = s.px0; x < s.px0 + 13; x++) for (var y = s.L; y < s.L + 3; y++) if (g.m[y * g.gw + x] === MAT.STEAM) n++;
+  return n;
+}
+function pOrganDry(g, s) {
+  var out = [], x, y;
+  if (s.state !== "idle" || P_OTANK - wBathNeed(g, s) >= P_OTANK - 2) return out;
+  for (y = s.L + 2; y >= s.L; y--) for (x = s.px0; x < s.px0 + 13; x++) if (g.m[y * g.gw + x] === MAT.EMPTY) out.push(y * g.gw + x);
+  return out;
+}
+function pOValve(g, s, n) { return (s.G - 6) * g.gw + pOPipeX(s, n); }
+function pOOpen(g, s, n) { var j = pOValve(g, s, n); if (g.m[j] === MAT.GIRDER) { heatVanish(g, j); g.fx.clank++; } }
+/* shut: a girder back in the lid, if there is nothing in the way of it (steam on its way through: next tick) */
+function pOShut(g, s, n) {
+  var j = pOValve(g, s, n);
+  if (g.m[j] === MAT.GIRDER) return true;
+  if (g.m[j] !== MAT.EMPTY) return false;
+  sandSet(g, j, MAT.GIRDER); g.aux[j] = 0; heatAccept(g, j); g.fx.clank++;
+  return true;
+}
+function pOAllShut(g, s) { for (var n = 0; n < 7; n++) if (g.m[pOValve(g, s, n)] !== MAT.GIRDER) return false; return true; }
+/* a concert, if the organ is up and has the water for one: fired now, played once it boils. for any show that wants
+   it (a fireworks show, the theatre's interval, a service: monuments.js may call it). true if it will play */
+function pOrganPlay(g, why) {
+  var s = mSites(g, "organ", true)[0];
+  if (!s || s.repair) return false;
+  if (s.state !== "idle") return true;
+  if (P_OTANK - wBathNeed(g, s) < P_OSHOW) return false;
+  s.state = "firing"; s.why = why || ""; s.fireT = g.tick;
+  return true;
+}
+/* every tick, while it stands: a puff of steam out of the top of a pipe is that pipe's note. the valve of the note
+   being played is shut again once it has had its breaths */
+function pOrganTick(g, s) {
+  if (!s.done) return;
+  var t = -1;
+  for (var n = 0; n < 7; n++) {
+    var x = pOPipeX(s, n), y = s.G - 7 - P_OH[n], st = g.m[y * g.gw + x] === MAT.STEAM ? 1 : 0;
+    if (st && !s.mo[n]) {
+      s.exits[n]++; s.notes++;
+      if (t < 0) t = pOrganT(g, s);
+      /* (cool, it goes flat; a thin note, quieter) */
+      var v = clamp(pOrganSteam(g, s) / 4 + 0.4, 0.3, 1);
+      if (P_OQ.length < 16) P_OQ.push([P_OHZ[n] * (t < 98 ? 0.94 : 1), v]);
+      if (s.state === "playing" && s.cur === n) s.got++;
+    }
+    s.mo[n] = st;
+  }
+  if (s.state === "playing" && s.cur >= 0 && s.got >= s.need && pOShut(g, s, s.cur)) s.cur = -2;
+}
+var P_OQ = [];
+function pOrganSounds(g) { if (!g.quiet) for (var k = 0; k < P_OQ.length; k++) SFX.organ(P_OQ[k][0], P_OQ[k][1]); P_OQ.length = 0; }
+/* every W_STRIDE ticks: a concert now and then of its own accord, an organist for it, the audience, and a boiler
+   shut up tight with steam in it let breathe */
+function pOrganStep(g, s) {
+  if (!s.done || s.repair) return;
+  g.wTick = true;
+  var o = pOrganist(g, s), k, q;
+  if (s.state === "idle" && g.tick >= (s.nextT || 0) - P_OLEAD && P_OTANK - wBathNeed(g, s) >= P_OSHOW) pOrganPlay(g, "");
+  /* the organist: firing, playing, raking out, bailing the gutter, or letting it breathe */
+  var steam = pOrganSteam(g, s), lit = pOFire(g, s), wet = pOGutter(g, s).length;
+  if (pOAllShut(g, s) && steam >= 3) s.shutT = s.shutT || g.tick; else s.shutT = 0;
+  var want = s.state !== "idle" || lit || wet || (s.shutT && g.tick - s.shutT >= 600);
+  if (!o && want && !g.blaze.length) {
+    var best = null, bd = 1e9;
+    for (k = 0; k < g.peasants.length; k++) {
+      q = g.peasants[k];
+      if (!wIdle(g, q) || Math.abs(q.x - s.cx) > 240) continue;
+      var d = Math.abs(q.x - s.cx) - ((q.coal || 0) >= 1 ? 40 : 0) - (q.id === s.organist ? 60 : 0);
+      if (d < bd) { bd = d; best = q; }
+    }
+    if (best) { best.task = { kind: "organ", site: s.id, t: 0, act: 0 }; s.organist = best.id; o = best; }
+  }
+  /* (nobody to play it, a good while: the concert is off) */
+  if (o) s.seenT = g.tick;
+  if (s.state === "playing" && g.tick - (s.seenT || 0) > 900) pOrganEnd(g, s, false);
+  if (s.state === "firing" && g.tick - s.fireT > 9000) { s.state = "idle"; s.nextT = g.tick + 6000; }
+  if (s.state === "playing") {
+    /* the audience sways, and somebody has an opinion */
+    var H = g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "audience" && q.task.site === s.id; });
+    H.forEach(function (q) { q.task.face = ((g.tick / 60) | 0) % 2 ? 1 : -1; });
+    if (H.length && (g.tick % 300) === 0) { q = H[irnd(H.length)]; if (q.sayT <= 0) pSay(g, q, "bitLoud", true); }
+  }
+}
+function pOrganist(g, s) { for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "organ" && q.task.site === s.id) return q; } return null; }
+/* the firebox's three cells, and what is burning in them */
+function pOBox(g, s, u) { return (s.G - 1) * g.gw + s.x0 + 8 + u; }
+function pOFire(g, s) { var n = 0; for (var u = 0; u < 3; u++) if (g.m[pOBox(g, s, u)] === MAT.EMBER) n++; return n; }
+/* the gutter: what has rained into it (and into the right-hand end of the apron) */
+function pOGutter(g, s) {
+  var out = [];
+  for (var y = s.G - 2; y <= s.G - 1; y++) if (WET[pCell(g, s.x0 + 17, y)]) out.push(y * g.gw + s.x0 + 17);
+  return out;
+}
+/* the organist: at the stand (by the ladder, at the left), firing it, playing it, raking it out after, and bailing what
+   rained back into the gutter into the tank */
+function pTaskOrgan(g, p, k) {
+  var s = bSite(g, k.site);
+  if (!s || !s.done || s.repair || ++k.t > 9000) { if (s && s.state === "playing") pOrganEnd(g, s, false); return iDone(p, false); }
+  var t = pOrganT(g, s), lit = pOFire(g, s);
+  /* coal first, if the fire will want some: their own, off whoever has some, or off the furnace's pile */
+  if (s.state !== "idle" && (p.coal || 0) < 1 && !k.noCoal) {
+    if (iChipIn(g, "coal", 2, p.x, 20) >= 1) p.coal = (p.coal || 0) + 1;
+    else {
+      var f = mSites(g, "furnace", true)[0];
+      if (!f || !f.stock || (f.stock.coal || 0) < 1) {
+        /* (none anywhere: a concert going on goes on with what heat there is; one not begun is off) */
+        if (p.sayT <= 0) pSay(g, p, "nocoal");
+        if (s.state === "firing") { s.state = "idle"; s.nextT = g.tick + 3000; return iDone(p, false); }
+        k.noCoal = true;
+        return true;
+      }
+      var fsx = f.sx, fsy = mSpotRow(g, f);
+      k.coal = false;
+      if (Math.abs(p.x - fsx - 0.5) > 1.5 || Math.abs(Math.floor(p.y) - fsy) > 3) {
+        if (iWalk(g, p, k, "coal" + f.id, fsx, fsy, function (x, y) { return Math.abs(x - fsx) <= 1 && Math.abs(y - fsy) <= 3; })) pGiveUp(g, p, fsx);
+        return false;
+      }
+      var n = Math.min(6, f.stock.coal); f.stock.coal -= n; p.coal = (p.coal || 0) + n;
+    }
+  }
+  k.coal = true;
+  var sx = s.x0, sy = s.G - 1;
+  if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(Math.floor(p.y) - sy) > 2) {
+    if (iWalk(g, p, k, "organ" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 2; })) pGiveUp(g, p, sx);
+    return false;
+  }
+  /* (facing the audience, the keys at their back: facing the firebox, the heat off it would see them off) */
+  p.dir = -1; p.idle = 0; k.act++;
+  if (s.state === "playing") {
+    p.pose = (k.act % 40) < 20 ? "hammerA" : "stand";
+    pOrganConduct(g, s, p, t);
+  } else p.pose = (k.act % 60) < 30 ? "stand" : ((k.act % 16) < 8 ? "chopA" : "chopB");
+  if (k.act % 30) return true;
+  var j, u;
+  if (s.state === "firing" || s.state === "playing") {
+    /* the fire: kept full while it comes up to the boil and while it plays; not past a good head of steam */
+    for (u = 0; u < 3; u++) { j = pOBox(g, s, u); if (g.m[j] === MAT.ASH) { heatVanish(g, j); return true; } }
+    /* (as many coals as it wants: all three to bring it up, fewer as it nears the boil, and while it plays, only enough
+       to keep a breath or two of steam under the lid. a tankful boiled off with the valves shut is a concert wasted) */
+    var st = pOrganSteam(g, s), want = s.state === "firing" ? 3 : (st < 2 ? 2 : (st < 4 ? 1 : 0));
+    if (lit > want + 1 || (lit && st >= 8)) {
+      for (u = 0; u < 3; u++) { j = pOBox(g, s, u); if (g.m[j] === MAT.EMBER) { heatBecome(g, j, MAT.ASH); g.fx.hiss++; break; } }
+    } else if (lit < want && (p.coal || 0) >= 1) {
+      for (u = 0; u < 3; u++) { j = pOBox(g, s, u); if (g.m[j] === MAT.EMPTY) break; }
+      if (u < 3) { sandSet(g, j, MAT.EMBER); g.aux[j] = 1; heatAccept(g, j); p.coal--; s.coals = (s.coals || 0) + 1; g.fx.thud++; if (p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "organFire"); }
+    }
+    /* on the boil, and a head of steam under the lid: the concert */
+    if (s.state === "firing" && st >= 3) pOrganStart(g, s, p);
+    else if (s.state === "firing" && g.tick - s.fireT > 7000) { s.state = "idle"; s.nextT = g.tick + 4000; }   /* (it never came up: another day) */
+    return true;
+  }
+  /* after: the fire raked out (what is burning goes to ash, and keeps its heat) */
+  if (lit) { for (u = 0; u < 3; u++) { j = pOBox(g, s, u); if (g.m[j] === MAT.EMBER) { heatBecome(g, j, MAT.ASH); g.fx.hiss++; } } if (p.sayT <= 0) pSay(g, p, "rake"); return true; }
+  for (u = 0; u < 3; u++) { j = pOBox(g, s, u); if (g.m[j] === MAT.ASH) { heatVanish(g, j); return true; } }
+  /* shut up tight with steam in it a long while: one opened, to let it breathe, until it has */
+  if (s.shutT && g.tick - s.shutT >= 600) { pOOpen(g, s, 0); s.breathe = (s.breathe || 0) + 1; s.breatheT = g.tick; s.shutT = 0; pSay(g, p, "breathe", true); return true; }
+  if (s.breatheT && pOrganSteam(g, s) < 1 && g.tick - s.breatheT > 60) { if (pOShut(g, s, 0)) s.breatheT = 0; return true; }
+  /* the gutter bailed back into the tank */
+  var W = pOGutter(g, s), D = [];
+  for (j = s.L + 2; j >= s.L && !D.length; j--) for (u = s.px0; u < s.px0 + 13; u++) if (g.m[j * g.gw + u] === MAT.EMPTY) { D.push(j * g.gw + u); break; }
+  if (W.length && D.length) { pLift(g, W[0], D[0]); s.caught++; if (p.sayT <= 0 && Math.random() < 0.2) pSay(g, p, "bail"); return true; }
+  if (s.breatheT) return true;
+  p.bored = 0;
+  return iDone(p, true);
+}
+/* the concert begins: a tune, the news, and the idle come to listen */
+function pOrganStart(g, s, p) {
+  s.state = "playing"; s.tune = s.concerts % W_TUNES.length; s.ni = 0; s.cur = -1; s.got = 0; s.nextNoteT = g.tick + 30;
+  s.startN = s.notes; s.startW = P_OTANK - wBathNeed(g, s) + pOrganSteam(g, s);
+  feed(g, "the steam organ is playing " + W_TUNES[s.tune].name + (s.why === "show" ? ", for the show" : ""), "#ffd94a", "organ" + s.id);
+  pSay(g, p, "organist", true);
+  wGather(g, s, { cap: 99, x: s.x0 - 9, y: mGroundNear(g, s.x0 - 9, false, s.G) - 1, until: g.tick + 4000, kind: "concert", face: 1, R: 200, but: (function () { var b = {}; b[p.id] = 1; return b; })() });
+}
+/* the organist at the valves: one note at a time, each kept open until it has had its breaths (pOrganTick shuts it),
+   or until it is plain no steam is coming */
+function pOrganConduct(g, s, p, t) {
+  var T = W_TUNES[s.tune].n;
+  if (s.cur === -2) { s.cur = -1; s.ni++; s.nextNoteT = g.tick + 6; }
+  if (s.cur >= 0 && g.tick - s.noteT > P_ONOTE) { if (pOShut(g, s, s.cur)) { s.cur = -1; s.ni++; s.nextNoteT = g.tick + 6; } return; }
+  if (s.cur >= 0 || g.tick < s.nextNoteT) return;
+  if (s.ni >= T.length) { pOrganEnd(g, s, true); return; }
+  var n = 6 - T[s.ni][0];   /* (pipe 6, the tallest, is the lowest note) */
+  s.cur = n; s.need = T[s.ni][1]; s.got = 0; s.noteT = g.tick;
+  pOOpen(g, s, n);
+  if (s.ni === 10 && p.sayT <= 0) pSay(g, p, "organist", true);
+}
+function pOrganEnd(g, s, ok) {
+  for (var n = 0; n < 7; n++) pOShut(g, s, n);
+  s.state = "idle"; s.cur = -1; s.nextT = g.tick + P_OGAP + ((s.id * 7919 + g.tick) % 4000);
+  g.peasants.forEach(function (q) { var k = q.task; if (!q.dead && k && k.kind === "audience" && k.site === s.id) { q.task = null; q.taskDone = true; if (ok) { q.bored = 0; if (Math.random() < 0.5) pSay(g, q, "clap", true); } } });
+  if (!ok) return;
+  s.concerts++; g.fx.clap++;
+  s.lastUsed = s.startW - (P_OTANK - wBathNeed(g, s) + pOrganSteam(g, s)); s.lastNotes = s.notes - s.startN;
+  if (s.concerts === 1) feed(g, "the first concert on the steam organ. " + s.lastNotes + " notes. it was a bit loud", "#ffd94a", "organ" + s.id);
+}
+function pOrganPick(g, p, hungry) {
+  var s = mSites(g, "organ", true)[0];
+  if (!s || hungry || s.repair || s.state !== "idle") return false;
+  if (wBathNeed(g, s) > 6 && Math.abs(s.cx - p.x) < 220 && Math.random() < 0.4 && pGoFill(g, p, s)) return true;
+  return false;
+}
+var P_OSTEAM = hex32("#e8eef4"), P_OGLOW = hex32("#ff8a3a"), P_OKEYS = hex32("#2a2018"), P_OIVORY = hex32("#e8e0c8");
+var P_OPIPE = hex32("#a8acb4"), P_OPIPE_HI = hex32("#e0e4ea"), P_OPIPE_D = hex32("#6a6e78"), P_OMOUTH = hex32("#1a1a20");
+var P_OCOPPER = hex32("#b8703a"), P_ORIVET = hex32("#e0a060");
+/* the glow of the firebox, a puff over each pipe that is sounding, and the keys at the stand */
+function pDrawOrgan(g, s) {
+  if (!s.done) return 0;
+  var n, hot = pOFire(g, s), x, y, j, c;
+  /* the pipes, burnished: the iron of the rack in pewter, a highlight up the middle of each pipe (its channel, while
+     there is nothing in it), the seams between darker, and a mouth near the foot of each. the tank and its lid in
+     copper */
+  for (n = 0; n < 7; n++) {
+    x = pOPipeX(s, n);
+    for (y = s.G - 7; y >= s.G - 6 - P_OH[n]; y--) {
+      var f = 0.15 + 0.5 * (s.G - 7 - y) / 18;
+      j = y * g.gw + x;
+      if (g.m[j] === MAT.EMPTY) g.px[j] = y === s.G - 9 ? P_OMOUTH : blend32(P_OPIPE_HI, P_OPIPE, f);
+      [-1, 1].forEach(function (d) { var i = j + d; if (g.m[i] === MAT.BRICK || g.m[i] === MAT.GIRDER) g.px[i] = blend32(g.px[i], d < 0 ? P_OPIPE : P_OPIPE_D, 0.85); });
+    }
+  }
+  for (y = s.G - 6; y <= s.G - 2; y++) for (x = s.x0 + 2; x <= s.x0 + 16; x++) {
+    j = y * g.gw + x; c = g.m[j];
+    if (c === MAT.GIRDER) g.px[j] = blend32(g.px[j], (x + y) % 5 ? P_OCOPPER : P_ORIVET, 0.75);
+  }
+  for (n = 0; n < 7; n++) if (s.mo[n]) { var x = pOPipeX(s, n), y = s.G - 7 - P_OH[n]; wBack(g, x - 1, y - 1, P_OSTEAM, 0.5); wBack(g, x + 1, y - 1, P_OSTEAM, 0.5); }
+  if (hot) for (var u = 0; u < 3; u++) { var j = pOBox(g, s, u); if (g.m[j] === MAT.EMBER) g.gpx[j] = P_OGLOW; }
+  /* (a little keyboard on a stand, at the foot of the ladder) */
+  wBack(g, s.x0, s.G - 4, P_OKEYS); wBack(g, s.x0, s.G - 3, P_OKEYS); wBack(g, s.x0, s.G - 5, s.state === "playing" ? P_OIVORY : P_OKEYS);
+  return hot;
+}

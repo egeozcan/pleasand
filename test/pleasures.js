@@ -180,4 +180,78 @@ module.exports = function (test, check, sim) {
     check(bottom > 0, "no water reached the bottom terrace");
     check(box() === n0, "water in the gardens went from " + n0 + " to " + box());
   });
+
+  /* ---------------------------------------------------------------
+     THE STEAM ORGAN
+     --------------------------------------------------------------- */
+  /* the organ built on seed 1 and its tank filled; keep peasants, each with coal */
+  function organ(keep) {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    know(g, ["farm", "dig", "bucket", "mine", "masonry", "smelt", "concrete", "festival", "organ"]);
+    var p = g.peasants[0];
+    check(w.pPlanOrgan(g, p), "nowhere for the organ in seed 1");
+    var s = sites(g, "organ")[0];
+    sim.build(w, s);
+    w.wFinish(g, s, p);
+    for (var x = s.px0; x < s.px0 + 13; x++) for (var y = s.L; y < s.L + 3; y++) w.sandPlace(g, y * g.gw + x, M.WATER);
+    g.peasants.forEach(function (q, k) { if (k >= keep) q.dead = 1; else { q.x = s.x0 - 3 - k; q.y = s.G - 1; q.task = null; q.hunger = 0; q.tired = 0; q.coal = 12; } });
+    sim.step(w, 1);
+    return { w: w, g: g, s: s, M: M };
+  }
+  function tank(O) { return O.w.P_OTANK - O.w.wBathNeed(O.g, O.s) + O.w.pOrganSteam(O.g, O.s); }
+
+  test("organ: a fired boiler makes steam that goes out of the open pipe and no other", function () {
+    var O = organ(0), w = O.w, g = O.g, s = O.s, M = O.M;
+    check(tank(O) === 39, "(the test wants the tank full: " + tank(O) + ")");
+    for (var u = 0; u < 3; u++) { var j = w.pOBox(g, s, u); w.sandPlace(g, j, M.EMBER); g.aux[j] = 1; w.heatAccept(g, j); }
+    w.pOOpen(g, s, 3);
+    for (var t = 0; t < 1500; t++) {
+      sim.step(w, 1);
+      if (t % 200 === 0) for (u = 0; u < 3; u++) { j = w.pOBox(g, s, u); if (g.m[j] !== M.EMBER) { w.sandPlace(g, j, M.EMBER); g.aux[j] = 1; w.heatAccept(g, j); } }
+    }
+    check(s.exits[3] >= 5, "only " + s.exits[3] + " puffs out of the open pipe");
+    check(s.exits.every(function (n, k) { return k === 3 || n === 0; }), "steam out of shut pipes: " + s.exits.join(","));
+  });
+
+  test("organ: a concert of thirty notes empties no more than forty cells, and every puff out of a pipe is a note", function () {
+    var O = organ(3), w = O.w, g = O.g, s = O.s, heard = 0;
+    w.eval("var _os = pOrganSounds; pOrganSounds = function (g) { g._heard = (g._heard || 0) + P_OQ.length; _os(g); }");
+    var before = tank(O), n0 = s.notes;
+    check(w.pOrganPlay(g, "test"), "the organ would not play with a full tank");
+    for (var t = 0; t < 9000 && !s.concerts; t += 30) sim.step(w, 30);
+    heard = g._heard || 0;
+    check(s.concerts === 1, "no concert in 9000 ticks (" + s.state + ", note " + s.ni + ")");
+    check(s.ni >= 30, "the concert was " + s.ni + " notes");
+    check(s.lastUsed <= 40, "the concert used " + s.lastUsed + " cells of water");
+    check(before - tank(O) <= 40, "the tank went from " + before + " to " + tank(O));
+    check(s.notes - n0 >= 30 && heard >= s.notes - n0, (s.notes - n0) + " puffs, " + heard + " notes heard");
+    console.log("      (a concert: " + s.lastNotes + " notes, " + s.lastUsed + " cells of water, " + s.coals + " coals)");
+  });
+
+  test("organ: the steam comes back down as rain in the valley, and the gutter's catch goes back in the tank", function () {
+    var O = organ(2), w = O.w, g = O.g, s = O.s, M = O.M;
+    function wet() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.WATER || g.m[j] === M.STEAM) n++; return n; }
+    w.pOrganPlay(g, "test");
+    for (var t = 0; t < 9000 && !s.concerts; t += 30) sim.step(w, 30);
+    check(s.concerts === 1, "(the test wants a concert)");
+    /* (nobody about with a bucket from here on: only the organist, bailing) */
+    g.peasants.forEach(function (q) { if (q.id !== s.organist) q.dead = 1; });
+    var w0 = wet();
+    sim.step(w, 6000);
+    var steam = 0;
+    for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.STEAM) steam++;
+    check(Math.abs(wet() - w0) <= 2, "water and steam in the valley went from " + w0 + " to " + wet());
+    check(steam <= 4, steam + " cells of steam still up in the sky after 6000 ticks");
+    console.log("      (of " + s.lastUsed + " cells boiled off, the gutter caught " + s.caught + " back into the tank in 6000 ticks)");
+  });
+
+  test("organ: a boiler shut up tight with steam in it a long while has its organist open a pipe to let it breathe", function () {
+    var O = organ(1), w = O.w, g = O.g, s = O.s, M = O.M;
+    /* (the HEAT brush on the tank, with every valve shut: steam, and nowhere for it to go) */
+    s.nextT = 1e9;
+    delete g.know.mine; g.sites.filter(function (t) { return t.mine; }).forEach(function (t) { w.bRemove(g, g.sites.indexOf(t)); });   /* (nobody off down a mine: the organist is who is about) */
+    function heat() { for (var x = s.px0; x < s.px0 + 13; x++) for (var y = s.L; y < s.L + 3; y++) { var j = y * g.gw + x; if (g.m[j] === M.WATER) w.heatAdd(g, j, 30); } }
+    for (var t = 0; t < 4000 && !s.breathe; t += 30) { if (t < 1500) heat(); sim.step(w, 30); }
+    check(s.breathe >= 1, "nobody let it breathe (steam " + w.pOrganSteam(g, s) + ", shut since " + s.shutT + ")");
+  });
 };
