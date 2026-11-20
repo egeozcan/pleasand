@@ -136,6 +136,18 @@ module.exports = function (test, check, sim) {
     check(water() === n0, "water went from " + n0 + " to " + water());
   });
 
+  test("wonders: a legacy save's keyframe picks the brush it was saved with, too", function () {
+    var w = sim.load(1), g = w.g, k, cl = -1;
+    for (k = 0; k < w.PICK.length; k++) if (w.PICK[k].name === "CLONER") cl = k;
+    var doc = JSON.parse(JSON.stringify(w.saveDocument(g, { source: "test" })));
+    /* (a save from master: no list of picks, no tales, CLONER one place earlier in the list) */
+    delete doc.ui.picks; doc.ui.sel = "CLONER";
+    var st = w.saveDecode(doc.state); delete st.tales; st.sel = cl - 1;
+    doc.keyframes = [{ why: "test", tick: g.tick, t: 0, updates: null, rng: null, state: w.saveEncode(st, []) }];
+    w.saveLoad(g, doc, { keyframe: 0 });
+    check(w.curPick(g).name === "CLONER", "its keyframe loaded with " + w.curPick(g).name + " picked");
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;
