@@ -1365,9 +1365,9 @@ function hTaskBoard(g, p, k) {
   /* aboard: in the shell, not drawn, and kept there (as in space) until it goes */
   p.aboard = s.id; p.task = null; p.state = "space"; p.spaceT = 0;
   p.x = s.rx + 0.5; p.y = s.R0 - 8; p.vx = p.vy = 0;
-  /* (and somewhere to come out to, if it does not go: the ground just off the pad, by the gantry's foot) */
-  var ox = s.x0 - 2 >= 1 ? s.x0 - 2 : s.x1 + 2, oG = mGround(g, ox, false);
-  p.safe = oG > 0 ? { x: ox + 0.5, y: oG - 1 } : null;
+  /* (and somewhere to come out to, if it does not go: off the pad, either side. looked at again if it comes to it) */
+  p.pad = { x0: s.x0, x1: s.x1 };
+  p.safe = hExit(g, p.pad);
   pSay(g, p, "board", true);
   return false;
 }
@@ -1377,14 +1377,27 @@ function hAboardOf(g, p) {
   return s && s.kind === "moonrocket" && s.done && !s.repair && !s.gone && s.crew && s.crew.indexOf(p.id) >= 0 ? s : null;
 }
 /* out of a rocket that is not there any more: down on the ground where they were, as they were before they got in */
+/* somewhere to come out of a rocket that does not go: off the pad (x0 .. x1), the nearest on either side, on the ground,
+   dry, with room to stand. {x, y} or null */
+function hExit(g, pad) {
+  for (var d = 1; d <= 14; d++) for (var sd = -1; sd <= 1; sd += 2) {
+    var x = sd < 0 ? pad.x0 - d : pad.x1 + d;
+    if (x < 1 || x > g.gw - 2) continue;
+    var G = mGround(g, x, false);
+    if (G > 0 && navStand(g, x, G - 1) === 1 && !WET[pCell(g, x, G - 1)] && !WET[pCell(g, x, G - 5)]) return { x: x + 0.5, y: G - 1 };
+  }
+  return null;
+}
+/* out of a rocket that is not there, or not going: where they were told they would come out when they got in, if it is
+   still somewhere to stand, or the nearest such place off the pad now. never down onto the engine inside the hull, where
+   there is no way out: with nowhere to come out to, they stay in it, and come out when there is. false if they did not */
 function hDisembark(g, p) {
-  /* (out where they were told they would come out when they got in, just off the pad: not down onto the engine, inside
-     the hull, where there is no way out. an old save without it: the ground under them) */
-  var sf = p.safe, sx = sf ? Math.floor(sf.x) : Math.max(1, Math.min(g.gw - 2, Math.floor(p.x))), G = mGround(g, sx, false);
-  p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0; p.safe = null;
-  if (sf) p.x = sf.x;
-  if (G > 0) { p.state = "walk"; p.y = G - 1; } else { p.state = "fly"; p.flyT = 0; }
-  p.fallY = p.y;
+  var sf = p.safe, pad = p.pad || { x0: Math.floor(p.x) - 7, x1: Math.floor(p.x) + 6 };
+  if (!sf || navStand(g, Math.floor(sf.x), sf.y) !== 1 || WET[pCell(g, Math.floor(sf.x), sf.y)]) sf = hExit(g, pad);
+  if (!sf) return false;
+  p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0; p.safe = null; p.pad = null;
+  p.x = sf.x; p.y = sf.y; p.state = "walk"; p.fallY = p.y;
+  return true;
 }
 /* the bored, now and then: up the gantry to look at the moon */
 function hTaskGantry(g, p, k) {
@@ -1531,7 +1544,7 @@ function hLiftOff(g, s) {
   s.crew.forEach(function (id, n) {
     var q = lAlive(g, id);
     if (!q || q.aboard !== s.id) return;
-    q.aboard = 0; q.safe = null; q.state = "space"; q.spaceT = H_AWAY + n * 90; q.spaceX = s.rx - 3 + n * 3; q.moon = 1; q.moonrock = 2;
+    q.aboard = 0; q.safe = null; q.pad = null; q.state = "space"; q.spaceT = H_AWAY + n * 90; q.spaceX = s.rx - 3 + n * 3; q.moon = 1; q.moonrock = 2;
     g.astronauts = (g.astronauts || 0) + 1;
     feed(g, q.name + " has gone to the moon", "#9ad0ff", "moon" + q.id);
     wTale(g, "moon", q, "", s.rx, s.R0);

@@ -521,6 +521,36 @@ module.exports = function (test, check, sim) {
     check(crew.every(function (q) { return !q.aboard && q.state !== "space"; }), "the crew are still aboard a rocket that wants mending: " + crew.map(function (q) { return q.state + " " + q.aboard; }).join(", "));
     check(crew.every(function (q) { return q.x < s.x0 || q.x > s.x1 + 1; }), "the crew came out inside the rocket's pad: " + crew.map(function (q) { return q.x.toFixed(1); }).join(", ") + " (" + s.x0 + "-" + s.x1 + ")");
   });
+  test("moon rocket: called off with a puddle where they were to come out, the crew come out dry somewhere else off the pad", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
+    /* (a little pit two to the left of the pad, with a cell of water in it) */
+    var px = s.x0 - 2, j = (R.G) * g.gw + px;
+    w.sandPlace(g, j, M.EMPTY); w.sandPlace(g, j + g.gw, M.WATER);
+    s.oil = 12;
+    g.peasants[2].flights = 3; g.peasants[4].flights = 1;
+    for (k = 0; k < 6000 && !s.count; k++) sim.step(w, 1);
+    var crew = g.peasants.filter(function (q) { return q.aboard === s.id; });
+    check(s.count > 0 && crew.length >= 1, "(the test wants a crew aboard, counting down)");
+    var plate = s.plan.filter(function (e) { return e.rk && g.m[e.i] === M.METAL; })[0];
+    w.sandPlace(g, plate.i, M.EMPTY);
+    for (k = 0; k < 600 && crew.some(function (q) { return q.aboard; }); k++) sim.step(w, 1);
+    check(crew.every(function (q) { return !q.aboard && q.state !== "space"; }), "the crew are still aboard");
+    check(crew.every(function (q) { return q.x < s.x0 || q.x > s.x1 + 1; }), "the crew came out inside the pad: " + crew.map(function (q) { return q.x.toFixed(1); }).join(", ") + " (" + s.x0 + "-" + s.x1 + ")");
+    check(crew.every(function (q) { return !w.WET[w.pCell(g, Math.floor(q.x), Math.floor(q.y))]; }), "the crew came out into water");
+  });
+  test("moon rocket: with nowhere off the pad to come out to, the crew stay in it till there is, and never come out inside it", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y;
+    flat(w, 110, 230, G);
+    for (x = 140; x <= 190; x++) for (y = 0; y < G; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (shut in in rock, all round, up to the sky) */
+    var q = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
+    q.aboard = 999; q.state = "space"; q.spaceT = 0; q.x = 165.5; q.y = G - 8; q.pad = { x0: 158, x1: 170 }; q.safe = null;
+    sim.step(w, 3);
+    check(q.aboard && q.state === "space", "came out with nowhere to come out to: " + q.state + " at " + q.x.toFixed(1) + "," + q.y.toFixed(1));
+    for (x = 150; x <= 154; x++) for (y = 0; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);   /* (a way out, cleared) */
+    sim.step(w, 3);
+    check(!q.aboard && q.state !== "space" && (q.x < 158 || q.x > 171), "did not come out off the pad once there was somewhere: " + q.state + " at " + q.x.toFixed(1));
+  });
   test("moon rocket: a plate gone the tick before it goes, between lookings-over, and it does not go", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 12;
