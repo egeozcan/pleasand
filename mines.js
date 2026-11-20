@@ -437,6 +437,9 @@ function mSpoilAt(g, s, x) {
 function mGround(g, x, trees) { return mGroundFrom(g, x, trees, 0); }
 /* where to stand at site s's place to stand (s.sx, s.sy): about where it was, on whatever has piled up there since */
 function mSpotRow(g, s) { var G = mGroundNear(g, s.sx, false, s.sy); return G > 0 ? G - 1 : s.sy; }
+/* feet at row y, about level with that spot (row sy): or up to five over it, on the top of a field of ripe wheat sown
+   hard by the furnace's mouth, say, which a peasant three wide cannot get down off into the gap beside it */
+function mBySpot(y, sy) { return y >= sy - 5 && y <= sy + 3; }
 /* (the same, from row y0 down: the first thing at or under it that is not air, or a bush) */
 function mGroundFrom(g, x, trees, y0) {
   var y = mSurface(g, x, trees, y0);
@@ -985,8 +988,8 @@ function mTaskSmelt(g, p, k) {
   /* (somewhere to stand at the mouth: about where it was, give or take whatever has piled up there since) */
   if (k.sy == null) k.sy = mSpotRow(g, s);
   var sx = s.sx, sy = k.sy, fy = Math.floor(p.y), st = s.stock || (s.stock = {});
-  if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(fy - sy) > 3) {
-    if (iWalk(g, p, k, "smelt" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 3; })) pGiveUp(g, p, sx);
+  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(fy, sy)) {
+    if (iWalk(g, p, k, "smelt" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(y, sy); })) pGiveUp(g, p, sx);
     return false;
   }
   /* there. in it goes */
@@ -1037,8 +1040,8 @@ function mTaskForge(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || ++k.t > 2400 || p.tools) return iDone(p, false);
   var sx = s.sx, sy = mSpotRow(g, s), fy = Math.floor(p.y);
-  if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(fy - sy) > 3) {
-    if (iWalk(g, p, k, "forge" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 3; })) pGiveUp(g, p, sx);
+  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(fy, sy)) {
+    if (iWalk(g, p, k, "forge" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(y, sy); })) pGiveUp(g, p, sx);
     return false;
   }
   p.dir = -s.mouth; p.idle = 0; k.act++; s.hot = g.tick + 60;

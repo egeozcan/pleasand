@@ -117,6 +117,15 @@ function bNew(g, kind, p, plan, box, extra) {
   var s = { id: ++g.sid, kind: kind, nothing: 0, owner: p ? p.id : 0, who: p ? p.short : "", plan: plan,
             x0: box[0], y0: box[1], x1: box[2], y1: box[3], done: false, repair: false, t0: g.tick, last: g.tick, helped: {}, lost: 0 };
   for (var k in extra) s[k] = extra[k];
+  /* (a great work: its box takes in all of its plan below and to the sides, a terrace made up under it, say, which is
+     nobody else's ground; and a puddle where any of it goes, or a pond come up over a beach, is no matter: the stone
+     goes in, and the water out of its way. otherwise it waits for ever for the water to go. wonders.js) */
+  if (s.wonder) for (k = 0; k < plan.length; k++) {
+    var px = plan[k].i % g.gw, py = (plan[k].i / g.gw) | 0;
+    if (plan[k].v === MAT.EMPTY) continue;
+    plan[k].wet = true;
+    s.x0 = Math.min(s.x0, px); s.x1 = Math.max(s.x1, px); s.y1 = Math.max(s.y1, py);
+  }
   s.cx = (s.x0 + s.x1 + 1) / 2; s.cy = (s.y0 + s.y1 + 1) / 2;
   g.sites.push(s);
   bMark(g, s, 1);
@@ -197,6 +206,7 @@ function bFree(g, e) {
   if (e.redo && c === MAT.PLANK) return true;                                    /* a board to be re-laid in stone (mines.js) */
   if (e.gild && c === MAT.BRICK) return true;                                    /* a stone stand-in, to be gilded (wonders.js) */
   if (e.v === MAT.STAINED && c === MAT.GLASS) return true;                       /* coloured glass melted and set plain: the glazier (monuments.js) */
+  if (e.wet && WET[c] === 1) return true;                                        /* a great work's stone goes in where a puddle is (wonders.js) */
   return e.v === MAT.EMPTY || B_AIR[c] === 1 || B_DIG[c] === 1;
 }
 /* a board needs something solid next to it (corners count) */
@@ -218,9 +228,15 @@ function bNext(g, s, p) {
   var P = s.plan, ph = 1e9, k, e, first = null, fd = 1e9, d, gw = g.gw;
   for (k = 0; k < P.length; k++) { e = P[k]; if (e.ph < ph && !bOk(g, e) && bFree(g, e) && !(e.wait > g.tick)) ph = e.ph; }
   if (ph === 1e9) return null;
+  /* (a great work: what there is the makings for on the pile, or in their pockets, before what there is not. otherwise a
+     crew that comes at it from the side where the firebrick goes is turned away, time after time, short of firebrick,
+     from the stone that is waiting the other end. wonders.js) */
+  var pay = p && s.wonder;
+  if (pay) { for (k = 0; k < P.length; k++) { e = P[k]; if (e.ph === ph && !bOk(g, e) && bFree(g, e) && !(e.wait > g.tick) && bSupported(g, e) && bCanPay(g, p, s, e)) break; } if (k === P.length) pay = false; }
   for (k = 0; k < P.length; k++) {
     e = P[k];
     if (e.ph !== ph || bOk(g, e) || !bFree(g, e) || e.wait > g.tick || !bSupported(g, e)) continue;
+    if (pay && !bCanPay(g, p, s, e)) continue;
     if (!p) return e;
     if (bReach(g, p, e)) return e;
     d = Math.abs(e.i % gw + 0.5 - p.x) + Math.abs(((e.i / gw) | 0) - p.y);
@@ -243,12 +259,14 @@ function bFinished(g, s) {
   return true;
 }
 /* anybody (peasant or duck) standing in the cell, which a board would bury. doors and ladders they can share */
-function bInTheWay(g, e) {
+function bInTheWay(g, e, side, by) {
   if (P_PASS[e.v] || P_LEAF[e.v] || e.v === MAT.EMPTY) return null;   /* (a seed goes in at anybody's feet) */
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, k, q;
   for (k = 0; k < g.peasants.length; k++) {
     q = g.peasants[k];
-    if (!q.dead && q.state !== "space" && Math.floor(q.x) === x && y <= q.y + 0.5 && y >= q.y - 8.5) return q;
+    /* (side: nor right beside them, a great work's: a wall each side of somebody in a slot one wide, the pipes of an
+       organ say, and there they are for good. not beside its builder up a ladder, who is not going anywhere. wonders.js) */
+    if (!q.dead && q.state !== "space" && Math.abs(Math.floor(q.x) - x) <= (side && !(q === by && q.climb) ? 1 : 0) && y <= q.y + 0.5 && y >= q.y - 8.5) return q;
   }
   for (k = 0; k < g.ducks.length; k++) {
     q = g.ducks[k];
@@ -340,8 +358,8 @@ function bBrings(g, p, s) {
 /* would they be any use on site s: they carry something it wants, or there is enough on its pile for the next cell */
 function bUseful(g, p, s) {
   if (bBrings(g, p, s)) return true;
-  var e = bNext(g, s, null);
-  return !!e && bCanPay(g, null, s, e);
+  var e = bNext(g, s, s.wonder ? p : null);   /* (a great work: anything of it there are the makings for. above) */
+  return !!e && bCanPay(g, s.wonder ? p : null, s, e);
 }
 /* anything at all on its pile */
 function bStocked(s) { for (var r in s.stock) if (s.stock[r] > 1e-6) return true; return false; }
@@ -727,7 +745,7 @@ function bTaskBuild(g, p, k) {
     }
     return false;
   }
-  var who = bInTheWay(g, e);
+  var who = bInTheWay(g, e, s.wonder, p);
   if (who === p) { p.dir = dx > 0 ? -1 : 1; if (p.climb) e.wait = g.tick + 120; return false; }   /* step out of its way */
   if (who) { if (++k.wait > 200) { e.wait = g.tick + 300; k.wait = 0; } return true; }
   k.idle = 0;
@@ -773,6 +791,7 @@ function bPlace(g, s, e, p) {
   if (e.sh >= 0) g.sh[e.i] = e.sh;
   heatAccept(g, e.i);
   s.last = g.tick;
+  if (s.wonder) s.puts = (s.puts || 0) + 1;   /* (how much of a great work has gone in: wonders.js wLayBy) */
   g.fx.hammer++;
   pChips(g, x + 0.5, y + 0.5, 2, [SAND_PAL[e.v][0], SAND_PAL[e.v][40]]);
   if (p.sayT <= 0 && Math.random() < 0.06) pSay(g, p, e.v === MAT.CROP ? "sow" : (s.repair ? "repair" : "build"));
@@ -794,6 +813,9 @@ function bDig(g, s, e, p) {
   /* (the head of a mine sunk through sand that pours back in as fast as it is dug: after enough of that, they leave
      it, and sink one somewhere firmer. mines.js) */
   if (s.kind === "mine" && !s.done && !s.repair && !s.sunk && (e.digs = (e.digs || 0) + 1) > 60) { mGiveUpMine(g, s, p); return; }   /* (the first sinking only) */
+  /* (where a great work's stone (or firebrick) goes, sand that runs back in as fast as it is dug out: after a few
+     spadefuls, it is driven in where the sand lies, as the cathedral's crypt walls are. wonders.js) */
+  if (s.wonder && e.v !== MAT.EMPTY && (e.digs = (e.digs || 0) + 1) > 4) e.drive = true;
   /* down the head of a mine there is no throwing it out: it is carried up and tipped on the spoil heap (mines.js) */
   if (e.clear && s.spots) mSpotDug(g, s);   /* (sand slid in where they stand to work it: mines.js) */
   if ((s.mine || (e.clear && s.spots)) && !P_LEAF[c] && mSpoil(g, s, e.i)) { g.dug++; s.last = g.tick; g.fx.thud++; return; }

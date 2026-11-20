@@ -53,6 +53,8 @@ var W_BENCH = 3;            /* rows a bench cuts a floor down */
 var W_BENCH_W = 16;         /* and how far along it goes */
 var W_IRON_HOLD = 30;       /* iron to spare, before new tools, while a wonder wants iron */
 var W_BATH_LO = 30, W_BATH_HI = 45;   /* warm water: a bath. hotter than P_SWEAT, and they get out */
+var W_ONLY = ["firebrick", "stained", "plate", "bell"];   /* what nothing but a great work wants (and lime: wLimeWant) */
+var W_NOFURNACE = ["theatre", "pyramid", "icepalace"];   /* the great works that want nothing of the furnace's */
 
 P_SAY.haul = ["for the great work", "where does this go", "one more for the pile", "it's for the wonder", "heavy, this"];
 P_SAY.quarry = ["*tink*", "stone for the wonder", "deeper. always deeper", "a bench, they said", "it's honest work"];
@@ -113,8 +115,40 @@ function wSites(g, done) {
 }
 /* the great work going up: the one wonder not yet finished that the one-at-a-time rule applies to. null if none */
 function wGreat(g) {
-  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && !s.repair && !(wOf(s.kind) || {}).exempt) return s; }
+  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && !s.repair && !s.laid && !(wOf(s.kind) || {}).exempt) return s; }
   return null;
+}
+/* the wonder sites going up, the great work (and anything not laid by) first: whoever is looking for something to do
+   at one, or the kiln, or the quarry, looks there first */
+function wUp(g) {
+  var a = [], b = [];
+  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done) (s.laid ? b : a).push(s); }
+  return a.concat(b);
+}
+/* LAID BY: a great work that has not come on at all in W_LAYBY ticks (short of something nobody can get it) stops being
+   the great work, and another can be planned. it is still worked at whenever there is something it can have, and once
+   it comes on again it is taken up again (when nothing else is the great work) */
+var W_LAYBY = 10000;
+/* (a cell put in counts, every one (s.puts: build.js bPlace); a cell dug out only once the digging is well past the
+   most it has ever been: sand that runs back into a hole as fast as it is dug is not getting anywhere) */
+function wDug(g, s) { var n = 0; for (var k = 0; k < s.plan.length; k++) if (s.plan[k].v === MAT.EMPTY && bOk(g, s.plan[k])) n++; return n; }
+function wLayBy(g, s) {
+  if (s.done || s.repair || (wOf(s.kind) || {}).exempt || g.tick % 300) return;
+  var n = s.puts || 0, d = wDug(g, s);
+  if (s.progT == null || n > (s.progN || 0) || d > (s.progD || 0) + 2) {
+    var was = s.progT != null;
+    s.progN = n; s.progD = Math.max(d, s.progD || 0); s.progT = g.tick;
+    if (s.laid && was && !wGreat(g)) {
+      s.laid = false;
+      feed(g, "the village has taken up " + bLabel(s) + " again", "#ffd94a", "laid" + s.id);
+    }
+    return;
+  }
+  if (s.laid || g.tick - s.progT < W_LAYBY) return;
+  s.laid = true;
+  var why = wNote(g, s), w = /^waiting for /.test(why) ? why.replace(/^waiting for /, "") : "";
+  feed(g, bLabel(s) + " is laid by for now" + (w ? ". it wants " + w.replace(/ \(.*\)$/, "") + ", and there is none to be had" : ". nobody can get on with it") +
+       ". something else, meanwhile", "#c8d0dc", "laid" + s.id);
 }
 /* how many wonders stand */
 function wCount(g) { var n = 0, seen = {}; for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && s.done && !seen[s.kind]) { seen[s.kind] = 1; n++; } } return n; }
@@ -210,11 +244,22 @@ function wSpilt(g, p, fx, fy) {
    ------------------------------------------------------------------- */
 function wPick(g, p, hungry) {
   if (hungry || p.cold > 80) return false;
-  var S = wSites(g), k, s, d;
+  var S = wUp(g), k, s, d;
+  /* carrying what only a great work wants (lime, firebrick, coloured glass, cast iron), and one of them wants it: there
+     with it first, before they are taken on at another (a pocketful of lime at the cathedral's crypt is no use to the
+     organ waiting on it) */
+  for (k = 0; k < S.length; k++) {
+    s = S[k];
+    if (p.failSite === s.id && p.failT > g.tick) continue;
+    if (((p.lime || 0) >= 1 && wLimeWant(g, s) > 0) || W_ONLY.some(function (r) { return (p[r] || 0) >= 1 && bNeed(g, s, r) > 1e-6; })) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
+  }
+  /* with the makings for the kiln in hand (a pane, for coloured glass; logs, for charcoal, there being no coal): the kiln,
+     before the crew */
+  if (g.kiln && g.kiln.length && ((p.glass || 0) >= 1 || (p.logs || 0) >= 2) && wGoKiln(g, p)) return true;
   /* a wonder going up: its crew, if there is room in it; hauling, if there is not, from anywhere in the valley */
   for (k = 0; k < S.length; k++) {
     s = S[k];
-    if (s.done || (p.failSite === s.id && p.failT > g.tick)) continue;
+    if (p.failSite === s.id && p.failT > g.tick) continue;
     if (!wFull(g, s, p) && bUseful(g, p, s)) { bJoin(g, p, s); return true; }
     if (bBrings(g, p, s) || ((p.lime || 0) >= 1 && wLimeWant(g, s) > 0)) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
     /* the next of it wants wet concrete, and there is lime for it: somebody mixes some (pleasures.js uses this) */
@@ -235,6 +280,9 @@ function wPick(g, p, hungry) {
       if (!d.plan || !g.know[d.id] || (g.wDone && g.wDone[d.id] && !d.again) || iCount(g, d.id) || (!d.exempt && wGreat(g))) continue;
       if (g.wNo && g.wNo[d.id] > g.tick) continue;
       if (d.wait && d.wait(g)) continue;   /* (not for want of room: the ice palace, waiting for a freeze. pleasures.js) */
+      /* (nor before there is a furnace, for anything that wants what only a furnace makes: it would take the ground the
+         furnace wants, and then wait for ever for its firebrick, its glass and its iron) */
+      if (W_NOFURNACE.indexOf(d.id) < 0 && !mSites(g, "furnace").length) continue;
       if (d.plan(g, p)) return true;
       if (!g.wNo) g.wNo = {};
       g.wNo[d.id] = g.tick + 6000;
@@ -295,7 +343,7 @@ function wDepositLime(g, p, s) {
 /* stone a wonder still wants that is neither on its pile nor in anybody's pocket (and the kiln's, for its lime and
    firebrick) */
 function wStoneShort(g, s) {
-  var need = bNeed(g, s, "stone") + Math.ceil(Math.max(0, wLimeWant(g, s)) / 2) + Math.max(0, bNeed(g, s, "firebrick") - wPocketed(g, "firebrick"));
+  var need = bNeed(g, s, "stone") + Math.ceil(Math.max(0, wLimeWant(g, s)) / 2) + Math.ceil(Math.max(0, bNeed(g, s, "firebrick") - wPocketed(g, "firebrick")) / 2);
   return need - bStoneToHand(g);
 }
 function wPocketed(g, r) { var n = 0; for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k][r] || 0; return n; }
@@ -392,8 +440,8 @@ function wPlanQuarry(g, p, r) {
 /* a wonder short of stone, and the valley's pockets short of it too: one quarryman, on top of its crew */
 function wGoQuarry(g, p) {
   if (!g.know.mine) return false;
-  var W = null, k, q = null;
-  for (k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && wStoneShort(g, s) > 0.5) { W = s; break; } }
+  var W = null, k, q = null, U = wUp(g);
+  for (k = 0; k < U.length; k++) if (wStoneShort(g, U[k]) > 0.5) { W = U[k]; break; }
   if (!W) return false;
   for (k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (!g.peasants[k].dead && t && t.kind === "quarry") return false; }
   if ((p.stone || 0) >= M_POCKET.stone || p.hunger > P_HUNGRY) return false;
@@ -464,7 +512,7 @@ function wBenched(g, q) {
 /* -------------------------------------------------------------------
    THE KILN: what the furnace has been asked for. one worker, oldest
    order first: lime (a stone and a coal, burnt: two of lime),
-   firebrick (a stone and a coal, fired: one), and stained panes (a
+   firebrick (a stone and a coal, fired: two), and stained panes (a
    pane, and a tint: a fifth of gold for ruby, an ore for green, a coal
    for amber)
    ------------------------------------------------------------------- */
@@ -475,29 +523,48 @@ function wLimeWant(g, s) {
   return n - ((s.stock && s.stock.lime) || 0);
 }
 function wKilnOrders(g) {
-  var out = [], k, s, n;
-  for (k = 0; k < g.sites.length; k++) {
-    s = g.sites[k];
-    if (!s.wonder || s.done) continue;
+  var out = [], k, s, n, U = wUp(g);
+  for (k = 0; k < U.length; k++) {
+    s = U[k];
     if ((n = Math.max(0, bNeed(g, s, "firebrick") - wPocketed(g, "firebrick"))) > 0) out.push({ r: "firebrick", n: n, site: s.id });
     if ((n = wLimeWant(g, s) - wPocketed(g, "lime")) > 0) out.push({ r: "lime", n: n, site: s.id });
     if ((n = Math.max(0, bNeed(g, s, "stained") - wPocketed(g, "stained"))) > 0) out.push({ r: "stained", n: n, site: s.id });
   }
+  /* and no coal in the valley to fire any of it with, nor to smelt a wonder's iron: charcoal, out of logs, onto the
+     furnace's pile. last, so that a coal that does turn up goes on the order it was wanted for */
+  var f = mSites(g, "furnace", true)[0];
+  if (f && U.length && wPocketed(g, "coal") + ((f.stock && f.stock.coal) || 0) < W_CHAR) {
+    for (k = 0; k < U.length; k++) {
+      s = U[k];
+      if (bNeed(g, s, "firebrick") > 0 || wLimeWant(g, s) > 0 || bNeed(g, s, "stained") > 0 || bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01) { out.push({ r: "coal", n: W_CHAR, site: s.id }); break; }
+    }
+  }
   return out;
 }
+var W_CHAR = 4;     /* coals of charcoal burnt at a time, when there is no coal (two logs to a coal) */
 function wGoKiln(g, p) {
   var f = mSites(g, "furnace", true)[0], k;
   if (!f || f.repair || Math.abs(f.cx - p.x) > 260) return false;
-  for (k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (!g.peasants[k].dead && t && t.kind === "kiln") return false; }
-  var o = g.kiln[0], s = bSite(g, o.site);
-  if (!s) return false;
-  /* (the makings: a stone, somewhere to get it, and a coal. a pane, for stained glass) */
-  var stone = (p.stone || 0) + ((s.stock && s.stock.stone) || 0) + ((f.stock && f.stock.stone) || 0);
-  if (o.r !== "stained" && stone < 1) return false;
-  if (o.r === "stained" && (p.glass || 0) + ((f.stock && f.stock.glass) || 0) < 1) return false;
-  if ((p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1 && !(o.r === "stained" && ((p.ore || 0) >= 1 || (p.gold || 0) >= 0.2))) return false;
-  p.task = { kind: "kiln", site: f.id, r: o.r, of: o.site, n: 0, want: o.n, t: 0, act: 0 };
-  return true;
+  /* (one at the bellows; two, with a long order in: forty firebricks for a foundry, say) */
+  var at = 0, big = 0;
+  for (k = 0; k < g.kiln.length; k++) big += g.kiln[k].r === "coal" ? 0 : g.kiln[k].n;
+  for (k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (!g.peasants[k].dead && t && t.kind === "kiln") at++; }
+  if (at >= (big > 8 ? 2 : 1)) return false;
+  /* the first order there are the makings for (the great work's come first: wKilnOrders). one that cannot be met, coloured
+     glass with no pane in the valley, say, does not hold up the lime behind it */
+  for (k = 0; k < g.kiln.length; k++) {
+    var o = g.kiln[k], s = bSite(g, o.site);
+    if (!s) continue;
+    /* (the makings: a stone, somewhere to get it, and a coal. a pane, for stained glass) */
+    if (o.r === "coal") { if ((p.logs || 0) < 2) continue; p.task = { kind: "kiln", site: f.id, r: "coal", of: o.site, n: 0, want: o.n, t: 0, act: 0 }; return true; }
+    var stone = (p.stone || 0) + ((s.stock && s.stock.stone) || 0) + ((f.stock && f.stock.stone) || 0);
+    if (o.r !== "stained" && stone < 1) continue;
+    if (o.r === "stained" && (p.glass || 0) + ((f.stock && f.stock.glass) || 0) + ((s.stock && s.stock.glass) || 0) < 1) continue;
+    if ((p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1 && !(o.r === "stained" && ((p.ore || 0) >= 1 || (p.gold || 0) >= 0.2))) continue;
+    p.task = { kind: "kiln", site: f.id, r: o.r, of: o.site, n: 0, want: o.n, t: 0, act: 0 };
+    return true;
+  }
+  return false;
 }
 function wTaskKiln(g, p, k) {
   var f = bSite(g, k.site), s = bSite(g, k.of), st, ws;
@@ -512,27 +579,37 @@ function wTaskKiln(g, p, k) {
     return iDone(p, true);
   }
   /* a stone for the kiln, off the wonder's pile, if they have none and the furnace has none */
-  if (k.r !== "stained" && (p.stone || 0) < 1 && (st.stone || 0) < 1) {
+  if (k.r !== "stained" && k.r !== "coal" && (p.stone || 0) < 1 && (st.stone || 0) < 1) {
     if ((ws.stone || 0) < 1) { if ((p[k.r] || 0) >= 1) { k.carry = true; return false; } return iDone(p, false); }
     var wf = wFoot(g, s), wat = wNear(g, s, 2);
     if (!wat(Math.floor(p.x), Math.floor(p.y))) { if (iWalk(g, p, k, "kstone" + s.id, wf.x, wf.y, wat)) pGiveUp(g, p, wf.x); return false; }
-    var take = Math.min(ws.stone, Math.max(1, Math.ceil((k.want - k.n) / (k.r === "lime" ? 2 : 1))));
+    var take = Math.min(ws.stone, Math.max(1, Math.ceil((k.want - k.n) / 2)));
     ws.stone -= take; p.stone = (p.stone || 0) + take;
     return true;
   }
+  /* a pane for coloured glass, off the wonder's pile (its plain windows' panes: more are blown for those), if they have
+     none and the furnace has none */
+  if (k.r === "stained" && (p.glass || 0) < 1 && (st.glass || 0) < 1) {
+    if ((ws.glass || 0) < 1) { if ((p.stained || 0) >= 1) { k.carry = true; return false; } return iDone(p, false); }
+    var gf = wFoot(g, s), gat = wNear(g, s, 2);
+    if (!gat(Math.floor(p.x), Math.floor(p.y))) { if (iWalk(g, p, k, "kglass" + s.id, gf.x, gf.y, gat)) pGiveUp(g, p, gf.x); return false; }
+    var panes = Math.min(Math.floor(ws.glass), Math.max(1, k.want - k.n), L_POCKET.glass);
+    ws.glass -= panes; p.glass = (p.glass || 0) + panes;
+    return true;
+  }
   var sx = f.sx, sy = mSpotRow(g, f), fy = Math.floor(p.y);
-  if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(fy - sy) > 3) {
-    if (iWalk(g, p, k, "kiln" + f.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 3; })) pGiveUp(g, p, sx);
+  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(fy, sy)) {
+    if (iWalk(g, p, k, "kiln" + f.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(y, sy); })) pGiveUp(g, p, sx);
     return false;
   }
   /* there: what they brought goes in, and they work the bellows */
-  if (p.stone >= 1 && k.r !== "stained") { st.stone = (st.stone || 0) + Math.floor(p.stone); p.stone -= Math.floor(p.stone); }
+  if (p.stone >= 1 && k.r !== "stained" && k.r !== "coal") { st.stone = (st.stone || 0) + Math.floor(p.stone); p.stone -= Math.floor(p.stone); }
   var coal = (st.coal || 0) >= 1 || (p.coal || 0) >= 1;
   var tint = k.r !== "stained" ? 1 : ((p.gold || 0) >= 0.2 && wRubyWanted(g, s) ? 1 : ((p.ore || 0) + (st.ore || 0) >= 1 || coal ? 1 : 0));
-  var have = k.r === "stained" ? ((p.glass || 0) + (st.glass || 0) >= 1 && tint) : ((st.stone || 0) >= 1 && coal);
+  var have = k.r === "coal" ? (p.logs || 0) >= 2 : k.r === "stained" ? ((p.glass || 0) + (st.glass || 0) >= 1 && tint) : ((st.stone || 0) >= 1 && coal);
   if (!have || k.n >= k.want) {
     if (!k.n && p.sayT <= 0) pSay(g, p, k.r === "stained" ? "noglass" : (coal ? "nostone" : "nocoal"));
-    if ((p[k.r] || 0) >= 1) { k.carry = true; return false; }
+    if ((p[k.r] || 0) >= 1 && k.r !== "coal") { k.carry = true; return false; }
     return iDone(p, false);
   }
   p.dir = -f.mouth; p.idle = 0; k.act++;
@@ -543,20 +620,24 @@ function wTaskKiln(g, p, k) {
   if (k.act < W_KILN) return true;
   k.act = 0;
   function burn(r) { if ((st[r] || 0) >= 1) st[r]--; else p[r]--; }
-  if (k.r === "stained") {
+  if (k.r === "coal") {
+    /* (two logs, smothered and burnt slow: a coal of charcoal, onto the furnace's pile) */
+    p.logs -= 2; st.coal = (st.coal || 0) + 1; k.n++;
+    if (!g.wChar) { g.wChar = 1; feed(g, p.name + " burnt logs down to charcoal. there was no coal left in the valley", "#e0e0d4", "char"); }
+  } else if (k.r === "stained") {
     if ((st.glass || 0) >= 1) st.glass--; else p.glass--;
     if ((p.gold || 0) >= 0.2 && wRubyWanted(g, s)) p.gold -= 0.2;
     else if ((p.ore || 0) + (st.ore || 0) >= 1) burn("ore"); else burn("coal");
     p.stained = (p.stained || 0) + 1; k.n++;
   } else {
     st.stone--; burn("coal");
-    var out = k.r === "lime" ? 2 : 1;
+    var out = 2;   /* (two of lime to a stone burnt; a stone cut in two and fired, two firebricks) */
     p[k.r] = (p[k.r] || 0) + out; k.n += out;
   }
   g.fx.clang++; g.kilnN = (g.kilnN || 0) + 1;   /* (a batch: the furnace worked once more. the organ counts them: pleasures.js) */
   sparks(g, f.fc + 0.5, f.G - 2, 8, 0.6, SPARK_HOT, 10, 0.4, PK_GLINT);
   if (k.r === "lime" && !g.got.concrete) { feed(g, p.name + " burnt the first lime. add sand and water, and stir", "#e0e0d4", "lime"); }
-  if (k.n >= k.want) k.carry = true;
+  if (k.n >= k.want) { if (k.r === "coal") { p.bored = 0; return iDone(p, true); } k.carry = true; }
   return true;
 }
 function wRubyWanted(g, s) { for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (e.v === MAT.STAINED && e.a === 0 && !bOk(g, e)) return true; } return false; }
@@ -602,10 +683,12 @@ function wTaskMix(g, p, k) {
     if (iWalk(g, p, k, "mixw" + k.w.x, k.w.x, k.w.y, function (x, y) { return navStand(g, x, y) === 1 && !LIQUID[pCell(g, x, y)] && iScoopAt(g, x, y, true, bar) >= 0; })) pGiveUp(g, p, k.w.x);
     return false;
   }
-  /* two spadefuls of sand, near the site */
+  /* two spadefuls of sand, near the site (looked for from the foot of it: from the water's edge, all the sand in reach
+     can be under the water, or at the far end of the valley) */
   if (k.sand < 2 && (p.sand || 0) < 2) {
     if (!k.sx || !lSandy(g, k.sx, k.sy)) {
-      var t = pFind(g, p, P_SANDY, 60, function (g2, x, y) { return !pAvoid(g2, p, x) && lSandy(g2, x, y); }, 10);
+      var f0 = wFoot(g, s), ok0 = function (g2, x, y) { return !pAvoid(g2, p, x) && lSandy(g2, x, y); };
+      var t = pFind(g, { x: f0.x + 0.5, y: f0.y, dir: p.x < f0.x ? -1 : 1 }, P_SANDY, 60, ok0, 10) || pFind(g, p, P_SANDY, 60, ok0, 10);
       if (!t) return iDone(p, false);
       k.sx = t.x; k.sy = t.y;
     }
@@ -668,11 +751,18 @@ function wGild(g, plan) {
 }
 /* a wonder with a stand-in in it, and gold about now: gilded, as a repair */
 function wRegild(g, s) {
-  if (!s.done || s.repair || mGoldToHand(g) < 0.4) return;
   var n = 0, k, e;
+  /* (the gold gone again, on something else, before the gilding was done: left as it is, stone where the gold was to go,
+     until there is gold again. a mending that waits for ever is a great work going up for ever) */
+  if (s.gilding && s.repair && !s.done && g.tick - s.last > 3000 && mGoldToHand(g) + ((s.stock && s.stock.gold) || 0) < 0.2) {
+    for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.gild && e.v === MAT.GOLD && g.m[e.i] === MAT.BRICK) { e.v = MAT.BRICK; n++; } }
+    if (!s.plan.some(function (e2) { return !bOk(g, e2) && bFree(g, e2); })) { s.done = true; s.repair = false; s.gilding = false; s.quiet = false; }
+    return;
+  }
+  if (!s.done || s.repair || mGoldToHand(g) < 0.4) return;
   for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.gild && e.v === MAT.BRICK && g.m[e.i] === MAT.BRICK) { e.v = MAT.GOLD; n++; } }
   if (!n) return;
-  s.done = false; s.repair = true; s.last = g.tick; s.helped = {}; s.quiet = true;
+  s.done = false; s.repair = true; s.gilding = true; s.last = g.tick; s.helped = {}; s.quiet = true;
   feed(g, "there is gold enough now. the village is gilding " + bLabel(s), "#ffd94a", "gild" + s.id);
 }
 
@@ -861,8 +951,9 @@ function wStep(g) {
     d = wOf(s.kind);
     /* set at last: finished (bFinish waited for it) */
     if (s.setting && !s.done && wReady(g, s) && bFinished(g, s)) bFinish(g, s, null);
-    if (s.done) wRegild(g, s);
-    s.note = wNote(g, s);
+    if (s.done || s.gilding) wRegild(g, s);
+    wLayBy(g, s);
+    s.note = (s.laid ? "laid by: " : "") + wNote(g, s);
     if (d && d.step) d.step(g, s);
   }
   if (wCount(g) >= 7) achieve(g, "seven");
@@ -888,6 +979,7 @@ function wFinish(g, s, p) {
   var d = wOf(s.kind);
   if (!d) return false;
   if (s.repair) return true;
+  s.laid = false;
   if (!g.wDone) g.wDone = {};
   var first = !g.wDone[d.id];
   g.wDone[d.id] = g.wDone[d.id] || g.tick;
@@ -906,7 +998,7 @@ function wMood(g, p) {
   if (k.kind === "haul") return (s = bSite(g, k.site)) ? "is taking " + (mPockets(p) || "something") + " to " + bLabel(s) : "is carrying things";
   if (k.kind === "quarry") return k.haul ? "is carrying stone up out of the quarry" : "is cutting stone for the great work" + ((p.stone || 0) >= 1 ? ". " + Math.floor(p.stone) + " so far" : "");
   if (k.kind === "mix") return !k.water ? "is fetching water to mix concrete with" : (k.sand < 2 ? "is digging sand for the concrete" : "is mixing concrete");
-  if (k.kind === "kiln") return k.carry ? "is carrying " + k.r + " from the kiln" : "is burning " + k.r + " at the furnace";
+  if (k.kind === "kiln") return k.carry ? "is carrying " + k.r + " from the kiln" : "is burning " + (k.r === "coal" ? "charcoal" : k.r) + " at the furnace";
   if (k.kind === "audience") return k.sit ? "is sitting, watching" : "is watching";
   for (var j = 0; j < W_DEFS.length; j++) if (W_DEFS[j].mood) { var m = W_DEFS[j].mood(g, p, k); if (m) return m; }
   if (k.kind === "build" && (s = bSite(g, k.site)) && s.wonder) return (s.repair ? "is mending " : "is working on ") + bLabel(s) + ". the great work";
