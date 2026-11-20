@@ -559,12 +559,23 @@ module.exports = function (test, check, sim) {
     for (x = 140; x <= 190; x++) for (y = 0; y < G; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (shut in in rock, all round, up to the sky) */
     var q = g.peasants[0];
     g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
-    q.aboard = 999; q.state = "space"; q.spaceT = 0; q.x = 165.5; q.y = G - 8; q.pad = { x0: 158, x1: 170 }; q.safe = null;
+    var r = w.bNew(g, "moonrocket", null, [], [158, G - 36, 170, G], { wonder: true, crew: [q.id], R0: G, rx: 165 });   /* (a rocket being mended) */
+    q.aboard = r.id; q.state = "space"; q.spaceT = 0; q.x = 165.5; q.y = G - 8; q.pad = { x0: 158, x1: 170 }; q.safe = null;
     sim.step(w, 3);
     check(q.aboard && q.state === "space", "came out with nowhere to come out to: " + q.state + " at " + q.x.toFixed(1) + "," + q.y.toFixed(1));
     for (x = 150; x <= 154; x++) for (y = 0; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);   /* (a way out, cleared) */
     sim.step(w, 3);
     check(!q.aboard && q.state !== "space" && (q.x < 158 || q.x > 171), "did not come out off the pad once there was somewhere: " + q.state + " at " + q.x.toFixed(1));
+  });
+  test("moon rocket: the world cleared under a crew aboard, they come out to footing far off, or drop where they sat", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, k;
+    var q = g.peasants[0], q2 = g.peasants[1];
+    g.peasants.forEach(function (o) { if (o !== q && o !== q2) o.dead = 1; });
+    [q, q2].forEach(function (o) { o.aboard = 999; o.state = "space"; o.spaceT = 0; o.x = 165.5; o.y = G - 8; o.pad = { x0: 158, x1: 170 }; o.safe = null; });
+    w.sandClear(g);
+    for (x = 186; x <= 196; x++) w.sandPlace(g, G * g.gw + x, M.STONE);   /* (a ledge sixteen off the pad, and nothing else) */
+    for (k = 0; k < 600 && (q.aboard || q2.aboard); k++) sim.step(w, 1);
+    check(!q.aboard && !q2.aboard && q.state !== "space" && q2.state !== "space", "still aboard a rocket that is not there: " + q.state + ", " + q2.state);
   });
   test("moon rocket: a plate gone the tick before it goes, between lookings-over, and it does not go", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
