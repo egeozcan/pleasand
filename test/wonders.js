@@ -378,6 +378,24 @@ module.exports = function (test, check, sim) {
     check(g.aux[s.plan[0].i] === 2, "a pane fired with coal, no ore, went in as " + ["ruby", "green", "amber"][g.aux[s.plan[0].i] % 3]);
   });
 
+  test("wonders: a coloured window broken and glazed again is the colour of its new pane", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    know(g, ["farm", "dig", "mine", "smelt", "masonry", "glass", "stained"]);
+    var p = g.peasants[0];
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+    var f = sim.build(w, sites(g, "furnace")[0]);
+    var x = f.x1 + 12, G = w.mGround(g, x), s = cairn(w, p, x, G, 1, function () { return M.STAINED; }), e = s.plan[0];
+    e.a = 1; e.tinted = true;   /* (fired with ore once: green) */
+    s.stock = { stained: 1 }; w.bPlace(g, s, e, p);
+    check(g.m[e.i] === M.STAINED && g.aux[e.i] === 1, "(the test wants a green pane in)");
+    w.sandPlace(g, e.i, M.EMPTY); s.done = false; s.repair = true;   /* (broken) */
+    g.peasants.forEach(function (q) { q.task = null; q.mineCD = 1e9; q.hunger = 0; q.ore = 0; q.gold = 0; q.coal = 0; q.glass = 0; q.stained = 0; });
+    f.stock = { coal: 6, glass: 2 };
+    for (var k = 0; k < 8000 && g.m[e.i] !== M.STAINED; k++) sim.step(w, 1);
+    check(g.m[e.i] === M.STAINED, "(the test wants it glazed again)");
+    check(g.aux[e.i] === 2, "glazed again with a pane fired with coal, it went in " + ["ruby", "green", "amber"][g.aux[e.i] % 3]);
+  });
+
   test("wonders: wet concrete is mixed from lime, sand and a bucket of water, poured in its form, and a pail dawdled with goes off", function () {
     var w = sim.load(1), g = w.g, M = w.MAT;
     know(g, ["farm", "dig", "bucket", "concrete"]);
