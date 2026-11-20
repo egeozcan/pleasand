@@ -186,6 +186,19 @@ module.exports = function (test, check, sim) {
     void s;
   });
 
+  test("wonders: a scenario from before wet concrete, picking by place in the list, replays the brush it picked: and new ones pick by name", function () {
+    var h = H.open({ seed: 1 }), k, cl = -1;
+    for (k = 0; k < h.pick.length; k++) if (h.pick[k].name === "CLONER") cl = k;
+    /* (master's list: wet concrete not in it, CLONER one place earlier) */
+    var sc = { version: 1, seed: 1, ticks: 2, ops: [{ at: 0, op: "select", args: { sel: cl - 1 } }, { at: 1, op: "tap", args: { x: 100, y: 60 } }] };
+    h.replay(sc);
+    check(h.pick[h.g.sel].name === "CLONER", "the old scenario picked " + h.pick[h.g.sel].name);
+    var h2 = H.open({ seed: 1 });
+    h2.select("CLONER");
+    var ops = h2.scenario().ops;
+    check(ops[ops.length - 1].args.sel === "CLONER" && h2.scenario().picks, "a new pick is recorded as " + JSON.stringify(ops[ops.length - 1].args));
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;

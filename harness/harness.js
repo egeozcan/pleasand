@@ -904,10 +904,22 @@ Harness.prototype._doMouse = function (x, y) {
   return this;
 };
 
-Harness.prototype.select = function (sel) { this._op("select", { sel: sel }); return this._doSelect(sel); };
+/* (recorded by its name, not its place in the list: the list changes, and a scenario recorded with one replays with
+   another. a scenario recorded by place is read against the list it was recorded with: sc.picks, or, from before that
+   was kept, the list as it was then, before wet concrete went into it) */
+Harness.prototype.select = function (sel) {
+  this._doSelect(sel);
+  this._op("select", { sel: this.pick[this.g.sel].name });
+  return this;
+};
 Harness.prototype._doSelect = function (sel) {
   var PICK = this.pick, i;
   if (typeof sel === "number") {
+    if (this._replaying && this._scPicks) {
+      var nm = this._scPicks[sel];
+      if (nm == null) throw new Error("picker index out of range, in the list the scenario was recorded with: " + sel);
+      return this._doSelect(nm);
+    }
     if (sel < 0 || sel >= PICK.length) throw new Error("picker index out of range: " + sel);
     this.g.sel = sel; return this;
   }
@@ -1002,7 +1014,7 @@ Harness.prototype.input = function (o) {
    11. REPRODUCING: the seed and every hand laid on the world
    ------------------------------------------------------------------- */
 Harness.prototype.scenario = function () {
-  var sc = { version: 1, seed: this.seed, ticks: this.ticks, hash: this.hash(), ops: this.ops.slice() };
+  var sc = { version: 2, seed: this.seed, ticks: this.ticks, hash: this.hash(), ops: this.ops.slice(), picks: this.pick.map(function (q) { return q.name; }) };
   /* a village loaded from a file replays from that file, not from the seed */
   if (this.origin && this.origin.path) sc.from = { path: this.origin.path, keyframe: this.origin.keyframe, atTick: this.origin.ticks };
   return sc;
@@ -1058,6 +1070,8 @@ Harness.prototype.replay = function (sc, opts) {
   var ops = (sc.ops || []).slice().sort(function (a, b) { return a.at - b.at; });
   this.recording = false;
   this._replaying = true;
+  var wasPicks = this._scPicks;
+  this._scPicks = sc.picks || this.pick.map(function (q) { return q.name; }).filter(function (n) { return n !== "WET CONCRETE"; });
   try {
     if (sc.from && sc.from.path) this.load(sc.from.path, { keyframe: sc.from.keyframe, seed: sc.seed });
     else this.reset(sc.seed);
@@ -1067,7 +1081,7 @@ Harness.prototype.replay = function (sc, opts) {
     }
     var target = opts.ticks == null ? sc.ticks : opts.ticks;
     if (target > this.ticks) this._runTo(target);
-  } finally { this.recording = was; this._replaying = wasReplay; }
+  } finally { this.recording = was; this._replaying = wasReplay; this._scPicks = wasPicks; }
   var hash = this.hash();
   return { ticks: this.ticks, hash: hash, expected: sc.hash || null, matches: sc.hash ? hash === sc.hash : null };
 };
