@@ -281,6 +281,8 @@ function wPick(g, p, hungry) {
   var S = wUp(g), k, s, d;
   /* a barrel of oil in hand: where it is wanted, before anything else (heavens.js) */
   if (p.barrel && hDeliverBarrel(g, p)) return true;
+  /* what the dead left for a great work, wanted by one: fetched (wGoSalvage) */
+  if (g.salvage && wGoSalvage(g, p)) return true;
   /* carrying what only a great work wants (lime, firebrick, coloured glass, cast iron), and one of them wants it: there
      with it first, before they are taken on at another (a pocketful of lime at the cathedral's crypt is no use to the
      organ waiting on it) */
@@ -333,6 +335,7 @@ function wPick(g, p, hungry) {
 /* one tick of one of the jobs in here, or undefined if it is not one of ours */
 function wTask(g, p, k) {
   if (k.kind === "haul") return wTaskHaul(g, p, k);
+  if (k.kind === "salvage") return wTaskSalvage(g, p, k);
   if (k.kind === "quarry") return wTaskQuarry(g, p, k);
   if (k.kind === "mix") return wTaskMix(g, p, k);
   if (k.kind === "kiln") return wTaskKiln(g, p, k);
@@ -766,62 +769,99 @@ function wTaskMix(g, p, k) {
 /* CARRIED: what a peasant carries for a great work is never put down by them while they live but into its own cell of
    a plan (as it is paid for: build.js bPay). wet concrete that goes off in the pail is a lump, carried (p.lump): it is
    paid for a concrete cell with as wet concrete is, and goes in set, or onto a wonder's pile (wTaskHaul). dead, all of
-   it is set down by wDropAll, and none of it is lost */
+   it goes into the salvage (wDropAll), and none of it is lost */
 function wWentOff(g, p) {
   p.lump = (p.lump || 0) + (p.mortar || 0); p.mortar = 0;
   pSay(g, p, "wentOff", true);
   if (!g.wLump) { g.wLump = 1; feed(g, "the concrete went off in " + p.name + "'s pail. it is a lump now, and they are carrying it about", "#c8d0dc", "lump"); }
 }
-/* what nothing but a great work has a use for, in a pocket: put on a pile when its carrier dies */
+/* SALVAGE: what nothing but a great work has a use for, left by the dead (g.salvage, by resource, coloured glass with its
+   colours in g.salvage.tints). never put down as a cell: kept, not in anybody's way, at the store by the furnace (or by
+   the first great work, or where the last of it was left: wSalvageAt), and fetched from there by whoever a great work
+   wants it for (wGoSalvage), as off a pile */
 var W_KEEP = ["firebrick", "stained", "lime", "plate", "bell"];
-/* dead: set down round where they fell, a cell at a time, from the corpse outward (a spiral, so far and no further), only
-   in thin air that no living peasant or duck is standing in, nor right beside: concrete (their pail, gone off, and any
-   lump), and moon rock. what there is no room for, and what is not set down as a cell at all (firebrick, coloured glass,
-   lime, cast iron), onto the nearest great work's pile (or the furnace's): nothing a great work wanted is lost with its
-   carrier. (peasants.js pDie) */
+var W_SALVAGE = W_KEEP.concat(["lump", "moonrock", "barrel"]);
+/* dead: everything of a great work's they had, into the salvage. a barrel of oil, into the nearest well's tank with room
+   in it, if there is one (peasants.js pDie) */
 function wDropAll(g, p) {
   if ((p.mortar || 0) > 0) { p.lump = (p.lump || 0) + p.mortar; p.mortar = 0; }
-  var put = [], r, dx, dy, x, y, j, k, fx = Math.floor(p.x), fy = Math.floor(p.y);
-  for (k = 0; k < (p.lump || 0); k++) put.push(MAT.CONCRETE);
-  for (k = 0; k < (p.moonrock || 0); k++) put.push(MAT.MOONROCK);
-  for (r = 0; r <= 10 && put.length; r++) for (dy = -r; dy <= r && put.length; dy++) for (dx = -r; dx <= r && put.length; dx++) {
-    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-    x = fx + dx; y = fy + dy;
-    if (x < 1 || y < 1 || x >= g.gw - 1 || y >= g.gh - 1) continue;
-    j = y * g.gw + x;
-    if (g.m[j] !== MAT.EMPTY || wNearBody(g, p, x, y)) continue;
-    var v = put.shift();
-    sandSet(g, j, v);
-    if (v === MAT.CONCRETE) p.lump--; else p.moonrock--;
-  }
-  /* (a barrel of oil: into the nearest well's tank there is room in, where barrels are kept) */
-  if (p.barrel) { var wl = oTankFor(g, p, 0); if (wl && wl.tank < O_TANK) { wl.tank++; p.barrel = 0; } }
-  var any = false;
-  W_KEEP.forEach(function (rr) { if ((p[rr] || 0) > 0) any = true; });
-  if (!any && !(p.lump > 0) && !(p.moonrock > 0)) return;
-  /* (the rest, onto a pile: the nearest great work's, else the furnace's) */
-  var best = null, bd = 1e9;
-  for (k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (t.wonder && Math.abs(t.cx - p.x) < bd) { bd = Math.abs(t.cx - p.x); best = t; } }
-  best = best || mSites(g, "furnace", true)[0] || null;
-  if (!best) return;
-  var st = best.stock || (best.stock = {});
-  W_KEEP.concat(["lump", "moonrock"]).forEach(function (rr) {
-    if (!((p[rr] || 0) > 0)) return;
-    st[rr] = (st[rr] || 0) + p[rr];
-    if (rr === "stained") bTints(p, best, p[rr]);
-    p[rr] = 0;
-  });
+  if (p.barrel && wTankIn(g, p)) p.barrel = 0;
+  wSalvage(g, p);
 }
-/* is (x, y) in or right beside a living peasant (other than p), or a duck: nowhere to put a thing down */
-function wNearBody(g, p, x, y) {
-  var k, q;
-  for (k = 0; k < g.peasants.length; k++) {
-    q = g.peasants[k];
-    if (q === p || q.dead || q.state === "space") continue;
-    if (Math.abs(Math.floor(q.x) - x) <= 1 && y <= q.y + 1.5 && y >= q.y - 9.5) return true;
+/* the nearest well with room in its tank for a barrel, and the barrel in it. true if there was one */
+function wTankIn(g, p) {
+  var best = null, bd = 1e9, k, s;
+  for (k = 0; k < g.sites.length; k++) {
+    s = g.sites[k];
+    if (s.kind !== "well" || !s.done || s.repair || !(s.tank < O_TANK)) continue;
+    if (Math.abs(s.cx - p.x) < bd) { bd = Math.abs(s.cx - p.x); best = s; }
   }
-  for (k = 0; k < g.ducks.length; k++) { q = g.ducks[k]; if (!q.dead && Math.abs(q.x - x - 0.5) < 2.5 && y <= q.y + 1.5 && y >= q.y - 4.5) return true; }
+  if (!best) return false;
+  best.tank++;
+  return true;
+}
+/* what p has of a great work's (or of rs, only), into the salvage */
+function wSalvage(g, p, rs) {
+  var sv = null;
+  (rs || W_SALVAGE).forEach(function (r) {
+    if (!((p[r] || 0) > 0)) return;
+    sv = sv || g.salvage || (g.salvage = {});
+    sv[r] = (sv[r] || 0) + p[r];
+    if (r === "stained") bTints(p, sv, p[r]);
+    p[r] = 0;
+  });
+  if (sv) { sv.x = Math.floor(p.x); if (!g.wSalv) { g.wSalv = 1; feed(g, "what " + p.name + " was carrying for the great works was kept. it is at " + wSalvageAt(g).name, "#c8d0dc", "salvage"); } }
+}
+/* where the salvage is kept: {x, y, name}. at the store by the furnace; with no furnace, by the first great work; with
+   neither, where the last of it was left */
+function wSalvageAt(g) {
+  var f = mSites(g, "furnace", true)[0];
+  if (f) return { x: f.sx, y: mSpotRow(g, f), name: "the store by the furnace" };
+  var W = wSites(g);
+  if (W.length) { var x = Math.round(W[0].cx); return { x: x, y: mGround(g, x) - 1, name: "the foot of " + bLabel(W[0]) }; }
+  var x0 = Math.max(2, Math.min(g.gw - 3, (g.salvage && g.salvage.x) || (g.gw >> 1)));
+  return { x: x0, y: mGround(g, x0) - 1, name: "where it was left" };
+}
+/* how much of r in the salvage is wanted now, by a great work, or (moon rock) by everybody */
+function wSalvageWant(g, r) {
+  var sv = g.salvage, n = 0, k, s;
+  if (!sv || !((sv[r] || 0) >= 1)) return 0;
+  if (r === "moonrock") return sv[r];
+  if (r === "barrel") {
+    for (k = 0; k < g.sites.length; k++) { s = g.sites[k]; if (s.done && !s.repair && ((s.kind === "moonrocket" && !s.gone && (s.oil || 0) < H_FUEL) || (s.kind === "lighthouse" && s.fuel < H_BARREL))) return 1; }
+    return 0;
+  }
+  var S = wSites(g).filter(function (t) { return !t.done || t.repair; });
+  for (k = 0; k < S.length; k++) n += Math.max(0, r === "lime" ? wLimeWant(g, S[k]) : bNeed(g, S[k], r === "lump" ? "mortar" : r));
+  return Math.min(sv[r], Math.ceil(n - 1e-6));
+}
+/* somebody to fetch what is wanted out of the salvage: one at a time */
+function wGoSalvage(g, p) {
+  if (!g.salvage || p.salvT > g.tick || p.barrel) return false;
+  p.salvT = g.tick + 300;
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "salvage") return false; }
+  for (var i = 0; i < W_SALVAGE.length; i++) if (wSalvageWant(g, W_SALVAGE[i]) >= 1) { p.task = { kind: "salvage", t: 0 }; return true; }
   return false;
+}
+function wTaskSalvage(g, p, k) {
+  if (!g.salvage || ++k.t > 3000) return iDone(p, false);
+  var at = wSalvageAt(g);
+  if (Math.abs(p.x - at.x - 0.5) > 2 || Math.abs(Math.floor(p.y) - at.y) > 4) {
+    if (iWalk(g, p, k, "salvage", at.x, at.y, function (x, y) { return Math.abs(x - at.x) <= 2 && Math.abs(y - at.y) <= 4; })) pGiveUp(g, p, at.x);
+    p.idle = 0;
+    return false;
+  }
+  var sv = g.salvage, got = 0;
+  W_SALVAGE.forEach(function (r) {
+    var n = Math.min(r === "barrel" ? 1 : 8, wSalvageWant(g, r));
+    if (r === "barrel" && p.barrel) n = 0;
+    if (n < 1) return;
+    sv[r] -= n; p[r] = (p[r] || 0) + n; got += n;
+    if (r === "stained") bTints(sv, p, n);
+  });
+  if (W_SALVAGE.every(function (r) { return !((sv[r] || 0) > 1e-6); })) g.salvage = null;
+  p.idle = 20;
+  return iDone(p, got > 0);
 }
 
 /* -------------------------------------------------------------------
@@ -1106,6 +1146,7 @@ function wMood(g, p) {
   var k = p.task, s;
   if (p.aboard && !hAboardOf(g, p)) return "is shut in the rocket, waiting for somewhere to get out to";
   if (!k) return (p.mortar || 0) >= 1 ? "is carrying a pail of wet concrete. it is going off" : ((p.lump || 0) >= 1 ? "is carrying a lump of concrete that went off. it wants putting down" : "");
+  if (k.kind === "salvage") return "is fetching what was left for the great works, from " + wSalvageAt(g).name;
   if (k.kind === "haul") return (s = bSite(g, k.site)) ? "is taking " + (mPockets(p) || "something") + " to " + bLabel(s) : "is carrying things";
   if (k.kind === "quarry") return k.haul ? "is carrying stone up out of the quarry" : "is cutting stone for the great work" + ((p.stone || 0) >= 1 ? ". " + Math.floor(p.stone) + " so far" : "");
   if (k.kind === "mix") return !k.water ? "is fetching water to mix concrete with" : ((p.sand || 0) < 2 ? "is digging sand for the concrete" : "is mixing concrete");
@@ -1239,6 +1280,12 @@ function wRows(g, R) {
     R.push([known ? (d.idea ? d.idea.name : d.id) : "? " + (d.idea ? d.idea.hint : ""), known ? (g.wNo && g.wNo[d.id] > g.tick ? "no room for it yet" : "thought of") : "", known ? "#f0c060" : "#8892a8"]);
   }
   for (k = W_DEFS.length; k < W_TOTAL; k++) { if (!todo++) R.push(["#", "TO COME"]); R.push(["? something nobody has thought of", "", "#56698a"]); }
+  /* (what the dead left for them, and where it is kept) */
+  var sv = g.salvage;
+  if (sv && W_SALVAGE.some(function (r) { return (sv[r] || 0) >= 1; })) {
+    R.push(["#", "LEFT FOR THEM, AT " + wSalvageAt(g).name.toUpperCase()]);
+    W_SALVAGE.forEach(function (r) { if ((sv[r] || 0) >= 1) R.push([r === "lump" ? "concrete, gone off" : (r === "stained" ? "coloured glass" : (r === "moonrock" ? "moon rock" : r)), String(Math.floor(sv[r])), "#c8d0dc"]); });
+  }
 }
 
 /* -------------------------------------------------------------------

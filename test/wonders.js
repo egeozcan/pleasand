@@ -261,7 +261,7 @@ module.exports = function (test, check, sim) {
     check(r.hash === sc.hash && h2.pick[h2.g.sel].name === "METAL" && h2.g.size === h.g.size, "replayed with the panel moved: " + h2.pick[h2.g.sel].name + ", size " + h2.g.size + ", hash " + (r.hash === sc.hash));
   });
 
-  test("wonders: a pail of concrete gone off with nowhere to put it down is carried as a lump, and put down where there is room", function () {
+  test("wonders: a pail of concrete gone off up a ladder is carried as a lump, and kept when they die", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y;
     flat(w, x0, 20, G);
     know(g, ["concrete"]);
@@ -276,7 +276,7 @@ module.exports = function (test, check, sim) {
     w.wWentOff(g, p);
     check(conc() - c0 + (p.lump || 0) === w.W_PAIL, "a pail gone off: " + (conc() - c0) + " set down and " + (p.lump || 0) + " carried, of " + w.W_PAIL);
     w.pDie(g, p, "old");
-    check(conc() - c0 === w.W_PAIL, "dead, the lump was not set down: " + (conc() - c0) + " of " + w.W_PAIL);
+    check(conc() === c0 && g.salvage && g.salvage.lump === w.W_PAIL, "dead, the lump was not kept: " + (conc() - c0) + " set down, " + JSON.stringify(g.salvage));
   });
 
   test("wonders: a lump of concrete is never put down by whoever carries it, but into a plan's cell, where it goes in set", function () {
@@ -298,14 +298,45 @@ module.exports = function (test, check, sim) {
     check(s.plan.every(function (e) { return g.m[e.i] === M.CONCRETE; }), "the lump did not go into the wonder's concrete: " + s.plan.map(function (e) { return w.MAT_NAME[g.m[e.i]]; }).join(","));
     check(p.lump === w.W_PAIL - 2, "the lump went from " + w.W_PAIL + " to " + p.lump + " for two cells");
   });
-  test("wonders: dead with a lump of concrete and nowhere round them to set it down, it goes on a wonder's pile", function () {
-    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y;
-    flat(w, x0, 20, G);
-    var p = g.peasants[0], s = cairn(w, p, x0 - 40, w.mGround(g, x0 - 40), 4, function () { return M.CONCRETE; });
-    for (x = x0 - 12; x <= x0 + 12; x++) for (y = G - 20; y < G + 12; y++) w.sandPlace(g, y * g.gw + x, x === x0 && y >= G - 9 && y < G ? M.WATER : M.STONE);   /* (drowned, under a cap of stone, and stone all round) */
-    p.x = x0 + 0.5; p.y = G - 1; p.lump = 5; p.firebrick = 2;
-    w.pDie(g, p, "drown");
-    check((s.stock && s.stock.lump) === 5 && s.stock.firebrick === 2, "what the drowned carried went nowhere: " + JSON.stringify(s.stock));
+  test("wonders: dead with what they carried for a great work, none of it is a cell: it is all kept, and fetched for a great work that wants it", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, k;
+    flat(w, x0 - 60, 100, G);
+    know(g, ["concrete"]);
+    var p = g.peasants[0], q = g.peasants[1];
+    g.peasants.forEach(function (o) { if (o !== p && o !== q) o.dead = 1; });
+    function cells() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.CONCRETE || g.m[j] === M.MOONROCK) n++; return n; }
+    var c0 = cells();
+    /* (nothing to put it by: no great work, no furnace, and stone all round) */
+    p.x = x0 + 0.5; p.y = G - 1; p.lump = 5; p.moonrock = 2; p.firebrick = 2; p.stained = 2; p.tints = [1, 2];
+    w.pDie(g, p, "old");
+    sim.step(w, 2);
+    var sv = g.salvage || {};
+    check(cells() === c0, "the dead's load was set down as cells: " + (cells() - c0));
+    check(sv.lump === 5 && sv.moonrock === 2 && sv.firebrick === 2 && sv.stained === 2 && (sv.tints || []).join() === "1,2", "not all kept: " + JSON.stringify(sv));
+    /* (and saved with the world) */
+    var doc = JSON.parse(JSON.stringify(w.saveDocument(g, { source: "test" }))), w2 = sim.load(1);
+    w2.saveLoad(w2.g, doc);
+    check(JSON.stringify(w2.g.salvage) === JSON.stringify(g.salvage), "the salvage was not saved: " + JSON.stringify(w2.g.salvage));
+    /* (a great work wanting concrete: the lumps fetched, and go in) */
+    var s = cairn(w, q, x0 - 20, G, 3, function () { return M.CONCRETE; });
+    q.x = x0 - 30.5; q.y = G - 1; q.task = null; q.hunger = 0;
+    for (k = 0; k < 12000 && !s.plan.every(function (e) { return g.m[e.i] === M.CONCRETE; }); k++) sim.step(w, 1);
+    check(s.plan.every(function (e) { return g.m[e.i] === M.CONCRETE; }), "the kept lumps never went into the great work: " + JSON.stringify(g.salvage) + ", carried " + q.lump);
+  });
+  test("wonders: dead in a tunnel with a load of concrete, they do not plug it: whoever else is in there can still get out", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y, k;
+    flat(w, x0 - 40, 80, G);
+    /* (a tunnel nine high, under stone, open at one end) */
+    for (x = x0 - 30; x <= x0 + 6; x++) for (y = G - 20; y < G; y++) if (y < G - 9 || x > x0 + 4) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var p = g.peasants[0], q = g.peasants[1];
+    g.peasants.forEach(function (o) { if (o !== p && o !== q) o.dead = 1; });
+    p.x = x0 - 20.5; p.y = G - 1; p.lump = 5;
+    q.x = x0 + 1.5; q.y = G - 1; q.task = null; q.hunger = 0;
+    function out() { return !!w.navFind(g, Math.floor(q.x), G - 1, function (x2) { return x2 < x0 - 32; }, x0 - 34, G - 1, 8000); }
+    check(out(), "(the test wants a way out first)");
+    w.pDie(g, p, "old");
+    sim.step(w, 2);
+    check(out(), "the dead's concrete shut the tunnel");
   });
 
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
