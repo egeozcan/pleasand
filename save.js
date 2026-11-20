@@ -473,6 +473,8 @@ function saveApplyState(g, state, keepPointer) {
   for (i = 0; i < ks.length; i++) if (!mine(ks[i])) g[ks[i]] = state[ks[i]];
   /* nobody is touching anything */
   g.down = 0; g.btn = 0; g.ptr = null; g.keys = {}; g.samp = []; g.lx = null; g.ax = null; g.pop = null;
+  /* (a save from before the speed selector has no speed: it plays at 1x, not at no speed at all) */
+  if (!(g.speed >= 0 && g.speed < SPEEDS.length)) { g.speed = SPEED_1; g.speedAcc = 0; }
   /* the pathfinder marks its scratch with generations: wipe them so a loaded generation cannot meet a stale one */
   if (g.navSeen) g.navSeen.fill(0);
   if (g.navShut) g.navShut.fill(0);
