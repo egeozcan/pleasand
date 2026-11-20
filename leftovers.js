@@ -1173,6 +1173,7 @@ function lTaskGlass(g, p, k) {
   g.fx.clang++;
   sparks(g, s.fc + 0.5, s.G - 2, 8, 0.6, [hex32("#d6f2ff"), hex32("#a8dcf5")], 12, 0.3, PK_GLINT);
   if (!g.got.glass) { feed(g, p.name + " made the first glass: sand, and a very hot fire", "#bfe9ff", "glass"); achieve(g, "glass"); }
+  wSpark(g, p, "stained");   /* (what if it were red: wonders.js) */
   /* (another batch only if it is wanted: for a glasshouse going up, or for one there is a field for and not glass enough) */
   if (k.n >= 3 || (p.glass || 0) >= L_POCKET.glass - 1 || !lGlassWanted(g, p, s)) { p.bored = 0; return iDone(p, true); }
   return true;

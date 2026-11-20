@@ -1027,6 +1027,8 @@ function mTaskSmelt(g, p, k) {
 function mGoForge(g, p) {
   var s = mSites(g, "furnace", true)[0];
   if (!s || Math.abs(s.cx - p.x) > 220 || mCrew(g, "forge", s.id) >= 1 || ((p.iron || 0) < 1 && mIronToHand(g) < 2)) return false;
+  /* (a great work that wants iron: new tools wait for iron to spare, worn ones are still done again. wonders.js) */
+  if (!p.worn && wIronHeld(g) && mIronToHand(g) < M_IRON_SPARE) return false;
   p.task = { kind: "forge", site: s.id, t: 0, act: 0 };
   return true;
 }
@@ -1045,7 +1047,7 @@ function mTaskForge(g, p, k) {
   if (k.act < M_FORGE) return true;
   /* their own bar, or one off whoever has iron to spare */
   if ((p.iron || 0) >= 1) p.iron -= 1; else if (!iChipIn(g, "iron", 1)) return iDone(p, false);
-  p.tools = 1; p.wear = 0; g.tools = (g.tools || 0) + 1;
+  p.tools = 1; p.wear = 0; p.worn = 0; g.tools = (g.tools || 0) + 1;
   if (g.tools === 1) { feed(g, p.name + " forged the first iron tools. watch them go", "#ffd27a", "forge"); achieve(g, "forge"); }
   pSay(g, p, "forged", true);
   p.bored = 0;
@@ -1055,7 +1057,7 @@ function mTaskForge(g, p, k) {
 function mWear(g, p) {
   if (!p.tools || ++p.wear < M_WEAR) return;
   /* (the worn heads are kept: scrap, half a bar's worth, for the furnace) */
-  p.tools = 0; p.wear = 0; p.iron = (p.iron || 0) + 0.5;
+  p.tools = 0; p.wear = 0; p.iron = (p.iron || 0) + 0.5; p.worn = 1;
   if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "toolsBroke", true);
 }
 
@@ -1324,7 +1326,9 @@ function mDraw(g) {
       if (s.kind === "tunnel") for (x = Math.min(s.xa, s.xb); x <= Math.max(s.xa, s.xb); x++) {
         if ((x - s.col) % 6 || g.m[(s.B - M_ROOF + 1) * gw + x] !== MAT.EMPTY) continue;
         for (n = -1; n <= 1; n++) { i = (s.B - M_ROOF + 1) * gw + x + n; if (g.m[i] === MAT.EMPTY) px[i] = s.ironProps ? M_PROP_I : M_PROP; }
-        for (y = s.B - M_ROOF + 2; y <= s.B; y++) for (n = -1; n <= 1; n += 2) { i = y * gw + x + n; if (g.m[i] === MAT.EMPTY) px[i] = s.ironProps ? M_PROP_ID : M_PROP_D; }
+        /* (down to the floor, wherever that is now: a gallery benched for stone is deeper. wonders.js) */
+        var pb = s.B + (s.bench && s.bench[x] || 0);
+        for (y = s.B - M_ROOF + 2; y <= pb; y++) for (n = -1; n <= 1; n += 2) { i = y * gw + x + n; if (g.m[i] === MAT.EMPTY) px[i] = s.ironProps ? M_PROP_ID : M_PROP_D; }
       }
     } else if (s.kind === "tower") {
       /* indoors: dressed stone, and the ladder against it; arrow slits in the walls */

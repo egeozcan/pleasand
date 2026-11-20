@@ -32,7 +32,7 @@ var P_BITES = 5, P_CHOPS = 3, P_CHOP_CD = 2400;
 /* things a buried peasant cannot dig up through */
 var P_HARD = new Uint8Array(NMAT);
 [MAT.STONE, MAT.GLASS, MAT.ICE, MAT.CLONER, MAT.FAUCET, MAT.DRAIN, MAT.TORCH, MAT.METAL, MAT.INERT, MAT.PLANK, MAT.STAIRS,
- MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK].forEach(function (v) { P_HARD[v] = 1; });
+ MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK].forEach(function (v) { P_HARD[v] = 1; });
 /* things a peasant walks straight through, though nothing else can: doors (they open them) and ladders (they climb them) */
 var P_PASS = new Uint8Array(NMAT); P_PASS[MAT.DOOR] = P_PASS[MAT.LADDER] = 1;
 P_PASS[MAT.LAMP] = 1;   /* (and lanterns, hung over doorways: they duck) */
@@ -404,6 +404,7 @@ function pDie(g, p, cause) {
   var line = pick(P_DEATH[cause]);
   feed(g, line.replace("{n}", p.name), "#ff9a8a");
   iMourn(g, p, line);   /* remembered, for a grave (ideas.js) */
+  wTale(g, "death", p, cause);   /* (and as a tale, for telling: wonders.js) */
   var talking = 0;
   for (k = 0; k < g.ghosts.length; k++) if (g.ghosts[k].say && g.ghosts[k].t < 170) talking++;
   var gl = (talking < 2 && Math.random() < 0.5) ? pick(P_SAY.ghost) : "";
@@ -450,6 +451,7 @@ function pSucceed(g, p, title) {
     heir.name = "KING " + heir.short;
     banner(g, title, "long live " + heir.name);
     pSay(g, heir, "crowned", true);
+    wCrowned(g, p, heir);   /* (the king is dead: something BIG. wonders.js) */
   } else banner(g, title, "and there is nobody left to be king");
 }
 
@@ -465,6 +467,7 @@ function pZap(g, p) {
   if (p.zap > 0 || p.dead) return;
   if (p.charred && Math.random() < 0.6) { pDie(g, p, "zap"); return; }
   p.zap = 48; p.charred = 1; p.stun = Math.max(p.stun, 50); p.idle = 0;
+  wTale(g, "zap", p);
   if (Math.random() < 0.3) pIgnite(g, p);
   else pSay(g, p, "zap", true);
   g.fx.zap++;
@@ -577,6 +580,7 @@ function peasantsStep(g) {
   if (burning >= 3) achieve(g, "roast");
   buildStep(g);
   ideasStep(g);
+  wStep(g);   /* (the great works: wonders.js) */
   lTick(g);   /* (snowballs in the air, and fuses burning: leftovers.js) */
   exploreNote(g);
   for (k = L.length - 1; k >= 0; k--) if (L[k].dead) L.splice(k, 1);
@@ -599,6 +603,7 @@ function pStep(g, p) {
   p.anim++;
   if (p.launch && p.state !== "fly") {   /* (down again: the rocket pack is off, till next time) */
     if (p.state === "walk") pSay(g, p, "rocketLand", true);
+    if (p.stun > 0) wTale(g, "pack", p);   /* (down hard: that is a tale) */
     p.launch = 0;
   }
   if (p.state === "held") { pHeld(g, p); return; }
@@ -689,7 +694,10 @@ function pStep(g, p) {
   if (p.jumping) { pJump(g, p); return; }
   var ground = pGround(g, fx, fy);
   /* in deep water, or standing on the bottom with your head under: swim */
+  var swam = p.swimming;
   p.swimming = liquid && (!ground || sub);
+  if (swam && !p.swimming) wSwam(g, p);   /* (out of the water, on the bank: counted. wonders.js) */
+  if (liquid && g.wAny) wBathe(g, p, fx, fy);   /* (warm water is a bath: wonders.js) */
   p.swimT = p.swimming ? (p.swimT || 0) + 1 : 0;   /* (how long they have been swimming: pSwim) */
   if (p.swimming) { pSwim(g, p, sub); return; }
   if (!ground) { pFall(g, p); return; }
@@ -1430,6 +1438,7 @@ function pSpace(g, p) {
   p.state = "space"; p.spaceT = 200 + irnd(300);
   feed(g, p.name + " has gone to space", "#9ad0ff");
   g.astronauts++;
+  wTale(g, "space", p);
   achieve(g, "space");
 }
 function pLeave(g, p) {
@@ -1675,6 +1684,7 @@ function pSlip(g, p, v) {
   if (p.pail) iSpill(g, p);   /* (a full bucket goes everywhere) */
   pSay(g, p, "slip", true); g.fx.thud++;
   g.slips = (g.slips || 0) + 1;
+  wTale(g, "ice", p);
   lSlipped(g, p);   /* (somewhere to put salt, and an idea: leftovers.js) */
   achieve(g, "slip");
   if (g.tick > (g.slipT || 0)) { g.slipT = g.tick + 2400; feed(g, p.name + " slipped on the ice", "#cfeaff", "slip"); }
@@ -2236,6 +2246,7 @@ function peasantsDraw(g) {
         if (ox + c >= 0 && ox + c < g.gw && SOLID[g.m[si]]) g.px[si] = mix32(g.px[si], c === -2 || c === 2 ? g.px[si] : 0xff000000);
       }
     }
+    if (body === P_BODY.sit) oy += 2;   /* (sitting down: on a tier, or a bench. wonders.js) */
     if (p.rope && p.state === "walk") pDrawRope(g, p, ox);
     if (p.chute && p.state === "walk") pDrawChute(g, p, ox);
     pBlit(g, p.hat.spr, ox, oy, flip, rot, pal, p.fire > 0);

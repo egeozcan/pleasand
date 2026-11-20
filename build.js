@@ -56,7 +56,12 @@ B_RES[MAT.BRICK] = "stone"; B_AMT[MAT.BRICK] = 0.5;
 B_RES[MAT.GIRDER] = "iron"; B_AMT[MAT.GIRDER] = 0.2;
 B_RES[MAT.GOLD] = "gold"; B_AMT[MAT.GOLD] = 0.2;
 B_RES[MAT.GLASS] = "glass"; B_AMT[MAT.GLASS] = 1;   /* (a pane of glass a cell: leftovers.js) */
-var B_KINDS = ["wood", "stone", "iron", "gold", "glass"];
+/* (and the great works, wonders.js: a pail of wet concrete pours five cells, a stained pane is a cell, and so is a
+   firebrick. a plate is cast at the foundry, a fifth of a bar) */
+B_RES[MAT.CONCRETE] = "mortar"; B_AMT[MAT.CONCRETE] = 1;
+B_RES[MAT.STAINED] = "stained"; B_AMT[MAT.STAINED] = 1;
+B_RES[MAT.FIREBRICK] = "firebrick"; B_AMT[MAT.FIREBRICK] = 1;
+var B_KINDS = ["wood", "stone", "iron", "gold", "glass", "firebrick", "stained"];
 /* what a spade can shift: loose stuff, and greenery */
 var B_DIG = new Uint8Array(NMAT);
 [MAT.SAND, MAT.ASH, MAT.SNOW, MAT.SALT, MAT.SEED, MAT.PLANT, MAT.FLOWER, MAT.PACKSNOW].forEach(function (v) { B_DIG[v] = 1; });
@@ -174,7 +179,8 @@ function bTill(g, e) { return e.v === MAT.SOIL && B_TILL[g.m[e.i]] === 1; }
 /* is this cell of the plan as it should be. (a cell of a mine is not dug until the rock is out of it, too) */
 /* (a log that has fallen into somewhere meant to be dug out, the head of a mine say, is in the way too: chopped out) */
 /* (and a puddle in a mine, say a spilled bucket sitting on the top rung of the ladder, is bailed out: drain) */
-function bOk(g, e) { var c = g.m[e.i]; if (e.off > g.tick) return true; return e.v === MAT.EMPTY ? (e.once && P_LEAF[c] ? true : !B_DIG[c]) && !(e.mine && ROCK[c]) && !(c === MAT.WOOD && !bMarkedOther(g, e)) && !(e.drain && LIQUID[c]) : c === e.v; }
+/* (and concrete is in once it is poured: wet, it is setting. wonders.js) */
+function bOk(g, e) { var c = g.m[e.i]; if (e.off > g.tick) return true; return e.v === MAT.EMPTY ? (e.once && P_LEAF[c] ? true : !B_DIG[c]) && !(e.mine && ROCK[c]) && !(c === MAT.WOOD && !bMarkedOther(g, e)) && !(e.drain && LIQUID[c]) : c === e.v || (e.v === MAT.CONCRETE && c === MAT.MORTAR); }
 /* is the cell of an empty entry some other site's (a log that is somebody's cross is not in anybody's way) */
 function bMarkedOther(g, e) { return !!(g.bmark && g.bmark[e.i]); }
 /* could it be put right now: a board needs thin air to go into, or something loose they can shovel out of the way first */
@@ -188,6 +194,7 @@ function bFree(g, e) {
   if (c === MAT.WOOD && e.v !== MAT.EMPTY && e.v !== MAT.WOOD) return true;       /* a fallen log where a board goes: chopped out first */
   if (e.v === MAT.CROP && g.m[e.i + g.gw] !== MAT.SOIL) return false;            /* and wheat is sown in earth */
   if (e.redo && c === MAT.PLANK) return true;                                    /* a board to be re-laid in stone (mines.js) */
+  if (e.gild && c === MAT.BRICK) return true;                                    /* a stone stand-in, to be gilded (wonders.js) */
   return e.v === MAT.EMPTY || B_AIR[c] === 1 || B_DIG[c] === 1;
 }
 /* a board needs something solid next to it (corners count) */
@@ -247,7 +254,8 @@ function bInTheWay(g, e) {
   return null;
 }
 /* projects under way. a field being sown is not one: it wants no wood, and is never long about it */
-function bOpenCount(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (!g.sites[k].done && !g.sites[k].free) n++; return n; }
+/* (nor is a great work: wonders.js. the graves, the bell and the mending are never held up by one) */
+function bOpenCount(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (!g.sites[k].done && !g.sites[k].free && !g.sites[k].wonder) n++; return n; }
 function bHouses(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house") n++; return n; }
 function bAlive(g) { var n = 0; for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n++; return n; }
 /* the site of a kind whose box (and a little round it) holds (x, y) */
@@ -278,7 +286,7 @@ function bWood(p) { return (p.logs || 0) + (p.boards || 0) / B_BOARDS; }
 /* what they have in their pockets of a building material, in the units a cell is priced in (wood: boards) */
 function bHas(p, r) { return r === "wood" ? (p.boards || 0) + (p.logs || 0) * B_BOARDS : (p[r] || 0); }
 /* carrying anything worth bringing to a building site */
-function bCarries(p) { return bWood(p) > 0.3 || (p.stone || 0) >= 1 || (p.iron || 0) >= 0.2 - 1e-6 || (p.gold || 0) >= 0.2 || (p.glass || 0) >= 1; }
+function bCarries(p) { return bWood(p) > 0.3 || (p.stone || 0) >= 1 || (p.iron || 0) >= 0.2 - 1e-6 || (p.gold || 0) >= 0.2 || (p.glass || 0) >= 1 || (p.firebrick || 0) >= 1 || (p.stained || 0) >= 1 || (p.mortar || 0) >= 1; }
 /* what a cell of the plan costs: {r: what in, n: how much}. (an entry can be priced on its own: a miner's ladder is
    knocked together out of the pit props, and costs nothing anybody has to carry) */
 function bPrice(e) { var n = e.cost != null ? e.cost : B_AMT[e.v]; return n > 0 ? { r: B_RES[e.v], n: n } : null; }
@@ -358,6 +366,7 @@ function bNearestSite(g, p, R, left) {
     s = g.sites[k];
     if (s.done || s.free || (p.failSite === s.id && p.failT > g.tick)) continue;   /* (a field wants hands, not wood: ideas.js) */
     if (left && (!bStocked(s) || bBusy(g, s))) continue;
+    if (s.wonder && wFull(g, s, p)) continue;   /* (a great work has a crew, and only so many in it: wonders.js) */
     if (!bUseful(g, p, s)) continue;
     d = Math.abs(s.cx - p.x) + Math.abs(s.cy - p.y) * 2 - (s.owner === p.id ? 100 : 0);
     if (d < bd) { bd = d; best = s; }
@@ -602,7 +611,7 @@ function bFail(g, p, s, t, why) {
   /* nor anything nobody can find a way to, time after time (a grave across the lake from everybody, a gallery down a
      mine they cannot get into, a pond dug where nobody can get to it to finish it): given up, and planned again
      somewhere they can get to. (a gallery is written off. a pond that was dug once is mended, not given up) */
-  if (why === "walk" && s.kind !== "house" && s.kind !== "farm" && !s.mine && (s.kind !== "pond" || !s.repair) && (s.lost = (s.lost || 0) + 1) > 24) {
+  if (why === "walk" && s.kind !== "house" && s.kind !== "farm" && !s.mine && !s.wonder && (s.kind !== "pond" || !s.repair) && (s.lost = (s.lost || 0) + 1) > 24) {
     var j = g.sites.indexOf(s);
     if (j >= 0) {
       feed(g, "nobody can get to " + bLabel(s) + ". the village gave up on it", "#c8d0dc", "plan" + s.id);
@@ -617,7 +626,7 @@ function bFail(g, p, s, t, why) {
     s.flood = 2; var m0 = bSite(g, s.of); if (m0 && (m0.lv || 0) === (s.lv || 0)) m0.out[s.dir] = true;
     feed(g, "nobody can get down to " + bLabel(s) + ". that way is done with", "#c8d0dc", "plan" + s.id);
   }
-  if (why === "nothing" && s.kind !== "house" && !s.free && ++s.nothing > 6) {
+  if (why === "nothing" && s.kind !== "house" && !s.free && !s.wonder && ++s.nothing > 6) {
     var k = g.sites.indexOf(s);
     if (k >= 0) { feed(g, "the village gave up on " + bLabel(s), "#c8d0dc", "plan" + s.id); if (s.kind === "glasshouse") lRefund(g, s); else bGiveBack(s, p); bRemove(g, k); }
   }
@@ -753,8 +762,10 @@ function bPlace(g, s, e, p) {
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0;
   if (!bPay(g, p, s, e)) return;
   if (e.redo && g.m[e.i] === MAT.PLANK) p.boards = (p.boards || 0) + 1;   /* (the old board, out, and into their pocket) */
-  sandSet(g, e.i, e.v);
-  g.aux[e.i] = e.a;
+  if (e.gild && g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5;   /* (the stand-in, out: wonders.js) */
+  /* (concrete goes in wet, into its form, and sets there: wonders.js) */
+  sandSet(g, e.i, e.v === MAT.CONCRETE ? MAT.MORTAR : e.v);
+  g.aux[e.i] = e.v === MAT.CONCRETE ? 128 : e.a;
   if (e.sh >= 0) g.sh[e.i] = e.sh;
   heatAccept(g, e.i);
   s.last = g.tick;
@@ -805,6 +816,7 @@ function bToss(g, j, out) {
   return false;
 }
 function bFinish(g, s, p) {
+  if (s.wonder && !wReady(g, s)) return;   /* (wet concrete in it, still going off: wonders.js) */
   s.done = true; s.last = g.tick;
   /* (the ground cleared for it only had to be cleared the once: a bush grown back there since is no damage) */
   if (!s.mine && s.kind !== "pond") for (var q = 0; q < s.plan.length; q++) { var eq = s.plan[q]; if (eq.v === MAT.EMPTY && !eq.clear && !eq.drain) eq.once = true; }
@@ -863,7 +875,7 @@ function buildStep(g) {
       bGiveBack(s, bNearestLiving(g, s)); bRemove(g, k); g.resow = 1;   /* (and another, wherever there is room: ideas.js) */
       iFarmNo(g, s.x0, s.x1, 30000);   /* (not there again, for a good while) */
     }
-    else if (g.tick - s.last > 20000 && !bBusy(g, s)) {
+    else if (g.tick - s.last > 20000 && !bBusy(g, s) && !s.wonder) {   /* (a great work waits: wonders.js) */
       /* nobody has touched it in ages. a house that is mostly up is lived in as it is; anything else is forgotten */
       if ((s.kind === "house" || s.free) && (s.repair || s.hut || bShare(g, s) > 0.6)) {
         s.done = true; s.repair = s.sow = false; s.last = g.tick;
@@ -924,7 +936,7 @@ function bInspect(g, s, idx) {
     var o = bOwner(g, s);
     feed(g, bLabel(s).charAt(0).toUpperCase() + bLabel(s).slice(1) + " is gone", "#ff9a8a", "fix" + s.id);
     if (o && s.kind === "house") { o.home = 0; pSay(g, o, "lostHome", true); }
-    if (s.kind === "house") achieve(g, "ruin");
+    if (s.kind === "house") { achieve(g, "ruin"); wTale(g, "house", o, bLabel(s), s.cx, s.y1); }
     bRemove(g, idx);
     return;
   }
@@ -961,6 +973,7 @@ function bPick(g, p) {
   var t, h;
   if ((p.tired || 0) > B_SLEEPY) { p.task = { kind: "sleep", t: 0 }; if (p.sayT <= 0) pSay(g, p, "bed"); return true; }
   if (p.cold > 80) {
+    if (g.wAny && wWarmBath(g, p)) return true;   /* (warm baths, if there are any: wonders.js) */
     t = bFindFire(g, p, 80);
     if (t) { p.task = { kind: "warm", x: t.x, y: t.y, t: 0 }; return true; }
     /* no fire: make one, with logs (or coal out of the mine, which burns longer); else home, where it is warmer */

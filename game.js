@@ -10,7 +10,7 @@
 var UI_FONT = '"Menlo", "Consolas", "DejaVu Sans Mono", "Courier New", monospace';
 var GW = Math.floor((VW - PANEL) / CELL), GH = Math.floor((VH - PLAY_Y - BAR_H) / CELL);
 var ROW0 = PLAY_Y + 2, ROWH = 10, FUN_N = 7, FUN_GAP = 4;
-var SIZE_Y = 341, BTN_Y = 354, BTN2_Y = 367, BTN3_Y = 380;
+var SIZE_Y = 351, BTN_Y = 363, BTN2_Y = 375, BTN3_Y = 387;   /* (the picker runs down to 350) */
 /* how fast time goes: sand ticks per frame, slowest first. SPEED_1 is normal */
 var SPEEDS = [0.25, 0.5, 1, 2, 4], SPEED_NAMES = ["1/4", "1/2", "1x", "2x", "4x"], SPEED_1 = 2;
 var TIPS = [
@@ -141,7 +141,7 @@ function gameInit(g) {
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
            pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0, quack: 0, peep: 0, squeak: 0,
-           hammer: 0, saw: 0, idea: 0, pick: 0, clang: 0, clank: 0, bell: 0 };
+           hammer: 0, saw: 0, idea: 0, pick: 0, clang: 0, clank: 0, bell: 0, clap: 0 };
   g.snd = {};
   g.peasants = []; g.ghosts = []; g.pid = 0; g.rip = 0; g.astronauts = 0; g.causes = {}; g.duckRip = 0; g.pop = null; g.hdrHit = [];
   g.feed = []; g.banners = []; g.got = {}; g.cloneN = {}; g.cloneSrc = {}; g.bolts = []; g.rings = []; g.shake = 0; g.flash = 0; g.fwGlow = null;
@@ -241,20 +241,25 @@ MAT_NAME[MAT.PLANK] = "PLANKS"; MAT_NAME[MAT.DOOR] = "DOOR"; MAT_NAME[MAT.LADDER
 MAT_NAME[MAT.BED] = "BED"; MAT_NAME[MAT.SAPLING] = "SAPLING";
 MAT_NAME[MAT.SOIL] = "TILLED EARTH"; MAT_NAME[MAT.CROP] = "YOUNG WHEAT"; MAT_NAME[MAT.WHEAT] = "RIPE WHEAT"; MAT_NAME[MAT.LAMP] = "LANTERN";
 MAT_NAME[MAT.COAL] = "COAL"; MAT_NAME[MAT.ORE] = "IRON ORE"; MAT_NAME[MAT.GOLD] = "GOLD"; MAT_NAME[MAT.BRICK] = "STONEWORK"; MAT_NAME[MAT.GIRDER] = "IRON GIRDER";
+MAT_NAME[MAT.CONCRETE] = "CONCRETE"; MAT_NAME[MAT.STAINED] = "STAINED GLASS"; MAT_NAME[MAT.FIREBRICK] = "FIREBRICK"; MAT_NAME[MAT.MOONROCK] = "MOON ROCK";
 /* a cell partway through melting, boiling or setting says so */
 var MAT_UP = [], MAT_DOWN = [];
 MAT_UP[MAT.WATER] = MAT_UP[MAT.SALTWATER] = "boiling"; MAT_UP[MAT.ICE] = MAT_UP[MAT.SNOW] = MAT_UP[MAT.PACKSNOW] = "melting";
-MAT_UP[MAT.STONE] = MAT_UP[MAT.GLASS] = MAT_UP[MAT.METAL] = MAT_UP[MAT.ORE] = MAT_UP[MAT.BRICK] = MAT_UP[MAT.GIRDER] = "melting"; MAT_UP[MAT.SAND] = MAT_UP[MAT.SOIL] = "fusing"; MAT_UP[MAT.ACID] = "boiling";
+MAT_UP[MAT.STONE] = MAT_UP[MAT.GLASS] = MAT_UP[MAT.METAL] = MAT_UP[MAT.ORE] = MAT_UP[MAT.BRICK] = MAT_UP[MAT.GIRDER] = "melting";
+MAT_UP[MAT.CONCRETE] = MAT_UP[MAT.STAINED] = MAT_UP[MAT.FIREBRICK] = MAT_UP[MAT.MOONROCK] = "melting"; MAT_UP[MAT.SAND] = MAT_UP[MAT.SOIL] = "fusing"; MAT_UP[MAT.ACID] = "boiling";
 MAT_DOWN[MAT.WATER] = MAT_DOWN[MAT.SALTWATER] = "freezing"; MAT_DOWN[MAT.STEAM] = "condensing"; MAT_DOWN[MAT.LAVA] = "setting";
 function cellReadout(g, j) {
   var v = g.m[j], e = g.lat[j], name = MAT_NAME[v] || "", s;
   if (v === MAT.LAVA && g.aux[j] === MAT.GLASS) name = "MOLTEN GLASS";
   else if (v === MAT.LAVA && g.aux[j] === MAT.METAL) name = "MOLTEN METAL";
   else if (v === MAT.PLANK && g.aux[j] === 1) name = "WINDOW";
+  else if (v === MAT.STAINED) name = ["RUBY", "GREEN", "AMBER"][g.aux[j] % 3] + " GLASS";
   /* part of something they built, or are building */
   var site = bReadout(g, j);
   if (site) name = name + " · " + site;
   s = name + "  " + heatLabel(g.T[j]);
+  /* (wet concrete going off: wonders.js) */
+  if (v === MAT.MORTAR) s += "  " + (g.aux[j] & 128 ? "in its form, " : "") + "setting " + Math.min(99, Math.round((g.aux[j] & 127) / W_SET * 100)) + "%";
   if (e > 0 && MAT_UP[v]) s += "  " + MAT_UP[v] + " " + Math.min(99, Math.round(e / HEAT_HI_L[v] * 100)) + "%";
   else if (e < 0 && MAT_DOWN[v]) {
     var L = v === MAT.LAVA ? HEAT_HI_L[g.aux[j] || MAT.STONE] : HEAT_LO_L[v];
@@ -385,6 +390,7 @@ function sandSounds(g) {
     if (ok("clang", 0.2)) SFX.clang();
     if (ok("clank", 0.12)) SFX.clank();
     if (ok("bell", 0.6)) SFX.bell();
+    if (ok("clap", 0.5)) SFX.clap();
   }
   for (var k in f) f[k] = 0;
 }
@@ -494,6 +500,23 @@ function drawWorld(g) {
         f = (y > 0 && AIRY[m[i - gw]]) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
         a = y % 3 === 0 || (x > 0 && x < gw - 1 && m[i - 1] === v && m[i + 1] === v && (x + ((y / 3) | 0) * 2) % 4 === 0);
         px[i] = a ? blend32(f, 0xff000000, 0.25) : f;
+      } else if (v === MAT.FIREBRICK) {
+        /* firebrick: pale, in courses, like dressed stone, but smaller */
+        f = (y > 0 && AIRY[m[i - gw]]) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
+        a = (y & 1) === 0 || ((x + (y >> 1) * 2) % 3 === 0);
+        px[i] = a ? blend32(f, 0xff000000, 0.18) : f;
+      } else if (v === MAT.CONCRETE) {
+        /* concrete: the lines of the boards it was poured against, every fourth row */
+        f = (y > 0 && AIRY[m[i - gw]]) ? SAND_LIT[v][sh[i]] : SAND_PAL[v][sh[i]];
+        px[i] = y % 4 === 0 ? blend32(f, 0xff000000, 0.12) : f;
+      } else if (v === MAT.STAINED) {
+        /* coloured glass: its colour is in aux. lit from behind (a lantern, a fire, near it) it glows (wonders.js) */
+        px[i] = blend32(SAND_PAL[v][g.aux[i] % 3], bg[i], 0.25);
+        if (wLitGlass(g, x, y)) { px[i] = blend32(SAND_PAL[v][g.aux[i] % 3], 0xffffffff, 0.2); gp[i] = px[i]; hot++; }
+      } else if (v === MAT.MOONROCK) {
+        /* pale and pitted, with a faint shimmer */
+        px[i] = SAND_PAL[v][(sh[i] + ((Math.sin(x * 0.31 + y * 0.23 + t * 0.9) * 20) | 0)) & 255];
+        if (((x * 5 + y * 11) % 7) === 0) px[i] = blend32(px[i], 0xff000000, 0.3);
       } else if (v === MAT.GIRDER) {
         /* a lattice: the edges and the crossing diagonals are iron, the rest is see-through */
         a = ((x + y) % 3 === 0) || ((x - y + 300) % 3 === 0);
@@ -542,12 +565,14 @@ function drawWorld(g) {
   hot += mDraw(g);
   hot += oDraw(g);
   hot += lDraw(g);
+  hot += wDraw(g);   /* (the great works: wonders.js) */
   tDraw(g);
   ducksDraw(g);
   peasantsDraw(g);
   mDrawOver(g);
   oDrawOver(g);
   lDrawOver(g);
+  wDrawOver(g);
   return hot;
 }
 var WIN_DARK = hex32("#1e2638"), DOOR_KNOB = hex32("#e8c050");
@@ -830,11 +855,12 @@ function drawPanel(g, c) {
   for (k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead) nd++;
   var nh = 0;
   for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done) nh++;
-  var ni = iKnown(g);
+  var ni = iKnown(g, true);   /* (the plain ideas: the great works are counted on their own. wonders.js) */
   /* each count is its own button: click it for a popup of the numbers behind it */
   var segs = [["peasants", "PEASANTS " + alive], ["rip", "RIP " + g.rip]];
   if (nh) segs.push(["houses", "HOUSES " + nh]);
-  if (ni) segs.push(["ideas", "IDEAS " + ni + "/" + IDEAS.length]);
+  if (ni) segs.push(["ideas", "IDEAS " + ni + "/" + iPlain()]);
+  if (g.wAny) segs.push(["wonders", "WONDERS " + wCount(g) + "/" + W_TOTAL]);
   if (nd) segs.push(["ducks", "DUCKS " + nd]);
   if (space) segs.push(["peasants", "IN SPACE " + space]);
   c.font = "bold 8px " + UI_FONT;
@@ -956,7 +982,7 @@ var SITE_NAMES = { farm: ["field", "fields"], lamp: ["porch light", "porch light
   tower: ["watchtower", "watchtowers"], furnace: ["furnace", "furnaces"], lift: ["lift", "lifts"], bell: ["bell", "bells"],
   stairs: ["flight of stairs", "flights of stairs"], ladder: ["ladder", "ladders"], bridge: ["bridge", "bridges"],
   glasshouse: ["glasshouse", "glasshouses"], snowman: ["snowman", "snowmen"] };
-var POP_TITLE = { peasants: "THE VILLAGERS", rip: "IN MEMORIAM", houses: "THE BUILDINGS", ideas: "WHAT THEY KNOW", ducks: "THE DUCKS" };
+var POP_TITLE = { peasants: "THE VILLAGERS", rip: "IN MEMORIAM", houses: "THE BUILDINGS", ideas: "WHAT THEY KNOW", ducks: "THE DUCKS", wonders: "THE GREAT WORKS" };
 /* a peasant's age in years (a year is twenty seconds, so they make seventy to ninety-five) */
 function pYears(g, p) { return Math.max(0, Math.floor(pAge(g, p) / 1200)); }
 function yrs(n) { return n + (n === 1 ? " year" : " years"); }
@@ -1043,12 +1069,14 @@ function popRows(g, key) {
       R.push(["#", "AND ALSO"]);
       for (k = 0; k < kn.length; k++) R.push([(SITE_NAMES[kn[k][0]] || [kn[k][0], kn[k][0] + "s"])[kn[k][1] > 1 ? 1 : 0], String(kn[k][1]), "#c8d0dc"]);
     }
+  } else if (key === "wonders") {
+    wRows(g, R);   /* (wonders.js) */
   } else if (key === "ideas") {
-    R.push(["=", "thought of", iKnown(g), IDEAS.length, "#ffd94a"]);
+    R.push(["=", "thought of", iKnown(g, true), iPlain(), "#ffd94a"]);
     R.push(["#", "KNOWN"]);
-    for (k = 0; k < IDEAS.length; k++) if (g.know[IDEAS[k].id]) R.push([IDEAS[k].name, pTitle(iShort(g.know[IDEAS[k].id])), "#ffffff"]);
+    for (k = 0; k < IDEAS.length; k++) if (g.know[IDEAS[k].id] && !IDEAS[k].wonder) R.push([IDEAS[k].name, pTitle(iShort(g.know[IDEAS[k].id])), "#ffffff"]);
     var todo = 0;
-    for (k = 0; k < IDEAS.length; k++) if (!g.know[IDEAS[k].id]) {
+    for (k = 0; k < IDEAS.length; k++) if (!g.know[IDEAS[k].id] && !IDEAS[k].wonder) {
       if (!todo++) R.push(["#", "TO COME"]);
       var ready = g.readyT && g.readyT[IDEAS[k].id];
       R.push(["? " + IDEAS[k].hint, ready ? "on their minds" : "", ready ? "#f0c060" : "#8892a8"]);

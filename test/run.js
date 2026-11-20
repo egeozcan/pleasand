@@ -2468,6 +2468,11 @@ test("a door buried over its lintel is shut, and the heap is full by its height 
   g.tip = null;
 });
 
+/* the great works: the framework (wonders.js), the ones in stone (monuments.js), and the ones for enjoying (pleasures.js) */
+require("./wonders.js")(test, check, sim);
+require("./monuments.js")(test, check, sim);
+require("./pleasures.js")(test, check, sim);
+
 var failed = 0, t0 = Date.now();
 tests.forEach(function (t) {
   if (only && t.name.indexOf(only) < 0) return;

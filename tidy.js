@@ -256,7 +256,7 @@ function tMood(g, p) {
 }
 /* a site whose puddles are its own business: a field drinks them, a pond is meant to have water in, a mine bails its own */
 /* (a field under glass keeps its own damp: leftovers.js) */
-function tOwnWater(s) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "glasshouse"; }
+function tOwnWater(s) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "glasshouse" || !!s.bath; }   /* (the baths: pleasures.js) */
 /* a site nobody sweeps: sand on a field is tilled, a pond's banks and the collar of a mine are sand on purpose, and a
    grave is let be. (a glasshouse's roof is a roof, and is swept) */
 function tNoSweep(s) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "grave"; }

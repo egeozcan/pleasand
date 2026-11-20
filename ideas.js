@@ -252,8 +252,12 @@ function ideasReset(g) {
   lReset(g);
   /* and how tidy they keep it (tidy.js) */
   tReset(g);
+  /* and the great works, and the tales they tell (wonders.js) */
+  wReset(g);
 }
-function iKnown(g) { var n = 0; for (var k in g.know) n++; return n; }
+/* (plain: not counting the great works, which are ideas too: wonders.js) */
+function iKnown(g, plain) { var n = 0; for (var k in g.know) if (!plain || !wIsWonder(k)) n++; return n; }
+function iPlain() { var n = 0; for (var k = 0; k < IDEAS.length; k++) if (!IDEAS[k].wonder) n++; return n; }
 function iHouses(g) {
   var n = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done) n++;
@@ -269,7 +273,7 @@ function iThink(g, p) {
   if ((p.anim % 60) === 0 && g.know.dig && pCell(g, Math.floor(p.x), Math.floor(p.y) + 1) === MAT.STONE) { g.rock++; iSpark(g, p, "mine"); }
   var k = p.task, h = p.idle > 0 ? bHome(g, p) : null;
   var cosy = (h && bInside(h, p)) || (k && ((k.kind === "fish" && k.bob) || (k.kind === "warm" && k.social) || k.kind === "admire")) ||
-             (p.idle > 0 && iLampNear(g, p.x, p.y));
+             (p.idle > 0 && iLampNear(g, p.x, p.y)) || p.cosyT > g.tick;   /* (a play, a warm bath: wonders.js) */
   p.muse = (p.muse || 0) + (cosy ? 2 : 1);
 }
 /* something has just happened to p that puts idea id into their head: it is on the tip of their tongue (they are well
@@ -334,7 +338,7 @@ function iEureka(g, p) {
   if (!idea && ready.length) idea = !g.know.farm ? ready[0] : (Math.random() < 0.65 ? old : pick(ready));
   if (!idea) {
     /* nothing has happened yet to think about. it was nearly something, though */
-    if (iKnown(g) < IDEAS.length && g.tick > g.blankT && p.sayT <= 0) { g.blankT = g.tick + 3600; pSay(g, p, "blank"); }
+    if (iKnown(g, true) < iPlain() && g.tick > g.blankT && p.sayT <= 0) { g.blankT = g.tick + 3600; pSay(g, p, "blank"); }
     return false;
   }
   g.know[idea.id] = p.name;
@@ -343,12 +347,14 @@ function iEureka(g, p) {
   g.ideaT = g.tick + Math.round(I_GAP * (0.7 + 0.6 * Math.random()));
   p.bulb = I_BULB; p.idle = 90; p.bored = 0;
   pSay(g, p, "idea_" + idea.id, true);
-  feed(g, p.name + " invented " + idea.name, "#ffe08a");
-  banner(g, idea.title, pTitle(p.short) + "'s idea: " + idea.sub);
+  /* (a great work is news of another kind: wonders.js) */
+  feed(g, p.name + (idea.wonder ? " thought of " : " invented ") + idea.name, idea.wonder ? "#ffd94a" : "#ffe08a");
+  banner(g, idea.wonder ? "A WONDER: " + idea.title : idea.title, pTitle(p.short) + "'s idea: " + idea.sub);
+  wTale(g, "idea", p, idea.name);
   g.fx.idea++;
   var q = pOther(g, p, 40);
   if (q && !q.sleep) pSay(g, q, "genius", true);
-  if (iKnown(g) === IDEAS.length) achieve(g, "enlightened");
+  if (!idea.wonder && iKnown(g, true) === iPlain()) achieve(g, "enlightened");
   mRing(g, 3);   /* (and if there is a bell, it rings: mines.js) */
   return true;
 }
@@ -399,6 +405,9 @@ function iPick(g, p) {
   if (K.dig && tPick(g, p, hungry)) return true;
   /* a charge of black powder in the pocket, and a gallery with rock ahead: before the pick gets them (leftovers.js) */
   if (K.powder && !hungry && (p.powder || 0) >= 1 && Math.random() < 0.5 && lGoBlast(g, p)) return true;
+  /* a great work, if one is going up, or wanted, and whatever comes of the ones that are up (wonders.js). before the
+     mine, which would have everybody for ever */
+  if (g.wAny && wPick(g, p, hungry)) return true;
   /* the mine, and everything that comes up out of it (mines.js) */
   if (mPick(g, p, hungry)) return true;
   /* the oil well, and the rocket pack (oil.js) */
@@ -455,7 +464,9 @@ function iTask(g, p, k) {
   if (k.kind === "festival") return iTaskFestival(g, p, k);
   if (k.kind === "watch") return iTaskWatch(g, p, k);
   if (k.kind === "admire") return iTaskAdmire(g, p, k);
-  var r = mTask(g, p, k);
+  var r = wTask(g, p, k);   /* (wonders.js) */
+  if (r !== undefined) return r;
+  r = mTask(g, p, k);
   if (r !== undefined) return r;
   r = lTask(g, p, k);
   if (r !== undefined) return r;
@@ -483,7 +494,8 @@ function iWalk(g, p, k, key, x, y, goal) {
 var I_FUN = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, light: 1, lookout: 1, admire: 1, gather: 1, snowball: 1, snowman: 1, skate: 1 };
 /* once a third of a second or so: what is on fire */
 var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1, shoo: 1, lookout: 1, smelt: 1, forge: 1, pump: 1, pack: 1, refuel: 1, launch: 1, admire: 1,
-  gather: 1, snowball: 1, snowman: 1, skate: 1, grit: 1, potash: 1, grind: 1, bombfish: 1, glassblow: 1, store: 1, brine: 1, tidy: 1 };
+  gather: 1, snowball: 1, snowman: 1, skate: 1, grit: 1, potash: 1, grind: 1, bombfish: 1, glassblow: 1, store: 1, brine: 1, tidy: 1,
+  audience: 1, act: 1, bathe: 1, haul: 1, quarry: 1, kiln: 1, stoke: 1 };   /* (wonders.js) */
 /* what somebody will drop when the alarm goes up: anything they are only doing for fun, or that can wait (a snack, a
    chat round the campfire, a bit of hammering) */
 function iCanWait(p, k) {
@@ -504,6 +516,8 @@ function ideasStep(g) {
     /* a field with nothing left that can be sown (a puddle where a seed should go): sown, as far as it goes */
     if (s.free && !s.done && !bBusy(g, s) && bFinished(g, s)) { s.done = true; s.repair = s.sow = false; s.last = g.tick; }
     f = iFlames(g, s);
+    /* (a fire on a stage, in the middle of a play, is part of it. for a little while: wonders.js) */
+    if (f.length && s.wonder && wPartOfIt(g, s, f)) continue;
     if (!f.length) {
       /* (the brigade takes the credit if it got a few bucketfuls on before it went out) */
       if (s.burning && s.doused >= 3) { feed(g, "the bucket brigade put out the fire at " + bLabel(s), "#9ad0ff", "blaze" + s.id); achieve(g, "brigade"); }
@@ -992,7 +1006,7 @@ function iBarred(g, pond) {
   var out = [], k, s;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind === "pond" && (pond || iPondNeed(g, s) > I_POND_KEEP)) out.push(s);
+    if ((s.kind === "pond" && (pond || iPondNeed(g, s) > I_POND_KEEP)) || s.bath) out.push(s);   /* (nobody fills a bucket from the baths: pleasures.js) */
   }
   return out;
 }
@@ -1052,6 +1066,7 @@ function iSpill(g, p, dying, cx, cy) {
     heatSetQ(g, j, qa + load[k].q);
   }
   p.pail = left.length ? left : null;
+  wSpilt(g, p, fx, fy);   /* (a bucket spilt at the furnace: wonders.js) */
 }
 
 /* -------------------------------------------------------------------
@@ -1187,6 +1202,7 @@ function iPondPlot(g, x0, fy) {
 }
 /* how many cells of a pond are short of water: the dry cells between the waterline and the floor */
 function iPondNeed(g, s) {
+  if (s.bath) return wBathNeed(g, s);   /* (the baths are filled the way a pond is: pleasures.js) */
   var n = 0, k, y;
   for (k = 0; k < I_POND_W; k++) for (y = s.L; y < s.S[k]; y++) if (AIRY[pCell(g, s.px0 + k, y)]) n++;
   return n;
@@ -1198,6 +1214,7 @@ function iPondThirst(g, s) {
   if (iPondNeed(g, s) > 3) return true;
   if (!s.full) {
     s.full = true;
+    if (s.bath) { feed(g, "the baths are full. now somebody has to light the fire under them", "#9ad0ff", "plan" + s.id); return false; }
     feed(g, "the pond is full. nobody has to run for water now", "#9ad0ff", "plan" + s.id);
     achieve(g, "pond");
     var q = pOther(g, { x: s.cx, y: s.y0 }, 60);
@@ -1207,7 +1224,7 @@ function iPondThirst(g, s) {
 }
 /* where a bucket for the pond goes: over the middle of it, onto the water (or the floor, while there is none) */
 function iPondTarget(g, s) {
-  return s && iPondThirst(g, s) ? { x: s.px0 + (I_POND_W >> 1), y: s.L } : null;
+  return s && iPondThirst(g, s) ? { x: s.px0 + (s.bath ? 4 : I_POND_W >> 1), y: s.L } : null;
 }
 /* off to fill a pond that wants it, from the nearest water not in it */
 function iGoFillPond(g, p) {
@@ -1887,7 +1904,7 @@ function iChipIn(g, r, n, x, R) {
   return got;
 }
 function iTaskWatch(g, p, k) {
-  if (g.tick > k.until || ++k.t > 2400) { p.bored = 0; return iDone(p, true); }
+  if (g.tick > k.until || ++k.t > 2400) { p.bored = 0; wSpark(g, p, "theatre"); return iDone(p, true); }   /* (what if we did it again. on purpose. with chairs: wonders.js) */
   var gx = k.x + k.side * (I_FEST_CLEAR + 2 + (p.id % 6)), fy = Math.floor(p.y);   /* (out from under the sparks) */
   if (Math.abs(p.x - gx - 0.5) > 2 || Math.abs(fy - k.y) > 6) {
     if (iWalk(g, p, k, "watch" + k.x, gx, k.y, function (x, y) { return Math.abs(x - gx) <= 2 && Math.abs(y - k.y) <= 6; })) pGiveUp(g, p, gx);
@@ -1960,7 +1977,7 @@ function iLabel(s) {
   if (s.kind === "pond") return "the pond";
   if (s.kind === "statue") return "the statue of " + pTitle(s.of);
   if (s.kind === "well") return oLabel(s);
-  return lLabel(s) || mLabel(s);
+  return lLabel(s) || mLabel(s) || wLabel(s);
 }
 /* a site of ours is finished. true if it was one of ours */
 function iFinish(g, s, p) {
@@ -1991,7 +2008,7 @@ function iFinish(g, s, p) {
     /* and a flower, at the foot of it */
     var x = Math.round(s.cx - 0.5) + (Math.random() < 0.5 ? -1 : 1), j = s.y1 * g.gw + x;
     if (g.m[j] === MAT.EMPTY && pSolid(g, x, s.y1 + 1)) { sandSet(g, j, MAT.FLOWER); g.sh[j] = irnd(42) * 6 + 1 + irnd(5); }
-  } else if (!oFinish(g, s, p) && !lFinish(g, s, p)) return mFinish(g, s, p);
+  } else if (!oFinish(g, s, p) && !lFinish(g, s, p) && !wFinish(g, s, p)) return mFinish(g, s, p);
   return true;
 }
 /* what the village knows, and who thought of it, and what might put the rest into their heads: for the bar at the
@@ -2017,6 +2034,8 @@ function iMood(g, p) {
   if (lm) return lm;
   var tm = tMood(g, p);
   if (tm) return tm;
+  var wm = wMood(g, p);   /* (wonders.js) */
+  if (wm) return wm;
   if (!k) return "";
   if (k.kind === "build" && (s = bSite(g, k.site)) && s.kind === "farm")
     return (s.sow ? "is sowing " : "is working on ") + bLabel(s) + ". it takes no wood, just elbow grease";

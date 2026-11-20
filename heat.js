@@ -94,6 +94,10 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   def(MAT.BRICK, 2.0, 0.1); def(MAT.GIRDER, 1.5, 0.36);
   /* (leftovers.js) snow packed hard, cold as the snow it was packed from; and rock salt, which is salt, in the rock */
   def(MAT.PACKSNOW, 1.0, 0.02, -10);   /* (packed hard, it keeps its cold a good while) */ def(MAT.ROCKSALT, 1.6, 0.14);
+  /* (wonders.js) wet concrete is mostly water and stone; set, it carries heat as stone does. stained glass is glass. a
+     firebrick is light and slow (insulating firebrick: a furnace keeps its heat in it). moon rock is rock */
+  def(MAT.MORTAR, 2.6, 0.15); def(MAT.CONCRETE, 2.0, 0.12); def(MAT.STAINED, 1.5, 0.1);
+  def(MAT.FIREBRICK, 0.8, 0.03); def(MAT.MOONROCK, 2.0, 0.1);
 
   function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
   function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
@@ -123,6 +127,10 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   /* coal catches late and burns long. iron ore runs, and what runs out of it sets as iron: a furnace is only a way of
      getting it hot enough. dressed stone is stone, and a girder is iron */
   hi(MAT.COAL, 400, 0); hi(MAT.ORE, 1250, 500); hi(MAT.BRICK, 1150, 4500); hi(MAT.GIRDER, 1500, 500);
+  /* wet concrete baked dry goes off at once; frozen, it is ruined, and crumbles to sand. set concrete runs past 1500, a
+     firebrick only past 2000, and moon rock as stone does. stained glass melts as glass does, and sets plain */
+  hi(MAT.MORTAR, 300, 0); lo(MAT.MORTAR, 0, 0);
+  hi(MAT.CONCRETE, 1500, 4500); hi(MAT.FIREBRICK, 2000, 4500); hi(MAT.MOONROCK, 1150, 4500); hi(MAT.STAINED, 1400, 450);
 
   HEAT_SRC[MAT.FIRE] = 750; HEAT_SRC[MAT.EMBER] = 700; HEAT_SRC[MAT.TORCH] = 1000;
   HEAT_POW[MAT.FIRE] = 200; HEAT_POW[MAT.EMBER] = 40; HEAT_POW[MAT.TORCH] = 400;
@@ -296,7 +304,9 @@ function heatUp(g, i, v) {
     case MAT.ROCKSALT: m[i] = MAT.SALT; g.aux[i] = 0; return 0;
     case MAT.STONE: case MAT.GLASS: case MAT.METAL:
       m[i] = MAT.LAVA; g.aux[i] = v === MAT.STONE ? 0 : v; return 0;
-    case MAT.BRICK: m[i] = MAT.LAVA; g.aux[i] = 0; return 0;
+    case MAT.BRICK: case MAT.CONCRETE: case MAT.FIREBRICK: case MAT.MOONROCK: m[i] = MAT.LAVA; g.aux[i] = 0; return 0;
+    case MAT.STAINED: m[i] = MAT.LAVA; g.aux[i] = MAT.GLASS; return 0;
+    case MAT.MORTAR: m[i] = MAT.CONCRETE; g.aux[i] = 0; g.vy[i] = 0; return 0;
     case MAT.ORE: case MAT.GIRDER: m[i] = MAT.LAVA; g.aux[i] = MAT.METAL; return 0;
     case MAT.COAL: m[i] = MAT.EMBER; g.aux[i] = 1; return 0;
     case MAT.SAND: case MAT.SOIL: m[i] = MAT.GLASS; g.aux[i] = 0; g.score++; return 0;
@@ -317,6 +327,7 @@ function heatDown(g, i, v) {
   /* water freezes. falling water, with nothing under it, freezes as it falls: snow */
   if (v === MAT.WATER) { m[i] = i + gw < m.length && m[i + gw] === MAT.EMPTY ? MAT.SNOW : MAT.ICE; g.aux[i] = 0; g.vy[i] = 0; }
   else if (v === MAT.STEAM) { m[i] = MAT.WATER; g.aux[i] = 0; g.vy[i] = 0; }
+  else if (v === MAT.MORTAR) { m[i] = MAT.SAND; g.aux[i] = 0; g.vy[i] = 0; }   /* (frost in wet concrete: it never sets) */
   else if (v === MAT.LAVA) { j = g.aux[i]; m[i] = j === MAT.GLASS || j === MAT.METAL ? j : MAT.STONE; g.aux[i] = 0; g.vy[i] = 0; }
   else if (v === MAT.SALTWATER) {
     /* the ice that forms pushes its salt out, into the air or the fresh water next to it */
@@ -339,6 +350,8 @@ function heatStep(g) {
   var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL, hm = g.hm;
   /* (the hot loops below look these up once, not once a cell: the same dice, the same tables) */
   var rnd = Math.random, LIQ = LIQUID, FIRE = MAT.FIRE, LAVA = MAT.LAVA, CLEAN = SAND_CLEAN, gw1 = gw - 1, gh1 = gh - 1, n = m.length;
+  /* (a fire in a closed chamber somebody is working the bellows of burns hotter: wonders.js wDraught) */
+  var DM = g.dmask || null;
 
   /* 0. anything that turned into something else since it was last counted gets its new temperature from its heat.
      (looked for four cells at a time: hardly anything has, most ticks) */
@@ -362,6 +375,7 @@ function heatStep(g) {
         /* burning: heat from the fuel, a limited amount a tick, up to the flame's own temperature.
            a clean flame (gas, torch) burns hotter than a smoky one */
         d = v === FIRE && g.sh[i] >= CLEAN ? 900 : SRC[v];
+        if (DM !== null && DM[i]) d = W_DRAUGHT;
         if (t < d) { f = (d - t) * C[v]; t += (f < POW[v] ? f : POW[v]) * IC[v]; }
       } else if (v === E) {
         /* warm air rises and cold air sinks, swapping places with the air it passes, drifting a little as it goes */

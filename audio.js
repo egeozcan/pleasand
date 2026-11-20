@@ -112,6 +112,8 @@ var SFX = {
     [[392, 0.09], [784, 0.04], [988, 0.025], [1568, 0.012]].forEach(function (h) { tone(h[0], 2.6, "sine", h[1]); });
     tone(196, 1.6, "triangle", 0.03);
   },
+  /* applause: a crowd's worth of hands, a burst of noise at a time (wonders.js) */
+  clap: function () { for (var k = 0; k < 14; k++) hiss(0.03, 0.05 + Math.random() * 0.05, 3500, 1800, k * 0.06 + Math.random() * 0.04, "bandpass"); },
   /* a rubber duck */
   squeak: function () { tone(900, 0.12, "sine", 0.05, 1500); tone(1400, 0.08, "triangle", 0.02, 1100, 0.1); },
   /* the little animal-crossing mumble a peasant makes when it talks */
@@ -150,4 +152,4 @@ var SFX = {
 /* what only a live speaker rolls, it rolls on the side dice (rng.js): with the
    sound on or off, in a browser or in the harness, the village rolls the same */
 tone = rngSide(tone); hiss = rngSide(hiss); actx = rngSide(actx);
-["ghost", "quack", "babble", "scream"].forEach(function (k) { SFX[k] = rngSide(SFX[k]); });
+["ghost", "quack", "babble", "scream", "clap"].forEach(function (k) { SFX[k] = rngSide(SFX[k]); });
