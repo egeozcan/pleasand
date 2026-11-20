@@ -82,6 +82,7 @@ function capture(g, runtime, keep) {
     time: g.t,
     rng: runtime.rng,
     clock: runtime.clock,
+    full: true,   /* (every key of g there was, but SKIP's: apply drops the rest) */
     state: state
   };
 }
@@ -96,8 +97,9 @@ function apply(snap, g, keep) {
   for (i = 0; i < ks.length; i++) { k = ks[i]; g[k] = fresh[k]; }
   /* (and what has been put on g since the snapshot was taken, that was not there then: gone. a rocket in the air, a
      falling star, the salvage: anything a module keeps on g is in the snapshot or, if it was not there yet, not there) */
+  /* (only for a snapshot of the whole of g: one made from a save's keyframe leaves out what the save does not keep) */
   var now = Object.keys(g);
-  for (i = 0; i < now.length; i++) { k = now[i]; if (!SKIP.has(k) && !Object.prototype.hasOwnProperty.call(snap.state, k)) delete g[k]; }
+  if (snap.full) for (i = 0; i < now.length; i++) { k = now[i]; if (!SKIP.has(k) && !Object.prototype.hasOwnProperty.call(snap.state, k)) delete g[k]; }
   return snap;
 }
 
