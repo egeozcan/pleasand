@@ -608,6 +608,22 @@ module.exports = function (test, check, sim) {
     for (t = 0; t < 8000 && g.m[e.i] !== M.METAL; t++) { carrier.hunger = 0; q.hunger = 0; sim.step(w, 1); }
     check(g.m[e.i] === M.METAL, "the bell's cell was never mended: salvage " + JSON.stringify(g.salvage) + ", carrier " + carrier.bell);
   });
+  test("moon rocket: the best pilot cut off across a cliff is let be after a round, and somebody who can get to it goes", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, G = R.G, x, y, t;
+    s.oil = 12;
+    var pilot = g.peasants[0], local = g.peasants[1];
+    g.peasants.forEach(function (o) { if (o !== pilot && o !== local) o.dead = 1; });
+    ["farm", "dig", "masonry", "smelt", "forge", "glass", "mine", "concrete", "moonrocket"].forEach(function (id) { g.know[id] = pilot.name; });   /* (the thinker, too) */
+    for (x = 205; x <= 211; x++) for (y = 65; y < G; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    for (x = 212; x < g.gw; x++) for (y = 0; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < G ? M.EMPTY : M.STONE);
+    pilot.x = 226.5; pilot.y = 149; pilot.flights = 1; local.x = 170.5; local.y = 149;
+    var picked = 0, was = false;
+    for (t = 0; t < 12500 && !s.gone; t++) {
+      pilot.hunger = 0; local.hunger = 0; sim.step(w, 1);
+      var on = !!(s.crew && s.crew.indexOf(pilot.id) >= 0); if (on && !was) picked++; was = on;
+    }
+    check(s.gone && local.moon && picked <= 1, "it went: " + !!s.gone + ", the cut-off pilot picked " + picked + " times, the other went " + !!local.moon);
+  });
   test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 12;

@@ -1535,9 +1535,10 @@ function hTaskMoonRock(g, p, k) {
   return true;
 }
 /* the crew: the one who has flown most on a rocket pack, the astronomer, and whoever has had the most ideas */
-function hCrew(g) {
+function hCrew(g, s) {
   var crew = [], k, q, best;
-  function ok(q) { return q && !q.dead && q.state === "walk" && crew.indexOf(q) < 0 && q.hunger < P_HUNGRY && !q.fire; }
+  /* (not anybody who lately could not get up to it: let be a while, and the next one asked. wonders.js wBackoff) */
+  function ok(q) { return q && !q.dead && q.state === "walk" && crew.indexOf(q) < 0 && q.hunger < P_HUNGRY && !q.fire && !(s && wNoGo(g, q, s.id)); }
   for (best = null, k = 0; k < g.peasants.length; k++) { q = g.peasants[k]; if (ok(q) && (q.flights || 0) > 0 && (!best || q.flights > best.flights)) best = q; }
   if (best) crew.push(best);
   var o = mSites(g, "observatory", true)[0], a = o ? hWho(g, o.astro) : null;
@@ -1572,7 +1573,7 @@ function hRocketStep(g, s) {
     return;
   }
   if (!s.crew || !s.crew.length) {
-    var C = hCrew(g);
+    var C = hCrew(g, s);
     if (!C.length) return;
     s.crew = C.map(function (q) { return q.id; }); s.boardT = g.tick;
     C.forEach(function (q) { q.task = { kind: "board", site: s.id, t: 0, act: 0 }; });
@@ -1584,7 +1585,7 @@ function hRocketStep(g, s) {
     q = lAlive(g, s.crew[k]);
     if (q && q.aboard === s.id) aboard++;
     /* (anybody who could not get up there in good time, or died on the way, is let off) */
-    else if (!q || g.tick - s.boardT > 4000) gone.push(s.crew[k]);
+    else if (!q || g.tick - s.boardT > 4000) { gone.push(s.crew[k]); if (q) wBackoff(g, q, s.id, 12000); }   /* (and not asked again for a good while) */
     else if (q.state === "walk" && !(q.task && q.task.kind === "board")) q.task = { kind: "board", site: s.id, t: 0, act: 0 };
   }
   if (gone.length) s.crew = s.crew.filter(function (id) { return gone.indexOf(id) < 0; });
