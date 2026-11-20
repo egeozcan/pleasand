@@ -104,6 +104,24 @@ module.exports = function (test, check, sim) {
     check(w.curPick(g).name === "CLONER", "loaded with " + w.curPick(g).name + " picked");
   });
 
+  test("wonders: a village with none of it works its furnace as it always did: from four over the mouth, a smelter does not smelt", function () {
+    function at(wonders) {
+      var w = sim.load(1), g = w.g, M = w.MAT;
+      know(g, ["farm", "dig", "mine", "smelt"].concat(wonders ? ["concrete"] : []));
+      var p = g.peasants[0];
+      check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+      var f = sim.build(w, sites(g, "furnace")[0]), sy = w.mSpotRow(g, f);
+      for (var x = f.sx - 1; x <= f.sx + 1; x++) w.sandPlace(g, (sy - 3) * g.gw + x, M.STONE);   /* (a ledge, four over where they stand to work it) */
+      sim.step(w, 30);   /* (the wonders' look at the village: g.wAny) */
+      p.x = f.sx + 0.5; p.y = sy - 4; p.vy = 0; p.ore = 1; p.coal = 2; p.hunger = 0;
+      p.task = { kind: "smelt", site: f.id, t: 0, act: 0, n: 0 };
+      w.mTaskSmelt(g, p, p.task);
+      return !p.ore;
+    }
+    check(!at(false), "a smelter four rows over the mouth put the ore in, in a village with no great works (master walks on)");
+    check(at(true), "a smelter four rows over the mouth was not let work it, in a village with great works going on");
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;

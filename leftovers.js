@@ -1155,8 +1155,8 @@ function lTaskGlass(g, p, k) {
   }
   /* then the furnace mouth, and the bellows */
   var sx = s.sx, sy = mSpotRow(g, s), fy = Math.floor(p.y);
-  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(fy, sy)) {
-    if (iWalk(g, p, k, "glass" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(y, sy); })) pGiveUp(g, p, sx);
+  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(g, fy, sy)) {
+    if (iWalk(g, p, k, "glass" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);
     p.idle = 0;
     return false;
   }
@@ -1226,8 +1226,8 @@ function lTaskStore(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 2400) return iDone(p, false);
   var sx = s.sx, sy = mSpotRow(g, s);
-  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(Math.floor(p.y), sy)) {
-    if (iWalk(g, p, k, "store" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(y, sy); })) pGiveUp(g, p, sx);
+  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(g, Math.floor(p.y), sy)) {
+    if (iWalk(g, p, k, "store" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);
     p.idle = 0;
     return false;
   }
@@ -1306,8 +1306,8 @@ function lTaskBrine(g, p, k) {
     return true;
   }
   var sx = s.sx, sy = mSpotRow(g, s);
-  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(Math.floor(p.y), sy)) {
-    if (iWalk(g, p, k, "boil" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(y, sy); })) pGiveUp(g, p, sx);
+  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(g, Math.floor(p.y), sy)) {
+    if (iWalk(g, p, k, "boil" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);
     p.idle = 0;
     return false;
   }

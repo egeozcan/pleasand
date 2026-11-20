@@ -191,8 +191,8 @@ function pTaskStoke(g, p, k) {
       var f = mSites(g, "furnace", true)[0];
       if (!f || !f.stock || (f.stock.coal || 0) < 1) { if (p.sayT <= 0) pSay(g, p, "nocoal"); return iDone(p, false); }
       var fsx = f.sx, fsy = mSpotRow(g, f);
-      if (Math.abs(p.x - fsx - 0.5) > 1.5 || !mBySpot(Math.floor(p.y), fsy)) {
-        if (iWalk(g, p, k, "coal" + f.id, fsx, fsy, function (x, y) { return Math.abs(x - fsx) <= 1 && mBySpot(y, fsy); })) pGiveUp(g, p, fsx);
+      if (Math.abs(p.x - fsx - 0.5) > 1.5 || !mBySpot(g, Math.floor(p.y), fsy)) {
+        if (iWalk(g, p, k, "coal" + f.id, fsx, fsy, function (x, y) { return Math.abs(x - fsx) <= 1 && mBySpot(g, y, fsy); })) pGiveUp(g, p, fsx);
         return false;
       }
       var n = Math.min(3, f.stock.coal); f.stock.coal -= n; p.coal = (p.coal || 0) + n;
@@ -1006,8 +1006,8 @@ function pTaskOrgan(g, p, k) {
       }
       var fsx = f.sx, fsy = mSpotRow(g, f);
       k.coal = false;
-      if (Math.abs(p.x - fsx - 0.5) > 1.5 || !mBySpot(Math.floor(p.y), fsy)) {
-        if (iWalk(g, p, k, "coal" + f.id, fsx, fsy, function (x, y) { return Math.abs(x - fsx) <= 1 && mBySpot(y, fsy); })) pGiveUp(g, p, fsx);
+      if (Math.abs(p.x - fsx - 0.5) > 1.5 || !mBySpot(g, Math.floor(p.y), fsy)) {
+        if (iWalk(g, p, k, "coal" + f.id, fsx, fsy, function (x, y) { return Math.abs(x - fsx) <= 1 && mBySpot(g, y, fsy); })) pGiveUp(g, p, fsx);
         return false;
       }
       var n = Math.min(6, f.stock.coal); f.stock.coal -= n; p.coal = (p.coal || 0) + n;

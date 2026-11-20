@@ -621,8 +621,8 @@ function wTaskKiln(g, p, k) {
     return true;
   }
   var sx = f.sx, sy = mSpotRow(g, f), fy = Math.floor(p.y);
-  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(fy, sy)) {
-    if (iWalk(g, p, k, "kiln" + f.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(y, sy); })) pGiveUp(g, p, sx);
+  if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(g, fy, sy)) {
+    if (iWalk(g, p, k, "kiln" + f.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);
     return false;
   }
   /* there: what they brought goes in, and they work the bellows */
