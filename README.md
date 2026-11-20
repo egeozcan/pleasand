@@ -139,7 +139,9 @@ think of:
   good while: the village says so
 - **Gravestones**: once somebody has died, a wooden cross for each of the
   dead, in a row, saying how. Now and then somebody visits, and leaves a flower (or, with gold to spare,
-  a nugget of it: the statues get those too)
+  a nugget of it: the statues get those too). One graveyard, not a cross on every hill: it holds ten at
+  most, and when it is full (or there is no room left near it) the oldest cross has weathered away,
+  and the new one goes where it stood
 - **Forestry**: comes of going for wood and finding not a tree left standing.
   After that, whenever the woods about them run thin, somebody plants a
   sapling where it has room to grow (a crown's width from the next tree, and

@@ -892,6 +892,28 @@ test("peasants grow old and go quietly, and somebody new walks into the valley",
   check(g.got.arrive, "nobody noticed the newcomer");
 });
 
+test("one graveyard, never more than ten crosses: the oldest weathers away, and nobody puts it back", function () {
+  var w = sim.load(1), g = w.g, p = g.peasants[0], k, L;
+  know(g, ["grave"]);
+  function owe(n) { g.dead.push({ name: "TEST " + n, note: "rest easy", site: 0 }); }
+  for (k = 0; k < 14; k++) {
+    owe(k);
+    check(w.iPlanGrave(g, p), "no cross for the " + (k + 1) + "th");
+    sim.build(w, sites(g, "grave").filter(function (s) { return !s.done; })[0]);
+    L = sites(g, "grave");
+    check(L.length <= w.I_GRAVE_MAX, L.length + " crosses standing");
+  }
+  check(L.length === w.I_GRAVE_MAX, "only " + L.length + " crosses");
+  var xs = L.map(function (s) { return s.cx; }), lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs);
+  check(hi - lo <= w.I_GRAVE_GAP * (w.I_GRAVE_MAX + 2), "crosses all over the valley: " + xs.join(","));
+  check(!w.iGraveDue(g), "a cross that weathered away is owed again");
+  /* an old village, with crosses everywhere: they go, one at a time, down to ten */
+  var at = L[0];
+  for (k = 0; k < 3; k++) w.bNew(g, "grave", p, [], [at.x0 + 60 + k * 9, at.y0, at.x1 + 60 + k * 9, at.y1], { of: "OLD " + k, done: true });
+  for (k = 0; k < 4; k++) w.iGraveyardStep(g);
+  check(sites(g, "grave").length === w.I_GRAVE_MAX, sites(g, "grave").length + " crosses after weathering");
+});
+
 test("a peasant you make yourself raises the count the valley keeps up, and a new valley counts again", function () {
   var w = sim.load(2), g = w.g, i;
   sim.step(w, 120);

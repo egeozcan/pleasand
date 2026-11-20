@@ -33,8 +33,9 @@
                  valley is tidied: puddles carried to the pond, sand
                  swept off the roofs and into the holes (tidy.js)
      GRAVESTONES a wooden cross for everybody who died, in a row,
-                 saying how. now and then somebody visits, and leaves
-                 a flower
+                 saying how, in the one graveyard. ten at most: when
+                 it is full the oldest weathers away. now and then
+                 somebody visits, and leaves a flower
      FORESTRY    (somebody went for wood, and there was none) when the
                  woods round them run thin, a sapling, planted where
                  it has room to grow and is in nobody's way
@@ -71,6 +72,8 @@ var I_GAP = 2400;           /* ticks after one idea before the village is ready 
 var I_CROP_H = 4;           /* how tall wheat grows (give or take a couple) */
 var I_FARM_W = 11;          /* a field, across */
 var I_GRAVE_GAP = 5;        /* from one cross to the next */
+var I_GRAVE_MAX = 10;       /* crosses standing at once: past that, the oldest has weathered away */
+var I_GRAVE_NEAR = 40;      /* how far from the oldest cross the graveyard may spread */
 var I_FEST_GAP = 5400;      /* ticks between fireworks shows, at the least */
 var I_FEST_CLEAR = 7;       /* and nothing that burns this many columns either side of where they go up */
 var I_LOAD = 5;             /* cells of water to a bucket */
@@ -492,6 +495,7 @@ function ideasStep(g) {
   var S = g.sites, k, j, s, f;
   if (g.tick % 120 === 0) iReadyScan(g);
   iFestSweep(g);
+  if (g.tick % 600 === 0) iGraveyardStep(g);
   g.blaze.length = 0;
   for (k = S.length - 1; k >= 0; k--) {
     s = S[k];
@@ -1479,15 +1483,43 @@ function iMourn(g, p, line) {
 /* somebody dead with no cross, and no cross going up already */
 function iGraveDue(g) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "grave" && !g.sites[k].done) return false;
-  for (k = 0; k < g.dead.length; k++) if (!g.dead[k].site || !bSite(g, g.dead[k].site)) return true;
+  for (k = 0; k < g.dead.length; k++) if (iGraveOwed(g, g.dead[k])) return true;
   return false;
+}
+/* d has no cross (and never had one that weathered away: -1) */
+function iGraveOwed(g, d) { return d.site !== -1 && (!d.site || !bSite(g, d.site)); }
+/* the crosses, oldest first */
+function iGraves(g) { return g.sites.filter(function (s) { return s.kind === "grave"; }).sort(function (a, b) { return a.id - b.id; }); }
+/* the oldest cross, gone: rotted down to nothing, and a flower where it stood (unless the new one goes there). whoever
+   it was for is let go: nobody puts it back */
+function iWeather(g, s, flower) {
+  var k = g.sites.indexOf(s), x = Math.round(s.cx - 0.5), j;
+  if (k < 0) return;
+  bRemove(g, k);
+  for (j = 0; j < s.plan.length; j++) if (g.m[s.plan[j].i] === MAT.WOOD) sandSet(g, s.plan[j].i, MAT.EMPTY);
+  for (j = 0; j < g.dead.length; j++) if (g.dead[j].site === s.id) g.dead[j].site = -1;
+  feed(g, "the cross for " + iName(s.of) + " has weathered away", "#c8d0dc");
+  j = s.y1 * g.gw + x;
+  if (flower && g.m[j] === MAT.EMPTY && pSolid(g, x, s.y1 + 1)) { sandSet(g, j, MAT.FLOWER); g.sh[j] = irnd(42) * 6 + 1 + irnd(5); }
+}
+/* a graveyard grown past I_GRAVE_MAX (a village from before there was one): the oldest go, one at a time */
+function iGraveyardStep(g) {
+  var L = iGraves(g);
+  if (L.length > I_GRAVE_MAX) iWeather(g, L[0], true);
 }
 function iName(n) { return n.toLowerCase().replace(/(^|\s)\S/g, function (c) { return c.toUpperCase(); }); }
 function iPlanGrave(g, p) {
   var d = null, k;
-  for (k = 0; k < g.dead.length && !d; k++) if (!g.dead[k].site || !bSite(g, g.dead[k].site)) d = g.dead[k];
+  for (k = 0; k < g.dead.length && !d; k++) if (iGraveOwed(g, g.dead[k])) d = g.dead[k];
   if (!d) return false;
-  var slot = iGraveSlot(g, p);
+  var L = iGraves(g), slot = L.length < I_GRAVE_MAX ? iGraveSlot(g, p) : null;
+  /* the graveyard is full, or has no room left anywhere near it: the oldest cross has weathered away, and the new one
+     goes where it stood. one graveyard, never a cross on every hill */
+  if (L.length && (!slot || Math.abs(slot.x - L[0].cx) > I_GRAVE_NEAR)) {
+    var o = L[0], ox = Math.round(o.cx - 0.5), oy = o.y1;
+    iWeather(g, o, false);
+    slot = iGraveOk(g, ox, oy) || iGraveSlot(g, p);
+  }
   if (!slot) { p.planCD = 1200; g.graveT = g.tick + 300; iNoRoom(g, "a cross for " + iName(d.name)); return false; }
   var x = slot.x, G = slot.y, plan = [];
   plan.push(bE(g, x, G - 1, MAT.WOOD, 10), bE(g, x, G - 2, MAT.WOOD, 11), bE(g, x, G - 3, MAT.WOOD, 12),
@@ -1504,18 +1536,19 @@ function iShort(n) {
   for (var k = 0; k < P_NAMES.length; k++) if ((" " + n + " ").indexOf(" " + P_NAMES[k] + " ") >= 0) return P_NAMES[k];
   return n.split(" ")[0];
 }
-/* where the next cross goes: next to the last one, if there is room; else (the first one) somewhere level, a little
-   out of the way of the houses */
+/* where the next cross goes: next to one already up, if there is room; else the nearest level ground to the oldest of
+   them (so the graveyard stays where it was started, and does not wander off a cross at a time); else (the first one)
+   near p. somewhere a little out of the way of the houses, if it can be */
 function iGraveSlot(g, p) {
-  var k, s, d, sd, x, r;
+  var k, s, d, sd, x, r, first = null, pass;
   for (k = g.sites.length - 1; k >= 0; k--) {
     s = g.sites[k];
     if (s.kind !== "grave") continue;
     for (sd = -1; sd <= 1; sd += 2) if ((r = iGraveOk(g, Math.round(s.cx - 0.5) + sd * I_GRAVE_GAP, s.y1))) return r;
+    first = s;
   }
-  var fx = Math.floor(p.x), fy = Math.floor(p.y), pass;
-  /* (somewhere a little out of the way of things; failing that, anywhere there is room for a cross) */
-  for (pass = 0; pass < 2; pass++) for (d = 8; d <= 200; d++) for (sd = -1; sd <= 1; sd += 2) {
+  var fx = first ? Math.round(first.cx - 0.5) : Math.floor(p.x), fy = first ? first.y1 : Math.floor(p.y);
+  for (pass = 0; pass < 2; pass++) for (d = first ? 1 : 8; d <= 200; d++) for (sd = -1; sd <= 1; sd += 2) {
     x = fx + d * sd;
     if ((r = iGraveOk(g, x, fy)) && (pass || !iNearHouse(g, x, r.y, 5))) return r;
   }
