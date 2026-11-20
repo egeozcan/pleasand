@@ -197,7 +197,7 @@ function wFull(g, s, p) {
   if (wCrew(g, s, p) >= wCap(g)) return true;
   var n = 0;
   for (var k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (t.wonder && !t.done && !(wOf(t.kind) || {}).exempt) n += wCrew(g, t, p); }
-  return n >= Math.floor(bAlive(g) / 2);
+  return n >= Math.max(wCap(g), Math.floor(bAlive(g) / 2));   /* (half the village; but one great work's crew, however few they are) */
 }
 /* can it be called finished: no wet concrete in it still going off */
 function wReady(g, s) {
@@ -285,7 +285,7 @@ function wPick(g, p, hungry) {
   for (k = 0; k < S.length; k++) {
     s = S[k];
     if (p.failSite === s.id && p.failT > g.tick) continue;
-    if (((p.lime || 0) >= 1 && wLimeWant(g, s) > 0) || W_ONLY.some(function (r) { return (p[r] || 0) >= 1 && bNeed(g, s, r) > 1e-6; })) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
+    if (((p.lime || 0) >= 1 && wLimeWant(g, s) > 0) || ((p.lump || 0) >= 1 && bNeed(g, s, "mortar") > 1e-6) || W_ONLY.some(function (r) { return (p[r] || 0) >= 1 && bNeed(g, s, r) > 1e-6; })) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
   }
   /* with the makings for the kiln in hand (a pane, for coloured glass; logs, for charcoal, there being no coal): the kiln,
      before the crew */
@@ -358,6 +358,9 @@ function wTaskHaul(g, p, k) {
   }
   bDeposit(g, p, s);
   wDepositLime(g, p, s);
+  /* (a lump of concrete gone off: on the pile, to go in set where wet concrete would have: build.js bPay) */
+  var lumps = Math.min(p.lump || 0, Math.max(0, Math.floor(bNeed(g, s, "mortar"))));
+  if (lumps > 0) { s.stock = s.stock || {}; s.stock.lump = (s.stock.lump || 0) + lumps; p.lump -= lumps; }
   if (p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "haul");
   p.bored = 0;
   return iDone(p, true);
@@ -758,31 +761,63 @@ function wTaskMix(g, p, k) {
   return true;
 }
 /* a pail gone off: tipped out, and a lump of concrete stands where they were */
+/* CARRIED: what a peasant carries for a great work is never put down by them while they live but into its own cell of
+   a plan (as it is paid for: build.js bPay). wet concrete that goes off in the pail is a lump, carried (p.lump): it is
+   paid for a concrete cell with as wet concrete is, and goes in set, or onto a wonder's pile (wTaskHaul). dead, all of
+   it is set down by wDropAll, and none of it is lost */
 function wWentOff(g, p) {
-  p.lump = (p.lump || 0) + (p.mortar || 0); p.mortar = 0;   /* (gone off: a lump, carried, till it is set down) */
-  wSetDown(g, p, false);
+  p.lump = (p.lump || 0) + (p.mortar || 0); p.mortar = 0;
   pSay(g, p, "wentOff", true);
-  if (!g.wLump) { g.wLump = 1; feed(g, "the concrete went off in " + p.name + "'s pail. there is a lump of it where they were standing", "#c8d0dc", "lump"); }
+  if (!g.wLump) { g.wLump = 1; feed(g, "the concrete went off in " + p.name + "'s pail. it is a lump now, and they are carrying it about", "#c8d0dc", "lump"); }
 }
-/* a lump of concrete that went off in the pail (p.lump, cells of it): set down on the nearest ground in front of them,
-   as much of it as there is room for; the rest carried, and set down when there is room (wStep, every W_STRIDE, and
-   dying: wDropAll). none of it made to vanish. (fallen: the first air straight up from them, however far) */
-function wSetDown(g, p, dying) {
-  var fx = Math.floor(p.x) + (p.dir || 1), fy = Math.floor(p.y), r, x, y, j;
-  for (r = 0; r < 4 && p.lump > 0; r++) for (y = fy; y >= fy - r && p.lump > 0; y--) for (x = fx - r; x <= fx + r && p.lump > 0; x++) {
-    if (x < 1 || y < 1 || x >= g.gw - 1 || !AIRY[pCell(g, x, y)] || !SOLID[pCell(g, x, y + 1)]) continue;
-    j = y * g.gw + x; sandSet(g, j, MAT.CONCRETE); p.lump--;
-  }
-  for (y = fy - 1; dying && p.lump > 0 && y >= 1; y--) {
-    x = Math.floor(p.x);
-    if (AIRY[pCell(g, x, y)]) { sandSet(g, y * g.gw + x, MAT.CONCRETE); p.lump--; }
-  }
-  if (p.lump <= 0) p.lump = 0;
-}
-/* dead: wet concrete in the pail goes off where they fell, and the lump with it, set down there (peasants.js pDie) */
+/* what nothing but a great work has a use for, in a pocket: put on a pile when its carrier dies */
+var W_KEEP = ["firebrick", "stained", "lime", "plate", "bell"];
+/* dead: set down round where they fell, a cell at a time, from the corpse outward (a spiral, so far and no further), only
+   in thin air that no living peasant or duck is standing in, nor right beside: concrete (their pail, gone off, and any
+   lump), and moon rock. what there is no room for, and what is not set down as a cell at all (firebrick, coloured glass,
+   lime, cast iron), onto the nearest great work's pile (or the furnace's): nothing a great work wanted is lost with its
+   carrier. (peasants.js pDie) */
 function wDropAll(g, p) {
   if ((p.mortar || 0) > 0) { p.lump = (p.lump || 0) + p.mortar; p.mortar = 0; }
-  if ((p.lump || 0) > 0) wSetDown(g, p, true);
+  var put = [], r, dx, dy, x, y, j, k, fx = Math.floor(p.x), fy = Math.floor(p.y);
+  for (k = 0; k < (p.lump || 0); k++) put.push(MAT.CONCRETE);
+  for (k = 0; k < (p.moonrock || 0); k++) put.push(MAT.MOONROCK);
+  for (r = 0; r <= 10 && put.length; r++) for (dy = -r; dy <= r && put.length; dy++) for (dx = -r; dx <= r && put.length; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+    x = fx + dx; y = fy + dy;
+    if (x < 1 || y < 1 || x >= g.gw - 1 || y >= g.gh - 1) continue;
+    j = y * g.gw + x;
+    if (g.m[j] !== MAT.EMPTY || wNearBody(g, p, x, y)) continue;
+    var v = put.shift();
+    sandSet(g, j, v);
+    if (v === MAT.CONCRETE) p.lump--; else p.moonrock--;
+  }
+  var any = false;
+  W_KEEP.forEach(function (rr) { if ((p[rr] || 0) > 0) any = true; });
+  if (!any && !(p.lump > 0) && !(p.moonrock > 0)) return;
+  /* (the rest, onto a pile: the nearest great work's, else the furnace's) */
+  var best = null, bd = 1e9;
+  for (k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (t.wonder && Math.abs(t.cx - p.x) < bd) { bd = Math.abs(t.cx - p.x); best = t; } }
+  best = best || mSites(g, "furnace", true)[0] || null;
+  if (!best) return;
+  var st = best.stock || (best.stock = {});
+  W_KEEP.concat(["lump", "moonrock"]).forEach(function (rr) {
+    if (!((p[rr] || 0) > 0)) return;
+    st[rr] = (st[rr] || 0) + p[rr];
+    if (rr === "stained") bTints(p, best, p[rr]);
+    p[rr] = 0;
+  });
+}
+/* is (x, y) in or right beside a living peasant (other than p), or a duck: nowhere to put a thing down */
+function wNearBody(g, p, x, y) {
+  var k, q;
+  for (k = 0; k < g.peasants.length; k++) {
+    q = g.peasants[k];
+    if (q === p || q.dead || q.state === "space") continue;
+    if (Math.abs(Math.floor(q.x) - x) <= 1 && y <= q.y + 1.5 && y >= q.y - 9.5) return true;
+  }
+  for (k = 0; k < g.ducks.length; k++) { q = g.ducks[k]; if (!q.dead && Math.abs(q.x - x - 0.5) < 2.5 && y <= q.y + 1.5 && y >= q.y - 4.5) return true; }
+  return false;
 }
 
 /* -------------------------------------------------------------------
@@ -1012,7 +1047,6 @@ function wStep(g) {
     if (p.dead) continue;
     /* a pail of wet concrete, dawdled with */
     if ((p.mortar || 0) > 0 && g.tick - (p.mortarT || 0) > W_POUR) wWentOff(g, p);
-    else if ((p.lump || 0) > 0 && !p.climb && p.state === "walk") wSetDown(g, p, false);   /* (somewhere to put it down now) */
     /* a tale, round a campfire, once they think of plays */
     if (g.know.theatre && p.task && p.task.kind === "warm" && p.task.social && p.sayT <= 0 && Math.random() < 0.03) wTellTale(g, p);
   }

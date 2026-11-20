@@ -309,7 +309,7 @@ function bStoneToHand(g) {
 /* wood in hand, in logs */
 function bWood(p) { return (p.logs || 0) + (p.boards || 0) / B_BOARDS; }
 /* what they have in their pockets of a building material, in the units a cell is priced in (wood: boards) */
-function bHas(p, r) { return r === "wood" ? (p.boards || 0) + (p.logs || 0) * B_BOARDS : (p[r] || 0); }
+function bHas(p, r) { return r === "wood" ? (p.boards || 0) + (p.logs || 0) * B_BOARDS : (p[r] || 0) + (r === "mortar" ? (p.lump || 0) : 0); }   /* (a lump of concrete gone off pays for a cell as wet concrete does: wonders.js) */
 /* carrying anything worth bringing to a building site */
 function bCarries(p) { return bWood(p) > 0.3 || (p.stone || 0) >= 1 || (p.iron || 0) >= 0.2 - 1e-6 || (p.gold || 0) >= 0.2 || (p.glass || 0) >= 1 || (p.firebrick || 0) >= 1 || (p.stained || 0) >= 1 || (p.mortar || 0) >= 1 || (p.plate || 0) >= 1 || (p.bell || 0) >= 1; }
 /* what a cell of the plan costs: {r: what in, n: how much}. (an entry can be priced on its own: a miner's ladder is
@@ -319,7 +319,7 @@ function bPrice(e) { var n = e.cost != null ? e.cost : B_AMT[e.v]; return n > 0 
 function bNeed(g, s, r) {
   var n = 0, k, e, pr;
   for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; pr = bPrice(e); if (pr && pr.r === r && !bOk(g, e)) n += pr.n; }
-  return n - ((s.stock && s.stock[r]) || 0);
+  return n - ((s.stock && s.stock[r]) || 0) - (r === "mortar" ? ((s.stock && s.stock.lump) || 0) : 0);   /* (a lump on the pile is a cell's worth: wonders.js) */
 }
 /* everything they are carrying that the site wants goes on the site's pile, for whoever is building it: a peasant with
    stone and no wood, and one with wood and no stone, can build a stone tower with wooden doors between them */
@@ -344,7 +344,7 @@ function bTints(a, b, n) {
 }
 function bCanPay(g, p, s, e) {
   var pr = bPrice(e);
-  return !pr || ((s.stock && s.stock[pr.r]) || 0) + (p ? bHas(p, pr.r) : 0) >= pr.n - 1e-6;
+  return !pr || ((s.stock && s.stock[pr.r]) || 0) + (pr.r === "mortar" ? ((s.stock && s.stock.lump) || 0) : 0) + (p ? bHas(p, pr.r) : 0) >= pr.n - 1e-6;
 }
 /* pay for a cell: off the site's pile first, then out of their pockets (sawing a log into boards if it comes to that) */
 function bPay(g, p, s, e) {
@@ -359,7 +359,12 @@ function bPay(g, p, s, e) {
     if ((p.boards || 0) < pr.n - 1e-6) return false;
     p.boards -= pr.n; return true;
   }
-  if ((p[pr.r] || 0) < pr.n - 1e-6) return false;
+  if ((p[pr.r] || 0) < pr.n - 1e-6) {
+    /* (no wet concrete: a lump of it gone off, off the pile or out of a pocket, goes in set. wonders.js) */
+    if (pr.r === "mortar" && (st.lump || 0) >= 1) { st.lump--; e.set = true; return true; }
+    if (pr.r === "mortar" && (p.lump || 0) >= 1) { p.lump--; e.set = true; return true; }
+    return false;
+  }
   p[pr.r] -= pr.n; bTint(p, e); return true;
 }
 /* a coloured pane paid for out of o (a peasant, or a site for its pile): the window is the colour of the pane */
@@ -823,8 +828,9 @@ function bPlace(g, s, e, p) {
   if (e.gild && g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5;   /* (the stand-in, out: wonders.js) */
   if (e.v === MAT.STAINED && g.m[e.i] === MAT.GLASS) p.glass = (p.glass || 0) + 1;   /* (the plain pane, out: monuments.js) */
   /* (concrete goes in wet, into its form, and sets there: wonders.js) */
-  sandSet(g, e.i, e.v === MAT.CONCRETE ? MAT.MORTAR : e.v);
-  g.aux[e.i] = e.v === MAT.CONCRETE ? 128 : e.a;
+  var wet = e.v === MAT.CONCRETE && !e.set; e.set = false;
+  sandSet(g, e.i, wet ? MAT.MORTAR : e.v);
+  g.aux[e.i] = wet ? 128 : e.a;
   if (e.sh >= 0) g.sh[e.i] = e.sh;
   heatAccept(g, e.i);
   s.last = g.tick;
