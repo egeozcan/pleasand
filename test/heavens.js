@@ -639,6 +639,22 @@ module.exports = function (test, check, sim) {
     });
     check(found.sort().join() === "H_LBL,P_OQ,W_DEFS", "the great works keep this outside g: " + found.join());
   });
+  test("moon rocket: gilded, its gold gone, the gilded nose knocked off: mended in stone, not waiting on gold for ever", function () {
+    var R = rocket(false), w = R.w, g = R.g, s = R.s, M = w.MAT, t;
+    g.peasants.forEach(function (q) { q.gold = 0; });
+    var p = g.peasants[0], e = s.plan.filter(function (e2) { return e2.v === M.GOLD; })[0];
+    check(!!e, "(the test wants a rocket with gold in its plan)");
+    w.wGild(g, s.plan); sim.build(w, s); p.gold = 1;
+    w.wRegild(g, s);
+    check(e.v === M.GOLD && s.gilding && w.bPay(g, p, s, e), "(the test wants it being gilded)");
+    w.sandPlace(g, e.i, M.GOLD); w.bFinish(g, s, p); p.gold = 0;
+    w.heatVanish(g, e.i); w.bInspect(g, s, g.sites.indexOf(s));
+    for (t = 0; t < 600 && e.v === M.GOLD; t++) sim.step(w, 1);
+    check(e.v !== M.GOLD, "the gilded cell, gone, still waits for gold");
+    g.peasants.forEach(function (q) { q.stone = (q.stone || 0) + 4; });
+    for (t = 0; t < 8000 && !w.bOk(g, e); t++) sim.step(w, 1);
+    check(w.bOk(g, e), "the cell was never mended in its stand-in: " + s.note);
+  });
   test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 12;

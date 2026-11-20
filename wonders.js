@@ -978,6 +978,9 @@ function wRegild(g, s) {
   var n = 0, k, e;
   /* (the gold gone again, on something else, before the gilding was done: left as it is, stone where the gold was to go,
      until there is gold again. a mending that waits for ever is a great work going up for ever) */
+  /* (and a gilded cell gone, to be mended, with no gold to mend it with: mended in its stand-in, as wGoldGone does for one
+     going up. gold is never waited for) */
+  if (s.gilding && s.repair && !s.done && s.plan.some(function (e2) { return e2.gild && e2.v === MAT.GOLD && !bOk(g, e2) && g.m[e2.i] !== MAT.BRICK; })) wGoldGone(g, s);
   if (s.gilding && s.repair && !s.done && g.tick - s.last > 3000 && mGoldToHand(g) + ((s.stock && s.stock.gold) || 0) < 0.2) {
     for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.gild && e.v === MAT.GOLD && g.m[e.i] === MAT.BRICK) { e.v = MAT.BRICK; n++; } }
     if (!s.plan.some(function (e2) { return !bOk(g, e2) && bFree(g, e2); })) { s.done = true; s.repair = false; s.gilding = false; s.quiet = false; }
