@@ -142,10 +142,13 @@ node harness/cli.js replay harness/playtests/seed14-rich.json --json
 node harness/soak.js --seeds 14 --preset rich --ticks 60000 --fail-on-stuck
 ```
 
-Current replay hashes (the original values are retained as `baselineHash`):
-- Ash cycle, tick 1,120: `24c38053` (original `615087f2`)
-- Submerged ceiling, tick 900: `a2efa1c9` (original `eb1e9431`)
-- Natural seed 14, tick 60,000: `8e4852ee` (original `0169c098`)
+Current replay hashes (the original values are retained as `baselineHash`).
+Re-recorded when still air stopped rolling dice it could not use (heat.js):
+the same physics, a different run of dice after it, so every village comes
+out a little differently from there on:
+- Ash cycle, tick 1,120: `17af73b3` (original `615087f2`)
+- Submerged ceiling, tick 900: `04f137b3` (original `eb1e9431`)
+- Natural seed 14, tick 60,000: `bed5e82e` (original `0169c098`)
 
 ## Original coverage and limitations
 

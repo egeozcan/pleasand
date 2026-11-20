@@ -137,6 +137,9 @@ function loadGame(opts) {
     '"use strict";\n' + src + "\n;return function (expr) { return eval(expr); };");
   var evalIn = factory(win, doc, noop, perf, sandboxMath, host);
   var preBootCalls = calls;
+  /* the count is only wanted for the loading (reset deals that many again). from here on the game rolls the
+     dice directly: same generator, same state, three calls fewer per roll */
+  sandboxMath.random = draw;
 
   return {
     root: ROOT, files: files, seed: seed, rng: rng, clock: clock, host: host, window: win,

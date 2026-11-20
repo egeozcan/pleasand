@@ -2144,14 +2144,24 @@ test("a puddle that dries up before the bailer gets there is let be a while, not
 });
 
 test("a big spill on a hut floor is bailed, however much of it there is, and a bailer gone astray holds nobody else up", function () {
-  var w = tidyVillage(2), g = w.g, h = sites(g, "house")[0], x, y, n = 0;
-  var cx = Math.floor(h.cx), fl = h.y1 - 2;
-  for (; fl > h.y0 && !w.AIRY[g.m[fl * g.gw + cx]]; fl--);
-  for (; fl < h.y1 && w.AIRY[g.m[(fl + 1) * g.gw + cx]]; fl++);
-  for (y = fl; y > fl - 3; y--) for (x = h.x0 + 3; x <= h.x1 - 3; x++) if (w.AIRY[g.m[y * g.gw + x]]) { w.sandPlace(g, y * g.gw + x, w.MAT.WATER); n++; }
-  sim.step(w, 30);
-  var cells = w.tHousePuddle(g, h);
-  check(n > 20 && cells && cells.length > w.TD_PUDDLE, "(the test wants more than a puddle's worth on the floor: " + (cells && cells.length) + ")");
+  /* (a hut whose floor holds water: one with the ground washed out from under a door lets it run away outside, and
+     which hut that is, if any, is up to the dice) */
+  var w, g, h, x, y, n, cells, tried = [];
+  [2, 1, 3, 4].some(function (seed) {
+    return sites((w = tidyVillage(seed)).g, "house").some(function (hh, k) {
+      if (k > 0) w = tidyVillage(seed);
+      g = w.g; h = sites(g, "house")[k]; n = 0;
+      var cx = Math.floor(h.cx), fl = h.y1 - 2;
+      for (; fl > h.y0 && !w.AIRY[g.m[fl * g.gw + cx]]; fl--);
+      for (; fl < h.y1 && w.AIRY[g.m[(fl + 1) * g.gw + cx]]; fl++);
+      for (y = fl; y > fl - 3; y--) for (x = h.x0 + 3; x <= h.x1 - 3; x++) if (w.AIRY[g.m[y * g.gw + x]]) { w.sandPlace(g, y * g.gw + x, w.MAT.WATER); n++; }
+      sim.step(w, 30);
+      cells = w.tHousePuddle(g, h);
+      tried.push(seed + "/" + k + ": " + (cells && cells.length));
+      return n > 20 && cells && cells.length > w.TD_PUDDLE;
+    });
+  });
+  check(n > 20 && cells && cells.length > w.TD_PUDDLE, "(the test wants more than a puddle's worth on a floor: " + tried.join(", ") + ")");
   var p = g.peasants.filter(function (q) { return !q.dead; })[0], q = g.peasants.filter(function (r) { return !r.dead && r !== p; })[0];
   nearHouse(w, p, h); nearHouse(w, q, h); g.bailT = 0;
   check(w.tGoBail(g, p) && p.task.of === h.id, "a floor with " + cells.length + " cells of water on it was not bailed");
@@ -2370,8 +2380,12 @@ test("a roof somebody is already sweeping sends the next one to the next roof; t
   var t = w.tFindLitter(g, p, w.TD_LOOK);
   check(t && t.site === hs[1].id, "with somebody on the nearest roof, the next one in looked no further: " + JSON.stringify(t));
   q.task = null;
-  /* (a bush hanging over a bit of open ground: no place for a heap) */
-  var x0 = Math.floor(hs[0].x1) + 30, G = w.mGround(g, x0);
+  /* (a bush hanging over a bit of open ground: no place for a heap. the ground found by looking out from 30 east of the
+     first house, since what grows where is up to the dice) */
+  function open(x) { var gg = x > 8 && x < g.gw - 8 ? w.mGround(g, x) : -1; return gg > 8 && w.tHeapOk(g, x, gg, 0) ? gg : -1; }
+  var x0 = -1, G = -1, d, at = Math.floor(hs[0].x1) + 30;
+  for (d = 0; d < 60 && G < 0; d++) if ((G = open(x0 = at + d)) < 0) G = open(x0 = at - d);
+  check(G > 0, "(the test wants open ground for a heap)");
   w.sandPlace(g, (G - 4) * g.gw + x0, w.MAT.PLANT);
   check(!w.tHeapOk(g, x0, G, 0), "the heap would be started under a bush");
   /* (a flood: two on it, a puddle: one) */

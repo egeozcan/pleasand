@@ -337,9 +337,21 @@ function heatDown(g, i, v) {
 function heatStep(g) {
   var m = g.m, T = g.T, lat = g.lat, gw = g.gw, gh = g.gh, KP = HEAT_KP, IC = HEAT_IC, SRC = HEAT_SRC, POW = HEAT_POW, BK = HEAT_BK, C = HEAT_C;
   var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL, hm = g.hm;
+  /* (the hot loops below look these up once, not once a cell: the same dice, the same tables) */
+  var rnd = Math.random, LIQ = LIQUID, FIRE = MAT.FIRE, LAVA = MAT.LAVA, CLEAN = SAND_CLEAN, gw1 = gw - 1, gh1 = gh - 1, n = m.length;
 
-  /* 0. anything that turned into something else since it was last counted gets its new temperature from its heat */
-  for (i = 0; i < m.length; i++) if (m[i] !== hm[i]) heatRecount(g, i);
+  /* 0. anything that turned into something else since it was last counted gets its new temperature from its heat.
+     (looked for four cells at a time: hardly anything has, most ticks) */
+  i = 0;
+  if ((m.byteOffset & 3) === 0 && (hm.byteOffset & 3) === 0) {
+    var n4 = n >> 2, m4 = new Uint32Array(m.buffer, m.byteOffset, n4), hm4 = new Uint32Array(hm.buffer, hm.byteOffset, n4), k4;
+    for (k4 = 0; k4 < n4; k4++) {
+      if (m4[k4] === hm4[k4]) continue;
+      for (i = k4 << 2; i < (k4 << 2) + 4; i++) if (m[i] !== hm[i]) heatRecount(g, i);
+    }
+    i = n4 << 2;
+  }
+  for (; i < n; i++) if (m[i] !== hm[i]) heatRecount(g, i);
 
   /* 1. make heat, lose heat, move heat */
   for (y = 0; y < gh; y++) {
@@ -349,30 +361,36 @@ function heatStep(g) {
       if (SRC[v]) {
         /* burning: heat from the fuel, a limited amount a tick, up to the flame's own temperature.
            a clean flame (gas, torch) burns hotter than a smoky one */
-        d = v === MAT.FIRE && g.sh[i] >= SAND_CLEAN ? 900 : SRC[v];
+        d = v === FIRE && g.sh[i] >= CLEAN ? 900 : SRC[v];
         if (t < d) { f = (d - t) * C[v]; t += (f < POW[v] ? f : POW[v]) * IC[v]; }
       } else if (v === E) {
         /* warm air rises and cold air sinks, swapping places with the air it passes, drifting a little as it goes */
         if (y > 0) {
           up = i - gw;
-          if (x > 0 && x < gw - 1 && Math.random() < 0.3) up += Math.random() < 0.5 ? -1 : 1;
-          if (m[up] === E && t > T[up] + 0.5 && Math.random() < 0.7) { d = T[up]; T[up] = t; t = d; }
+          /* (only worth rolling for when one of the three cells it might rise into is air cooler than it is: still air,
+             all one temperature, has nowhere to go whichever way the dice fall) */
+          if (x > 0 && x < gw1) {
+            if ((m[up] === E && t > T[up] + 0.5) || (m[up - 1] === E && t > T[up - 1] + 0.5) || (m[up + 1] === E && t > T[up + 1] + 0.5)) {
+              if (rnd() < 0.3) up += rnd() < 0.5 ? -1 : 1;
+              if (m[up] === E && t > T[up] + 0.5 && rnd() < 0.7) { d = T[up]; T[up] = t; t = d; }
+            }
+          } else if (m[up] === E && t > T[up] + 0.5 && rnd() < 0.7) { d = T[up]; T[up] = t; t = d; }
         }
-        if (y < gh - 1) {
+        if (y < gh1) {
           up = i + gw;
-          if (m[up] === E && t < T[up] - 0.5 && Math.random() < 0.7) { d = T[up]; T[up] = t; t = d; }
+          if (m[up] === E && t < T[up] - 0.5 && rnd() < 0.7) { d = T[up]; T[up] = t; t = d; }
         }
         /* and it stirs sideways a little, so a cold pool spreads out and warm air finds its way over to it */
-        if (x < gw - 1) {
+        if (x < gw1) {
           up = i + 1;
-          if (m[up] === E && (t > T[up] + 0.5 || t < T[up] - 0.5) && Math.random() < 0.3) { d = T[up]; T[up] = t; t = d; }
+          if (m[up] === E && (t > T[up] + 0.5 || t < T[up] - 0.5) && rnd() < 0.3) { d = T[up]; T[up] = t; t = d; }
         }
-      } else if (LIQUID[v] && y > 0 && m[i - gw] === v && t > T[i - gw] + 1 && Math.random() < (v === MAT.LAVA ? 0.01 : 0.25)) {
+      } else if (LIQ[v] && y > 0 && m[i - gw] === v && t > T[i - gw] + 1 && rnd() < (v === LAVA ? 0.01 : 0.25)) {
         /* and so does warm water, in water. lava churns too, but it is far too thick to hurry */
         up = i - gw; d = T[up]; T[up] = t; t = d;
         d = lat[up]; lat[up] = lat[i]; lat[i] = d;
       }
-      if (x < gw - 1) {
+      if (x < gw1) {
         j = i + 1; d = T[j] - t;
         if (d > 0.05 || d < -0.05) {
           w = m[j]; f = KP[(v << 6) | w] * d;
@@ -380,7 +398,7 @@ function heatStep(g) {
         }
         if (v === METAL && m[j] === METAL) fast[nf++] = i;
       }
-      if (y < gh - 1) {
+      if (y < gh1) {
         j = i + gw; d = T[j] - t;
         if (d > 0.05 || d < -0.05) {
           w = m[j]; f = KP[(v << 6) | w] * d;
@@ -389,7 +407,7 @@ function heatStep(g) {
         if (v === METAL && m[j] === METAL) fast[nf++] = -i - 1;
       }
       /* the edges of the room touch the outside */
-      if (x === 0 || x === gw - 1 || y === 0 || y === gh - 1) t += BK[v] * (AMBIENT - t) * IC[v];
+      if (x === 0 || x === gw1 || y === 0 || y === gh1) t += BK[v] * (AMBIENT - t) * IC[v];
       T[i] = t;
     }
   }
@@ -407,18 +425,18 @@ function heatStep(g) {
   }
 
   /* 2. anything out of its range changes, once it has soaked up (or given up) enough */
-  var HI = HEAT_HI, LO = HEAT_LO, HL = HEAT_HI_L, LL = HEAT_LO_L, aux = g.aux, e, lo, hi, L, q, paid;
-  for (i = 0; i < m.length; i++) {
+  var HI = HEAT_HI, LO = HEAT_LO, HL = HEAT_HI_L, LL = HEAT_LO_L, aux = g.aux, e, lo, hi, L, q, paid, POWDER = MAT.GUNPOWDER, NUKE = MAT.NUKE;
+  for (i = 0; i < n; i++) {
     v = m[i]; t = T[i]; e = lat[i];
     hi = HI[v]; lo = LO[v];
-    if (v === MAT.LAVA) { w = aux[i] & 31; lo = LAVA_LO[w]; }
+    if (v === LAVA) { w = aux[i] & 31; lo = LAVA_LO[w]; }
     if (t > hi) {
       L = HL[v];
       if (L <= 0) {
         /* catches, sinters, fizzes off: all at once, and the new thing has the old one's heat. a bang
            counts its own */
         q = heatQ(g, i); heatUp(g, i, v);
-        if (m[i] !== v && v !== MAT.GUNPOWDER && v !== MAT.NUKE) heatSetQ(g, i, q);
+        if (m[i] !== v && v !== POWDER && v !== NUKE) heatSetQ(g, i, q);
         continue;
       }
       e += (t - hi) * C[v]; T[i] = hi;
@@ -428,7 +446,7 @@ function heatStep(g) {
         paid = heatUp(g, i, v); heatSetQ(g, i, q - paid);
       } else lat[i] = e;
     } else if (t < lo) {
-      L = v === MAT.LAVA ? HL[w || MAT.STONE] : LL[v];
+      L = v === LAVA ? HL[w || MAT.STONE] : LL[v];
       if (L <= 0) { q = heatQ(g, i); heatDown(g, i, v); if (m[i] !== v) heatSetQ(g, i, q); continue; }
       e -= (lo - t) * C[v]; T[i] = lo;
       if (-e >= heatLat(g, i, L)) {
