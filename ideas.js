@@ -373,8 +373,9 @@ function iPick(g, p) {
   /* snow on the ground, or ice to skate on, and time on their hands: that is what it is for (leftovers.js) */
   if (!hungry && lPlay(g, p)) return true;
   /* (a field dug up for a mine or a well is sown again somewhere else: straight away, wherever there is room) */
-  if (K.farm && g.resow && iCount(g, "farm") < Math.min(4, Math.ceil(bAlive(g) / 3)) && iPlanFarm(g, p, true)) { g.resow = 0; return true; }
-  if (K.farm && !p.planCD && iCount(g, "farm") < Math.min(4, Math.ceil(bAlive(g) / 3)) && (hungry || Math.random() < 0.3)) {
+  /* (a terrace of the hanging gardens is a field that does not count against the cap: iFields. pleasures.js) */
+  if (K.farm && g.resow && iFields(g) < Math.min(4, Math.ceil(bAlive(g) / 3)) && iPlanFarm(g, p, true)) { g.resow = 0; return true; }
+  if (K.farm && !p.planCD && iFields(g) < Math.min(4, Math.ceil(bAlive(g) / 3)) && (hungry || Math.random() < 0.3)) {
     if (iPlanFarm(g, p, !iCount(g, "farm"))) return true;   /* (no field at all: anywhere in the valley will do) */
     p.planCD = 1800;
   }
@@ -482,6 +483,8 @@ function iCrew(g, kind, id) {
   return n;
 }
 function iCount(g, kind) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === kind) n++; return n; }
+/* fields, for the cap on them: a terrace of the hanging gardens is a field, but not one of those (pleasures.js) */
+function iFields(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "farm" && !g.sites[k].terrace) n++; return n; }
 /* walk p towards somewhere goal likes, near (x, y), as every errand here does. true once they are stuck for good */
 function iWalk(g, p, k, key, x, y, goal) {
   var left = pathGo(g, p, key, x, y, goal);
@@ -723,7 +726,7 @@ function iPlanFarm(g, p, wide) {
   /* (four looks at flat ground, then four at rough: flat ground across a wall is no reason never to try the rough
      on this side of it) */
   for (k = 0; k < 8 && !best && wide; k++) { var w = iFarmSpot(g, -1, -1, p, k >= 4); if (!w) { if (k < 4) { k = 3; continue; } break; } if (iFarmReach(g, p, w)) best = w; }   /* (a field to replace one dug up: anywhere in the valley) */
-  if (!best) return false;
+  if (!best) { if (g.know.concrete) pGardensNoRoom(g, p, wide); return false; }   /* (no room for one: the hanging gardens. pleasures.js) */
   var plan = [], k, e, x0 = best.x0, x1 = x0 + I_FARM_W - 1;
   for (k = 0; k < best.dig.length; k++) plan.push(bE(g, best.dig[k][0], best.dig[k][1], MAT.EMPTY, 0));
   for (k = 0; k < I_FARM_W; k++) plan.push(bE(g, x0 + k, best.gy[k], MAT.SOIL, 1));

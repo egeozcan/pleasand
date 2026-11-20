@@ -103,4 +103,81 @@ module.exports = function (test, check, sim) {
     check(!(fx >= B.s.px0 && fx < B.s.px0 + 9 && fy >= B.G && fy <= B.G + 2), "still in water at 60, at " + fx + "," + fy);
     check(!(p.task && p.task.kind === "bathe"), "still bathing at 60");
   });
+
+  /* ---------------------------------------------------------------
+     THE HANGING GARDENS
+     --------------------------------------------------------------- */
+  function know(g, list) { list.forEach(function (k) { g.know[k] = "TEST"; }); }
+  function sites(g, kind) { return g.sites.filter(function (s) { return s.kind === kind; }); }
+  /* the gardens planned on seed 1's slope and built at once, the terraces with fields on them (built, or only planned),
+     the pool full; keep: how many peasants stay */
+  function gardens(keep, sow) {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    know(g, ["farm", "dig", "bucket", "mine", "masonry", "smelt", "concrete", "gardens"]);
+    var p = g.peasants[0];
+    check(w.pPlanGardens(g, p), "nowhere for the hanging gardens in seed 1");
+    var s = sites(g, "gardens")[0];
+    sim.build(w, s);
+    w.wFinish(g, s, p);
+    var T = g.sites.filter(function (t) { return t.terrace === s.id; });
+    if (sow) T.forEach(function (t) { sim.build(w, t); });
+    for (var x = s.px0; x < s.px0 + 4; x++) for (var y = s.L; y < s.L + w.P_GPOOL; y++) w.sandPlace(g, y * g.gw + x, M.WATER);
+    g.peasants.forEach(function (q, k) { if (k >= keep) q.dead = 1; else { q.x = s.crankX + 0.5 - s.d * 3 * (k + 1); q.y = s.crankY; q.task = null; q.hunger = 0; q.tired = 0; } });
+    sim.step(w, 1);
+    return { w: w, g: g, s: s, T: T, M: M };
+  }
+  /* water on terrace k of the gardens (on its bed, or over it) */
+  function onTerrace(G, k) {
+    var w = G.w, g = G.g, s = G.s, n = 0, Yk = w.pGBed(s.Y0, k);
+    for (var u = w.P_GLIP[k] + 1; u <= w.P_GLIP[k] + 6; u++) for (var y = Yk - 8; y < Yk; y++) if (g.m[y * g.gw + w.pGU(s, u)] === G.M.WATER) n++;
+    return n;
+  }
+
+  test("gardens: no room for another field puts the hanging gardens into the head of whoever looked", function () {
+    var w = sim.load(1), g = w.g, p = g.peasants[0];
+    know(g, ["farm", "dig", "bucket", "masonry", "smelt", "concrete"]);
+    g.farmNo = g.farmNo || {}; for (var x = 0; x < g.gw; x++) g.farmNo[x] = 1e12;   /* (every field plot in the valley given up on) */
+    check(!g.noField && !w.wIdea("gardens").ready(g, p), "(the test wants the gardens not thought of yet)");
+    p.spark = null;
+    check(!w.iPlanFarm(g, p, true), "a field was planned with no room for one");
+    check(g.noField > 0, "no room for a field was not noticed");
+    check(p.spark === "gardens", "nobody had the gardens put into their head (" + p.spark + ")");
+    check(g.feed.some(function (f) { return /nowhere for another field/.test(f.text); }), "the valley did not hear there is no room");
+  });
+
+  test("gardens: a stair of three terraces up a slope, each a field that is sown and grows", function () {
+    var G = gardens(3, false), w = G.w, g = G.g, s = G.s, M = G.M;
+    var kinds = {};
+    s.plan.forEach(function (e) { kinds[e.v] = (kinds[e.v] || 0) + 1; });
+    check(kinds[M.CONCRETE] >= 1 && s.screw.length >= 15 && kinds[M.BRICK] >= 15, "not brick, iron and concrete: " + JSON.stringify(kinds));
+    check(G.T.length === 3, G.T.length + " terraces with a field on");
+    /* (each a terrace field: not counted against the cap on fields) */
+    check(w.iFields(g) === sites(g, "farm").length - 3, "the terraces count against the field cap");
+    var Y = G.T.map(function (t) { return t.G; });
+    check(Y[0] - Y[1] === 5 && Y[1] - Y[2] === 5, "the terraces are not five over each other: " + Y.join(","));
+    /* open sky over every bed */
+    G.T.forEach(function (t) { for (var x = t.x0; x <= t.x1; x++) for (var y = t.G - 7; y < t.G; y++) check(w.AIRY[g.m[y * g.gw + x]], "something over a terrace at " + x + "," + y); });
+    var t0 = g.tick;
+    for (var k = 0; k < 6000 && G.T.some(function (t) { return !t.done; }); k += 30) sim.step(w, 30);
+    check(G.T.every(function (t) { return t.done; }), "the terraces were not all sown in 6000 ticks: " + G.T.map(function (t) { return Math.round(w.bShare(g, t) * 100) + "%"; }).join(" "));
+    function crops() { var n = 0; G.T.forEach(function (t) { for (var x = t.x0; x <= t.x1; x++) for (var y = t.G - 7; y < t.G; y++) { var c = g.m[y * g.gw + x]; if (c === M.CROP || c === M.WHEAT) n++; } }); return n; }
+    var c0 = crops();
+    g.peasants.forEach(function (q) { q.dead = 1; });
+    sim.step(w, 3000);
+    check(crops() > c0, "the wheat on the terraces did not grow (" + c0 + " to " + crops() + ")");
+    void t0;
+  });
+
+  test("gardens: the screw lifts the pool into the cistern, the water runs down to the bottom terrace, and none is lost", function () {
+    var G = gardens(1, false), w = G.w, g = G.g, s = G.s, M = G.M;
+    delete g.know.farm;   /* (nobody sows the terraces: wheat drinks what lands on it, and this is about where the water goes) */
+    function box() { var n = 0; for (var y = s.y0 - 3; y <= s.y1 + 2; y++) for (var x = s.x0 - 4; x <= s.x1 + 4; x++) if (g.m[y * g.gw + x] === M.WATER) n++; return n; }
+    var n0 = box(), bottom = 0, top = 0;
+    check(n0 === w.P_GPOOL_N, "(the test wants the pool full: " + n0 + ")");
+    for (var t = 0; t < 5000; t++) { sim.step(w, 1); bottom = Math.max(bottom, onTerrace(G, 0)); top = Math.max(top, onTerrace(G, 2)); }   /* (it runs through quick: every tick) */
+    check(s.lifted >= 8, "the screw lifted only " + s.lifted + " cells in 5000 ticks");
+    check(top > 0, "no water reached the top terrace");
+    check(bottom > 0, "no water reached the bottom terrace");
+    check(box() === n0, "water in the gardens went from " + n0 + " to " + box());
+  });
 };
