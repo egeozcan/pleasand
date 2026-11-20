@@ -116,6 +116,11 @@ var W_GKEYS = ["curseSlips", "dmask", "draught", "hConst", "hLake", "hLakeT", "h
   "kingDied", "lastKing", "lastSwim", "looks", "moonCrew", "moonFlag", "moonLooks", "moonT", "noField", "noFieldT", "packFlights",
   "rocket", "rocketBooms", "thinkerDied", "wChar", "wDuckPalace", "wIceN", "wLump", "wNo", "wPlanT", "wPyrFame", "wQuarryFar",
   "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare"];
+/* lightning, as it strikes at (x, y) (world.js sandLightning, not taken down a rod): any great work standing that
+   answers it (the lighthouse's lantern) */
+function wStruck(g, x, y) {
+  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k], d = s.wonder && wOf(s.kind); if (d && d.struck) d.struck(g, s, x, y); }
+}
 /* the world cleared (C, and a new village: world.js sandClear): what of the great works was in it, in the air over it,
    or due in it, gone with it. what the village knows and has done is its own, and stays */
 function wClearWorld(g) {

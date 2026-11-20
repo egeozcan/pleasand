@@ -618,6 +618,7 @@ function sandLightning(g, cx) {
   /* a lightning rod, near enough what it was going to hit, and what it was going to hit one of theirs: it goes down the
      rod instead (wonders.js). the bolt bends to it, and nothing else happens */
   if (!hit.p && wRod(g, hit, pts)) return;
+  wStruck(g, hit.x, hit.y);   /* (what a great work does about being struck, it does now: wonders.js) */
   /* a couple of forks, for looks */
   var forks = [];
   for (s = 0; s < 3; s++) {

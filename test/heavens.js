@@ -174,6 +174,18 @@ module.exports = function (test, check, sim) {
     var route = w.navFind(g, Math.round(s.cx + (s.side > 0 ? -8 : 8)), L.G - 1, function (x, y) { return Math.abs(x - s.spot) <= 1 && y === s.G1 - 1; }, s.spot, s.G1 - 1, 30000);
     check(!!route, "no way up to the lamp");
   });
+  test("lighthouse: lightning in the lantern sets its oil alight as it strikes, at any speed", function () {
+    var L = lighthouse(true), w = L.w, g = L.g, s = L.s, k, hit = false;
+    s.fuel = 4000;
+    for (k = 0; k < 200 && !hit; k++) {
+      g.bolts.length = 0;
+      w.sandLightning(g, s.lx);
+      var B = g.bolts[0], e = B && B.pts[B.pts.length - 1];
+      hit = !!e && e[0] >= s.x0 - 1 && e[0] <= s.x1 + 1 && e[1] >= s.ly - 6 && e[1] <= s.ly + 3;
+    }
+    check(hit, "(the test wants a bolt in the lantern)");
+    check(s.fuel === 0, "the bolt struck the lantern and the oil did not catch (it was left to a look at the bolt, later)");
+  });
   test("lighthouse: never planned where it would leave a swimmer in the lake no way out", function () {
     var L = lighthouse(true), w = L.w, g = L.g, s = L.s, sx = s.side > 0 ? 190 : 185;
     var out = w.navFind(g, sx, L.G + 1, w.pDryGoal(g), s.cx, L.G - 1, 20000);

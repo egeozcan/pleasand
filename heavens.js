@@ -557,6 +557,7 @@ P_ACHIEVE.lighthouse = ["THE LIGHTHOUSE", "a striped tower on the lake, with a l
 
 wDef({
   id: "lighthouse",
+  struck: hLightStruck,
   idea: { name: "the lighthouse", title: "THE LIGHTHOUSE", sub: "somebody was out on that water in the dark. never again", hint: "oil, glass, and a lake (a big one: you will have to give them one)",
           ready: function (g) { return !!g.know.oil && !!g.know.glass && !!g.know.masonry && !!g.hLake && g.hLake.n >= H_LAKE; } },
   achieve: ["THE LIGHTHOUSE", "a striped tower on the lake, with a lamp that goes round. it wants a barrel of oil now and then"],
@@ -770,13 +771,12 @@ function hLightStep(g, s) {
     if (!q || !wIdle(g, q) || !oTankFor(g, q, 1)) q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1); });
     if (q) { q.task = { kind: "keep", site: s.id, t: 0, act: 0 }; s.keeper = q.id; }
   }
-  /* (a bolt in the lantern, with oil up there: the oil catches, and the fire is at the top of a tower) */
-  for (var k = 0; k < g.bolts.length; k++) {
-    var B = g.bolts[k], e = B.pts[B.pts.length - 1];
-    if (B.hSeen || !e) continue;
-    B.hSeen = 1;
-    if (s.fuel > 0 && e[0] >= s.x0 - 1 && e[0] <= s.x1 + 1 && e[1] >= s.ly - 6 && e[1] <= s.ly + 3) hLanternFire(g, s);
-  }
+}
+/* (world.js sandLightning, as it strikes, at (x, y): in the lantern, with oil up there, the oil catches, and the fire is
+   at the top of a tower. when it strikes, not when the bolt is drawn: a bolt is gone sooner at a slow speed) */
+function hLightStruck(g, s, x, y) {
+  if (!s.done || s.repair) return;
+  if (s.fuel > 0 && x >= s.x0 - 1 && x <= s.x1 + 1 && y >= s.ly - 6 && y <= s.ly + 3) hLanternFire(g, s);
 }
 function hLanternFire(g, s) {
   for (var u = -1; u <= 1; u++) for (var y = s.ly - 1; y <= s.ly + 1; y++) {
