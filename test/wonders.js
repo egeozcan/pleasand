@@ -93,6 +93,33 @@ module.exports = function (test, check, sim) {
     check(gn.tick === 1528 && f && f.x0 === 150 && hn.hash() === "dc6bb627", "after NEW the first field came at " + gn.tick + ", " + (f && f.x0) + " (master: 1528, 150), hash " + hn.hash());
   });
 
+  test("wonders: a village rewound to a checkpoint and played again comes out as one played straight: plain, and with great works", function () {
+    [1, 2].forEach(function (seed) {
+      var rw = H.open({ seed: seed }), ctl = H.open({ seed: seed });
+      rw.checkpoint("start"); rw.step(600); rw.restore("start");
+      rw.step(600); ctl.step(600);
+      check(rw.hash() === ctl.hash(), "seed " + seed + ": rewound " + rw.hash() + ", played straight " + ctl.hash());
+    });
+    var a = H.open({ seed: 1 }), b = H.open({ seed: 1 });
+    [a, b].forEach(function (h) { h.g.know.concrete = "TEST"; h.g.know.moonrocket = "TEST"; h.step(300); });
+    a.checkpoint("mid"); a.step(900); a.restore("mid");
+    a.step(900); b.step(900);
+    check(a.hash() === b.hash(), "a village with great works, rewound: " + a.hash() + ", played straight " + b.hash());
+  });
+  test("wonders: a save made with a rocket in the air, its keyframe from before restored, has no rocket: as the keyframe loaded straight", function () {
+    var src = H.open({ seed: 1 });
+    src.checkpoint("before");
+    src._eval("hLiftOff")(src.g, { id: 999, rx: 130, R0: 90, plan: [], crew: [] });
+    src.step(2);
+    var doc = JSON.parse(JSON.stringify(src.saveDoc()));
+    var direct = H.open({ seed: 1 }), rw = H.open({ seed: 1 });
+    direct.load(doc, { keyframe: 0 });
+    rw.load(doc); rw.restore("kf0");
+    check(!rw.g.rocket, "the rocket from after the keyframe is still in the air");
+    direct.step(20); rw.step(20);
+    check(direct.hash() === rw.hash(), "restored " + rw.hash() + ", loaded straight " + direct.hash());
+  });
+
   test("wonders: wet concrete sets in its form, faster warm, frost ruins it, and poured it sinks under water", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200;
     flat(w, x0, 20, G);

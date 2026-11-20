@@ -28,7 +28,7 @@ var SKIP = new Set([
   "bg", "dep", "haze", "wave",                  /* the sky and its parallax (drawing only) */
   "zmark", "zlist", "zn", "zt",                 /* lightning flood scratch */
   "pmark", "pstack", "pgen", "pressList", "pressN", "fastList",  /* pressure and heat scratch */
-  "navSeen", "navShut", "navCost", "navFrom", "navHow", "navHeapI", "navHeapF"  /* pathfinding scratch */
+  "navSeen", "navShut", "navCost", "navFrom", "navHow", "navHeapI", "navHeapF", "navGen"  /* pathfinding scratch, and the count it marks its rounds with (the two go together) */
 ]);
 
 function isTypedArray(v) {
@@ -82,7 +82,7 @@ function capture(g, runtime, keep) {
     time: g.t,
     rng: runtime.rng,
     clock: runtime.clock,
-    full: true,   /* (every key of g there was, but SKIP's: apply drops the rest) */
+    omit: [],   /* (every key of g there was, but SKIP's: apply drops the rest) */
     state: state
   };
 }
@@ -96,10 +96,14 @@ function apply(snap, g, keep) {
   }
   for (i = 0; i < ks.length; i++) { k = ks[i]; g[k] = fresh[k]; }
   /* (and what has been put on g since the snapshot was taken, that was not there then: gone. a rocket in the air, a
-     falling star, the salvage: anything a module keeps on g is in the snapshot or, if it was not there yet, not there) */
-  /* (only for a snapshot of the whole of g: one made from a save's keyframe leaves out what the save does not keep) */
-  var now = Object.keys(g);
-  if (snap.full) for (i = 0; i < now.length; i++) { k = now[i]; if (!SKIP.has(k) && !Object.prototype.hasOwnProperty.call(snap.state, k)) delete g[k]; }
+     falling star, the salvage: anything a module keeps on g is in the snapshot or, if it was not there yet, not there.
+     but scratch (SKIP: buffers, and the counts that go with them) is left as it is, together; and what the snapshot
+     says it leaves out on purpose (snap.omit: for a save's keyframe, what a save does not keep, the hand on the mouse
+     and the rest) is left too. a snapshot that does not say (older ones) drops nothing) */
+  if (snap.omit) {
+    var om = new Set(snap.omit), now = Object.keys(g);
+    for (i = 0; i < now.length; i++) { k = now[i]; if (!SKIP.has(k) && !om.has(k) && !Object.prototype.hasOwnProperty.call(snap.state, k)) delete g[k]; }
+  }
   return snap;
 }
 

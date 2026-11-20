@@ -1240,7 +1240,9 @@ Harness.prototype.load = function (src, opts) {
     if (ns != null) st.sel = ns;
     self.checkpointList.push({ id: "kf" + i, tick: f.updates != null ? f.updates : -1, snap: {
       version: 1, seed: self.seed, ticks: f.updates != null ? f.updates : self.ticks, sandTick: f.tick, time: f.t,
-      rng: f.rng != null ? f.rng : self.loaded.rng.state, clock: self.loaded.clock.t, state: st } });
+      rng: f.rng != null ? f.rng : self.loaded.rng.state, clock: self.loaded.clock.t, state: st,
+      /* (what a save leaves out of a keyframe on purpose, kept as it is when it is restored: the rest of g, gone) */
+      omit: self._eval("SAVE_SKIP.concat(SAVE_INPUT, SAVE_POINTER)") } });
     ids.push({ id: "kf" + i, tick: f.tick, why: f.why });
   });
   return {
