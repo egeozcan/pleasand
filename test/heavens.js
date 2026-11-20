@@ -157,6 +157,11 @@ module.exports = function (test, check, sim) {
     var route = w.navFind(g, Math.round(s.cx + (s.side > 0 ? -8 : 8)), L.G - 1, function (x, y) { return Math.abs(x - s.spot) <= 1 && y === s.G1 - 1; }, s.spot, s.G1 - 1, 30000);
     check(!!route, "no way up to the lamp");
   });
+  test("lighthouse: never planned where it would leave a swimmer in the lake no way out", function () {
+    var L = lighthouse(true), w = L.w, g = L.g, s = L.s, sx = s.side > 0 ? 190 : 185;
+    var out = w.navFind(g, sx, L.G + 1, w.pDryGoal(g), s.cx, L.G - 1, 20000);
+    check(!!out, "no way out of the lake with the lighthouse built");
+  });
   test("lighthouse: the keeper fuels it from the well's tank, it shines (lamplight in the beam), and somebody follows the light in, once", function () {
     var L = lighthouse(true), w = L.w, g = L.g, s = L.s, k;
     var wl = well(w, s.side > 0 ? s.x0 - 14 : s.x1 + 14, L.G, 3);

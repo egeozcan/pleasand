@@ -283,6 +283,33 @@ module.exports = function (test, check, sim) {
   }
   function seedTrough(P) { P.w.pTrough(P.g, P.s).forEach(function (j) { if (P.g.m[j] === P.M.EMPTY) { P.w.sandPlace(P.g, j, P.M.SEED); } }); }
 
+  test("duck palace: on the one beach out of a lake, it leaves a way out: a swimmer in the lake gets out", function () {
+    /* (a lake out to the edge of the world, its only way out a sand beach on the left, a row down for every two along) */
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y, k;
+    for (k = g.sites.length - 1; k >= 0; k--) if (g.sites[k].x1 >= 150) w.bRemove(g, k);
+    for (x = 150; x < g.gw; x++) {
+      for (y = 40; y < G + 14; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+      var floor = x < 200 ? G : Math.min(G + 9, G + Math.floor((x - 200) / 2));
+      for (y = floor; y < G + 14; y++) w.sandPlace(g, y * g.gw + x, y < floor + 3 ? M.SAND : M.STONE);
+      for (y = G + 1; y < floor; y++) w.sandPlace(g, y * g.gw + x, M.WATER);
+    }
+    sim.step(w, 200);
+    know(g, ["farm", "dig", "bucket", "scarecrow", "duckpalace"]);
+    g.ducks.length = 0;
+    g.peasants.forEach(function (q, k) { if (k >= 1) q.dead = 1; else { q.x = 160; q.y = G - 1; q.task = null; q.hunger = 0; } });
+    var p = g.peasants[0];
+    check(w.pPlanPalace(g, p), "nowhere for the duck palace on the beach");
+    var s = sites(g, "duckpalace")[0];
+    /* (without its ramp down into the water, the deck would shut the lake in: what wSeals is there for) */
+    check(w.wSeals(g, s.plan.filter(function (e) { return e.i % g.gw <= s.x0 + w.P_DW - 1; }), s.x0, s.x0 + w.P_DW - 1), "(the test wants a deck that would shut the lake in)");
+    sim.build(w, s); w.wFinish(g, s, p);
+    g.duckArriveT = 1e12;
+    p.x = 240.5; p.y = G + 6; p.task = null; p.swimT = 1000;
+    var out = 0;
+    for (var t = 1; t <= 8000 && !out; t++) { sim.step(w, 1); if (w.pDryGoal(g)(Math.floor(p.x), Math.floor(p.y)) && !p.swimming) out = t; }
+    check(out > 0 && !p.dead, "the swimmer never got out of the lake (at " + Math.floor(p.x) + "," + Math.floor(p.y) + ")");
+  });
+
   test("duck palace: thought of by whoever shoos the most ducks; planned at the water's edge, half out over it", function () {
     var w = sim.load(1), g = w.g, p = g.peasants[0], M = w.MAT;
     know(g, ["farm", "dig", "bucket", "scarecrow"]);

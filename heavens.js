@@ -628,7 +628,7 @@ function hPlanLight(g, p) {
     var pl = hLightPlan(g, x0, gy, side);
     return pl ? { plan: pl.plan, Fr: pl.Fr, side: side, score: 40 - d * 2 - (lo - hi) } : null;
   } });
-  if (!r) return false;
+  if (!r || wSeals(g, r.r.plan, r.x0 - 1, r.x0 + 7)) return false;
   var F = r.r.Fr, G1 = F - 16;
   var s = bNew(g, "lighthouse", p, wGild(g, wCleared(g, r, r.r.plan)), [r.x0 - 1, G1 - 16, r.x0 + 7, F],
                { wonder: true, Fr: F, G1: G1, side: r.r.side, fuel: 0, keeper: p.id, spot: r.x0 + 4, lx: r.x0 + 3, ly: G1 - 12 });

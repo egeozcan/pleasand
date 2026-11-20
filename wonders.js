@@ -1057,6 +1057,28 @@ function wPlot(g, o) {
   }
   return best;
 }
+/* would plan (by a lake, on its bank or out over it) leave somebody in the water with no way out of it that they had
+   before: a deck laid over the only beach, say. looked at from the water's top and its floor, a few columns out
+   from xa .. xb, with the plan put in for the moment it looks (and taken out again) */
+function wSeals(g, plan, xa, xb) {
+  var starts = [], x, y, k, j, d, sd, held = [], ok = true, G = pDryGoal(g);
+  for (sd = -1; sd <= 1; sd += 2) for (d = 1; d <= 30; d += 4) {
+    x = sd < 0 ? xa - d : xb + d;
+    if (x < 1 || x > g.gw - 2) continue;
+    for (y = 1; y < g.gh - 1 && !WET[g.m[y * g.gw + x]]; y++) if (!AIRY[g.m[y * g.gw + x]] && !bMarked(g, x, y)) break;
+    if (y >= g.gh - 1 || !WET[g.m[y * g.gw + x]]) continue;
+    var top = y;
+    while (y < g.gh - 1 && WET[g.m[(y + 1) * g.gw + x]]) y++;
+    starts.push([x, top], [x, y]);
+  }
+  if (!starts.length) return false;
+  var before = starts.map(function (s0) { return !!navFind(g, s0[0], s0[1], G, xa, s0[1] - 6, 6000); });
+  for (k = 0; k < plan.length; k++) { j = plan[k].i; held.push(j, g.m[j]); g.m[j] = plan[k].v; }
+  try {
+    for (k = 0; k < starts.length && ok; k++) if (before[k] && WET[g.m[starts[k][1] * g.gw + starts[k][0]]] && !navFind(g, starts[k][0], starts[k][1], G, xa, starts[k][1] - 6, 6000)) ok = false;
+  } finally { for (k = held.length - 2; k >= 0; k -= 2) g.m[held[k]] = held[k + 1]; }
+  return !ok;
+}
 /* the ground under a great work made level at row F (the floor's row: solid, under it all): dug off where it is higher,
    made up in stone where it is lower, a terrace, from the ground up. {plan, work} or null */
 function wTerrace(g, x0, gy, F) {

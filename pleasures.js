@@ -1227,9 +1227,11 @@ function pPalaceFit(g, b, d) {
   for (u = 4; u <= 10; u++) put(u, Y - 7, MAT.PLANK, 30);
   for (u = 5; u <= 9; u++) put(u, Y - 8, MAT.PLANK, 31);
   put(6, Y - 9, MAT.PLANK, 32); put(7, Y - 9, MAT.GOLD, 32); put(8, Y - 9, MAT.PLANK, 32); put(7, Y - 10, MAT.GOLD, 33);
-  /* the ramp, down into the water off the far end */
+  /* the ramp, down into the water off the far end (into it, if the water is up to the deck: a way out of it, too) */
   x = X(P_DW - 1) + d;
-  for (y = Y + 1, k = 0; k < 4 && y < b.W; y++, k++, x += d) { if (!AIRY[pCell(g, x, y)]) break; plan.push(bE(g, x, y, MAT.PLANK, 12 + k)); }
+  for (y = Y + 1, k = 0; k < 4; y++, k++, x += d) { c = pCell(g, x, y); if (!AIRY[c] && !WET[c]) break; plan.push(bE(g, x, y, MAT.PLANK, 12 + k)); }
+  /* (and never where it would leave a swimmer no way out of the water: a deck over the only beach) */
+  if (wSeals(g, plan, x0, x0 + P_DW - 1)) return null;
   var mid = wMiddle(g);
   return { plan: plan, x0: x0, Y: Y, d: d, score: b.n * 0.2 - Math.abs(x0 - mid) * 0.05 };
 }
