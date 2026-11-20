@@ -400,6 +400,7 @@ function pDie(g, p, cause) {
   g.rip++;
   if (g.causes) g.causes[cause] = (g.causes[cause] || 0) + 1;
   iSpill(g, p, true);   /* a bucket of water they were carrying (ideas.js) goes where they fell */
+  wDropAll(g, p);       /* and a pail of wet concrete, or a lump of it gone off (wonders.js) */
   tCarry(g, p);         /* and an armful of sand off somebody's roof (tidy.js) */
   var line = pick(P_DEATH[cause]);
   feed(g, line.replace("{n}", p.name), "#ff9a8a");

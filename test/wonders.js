@@ -232,6 +232,24 @@ module.exports = function (test, check, sim) {
     check(ops.some(function (o) { return o.op === "select" && o.args.sel === "CLONER"; }), "a click on CLONER was not kept by name: " + JSON.stringify(ops));
   });
 
+  test("wonders: a pail of concrete gone off with nowhere to put it down is carried as a lump, and put down where there is room", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y;
+    flat(w, x0, 20, G);
+    know(g, ["concrete"]);
+    var p = g.peasants[0];
+    g.peasants.forEach(function (q) { if (q !== p) q.x = 10; });
+    /* (up a ladder, over a drop, nothing near to put a lump on) */
+    for (x = x0 - 6; x <= x0 + 6; x++) for (y = G - 40; y <= G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+    for (y = G - 30; y <= G; y++) w.sandPlace(g, y * g.gw + x0, M.LADDER);
+    p.x = x0 + 0.5; p.y = G - 20; p.mortar = w.W_PAIL; p.mortarT = g.tick - w.W_POUR - 1; p.task = null;
+    function conc() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.CONCRETE) n++; return n; }
+    var c0 = conc();
+    w.wWentOff(g, p);
+    check(conc() - c0 + (p.lump || 0) === w.W_PAIL, "a pail gone off: " + (conc() - c0) + " set down and " + (p.lump || 0) + " carried, of " + w.W_PAIL);
+    w.pDie(g, p, "old");
+    check(conc() - c0 === w.W_PAIL, "dead, the lump was not set down: " + (conc() - c0) + " of " + w.W_PAIL);
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;

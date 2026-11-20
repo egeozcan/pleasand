@@ -759,14 +759,30 @@ function wTaskMix(g, p, k) {
 }
 /* a pail gone off: tipped out, and a lump of concrete stands where they were */
 function wWentOff(g, p) {
-  var fx = Math.floor(p.x) + p.dir, fy = Math.floor(p.y), n = p.mortar, r, x, y, j;
-  p.mortar = 0;
-  for (r = 0; r < 4 && n > 0; r++) for (y = fy; y >= fy - r && n > 0; y--) for (x = fx - r; x <= fx + r && n > 0; x++) {
-    if (x < 1 || y < 1 || x >= g.gw - 1 || !AIRY[pCell(g, x, y)] || !SOLID[pCell(g, x, y + 1)]) continue;
-    j = y * g.gw + x; sandSet(g, j, MAT.CONCRETE); n--;
-  }
+  p.lump = (p.lump || 0) + (p.mortar || 0); p.mortar = 0;   /* (gone off: a lump, carried, till it is set down) */
+  wSetDown(g, p, false);
   pSay(g, p, "wentOff", true);
   if (!g.wLump) { g.wLump = 1; feed(g, "the concrete went off in " + p.name + "'s pail. there is a lump of it where they were standing", "#c8d0dc", "lump"); }
+}
+/* a lump of concrete that went off in the pail (p.lump, cells of it): set down on the nearest ground in front of them,
+   as much of it as there is room for; the rest carried, and set down when there is room (wStep, every W_STRIDE, and
+   dying: wDropAll). none of it made to vanish. (fallen: the first air straight up from them, however far) */
+function wSetDown(g, p, dying) {
+  var fx = Math.floor(p.x) + (p.dir || 1), fy = Math.floor(p.y), r, x, y, j;
+  for (r = 0; r < 4 && p.lump > 0; r++) for (y = fy; y >= fy - r && p.lump > 0; y--) for (x = fx - r; x <= fx + r && p.lump > 0; x++) {
+    if (x < 1 || y < 1 || x >= g.gw - 1 || !AIRY[pCell(g, x, y)] || !SOLID[pCell(g, x, y + 1)]) continue;
+    j = y * g.gw + x; sandSet(g, j, MAT.CONCRETE); p.lump--;
+  }
+  for (y = fy - 1; dying && p.lump > 0 && y >= 1; y--) {
+    x = Math.floor(p.x);
+    if (AIRY[pCell(g, x, y)]) { sandSet(g, y * g.gw + x, MAT.CONCRETE); p.lump--; }
+  }
+  if (p.lump <= 0) p.lump = 0;
+}
+/* dead: wet concrete in the pail goes off where they fell, and the lump with it, set down there (peasants.js pDie) */
+function wDropAll(g, p) {
+  if ((p.mortar || 0) > 0) { p.lump = (p.lump || 0) + p.mortar; p.mortar = 0; }
+  if ((p.lump || 0) > 0) wSetDown(g, p, true);
 }
 
 /* -------------------------------------------------------------------
@@ -996,6 +1012,7 @@ function wStep(g) {
     if (p.dead) continue;
     /* a pail of wet concrete, dawdled with */
     if ((p.mortar || 0) > 0 && g.tick - (p.mortarT || 0) > W_POUR) wWentOff(g, p);
+    else if ((p.lump || 0) > 0 && !p.climb && p.state === "walk") wSetDown(g, p, false);   /* (somewhere to put it down now) */
     /* a tale, round a campfire, once they think of plays */
     if (g.know.theatre && p.task && p.task.kind === "warm" && p.task.social && p.sayT <= 0 && Math.random() < 0.03) wTellTale(g, p);
   }
@@ -1049,7 +1066,7 @@ function wFinish(g, s, p) {
 }
 function wMood(g, p) {
   var k = p.task, s;
-  if (!k) return (p.mortar || 0) >= 1 ? "is carrying a pail of wet concrete. it is going off" : "";
+  if (!k) return (p.mortar || 0) >= 1 ? "is carrying a pail of wet concrete. it is going off" : ((p.lump || 0) >= 1 ? "is carrying a lump of concrete that went off. it wants putting down" : "");
   if (k.kind === "haul") return (s = bSite(g, k.site)) ? "is taking " + (mPockets(p) || "something") + " to " + bLabel(s) : "is carrying things";
   if (k.kind === "quarry") return k.haul ? "is carrying stone up out of the quarry" : "is cutting stone for the great work" + ((p.stone || 0) >= 1 ? ". " + Math.floor(p.stone) + " so far" : "");
   if (k.kind === "mix") return !k.water ? "is fetching water to mix concrete with" : ((p.sand || 0) < 2 ? "is digging sand for the concrete" : "is mixing concrete");
