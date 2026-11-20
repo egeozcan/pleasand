@@ -939,9 +939,16 @@ Harness.prototype._doWheel = function (d) { this.game.gameWheel(this.g, d); retu
 
 /* one pointer at a time, as the shell's pointer handler leaves it */
 Harness.prototype._press = function (btn) {
-  var g = this.g;
+  var g = this.g, row = this.game.rowAt(g.mx, g.my);
   g.down = 1; g.btn = btn == null ? 0 : btn; g.ptr = 1;
   this.game.gameTap(g, g.mx, g.my);
+  /* (a click on the picker: a row, which is a brush in the list the scenario was recorded with. replayed, the brush of
+     that row in that list (a scenario from before wet concrete: the rows as they were); recorded, the brush's name
+     too, so that it replays as that brush whatever the rows are by then) */
+  if (row >= 0) {
+    if (this._replaying && this._scPicks) { if (this._scPicks[row] != null) this._doSelect(this._scPicks[row]); }
+    else this._op("select", { sel: this.pick[g.sel].name });
+  }
   return this;
 };
 Harness.prototype._release = function () {

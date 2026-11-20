@@ -217,6 +217,21 @@ module.exports = function (test, check, sim) {
     check(water() === n0, "water went from " + n0 + " to " + water() + " with the mixer dead");
   });
 
+  test("wonders: a scenario from before wet concrete, clicking the picker, replays the brush it clicked: and new clicks are kept by name", function () {
+    var h = H.open({ seed: 1 }), w = h.game, k, cl = -1;
+    for (k = 0; k < h.pick.length; k++) if (h.pick[k].name === "CLONER") cl = k;
+    function at(sx, sy) { return { x: (sx - h.PANEL) / h.CELL - 0.5, y: (sy - h.PLAY_Y) / h.CELL - 0.5 }; }   /* (a point on the screen, as the harness's cells) */
+    var c = at(10, w.rowY(cl - 1) + 3);   /* (CLONER's row, as the rows were then: one higher) */
+    var sc = { version: 1, seed: 1, ticks: 2, ops: [{ at: 0, op: "tap", args: { x: c.x, y: c.y } }] };
+    h.replay(sc);
+    check(h.pick[h.g.sel].name === "CLONER", "the old scenario's click on CLONER picked " + h.pick[h.g.sel].name);
+    var h2 = H.open({ seed: 1 });
+    var c2 = at(10, w.rowY(cl) + 3);
+    h2.tap(c2.x, c2.y);
+    var ops = h2.scenario().ops;
+    check(ops.some(function (o) { return o.op === "select" && o.args.sel === "CLONER"; }), "a click on CLONER was not kept by name: " + JSON.stringify(ops));
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;
