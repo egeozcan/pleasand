@@ -356,7 +356,9 @@ function pSay(g, p, kind, force, other) {
   p.say = s; p.sayT = 90 + s.length * 3;
   if (g.t - (g.sTalk || 0) > 0.12) {
     g.sTalk = g.t;
-    if (/AAA|WAAA|HOT HOT|FIRE!|IT BURNS|MUMMY/.test(s)) SFX.scream(p.voice, 0.6 + Math.random() * 0.3);
+    /* (how often this is, is down to the clock, not the ticks: in a village with great works in it, the side dice, so that
+       it comes out the same at any speed. game.js sandSounds) */
+    if (/AAA|WAAA|HOT HOT|FIRE!|IT BURNS|MUMMY/.test(s)) SFX.scream(p.voice, 0.6 + (g.wAny ? RNG_SIDE.random() : Math.random()) * 0.3);
     else SFX.babble(p.voice, clamp(Math.ceil(s.length / 4), 2, 7));
   }
 }

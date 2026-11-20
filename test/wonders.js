@@ -43,6 +43,19 @@ module.exports = function (test, check, sim) {
     }
   });
 
+  test("wonders: a village with great works in it comes out the same at 1x, 4x and 1/4: the sounds roll the side dice", function () {
+    function run(sp) {
+      var h = H.open({ seed: 1 });
+      h.g.know.concrete = "TEST"; h.g.wAny = true; h.g.helloT = 0;   /* (the greeting is timed by the frame, as it always was) */
+      h.speed(sp);
+      while (h.g.tick < 3000) h.step(1);
+      var c = 0, m = h.g.m; for (var i = 0; i < m.length; i++) c = (c * 31 + m[i]) >>> 0;
+      return c;
+    }
+    var a = run(2), b = run(4), q = run(0);
+    check(a === b && a === q, "the grids came out different: " + [a, b, q].map(function (v) { return v.toString(16); }).join(" "));
+  });
+
   test("wonders: wet concrete sets in its form, faster warm, frost ruins it, and poured it sinks under water", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200;
     flat(w, x0, 20, G);

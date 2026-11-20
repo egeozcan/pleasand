@@ -391,7 +391,11 @@ function gameUpdate(g, dt) {
 }
 
 /* the sound department, rationed: one bang per bang, not one per grain of powder */
-function sandSounds(g) {
+/* (once a frame, not once a tick: how many times a sound is played, and its dice rolled, is down to the frame rate and
+   the speed. so in a village with great works in it, it all rolls the side dice (rng.js), and the village comes out the
+   same at any speed. a plain village rolls as it always did, so that it comes out as it always has) */
+function sandSounds(g) { return g.wAny ? sandSoundsSide(g) : sandSounds0(g); }
+function sandSounds0(g) {
   var f = g.fx, t = g.t, s = g.snd;
   function ok(k, gap) { if (f[k] && t - (s[k] || 0) > gap) { s[k] = t; return true; } return false; }
   if (!g.quiet) {
@@ -1360,7 +1364,7 @@ function frame(ts) {
 }
 
 /* the picture rolls its own dice (rng.js), never the village's */
-var gameDrawSide = rngSide(gameDraw);
+var gameDrawSide = rngSide(gameDraw), sandSoundsSide = rngSide(sandSounds0);
 
 /* scanlines and a vignette, because it is 2005. made once per canvas size */
 function drawChrome() {
