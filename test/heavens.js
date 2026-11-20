@@ -735,6 +735,19 @@ module.exports = function (test, check, sim) {
     for (k = 0; k < 130 && q.aboard; k++) sim.step(w, 1);
     check(!q.aboard && q.y <= G && !(q.x >= 214 && q.x <= 218 && q.y > G), "let out at " + q.x.toFixed(1) + "," + q.y.toFixed(1) + " (" + q.state + "), not on the floor they can walk home on");
   });
+  test("moon rocket: a shaft sixty deep midway between two houses is not home: let out on the floor the houses are on", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 100, x, y, k;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = G; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var q = g.peasants[0], a = g.peasants[1], b = g.peasants[2];
+    g.peasants.forEach(function (o) { if (o !== q && o !== a && o !== b) o.dead = 1; });
+    [[a, 90], [b, 240]].forEach(function (v) { var h = w.bNew(g, "house", v[0], [w.bE(g, v[1] - 4, G, M.STONE, 0)], [v[1] - 4, G - 14, v[1] + 4, G - 1], { F: G - 1, door: v[1] }); h.done = true; v[0].home = h.id; v[0].x = v[1] + 0.5; v[0].y = G - 1; });
+    var mid = Math.round(w.wMiddle(g));
+    for (x = mid - 2; x <= mid + 2; x++) for (y = G; y < G + 60; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+    q.aboard = 999; q.state = "space"; q.spaceT = 0; q.x = mid + 0.5; q.y = G + 57;
+    for (k = 0; k < 130 && q.aboard; k++) sim.step(w, 1);
+    check(!q.aboard && q.y <= G, "let out at " + q.x.toFixed(1) + "," + q.y.toFixed(1) + ", down the shaft");
+  });
   test("moon rocket: footing under a roof they can walk home from is found past any number nearer that they cannot", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y, k, n;
     var q = g.peasants[0];

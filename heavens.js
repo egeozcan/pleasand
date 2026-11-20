@@ -1466,12 +1466,13 @@ function hRelease(g, p) {
 /* where the village lives, to be got to on foot: the floor of any house, or the ground at the middle of them (wMiddle).
    {x, y, at(x, y)} */
 function hHome(g) {
-  /* (the first footing from the top in the middle column, or the nearest column to it that has any) */
+  /* (the ground at the middle: the highest footing within ten columns of it, the lip of a pit and not the foot of it;
+     or, with none there, the nearest column further out that has any) */
   var m0 = Math.round(wMiddle(g)), mx = -1, my = -1, d, x, y;
-  for (d = 0; d <= 40 && mx < 0; d++) for (var sd = -1; sd <= 1 && mx < 0; sd += 2) {
+  for (d = 0; d <= 40 && (mx < 0 || d <= 10); d++) for (var sd = -1; sd <= 1; sd += 2) {
     x = m0 + sd * d;
     if (x < 1 || x > g.gw - 2) continue;
-    for (y = 9; y < g.gh; y++) if (navStand(g, x, y) === 1) { mx = x; my = y; break; }
+    for (y = 9; y < g.gh; y++) if (SOLID[pCell(g, x, y + 1)] && AIRY[pCell(g, x, y)] && navStand(g, x, y) === 1) { if (mx < 0 || y < my) { mx = x; my = y; } break; }
   }
   if (mx < 0) { mx = Math.max(1, Math.min(g.gw - 2, m0)); my = g.gh - 1; }
   var H = g.sites.filter(function (s) { return s.kind === "house" && s.done; });
