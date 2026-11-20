@@ -4,7 +4,7 @@ A falling sand game, with peasants in it.
 
 Twenty-odd kinds of pixel (sand, water, salt water, oil, wood, plant, fire,
 lava, stone, metal, ice, snow, gunpowder, ash, salt, seed, glass, acid, gas,
-torch, faucet, drain, cloner, and inert: a magic block that stays where you put
+torch, faucet, drain, cloner, wet concrete, and inert: a magic block that stays where you put
 it, carries no heat and ignores everything but the eraser), plus fireworks, a
 nuke and lightning. And under the sand, in the rock, what you cannot paint:
 seams of coal, lumps of iron ore, beds of rock salt and, deep down, the odd speck of gold, and here
@@ -306,6 +306,189 @@ whoever is building builds from it, so somebody with stone and somebody with
 wood can build a stone tower with wooden doors between them. Hover over a
 site to see what it is waiting for.
 
+And when there is not much left to think of, they build something nobody needs
+and everybody wants. The great works are ideas too (hover over **WONDERS** at
+the top to see which they have built, which is going up, and what might give
+them the rest), put into somebody's head by something that happened to them,
+and each comes with a banner. One goes up at a time, with a crew of a third of
+the village at most, so nobody starves for it; whoever has what it is short of
+brings it from anywhere in the valley. A wonder that cannot get what it needs
+for a long while is laid by, and the next one is started. Two plain ideas come
+first, because the great works need them:
+
+- **Concrete**: comes of masonry, smelting and the bucket, in whoever spills a
+  bucket at the furnace. Stone and coal burnt together at the furnace come out
+  as lime, and lime, sand and a bucket of water, mixed, come out as a pail of
+  wet concrete, which is carried, poured, and sets in a while, like stone (twice
+  as fast warm; frozen, it never sets, and crumbles). Somebody who dawdles with
+  a full pail ends up tipping out a lump of concrete wherever they are. The
+  furnace also fires stone and coal into firebrick, which stands far more heat
+  than stone does. You can pour **WET CONCRETE** yourself: hurry
+- **Stained glass**: comes of glassmaking and ore found, in whoever makes the
+  next pane. A pane, with a pinch of ore in it, comes out green; with coal,
+  amber; with a fifth of a nugget of gold, ruby. It glows its colour when there
+  is a light near it
+
+And a great work wants a great deal of stone, which is in nobody's pocket for
+long. When one is short of it, a miner goes down an old mine and cuts the floor
+of a gallery down, a bench at a time, and brings the stone up; with no mine,
+the bare rock somewhere. Gold is only ever gilding: a wonder is finished in
+plain stone where there is none, and gilded when some turns up. And while a
+great work wants iron, new tools wait. What they build:
+
+- **The theatre**: comes of fireworks, masonry, a village of six or more, and
+  a few things worth telling. A plank stage two up on a stone plinth, a
+  backdrop, red curtains (one hung full at the back, one tied back to the post
+  at the front), a painted cloth of a hill and a moon between them, and a
+  lantern at either end of the beam. In front of it, three tiers of stone
+  seats, cut into a slope if there is one and built up out of stone if there
+  is not. Every so often the boredest of them picks the best tale nobody has
+  acted yet, two of them (three, in a big village) play it, and the idle sit
+  on the tiers and watch, and clap. Whoever it happened to plays themselves if
+  they are about, or says from the seats that it was not like that
+- **The pyramid**: comes of masonry, somewhere to cut the stone, and a king
+  dying; the next to be crowned thinks of it (a valley whose king never dies
+  does it for its greatest mind instead). Twenty-three wide at the foot, twelve
+  courses of dressed stone, each a step in from the last, so its sides are
+  stairs, out at the edge of the valley where it is in nobody's way. In the
+  middle, sealed in, a chamber with the king's name and crown. The capstone is
+  gold if there is any, stone if there is not, gilded later if some turns up.
+  The bored climb it and look out, the new king goes up now and then and says
+  something about the old one, and somebody hears about it from outside and
+  comes to live in the valley. Open the tomb, and the first one in is cursed:
+  for a good while they trip over their own feet, on sand, on anything, and
+  say so. And the pyramid is down as wanting mending, like anything of theirs
+- **The baths**: comes of concrete, coal, and a good deal of swimming; whoever
+  last climbed out of the pond, shivering, thinks of it. A basin of concrete
+  sunk into the ground, nine by three, filled bucket by bucket from real water,
+  with a firebrick hearth under one end and a flue under the floor to a chimney
+  at the other (a hypocaust, the Romans called it), and columns and a
+  pediment over it all. A stoker puts lit coal in the hearth, and the heat comes
+  up through the floor into the water, the way heat goes anywhere here: under
+  33 they stoke, over 40 they rake the fire out, and say so. Anybody cold goes
+  and bathes instead of standing round a campfire, and the bored go for a soak
+  and gossip about whoever is not there; warm water is cosy, and they think
+  twice as fast in it. Over 50 they get out and stand round it shouting at the
+  stoker
+- **The hanging gardens**: comes of a village that knows concrete looking for
+  room for another field and finding none, anywhere. So: up. Three terraces up
+  a slope (or on brick piers, where there is no slope), each a little field
+  six wide, five rows over the last and open to the sky all the way up, with a
+  pool dug at the foot and a cistern at the top. The terraces are fields like
+  any other, sown and reaped and raided by ducks, but they do not count
+  against the fields a village keeps. Between the pool and the cistern, up
+  under the terraces, runs an archimedes screw of iron, and the screw-turner
+  stands at the crank and turns it, and sings, and every twenty strokes a cell
+  of water comes up out of the pool and into the cistern. The cistern spills
+  onto the top terrace, the top terrace onto the next, and the bottom one back
+  into the pool: the same water, round and round, less what the wheat drinks
+  on the way. The pool is topped up a bucket at a time
+- **The steam organ**: comes of concrete, a show or two, and a furnace that
+  has been worked hard. A copper tank of forty cells of water over a firebrick
+  firebox, and on its lid a rack of seven tinned pipes from six to eighteen
+  high, each with a valve where it leaves the lid. Before a show (and now and
+  then on its own) the organist fires it, a coal at a time, until there is a
+  head of steam under the lid; then opens the valves to a tune, one note at a
+  time. The steam goes up whichever pipe is open, and every puff of it out of
+  the top of a pipe is that pipe's note. A concert is about thirty notes. It
+  plays at every fireworks show. The steam goes up to the top of the sky,
+  cools, and comes back down as rain about where it rose: what lands in the
+  gutter at the organ's foot the organist bails back into the tank, and the
+  rest is rain on whatever is next to it. The audience sways. Somebody always
+  says it is a bit loud. Shut every valve on a tank full of steam for long
+  enough, and the organist opens one, to let it breathe
+- **The duck palace**: comes of the scarecrow, forty raids on the wheat, and a
+  valley with ducks in it, in whoever has shooed the most of them. If you
+  can't beat them, house them: a plank deck at the edge of the biggest fresh
+  water there is, half on the bank and half out over the water, a pavilion
+  with a little dome on it (gold, if there is gold to spare; painted, if not),
+  three nests, a ramp, and at the bank end a trough. Whoever reaps the wheat
+  keeps a handful of seed back, and the feeder scatters it in the trough, and
+  is mobbed. A duck will go a long way for seed in the trough, a good deal
+  further than for the wheat, so the raids fall off. A duck at home on the
+  deck has ducklings twice as often, and they hatch there. The eldest duck
+  wears a crown. Throw a duck at it, and the ducks will not go near it for a
+  while
+- **The ice palace**: there is no weather in the valley, so this one is yours.
+  Freeze the village (a snowman, and somebody skating, first), with snow lying
+  about the houses, and they build a palace out of it, quick, before it thaws:
+  packed-snow walls, a crenellated tower and a gatehouse, ice windows, an ice
+  floor, and a lantern hanging from the skylight. Anybody free lends a hand,
+  whatever else is going up. They skate in it, they throw snowballs round it,
+  and they stand in it out of the cold. The lantern's warmth is real, and the
+  skylight drips. When it warms up it melts, and once it is more water than
+  palace it is a ruin, and they are sorry. The next time you freeze them, they
+  build it again
+- **The cathedral**: comes of coloured glass, the bell, and a cross weathered
+  away to nothing; whoever was at the graveyard when it went thinks of it. A
+  stone nave seventeen wide with a door at either end, pews, three candles
+  hung from the vault, a rose window of coloured glass in the gable (green and
+  amber, and ruby at the heart if there was gold), a belfry, and a spire
+  thirty-five up with a lightning rod and a weathercock on it. The bell is
+  taken down from wherever it hung and rehung in the belfry. Under it all is a
+  crypt, a ladder down through the floor, with a niche and a candle in the
+  wall for every name the village remembers: the ones whose crosses weathered
+  away come back. The bored go down with a candle and say hello. Every so
+  often the bell rings for a service: the idle file into the pews, and the
+  eldest names the dead, and how ("for Gary, who came back from space too
+  fast"), and everybody goes home thinking twice as fast for a while. The
+  candles light the rose window from behind, the only coloured light in the
+  valley. The rod takes a bolt that was going to hit anything of theirs within
+  ten columns of it, and only that. Water that gets into the crypt is bailed
+  out, a pail at a time, up the ladder and out onto lower ground, or into the
+  pond. Far from home when the fireworks go off, it is where they hide
+- **The observatory**: comes of glass, masonry, and a good many looks out from
+  the watchtower (twenty, all told; it occurs to whoever has looked out most).
+  A whitewashed dome on top of the tower, with a slit in its shoulder and a
+  brass telescope through the slit (on the highest ground there is, if there
+  is no tower). An astronomer goes up now and then and looks: at the moon,
+  every time, and at the stars, which they join up into a constellation and
+  name (THE BIG DUCK; THE LADLE; sometimes after somebody lately dead). It
+  hangs over the valley, faintly, for a while. Every so often they say there
+  will be falling stars tonight, and there are, and anybody with nothing
+  better to do stands and watches. One shower in three, one of them comes
+  down: a lump of iron with a nugget of gold in the middle of it, glowing,
+  never anywhere near anybody's house. Somebody goes and stands by it until it
+  is cool enough to pick up
+- **The lighthouse**: comes of oil, glass, masonry, and a lake: a real one, a
+  hundred and fifty cells of water at the least, which no valley has unless
+  you give it one. It occurs to the first one to swim in it. A red and white
+  tower on the bank, a ladder up the inside, a gallery with iron rails, and a
+  glass lantern with two lamps and a gilded reflector. The keeper carries a
+  barrel of oil up from the well's tank whenever it is getting low; a barrel
+  is a minute or so of light. The beam goes round, and whoever it passes over
+  thinks a little faster; a swimmer in trouble swims for it. Somebody out
+  there sees it too, the first night, and comes to live in the valley. Let the
+  oil run out and it goes dark, and everybody knows whose job that was
+- **The foundry**: comes of iron tools, concrete, sixty bars of iron made, and
+  whoever has worked the furnace most. A firebrick chamber in a firebrick
+  stack, a tap at the foot either side, and a mould sunk under each: a trough
+  for plates, and a cup for an engine bell. The founder tips it full of iron
+  and coal in layers, works the bellows, and keeps the fire fed (raking the
+  ash out as they go, which is more ash than the valley has ever had); when
+  most of it is running, they knock the plug through and it runs into the
+  mould like water, only brighter. Once it has set and cooled, it comes out as
+  plates, a fifth of a bar each. It wants a great deal of coal. Only the moon
+  rocket wants plates
+- **The moon rocket**: comes of the moon looked at a dozen times, the foundry,
+  concrete, a few flights on a rocket pack and a good many barrels pumped; the
+  astronomer thinks of it. A concrete pad with a firebrick trench, a red
+  girder gantry with a ladder up to a walkway, and a rocket: fifty-odd cast
+  plates in a hollow shell, an engine bell under it, a porthole, red fins, a
+  gilded nose. It wants twelve barrels of oil, carried a barrel at a time from
+  the well. Then a crew of up to three (whoever has flown most on a rocket
+  pack, the astronomer, and whoever has had the most ideas) climb the gantry
+  and get in, the valley comes to watch from a safe way off, and there is a
+  countdown. It goes up on a column of real fire, out of the top of the world,
+  and a little while later there is a flag on the moon. The crew come back the
+  way anybody comes back from space (over the pad, this time; the parachutes
+  mostly open), with moon rock in their pockets, which they set out by the
+  statue. They wear the helmets for good after that, and will tell you about
+  it
+
+Two of them are yours: there is no weather in the valley, and no lake big
+enough, unless you make one. The rest a valley gets as it has room for them.
+
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
 and grown from there.
 
@@ -382,6 +565,24 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - Freeze a field with COOL. Then wait for somebody to think of glass
 - Leave a little pile of GUNPOWDER by the mine. Somebody will pick it up. Carefully
 - Burn something down, then watch them sweep up the ash and take it to the wheat
+- Kill the king (there is a pyramid in it)
+- Open the tomb. Then watch where the first one in puts their feet
+- COOL the baths until they freeze. Then HEAT them until they boil
+- Set fire to the theatre's stage in the middle of a play
+- Strike lightning on a house beside the cathedral. Then on the open ground past it
+- Pour water into the crypt, and watch somebody bail it out, a pail at a time, up the ladder
+- Set the rose window alight with something very hot. When it has cooled it is plain glass. Wait
+- Let a graveyard fill up, and see whose name comes back
+- Set fire to the pews. The stone stands
+- Put salt water in the hanging gardens' cistern. Then COOL the water coming down the terraces
+- Paint stone over the tops of the steam organ's pipes, then HEAT the boiler
+- COOL the steam organ in the middle of a tune
+- Throw a duck at the duck palace
+- Freeze the village with snow lying about. Then HEAT it
+- Watch the sky once the observatory is up. Then go and stand a peasant where the falling star is coming down
+- Give them a lake (a big one), and some oil. Then strike the lantern with lightning while there is oil up there
+- Knock a hole in the foundry's mould while it pours. Or pour water on it
+- Set fire to something near the moon rocket once it is fuelled. Stand well back
 
 ## Files
 
@@ -397,6 +598,10 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - `oil.js`: oil in the rock, the derrick that pumps it, and rocket packs
 - `tidy.js`: tidying up: puddles bailed to where water does some good, sand swept off roofs and dug away from doors, piles shovelled up, bushes cut back out of doorways, and the village heap
 - `leftovers.js`: what is left over (ash, salt, glass, gunpowder, snow, ice) and what they make of it: picking it up, snowball fights, snowmen, skating, salt on the ice and on the fish, potash, black powder (blasting, fishing with it, fireworks), glass and the glasshouse, and frost on the wheat
+- `wonders.js`: the great works, as a kind of thing: one at a time, the crew, hauling, quarrying, the kiln, concrete and stained glass, tales worth telling, gatherings, the lightning rod, and the WONDERS count
+- `monuments.js`: the theatre, the pyramid, and the cathedral with its crypt
+- `pleasures.js`: the baths, the hanging gardens, the steam organ, the duck palace and the ice palace
+- `heavens.js`: the observatory and its falling stars, the lighthouse, the foundry, and the moon rocket
 - `ducks.js`: the ducks
 - `save.js`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it
 - `game.js`: rendering, the picker and HUD, input, and the main loop
