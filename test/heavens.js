@@ -387,6 +387,17 @@ module.exports = function (test, check, sim) {
     check(s.mould === "bell" && s.phase === 1, "the bell's mould, with a cold cell of iron in it, was not cast into: " + JSON.stringify([s.mould, s.phase]));
     check(Math.abs(ironOf(F) - i0) < 1e-6, "iron went from " + i0 + " to " + ironOf(F));
   });
+  test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
+    w.wDef({ id: "bellwant3" });
+    var x = s.x1 + 20, G = w.mGround(g, x), e = w.bE(g, x, G - 1, M.METAL, 0); e.res = "bell"; e.cost = 1;
+    w.bNew(g, "bellwant3", F.p, [e], [x, G - 1, x, G - 1], { wonder: true });
+    s.phase = 0; s.mould = "";
+    var bell = w.hMould(g, s, "bell"), j = bell[0];
+    w.sandPlace(g, j, M.INERT);
+    for (var k = 0; k < 400; k++) { w.hFoundryStep(g, s); sim.step(w, 1); }
+    check(g.m[j] === M.INERT, "the INERT in the mould was moved: " + w.MAT_NAME[g.m[j]]);
+  });
   test("foundry: what is lifted out of one mould is never put down in the other", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     var bell = w.hMould(g, s, "bell"), plate = w.hMould(g, s, "plate");
@@ -638,6 +649,17 @@ module.exports = function (test, check, sim) {
     var bell = s.plan.filter(function (e) { return e.res === "bell" && g.m[e.i] === M.METAL; })[0];
     w.sandPlace(g, bell.i, M.EMPTY); s.done = false; s.repair = true;
     check(w.hFoundryWant(g, f) === "an engine bell", "the foundry is asked for " + JSON.stringify(w.hFoundryWant(g, f)) + " for a ninth of a bell");
+  });
+  test("moon rocket: INERT painted over its hull is never flung by its blowing up", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
+    s.oil = 4;
+    var hull = s.plan.filter(function (e) { return e.rk && g.m[e.i] === M.METAL; }).slice(0, 6).map(function (e) { return e.i; });
+    hull.forEach(function (j) { w.sandPlace(g, j, M.INERT); });
+    w.sandPlace(g, (R.G - 3) * g.gw + s.x0 + 11, M.EMBER);
+    for (k = 0; k < 100 && !g.rocketBooms; k++) sim.step(w, 1);
+    check(g.rocketBooms === 1, "(the test wants it to go up)");
+    sim.step(w, 30);
+    check(hull.every(function (j) { return g.m[j] === M.INERT; }), "INERT flung off the hull: " + hull.map(function (j) { return w.MAT_NAME[g.m[j]]; }).join(","));
   });
   test("moon rocket: fire by a fuelled rocket blows it up, and anybody aboard is thrown clear", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;

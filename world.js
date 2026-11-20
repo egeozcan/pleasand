@@ -390,6 +390,7 @@ function partDrop(g, q, x, y) {
 /* turn a cell into a flying grain of itself. it takes all its heat with it, and its shade; the air that
    rushes in behind it is room air, with no heat of its own to speak of */
 function sandFling(g, j, vx, vy) {
+  if (g.m[j] === MAT.INERT) return false;   /* (INERT: stays exactly where it was put) */
   var v = g.m[j], q = partAdd(g, PK_DEBRIS, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, vx, vy, 240, SAND_PAL[v][g.sh[j]], v);
   if (q < 0) return false;
   g.pt[q] = heatQ(g, j); g.ps[q] = g.sh[j];

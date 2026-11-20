@@ -997,12 +997,13 @@ function hMouldSweep(g, s, which) {
   hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (q) { not[q] = 1; });   /* (nor into the other mould) */
   /* (and anything else in it, ice, sand blown in, a bit of glass: lifted out, and put down on the open air nearest,
      heat and all, as the water is. nothing is made to vanish) */
-  mo.forEach(function (q) { var c = g.m[q]; if (WET[c]) { if (!bShove(g, q, not)) hBail(g, q, not); } else if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) hBail(g, q, not); });
+  mo.forEach(function (q) { var c = g.m[q]; if (WET[c]) { if (!bShove(g, q, not)) hBail(g, q, not); } else if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) hBail(g, q, not); });   /* (INERT: hBail leaves it be) */
 }
 /* a cell of water with no way out through the water it is in (the bell's mould is shut in under the chamber), or of
    anything else in a mould: lifted out, and put down on the open air nearest it, heat and all */
 function hBail(g, j, not) {
   var gw = g.gw, x0 = j % gw, y0 = (j / gw) | 0, r, x, y, i, cols = {};
+  if (g.m[j] === MAT.INERT) return false;   /* (INERT stays exactly where it was put: only the eraser moves it) */
   /* (put down on something, clear of the mould's columns: not where it would only fall or run back in) */
   for (var q in not || {}) { var qx = q % gw; for (x = qx - 2; x <= qx + 2; x++) cols[x] = 1; }
   cols[x0] = 1;
@@ -1562,7 +1563,7 @@ function hLiftOff(g, s) {
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
     if (!e.rk) continue;
-    if (g.m[e.i] !== MAT.EMPTY) {
+    if (g.m[e.i] !== MAT.EMPTY && g.m[e.i] !== MAT.INERT) {   /* (INERT, left where it is) */
       x = e.i % g.gw; y = (e.i / g.gw) | 0;
       cells.push({ dx: x - bx, dy: y - by, v: g.m[e.i], a: g.aux[e.i], sh: g.sh[e.i] });
       heatVanish(g, e.i);
@@ -1638,7 +1639,7 @@ function hRocketBoom(g, s) {
   s.crew = []; s.count = 0;
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
-    if (!e.rk || g.m[e.i] === MAT.EMPTY || !SOLID[g.m[e.i]]) continue;
+    if (!e.rk || g.m[e.i] === MAT.EMPTY || g.m[e.i] === MAT.INERT || !SOLID[g.m[e.i]]) continue;   /* (INERT: not flung) */
     x = e.i % g.gw; y = (e.i / g.gw) | 0;
     sandFling(g, e.i, (x + 0.5 - s.rx - 0.5) * 0.3 + (Math.random() - 0.5) * 2, -1.5 - Math.random() * 2.5);
   }
