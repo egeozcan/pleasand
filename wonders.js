@@ -197,7 +197,7 @@ function wFull(g, s, p) {
   if (wCrew(g, s, p) >= wCap(g)) return true;
   var n = 0;
   for (var k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (t.wonder && !t.done && !(wOf(t.kind) || {}).exempt) n += wCrew(g, t, p); }
-  return n >= Math.max(wCap(g), Math.floor(bAlive(g) / 2));   /* (half the village; but one great work's crew, however few they are) */
+  return n >= Math.max(1, Math.floor(bAlive(g) / 2));   /* (half the village; but a lone villager can be a crew of one) */
 }
 /* can it be called finished: no wet concrete in it still going off */
 function wReady(g, s) {
