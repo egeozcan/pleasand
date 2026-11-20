@@ -587,15 +587,21 @@ module.exports = function (test, check, sim) {
     sim.step(w, 3);
     check(!q.aboard && q.state !== "space" && (q.x < 158 || q.x > 171), "did not come out off the pad once there was somewhere: " + q.state + " at " + q.x.toFixed(1));
   });
-  test("moon rocket: the world cleared under a crew aboard, they come out to footing far off, or drop where they sat", function () {
+  test("moon rocket: the world cleared under a crew aboard, they come out at once to footing far off, or drop from the foot of where it stood", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, k;
     var q = g.peasants[0], q2 = g.peasants[1];
     g.peasants.forEach(function (o) { if (o !== q && o !== q2) o.dead = 1; });
-    [q, q2].forEach(function (o) { o.aboard = 999; o.state = "space"; o.spaceT = 0; o.x = 165.5; o.y = G - 8; o.pad = { x0: 158, x1: 170 }; o.safe = null; });
+    [q, q2].forEach(function (o) { o.aboard = 999; o.state = "space"; o.spaceT = 0; o.x = 165.5; o.y = G - 30; o.pad = { x0: 158, x1: 170, y: G - 22 }; o.safe = null; });
     w.sandClear(g);
     for (x = 186; x <= 196; x++) w.sandPlace(g, G * g.gw + x, M.STONE);   /* (a ledge sixteen off the pad, and nothing else) */
-    for (k = 0; k < 600 && (q.aboard || q2.aboard); k++) sim.step(w, 1);
+    sim.step(w, 2);
     check(!q.aboard && !q2.aboard && q.state !== "space" && q2.state !== "space", "still aboard a rocket that is not there: " + q.state + ", " + q2.state);
+    check([q, q2].every(function (o) { return o.state === "walk" && o.x >= 186 && o.x <= 197; }), "not out on the ledge (the only footing there is) at once: " + [q, q2].map(function (o) { return o.state + " " + o.x.toFixed(1); }).join(", "));
+    /* (and with no footing at all: dropped from the foot of where it stood, not from up where they sat) */
+    var q3 = q; q3.aboard = 998; q3.state = "space"; q3.x = 120.5; q3.y = G - 30; q3.pad = { x0: 114, x1: 126, y: G - 22 }; q3.safe = null;
+    w.sandClear(g);
+    sim.step(w, 1);
+    check(q3.state === "fly" && q3.fallY >= G - 24, "dropped from " + q3.fallY + ", not the foot of the rocket, " + (G - 23));
   });
   test("moon rocket: a plate gone the tick before it goes, between lookings-over, and it does not go", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;

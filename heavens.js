@@ -1383,7 +1383,7 @@ function hTaskBoard(g, p, k) {
   p.aboard = s.id; p.task = null; p.state = "space"; p.spaceT = 0;
   p.x = s.rx + 0.5; p.y = s.R0 - 8; p.vx = p.vy = 0;
   /* (and somewhere to come out to, if it does not go: off the pad, either side. looked at again if it comes to it) */
-  p.pad = { x0: s.x0, x1: s.x1 };
+  p.pad = { x0: s.x0, x1: s.x1, y: s.R0 };
   p.safe = hExit(g, p.pad);
   pSay(g, p, "board", true);
   return false;
@@ -1413,18 +1413,22 @@ function hDisembark(g, p) {
   if (!sf || navStand(g, Math.floor(sf.x), sf.y) !== 1 || WET[pCell(g, Math.floor(sf.x), sf.y)]) {
     /* (the nearest off the pad; further, now and then: a look across half the valley is not every tick's work) */
     sf = hExit(g, pad);
-    if (!sf && (g.tick + p.id) % 60 === 0) sf = hExit(g, pad, g.gw >> 1);
+    /* (further, now and then while the rocket is there to wait in; at once if it is not: there is no waiting in it) */
+    if (!sf && ((g.tick + p.id) % 60 === 0 || !s || s.kind !== "moonrocket" || s.gone)) sf = hExit(g, pad, g.gw);
   }
   if (sf) {
     p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0; p.safe = null; p.pad = null;
     p.x = sf.x; p.y = sf.y; p.state = "walk"; p.fallY = p.y;
     return true;
   }
-  /* (nowhere to stand anywhere near, and the rocket not there at all, its hull gone with it: they drop from where they
-     sat, as anybody does with nothing under them, and land where they land) */
+  /* (nowhere to stand anywhere in the valley, and the rocket not there at all, its hull gone with it: they drop, as
+     anybody does with nothing under them, from the foot of where it stood, not from up where they sat: from as low as
+     there is room) */
   if (!s || s.kind !== "moonrocket" || s.gone) {
+    var fx = Math.floor(p.x), y = pad.y != null ? pad.y - 1 : Math.floor(p.y);
+    while (y > Math.floor(p.y) && !pRoom(g, fx, y)) y--;
     p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = 0; p.vy = 0; p.safe = null; p.pad = null;
-    p.state = "fly"; p.flyT = 0; p.fallY = p.y;
+    p.y = Math.max(Math.floor(p.y), Math.min(y, g.gh - 2)); p.state = "fly"; p.flyT = 0; p.fallY = p.y;
     return true;
   }
   return false;
