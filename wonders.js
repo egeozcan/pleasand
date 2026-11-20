@@ -665,9 +665,10 @@ function wTaskKiln(g, p, k) {
     if ((p.gold || 0) >= 0.2 && wRubyWanted(g, s)) { p.gold -= 0.2; tint = 0; }
     else if ((p.ore || 0) + (st.ore || 0) >= 1) { burn("ore"); tint = 1; } else { burn("coal"); tint = 2; }
     p.stained = (p.stained || 0) + 1; k.n++;
-    /* (the pane is the colour of what went into it: red for gold, green for ore, amber for coal. the next window of
-       the wonder's still to be glazed is that colour, then, whatever it was drawn as) */
-    for (var q = 0; q < s.plan.length; q++) { var se = s.plan[q]; if (se.v === MAT.STAINED && !se.tinted && !bOk(g, se)) { se.a = tint; se.tinted = true; break; } }
+    /* (the pane is the colour of what went into it: red for gold, green for ore, amber for coal. the wonder keeps the
+       colours of the panes fired for it, in the order they were fired, and the next window glazed is the colour of the
+       next of them, whatever it was drawn as: build.js bPlace) */
+    (s.tints || (s.tints = [])).push(tint);
   } else {
     st.stone--; burn("coal");
     var out = 2;   /* (two of lime to a stone burnt; a stone cut in two and fired, two firebricks) */

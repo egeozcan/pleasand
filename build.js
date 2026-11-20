@@ -811,7 +811,7 @@ function bPlace(g, s, e, p) {
   if (e.redo && g.m[e.i] === MAT.PLANK) p.boards = (p.boards || 0) + 1;   /* (the old board, out, and into their pocket) */
   if (e.gild && g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5;   /* (the stand-in, out: wonders.js) */
   if (e.v === MAT.STAINED && g.m[e.i] === MAT.GLASS) p.glass = (p.glass || 0) + 1;   /* (the plain pane, out: monuments.js) */
-  if (e.v === MAT.STAINED) e.tinted = false;   /* (its colour used: one to replace it is the colour of the pane fired for it. wonders.js) */
+  if (e.v === MAT.STAINED && s.tints && s.tints.length) e.a = s.tints.shift();   /* (the colour of the pane that goes in: wonders.js) */
   /* (concrete goes in wet, into its form, and sets there: wonders.js) */
   sandSet(g, e.i, e.v === MAT.CONCRETE ? MAT.MORTAR : e.v);
   g.aux[e.i] = e.v === MAT.CONCRETE ? 128 : e.a;
