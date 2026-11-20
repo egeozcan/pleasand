@@ -350,6 +350,21 @@ module.exports = function (test, check, sim) {
     check(!bell.some(function (j) { return w.WET[g.m[j]]; }), "the drop is still in the bell's mould");
     check(water() === n0, "water went from " + n0 + " to " + water());
   });
+  test("foundry: ice in the bell's mould is lifted out of it, heat and all, not made to vanish", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
+    w.wDef({ id: "bellwant2" });
+    var x = s.x1 + 20, G = w.mGround(g, x), e = w.bE(g, x, G - 1, M.METAL, 0); e.res = "bell"; e.cost = 1;
+    w.bNew(g, "bellwant2", F.p, [e], [x, G - 1, x, G - 1], { wonder: true });
+    s.phase = 0; s.mould = "";
+    var bell = w.hMould(g, s, "bell");
+    bell.forEach(function (j) { w.sandPlace(g, j, M.ICE); g.T[j] = -5; w.heatAccept(g, j); });
+    function ice() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.ICE) n++; return n; }
+    var n0 = ice();
+    w.hFoundryStep(g, s);
+    check(s.mould === "bell", "(the test wants a bell to be cast)");
+    check(!bell.some(function (j) { return g.m[j] === M.ICE; }), "ice still in the bell's mould");
+    check(ice() === n0, "ice went from " + n0 + " to " + ice());
+  });
   test("foundry: a charge of two bars, tapped, sets in the plate mould and is prised out as plates; the iron is all there, none of it outside, and the ash is raked out", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F), fb = fireb(F), first = 0, set = 0;
     var mould = w.hMould(g, s, "plate");

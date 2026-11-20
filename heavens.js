@@ -967,21 +967,26 @@ function hMould(g, s, which) {
 function hMouldHot(g, s) { var t = AMBIENT; hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (j) { if (g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA) t = Math.max(t, g.T[j]); }); return t; }
 /* a cast in the mould, not yet prised out (iron in it, set or running) */
 function hMouldFull(g, s, which) { return hMould(g, s, which).some(function (j) { return g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA; }); }
-/* whatever else has got into a mould (a drop of rain, sand blown in): out, before it is cast into. water shoved out of
-   it (build.js bShove), anything else swept out */
+/* whatever else has got into a mould (a drop of rain, ice, sand blown in): out, before it is cast into. water shoved out
+   of it (build.js bShove), anything else lifted out (hBail) */
 function hMouldSweep(g, s, which) {
   var mo = hMould(g, s, which), not = {};
   mo.forEach(function (q) { not[q] = 1; });
-  mo.forEach(function (q) { var c = g.m[q]; if (WET[c]) { if (!bShove(g, q, not)) hBail(g, q, not); } else if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) heatVanish(g, q); });
+  /* (and anything else in it, ice, sand blown in, a bit of glass: lifted out, and put down on the open air nearest,
+     heat and all, as the water is. nothing is made to vanish) */
+  mo.forEach(function (q) { var c = g.m[q]; if (WET[c]) { if (!bShove(g, q, not)) hBail(g, q, not); } else if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) hBail(g, q, not); });
 }
-/* a cell of water with no way out through the water it is in (the bell's mould is shut in under the chamber): bailed out,
-   a scoop, and tipped onto the open air nearest it, heat and all */
+/* a cell of water with no way out through the water it is in (the bell's mould is shut in under the chamber), or of
+   anything else in a mould: lifted out, and put down on the open air nearest it, heat and all */
 function hBail(g, j, not) {
-  var gw = g.gw, x0 = j % gw, y0 = (j / gw) | 0, r, x, y, i;
+  var gw = g.gw, x0 = j % gw, y0 = (j / gw) | 0, r, x, y, i, cols = {};
+  /* (put down on something, clear of the mould's columns: not where it would only fall or run back in) */
+  for (var q in not || {}) { var qx = q % gw; for (x = qx - 2; x <= qx + 2; x++) cols[x] = 1; }
+  cols[x0] = 1;
   for (r = 1; r < 30; r++) for (y = y0 - r; y <= y0 + r; y++) for (x = x0 - r; x <= x0 + r; x++) {
-    if (Math.max(Math.abs(x - x0), Math.abs(y - y0)) !== r || x < 1 || y < 1 || x >= gw - 1 || y >= g.gh - 1) continue;
+    if (Math.max(Math.abs(x - x0), Math.abs(y - y0)) !== r || x < 1 || y < 1 || x >= gw - 1 || y >= g.gh - 1 || cols[x]) continue;
     i = y * gw + x;
-    if (g.m[i] !== MAT.EMPTY || (not && not[i]) || g.m[i - gw] !== MAT.EMPTY) continue;
+    if (g.m[i] !== MAT.EMPTY || (not && not[i]) || g.m[i - gw] !== MAT.EMPTY || !SOLID[g.m[i + gw]]) continue;
     heatSync(g, j); heatSync(g, i); sandSwap(g, j, i);
     return true;
   }
