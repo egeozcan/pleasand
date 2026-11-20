@@ -221,6 +221,9 @@ function wPick(g, p, hungry) {
   }
   /* the kiln: something asked of the furnace */
   if (g.kiln && g.kiln.length && wGoKiln(g, p)) return true;
+  /* glass, for a wonder's windows (and for the kiln's coloured glass): blown at the furnace before the mine gets
+     everybody (leftovers.js counts what the wonders want: monuments.js) */
+  if (g.know.glass && lGlassShort(g, mSites(g, "furnace", true)[0]) > 0 && lGlassPick(g, p)) return true;
   /* short of stone, and nowhere to get it but the rock: a quarryman */
   if (wGoQuarry(g, p)) return true;
   /* a wonder thought of, and none going up: somewhere for it (one great work at a time) */
@@ -919,7 +922,7 @@ function wPlot(g, o) {
   for (x0 = 6 + pad; x0 + W - 1 < g.gw - 6 - pad; x0++) {
     gy = []; hi = 1e9; lo = -1; ok = true;
     for (x = x0; x < x0 + W && ok; x++) {
-      y = mGround(g, x, true);
+      y = o.floor != null ? mGroundNear(g, x, true, o.floor) : mGround(g, x, true);   /* (o.floor: the floor about level with that row, under a shelf, say: monuments.js) */
       if (y < 10 || !pSolid(g, x, y)) { ok = false; break; }
       gy.push(y); hi = Math.min(hi, y); lo = Math.max(lo, y);
     }

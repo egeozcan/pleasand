@@ -195,6 +195,7 @@ function bFree(g, e) {
   if (e.v === MAT.CROP && g.m[e.i + g.gw] !== MAT.SOIL) return false;            /* and wheat is sown in earth */
   if (e.redo && c === MAT.PLANK) return true;                                    /* a board to be re-laid in stone (mines.js) */
   if (e.gild && c === MAT.BRICK) return true;                                    /* a stone stand-in, to be gilded (wonders.js) */
+  if (e.v === MAT.STAINED && c === MAT.GLASS) return true;                       /* coloured glass melted and set plain: the glazier (monuments.js) */
   return e.v === MAT.EMPTY || B_AIR[c] === 1 || B_DIG[c] === 1;
 }
 /* a board needs something solid next to it (corners count) */
@@ -763,6 +764,7 @@ function bPlace(g, s, e, p) {
   if (!bPay(g, p, s, e)) return;
   if (e.redo && g.m[e.i] === MAT.PLANK) p.boards = (p.boards || 0) + 1;   /* (the old board, out, and into their pocket) */
   if (e.gild && g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5;   /* (the stand-in, out: wonders.js) */
+  if (e.v === MAT.STAINED && g.m[e.i] === MAT.GLASS) p.glass = (p.glass || 0) + 1;   /* (the plain pane, out: monuments.js) */
   /* (concrete goes in wet, into its form, and sets there: wonders.js) */
   sandSet(g, e.i, e.v === MAT.CONCRETE ? MAT.MORTAR : e.v);
   g.aux[e.i] = e.v === MAT.CONCRETE ? 128 : e.a;
@@ -1118,7 +1120,7 @@ function bGoHome(g, p, h) {
 /* things going bang: anyone with a house near enough runs for it, instead of just running. true if that is the plan */
 function bHide(g, p) {
   var h = bHome(g, p);
-  if (!h || Math.abs(h.cx - p.x) > 120 || Math.abs(h.F - p.y) > 40) return false;
+  if (!h || Math.abs(h.cx - p.x) > 120 || Math.abs(h.F - p.y) > 40) return mHide(g, p);   /* (far from home: the cathedral, monuments.js) */
   if (g.know.bucket && iBlazeOf(g, h.id)) return false;   /* (not into a house that is on fire) */
   if (bInside(h, p)) {
     p.panic = 0; p.idle = 400 + irnd(400); p.hid = g.tick;
