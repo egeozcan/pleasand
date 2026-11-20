@@ -649,9 +649,13 @@ function wTaskKiln(g, p, k) {
     if (!g.wChar) { g.wChar = 1; feed(g, p.name + " burnt logs down to charcoal. there was no coal left in the valley", "#e0e0d4", "char"); }
   } else if (k.r === "stained") {
     if ((st.glass || 0) >= 1) st.glass--; else p.glass--;
-    if ((p.gold || 0) >= 0.2 && wRubyWanted(g, s)) p.gold -= 0.2;
-    else if ((p.ore || 0) + (st.ore || 0) >= 1) burn("ore"); else burn("coal");
+    var tint;
+    if ((p.gold || 0) >= 0.2 && wRubyWanted(g, s)) { p.gold -= 0.2; tint = 0; }
+    else if ((p.ore || 0) + (st.ore || 0) >= 1) { burn("ore"); tint = 1; } else { burn("coal"); tint = 2; }
     p.stained = (p.stained || 0) + 1; k.n++;
+    /* (the pane is the colour of what went into it: red for gold, green for ore, amber for coal. the next window of
+       the wonder's still to be glazed is that colour, then, whatever it was drawn as) */
+    for (var q = 0; q < s.plan.length; q++) { var se = s.plan[q]; if (se.v === MAT.STAINED && !se.tinted && !bOk(g, se)) { se.a = tint; se.tinted = true; break; } }
   } else {
     st.stone--; burn("coal");
     var out = 2;   /* (two of lime to a stone burnt; a stone cut in two and fired, two firebricks) */

@@ -306,6 +306,22 @@ module.exports = function (test, check, sim) {
     check(limed() >= 1, "no lime reached the wonder: " + JSON.stringify(s.stock));
   });
 
+  test("wonders: a pane of coloured glass is the colour of what went into it: coal makes amber, whatever the window was drawn as", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    know(g, ["farm", "dig", "mine", "smelt", "masonry", "glass", "stained"]);
+    var p = g.peasants[0];
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+    var f = sim.build(w, sites(g, "furnace")[0]);
+    var x = f.x1 + 12, G = w.mGround(g, x);
+    var s = cairn(w, p, x, G, 1, function () { return M.STAINED; });
+    s.plan[0].a = 1;   /* (drawn green: an ore's worth) */
+    g.peasants.forEach(function (q) { q.task = null; q.mineCD = 1e9; q.hunger = 0; q.ore = 0; q.gold = 0; q.coal = 0; q.glass = 0; });
+    f.stock = { coal: 6, glass: 2 };
+    for (var k = 0; k < 8000 && !(g.m[s.plan[0].i] === M.STAINED); k++) sim.step(w, 1);
+    check(g.m[s.plan[0].i] === M.STAINED, "(the test wants the window glazed)");
+    check(g.aux[s.plan[0].i] === 2, "a pane fired with coal, no ore, went in as " + ["ruby", "green", "amber"][g.aux[s.plan[0].i] % 3]);
+  });
+
   test("wonders: wet concrete is mixed from lime, sand and a bucket of water, poured in its form, and a pail dawdled with goes off", function () {
     var w = sim.load(1), g = w.g, M = w.MAT;
     know(g, ["farm", "dig", "bucket", "concrete"]);
