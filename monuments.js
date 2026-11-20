@@ -251,6 +251,7 @@ function mStartPlay(g, s) {
              hat: !subj && tale.dead };
   cast.forEach(function (q, r) { q.task = { kind: "act", site: s.id, r: r, t: 0, on: false }; q.idle = 0; });
   feed(g, "TONIGHT AT THE THEATRE: " + s.play.title.toUpperCase(), "#ffd94a", "play" + s.id);
+  if (typeof pOrganPlay === "function") pOrganPlay(g, "play");   /* (the organ fires up for the interval, if there is one: pleasures.js) */
   var but = {}; cast.forEach(function (q) { but[q.id] = 1; });
   var front = mU(s, 7);
   wGather(g, s, { seats: s.seats, cap: 99, x: front + s.d, y: s.G - 1, until: g.tick + 3200, kind: "play", face: -s.d, but: but, R: 220 });
@@ -807,9 +808,8 @@ function mServiceStep(g, s) {
     var seats = [6, 7, 10, 11, 12, 13].map(function (u) { return { x: s.x0 + u, y: s.F - 2 }; });
     s.serv = { t: 0, who: el.id, names: names, i: 0, bt: 0 };
     mRing(g, 3);
-    /* (and the steam organ plays, if there is one: pleasures.js gives it a play(g, site)) */
-    var org = wOf("organ");
-    if (org && org.play && mSites(g, "organ", true).length) org.play(g, s);
+    /* (and the steam organ plays, if there is one: pleasures.js) */
+    if (typeof pOrganPlay === "function") pOrganPlay(g, "service");
     wGather(g, s, { seats: seats, cap: 99, x: s.x0 + 4, y: s.F - 1, until: g.tick + M_SERVICE, kind: "service", but: but, R: 240 });
     feed(g, "the bell is ringing for a service at the cathedral. " + el.name + " is to say the words", "#ffd94a", "serv" + s.id);
     return;
