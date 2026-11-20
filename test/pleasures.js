@@ -371,4 +371,96 @@ module.exports = function (test, check, sim) {
     seedTrough(P); o.x = s.cx - 30; o.y = P.G - 0.5; o.state = "walk";
     check(!!w.pPalaceSeed(g, o), "the ducks never forgave it");
   });
+
+  /* ---------------------------------------------------------------
+     THE ICE PALACE
+     --------------------------------------------------------------- */
+  /* a flat valley floor at 150, five deep in snow from 100 to 240, a house at 200 to be the village, the air frozen (the
+     COOL brush, held down: freeze() keeps it so), and keep peasants with nothing else to do */
+  function ice(keep) {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y, k;
+    for (k = g.sites.length - 1; k >= 0; k--) w.bRemove(g, k);   /* (the village is the one house, below: nothing else to do) */
+    g.sites.forEach(function (t) { t.done = true; });
+    for (x = 90; x <= 250; x++) {
+      for (y = 40; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+      for (y = G; y < G + 8; y++) w.sandPlace(g, y * g.gw + x, M.SAND);
+      if (x >= 100 && x <= 240) for (y = G - 5; y < G; y++) { var j = y * g.gw + x; w.sandPlace(g, j, M.SNOW); g.T[j] = -10; w.heatAccept(g, j); }
+    }
+    w.bNew(g, "house", null, [w.bE(g, 200, G - 9, M.PLANK, 0)], [196, G - 14, 204, G - 6], {}).done = true;
+    know(g, ["farm", "dig", "bucket", "icepalace"]);
+    g.got.snowman = 1; g.got.skate = 1;
+    g.peasants.forEach(function (q, k) { if (k >= keep) q.dead = 1; else { q.x = 190 + k * 3 + 0.5; q.y = G - 6; q.task = null; q.hunger = 0; q.tired = 0; q.cold = 0; q.bored = 0; } });
+    var I = { w: w, g: g, M: M, G: G };
+    I.freeze = function (t) { for (x = 70; x <= 270; x++) for (y = 60; y < G + 2; y++) { var j = y * g.gw + x; if (g.T[j] > (t == null ? -4 : t) && (w.AIRY[g.m[j]] || g.m[j] === M.SNOW || g.m[j] === M.PACKSNOW || g.m[j] === M.ICE)) g.T[j] = t == null ? -4 : t; } };
+    I.warm = function () { for (x = 70; x <= 270; x++) for (y = 60; y < G + 2; y++) { var j = y * g.gw + x; if (w.AIRY[g.m[j]]) g.T[j] = 30; } };
+    I.freeze(); sim.step(w, 30); I.freeze();
+    return I;
+  }
+  /* run until the palace is done (or n ticks), keeping it frozen: how long it took, or -1 */
+  function iceBuild(I, n) {
+    var g = I.g, s = sites(g, "icepalace")[0], t0 = g.tick;
+    for (var t = 0; t < n && s && !s.done; t += 30) { sim.step(I.w, 30); I.freeze(); }
+    return s && s.done ? g.tick - t0 : -1;
+  }
+
+  test("ice palace: a freeze with snow lying about puts it into the snowman-builder's head, and it is planned on the snow", function () {
+    var I = ice(3), w = I.w, g = I.g, p = g.peasants[0];
+    delete g.know.icepalace;
+    g.lsnowmen.push({ id: ++g.sid, x: 150, G: I.G - 5, n: 26, who: p.short, name: "GARY", t0: 0, last: 0, dir: 1, up: true, by: p.id });
+    w.L_SNOWMAN.forEach(function (c) { var j = (I.G - 6 - c[0]) * g.gw + 150 + c[1]; w.sandPlace(g, j, I.M.PACKSNOW); g.T[j] = -10; w.heatAccept(g, j); });
+    p.spark = null;
+    sim.step(w, 30);
+    check(p.spark === "icepalace", "the snowman's builder did not think of an ice palace (" + p.spark + ")");
+    g.know.icepalace = "TEST";
+    check(w.pAirAtHouses(g) < 0 && w.pSnowAbout(g) >= w.P_ISNOW, "(the test wants a freeze with snow about: " + w.pAirAtHouses(g) + "°, " + w.pSnowAbout(g) + " snow)");
+    check(w.pPlanIce(g, p), "no ice palace planned in a freeze with snow about");
+    var s = sites(g, "icepalace")[0], M = I.M, n = {};
+    s.plan.forEach(function (e) { n[e.v] = (n[e.v] || 0) + 1; });
+    check(n[M.PACKSNOW] >= 30 && n[M.ICE] >= 10, "it is not packed snow and ice: " + JSON.stringify(n));
+    /* (and none when it is warm) */
+    w.bRemove(g, g.sites.indexOf(s));
+    I.warm(); sim.step(w, 2);
+    check(!w.pPlanIce(g, p), "an ice palace was planned in the warm");
+  });
+
+  test("ice palace: built of the snow lying about, in under 1500 ticks with three hands and under 2500 with two", function () {
+    var I3 = ice(3), I2 = ice(2);
+    check(I3.w.pPlanIce(I3.g, I3.g.peasants[0]) && I2.w.pPlanIce(I2.g, I2.g.peasants[0]), "(the test wants it planned)");
+    var t3 = iceBuild(I3, 4000), t2 = iceBuild(I2, 4000);
+    console.log("      (built in " + t3 + " ticks with three hands, " + t2 + " with two)");
+    check(t3 > 0 && t3 < 1500, "three hands took " + t3 + " ticks");
+    check(t2 > 0 && t2 < 2500, "two hands took " + t2 + " ticks");
+  });
+
+  test("ice palace: it goes up while a pyramid is going up, and the heat melts it, and the village is sorry", function () {
+    var I = ice(3), w = I.w, g = I.g, p = g.peasants[0], M = I.M, k;
+    /* a pyramid, going up (the great work), far off */
+    var plan = [];
+    for (k = 0; k < 20; k++) plan.push(w.bE(g, 30 + (k % 5), 120 - (k / 5 | 0), M.BRICK, 0));
+    w.bNew(g, "pyramid", p, plan, [30, 116, 34, 120], { wonder: true });
+    check(!!w.wGreat(g), "(the test wants a great work going up)");
+    g.wPlanT = 0; p.planCD = 0;
+    for (k = 0; k < 200 && !sites(g, "icepalace").length; k++) { g.wPlanT = 0; w.wPick(g, p, false); }
+    check(sites(g, "icepalace").length === 1, "no ice palace planned while the pyramid was going up");
+    check(iceBuild(I, 5000) > 0, "the ice palace was not built while the pyramid was going up");
+    var s = sites(g, "icepalace")[0];
+    check(s.done, "(the test wants it done)");
+    /* the thaw */
+    var said = 0;
+    for (var t = 0; t < 30000 && sites(g, "icepalace").length; t += 30) {
+      I.warm(); sim.step(w, 30);
+      g.peasants.forEach(function (q) { if (q.say && w.P_SAY.iceGone.indexOf(q.say) >= 0) said++; });
+    }
+    check(!sites(g, "icepalace").length, "it never melted (" + w.pIceLeft(g, s) + " of " + s.cells + " left)");
+    check(said > 0, "nobody was sorry");
+    check(g.feed.some(function (f) { return /ice palace has melted/.test(f.text); }) || said > 0, "no news of it");
+    /* the next freeze: again */
+    I.freeze(); sim.step(w, 30); I.freeze();
+    for (k = 0; k < 4000 && w.pSnowAbout(g) < w.P_ISNOW; k++) { var x = 100 + (k % 140), G = w.mGround(g, x); if (G > 10) { var j = (G - 1) * g.gw + x; if (g.m[j] === M.EMPTY) { w.sandPlace(g, j, M.SNOW); g.T[j] = -10; w.heatAccept(g, j); } } }
+    g.sites.filter(function (t) { return t.kind === "pyramid" || t.kind === "quarry"; }).forEach(function (t) { w.bRemove(g, g.sites.indexOf(t)); });
+    for (k = 0; k < 200 && !sites(g, "icepalace").length; k++) { g.wPlanT = 0; g.wNo = {}; p.task = null; p.planCD = 0; p.hunger = 0; p.cold = 0; w.wPick(g, p, false); }
+    check(sites(g, "icepalace").length === 1, "it was not planned again at the next freeze (" + w.pAirAtHouses(g).toFixed(1) + "°, " + w.pSnowAbout(g) + " snow, plan says " + w.pPlanIce(g, p) + ")");
+    check(iceBuild(I, 6000) > 0, "it was not built again");
+    check(g.got.iceagain, "no news of building it again");
+  });
 };

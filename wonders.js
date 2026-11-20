@@ -230,6 +230,7 @@ function wPick(g, p, hungry) {
       d = W_DEFS[k];
       if (!d.plan || !g.know[d.id] || (g.wDone && g.wDone[d.id] && !d.again) || iCount(g, d.id) || (!d.exempt && wGreat(g))) continue;
       if (g.wNo && g.wNo[d.id] > g.tick) continue;
+      if (d.wait && d.wait(g)) continue;   /* (not for want of room: the ice palace, waiting for a freeze. pleasures.js) */
       if (d.plan(g, p)) return true;
       if (!g.wNo) g.wNo = {};
       g.wNo[d.id] = g.tick + 6000;

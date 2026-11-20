@@ -1324,3 +1324,259 @@ function pDrawCrown(g, s) {
   wPut(g, hx - 1, hy, P_CROWN); wPut(g, hx, hy, P_CROWN_J); wPut(g, hx + 1, hy, P_CROWN);
   wPut(g, hx - 1, hy - 1, P_CROWN); wPut(g, hx + 1, hy - 1, P_CROWN);
 }
+
+/* =====================================================================
+   THE ICE PALACE: the snowman was lonely, so they built him a palace.
+   there is no weather: this is the player's reward for freezing them.
+   with snow lying about the houses and the air under nought, the
+   village builds a palace out of it, quick, before the cold lets up:
+   packed-snow walls and two crenellated towers, ice windows, an ice
+   floor to skate on, and a lantern hanging inside. anybody idle helps,
+   whatever else is going up (it is not the great work: it does not
+   last). they skate in it, they throw snowballs round it, and they
+   stand in it out of the cold. the lantern's warmth is real, and the
+   skylight over it drips. when it warms up again it melts, and once
+   it is more water than palace it is a ruin, and they are sorry. the
+   next freeze, they build it again
+   ===================================================================== */
+var P_IW = 13;                     /* across: a gatehouse, nine of hall, a tower */
+var P_ISNOW = 150;                 /* snow and ice lying about the houses before anybody thinks of it */
+var P_INEAR = 60;                  /* and how near the houses */
+var P_ISHOVEL = 30;                /* how far from the palace they go for snow */
+var P_IHAND = 12;                  /* snow to a shovelful (well: an armful) */
+/* (a cell of packed snow, or of ice, is paid for with a cell of snow off the ground: build.js prices it) */
+B_RES[MAT.PACKSNOW] = "snow"; B_AMT[MAT.PACKSNOW] = 1;
+B_RES[MAT.ICE] = "snow"; B_AMT[MAT.ICE] = 1;
+B_KINDS.push("snow");
+
+P_SAY.idea_icepalace = ["the snowman was lonely. so we built him a palace", "a palace. of snow", "it won't last. that's the point", "towers! made of snow!"];
+P_SAY.planIce = ["quick, before it thaws", "everybody grab some snow", "a palace! of snow!", "towers, there and there"];
+P_SAY.shovel = ["*scoop*", "an armful", "cold hands", "more snow!", "this'll melt, you know"];
+P_SAY.icePalace = ["it's beautiful", "like living in a snowman", "mind the floor", "you can see the lantern through the walls"];
+P_SAY.iceGone = ["goodbye, palace", "it was nice while it lasted", "it's just a puddle now", "we'll build it again. when it's cold", "it had towers"];
+P_ACHIEVE.iceagain = ["AGAIN", "the ice palace, built a second time. it will melt again. they know"];
+
+wDef({
+  id: "icepalace",
+  exempt: true,
+  again: true,
+  idea: { name: "the ice palace", title: "THE ICE PALACE", sub: "the snowman was lonely. so we built him a palace", hint: "a snowman, and skating (a freeze, that is)",
+          ready: function (g) { return !!g.got.snowman && !!g.got.skate; } },
+  achieve: ["THE ICE PALACE", "packed snow, ice windows, a lantern inside. it will melt. they built it anyway"],
+  watch: pIceWatch,
+  wait: function (g) { return pAirAtHouses(g) >= 0 || pSnowAbout(g) < P_ISNOW; },   /* (no freeze, no palace: that is not for want of room) */
+  plan: pPlanIce,
+  pick: pIcePick,
+  task: function (g, p, k) { return k.kind === "shovel" ? pTaskShovel(g, p, k) : undefined; },
+  step: pIcePalaceStep,
+  draw: pDrawIce,
+  finish: function (g, s, p) {
+    s.built = (g.wDone && g.wDone.icepalace) ? 2 : 1;
+    feed(g, (s.built > 1 ? "the ice palace is built again" : "the ice palace is built") + ". it will last as long as the cold does", "#cfeaff", "plan" + s.id);
+    g.wIceN = (g.wIceN || 0) + 1;
+    if (g.wIceN >= 2) achieve(g, "iceagain");
+  },
+  label: function () { return "the ice palace"; },
+  readout: function (g, s) {
+    var n = pIceLeft(g, s), all = s.cells || 1;
+    if (!s.done) return pAirAtHouses(g) > 0 ? "the thaw is coming. hurry" : "";
+    return Math.round(100 * n / all) + "% of it still frozen" + (pAirAtHouses(g) > 0 ? ". it is melting" : "");
+  },
+  mood: function (g, p, k) {
+    if (k.kind === "shovel") return (p.snow || 0) >= 1 ? "is carrying snow to the ice palace" : "is scooping up snow for the ice palace";
+    if (k.kind === "skate" && k.palace) return "is skating in the ice palace";
+    return "";
+  }
+});
+/* whoever built the snowman (the one still standing, if any is) has the palace put into their head */
+function pIceWatch(g) {
+  if (!g.got.snowman || !g.got.skate) return;
+  for (var k = g.lsnowmen.length - 1; k >= 0; k--) {
+    var m = g.lsnowmen[k];
+    if (!m.up) continue;
+    for (var j = 0; j < g.peasants.length; j++) if (g.peasants[j].id === m.by) { wSpark(g, g.peasants[j], "icepalace"); return; }
+  }
+}
+/* the air at the houses: how cold it is where they live, a little over the ground */
+function pAirAtHouses(g) {
+  var x = Math.round(wMiddle(g)), t = 0, n = 0;
+  /* (the air: over the ground, and under any roof, a few columns either side of the middle of the village) */
+  for (var dx = -12; dx <= 12; dx += 3) {
+    var gy = mGround(g, x + dx);
+    for (var y = gy - 8; gy > 10 && y < gy; y++) { var j = y * g.gw + x + dx; if (AIRY[g.m[j]]) { t += g.T[j]; n++; } }
+  }
+  return n ? t / n : AMBIENT;
+}
+/* snow and ice lying about, within P_INEAR of the houses (the top few rows of the ground, column by column) */
+function pSnowAbout(g) {
+  var mid = Math.round(wMiddle(g)), n = 0;
+  for (var x = Math.max(1, mid - P_INEAR); x < Math.min(g.gw - 1, mid + P_INEAR); x++) {
+    var y = mSurface(g, x, false, 0);
+    for (var d = 0; d < 6 && y >= 0 && y + d < g.gh; d++) { var c = g.m[(y + d) * g.gw + x]; if (c === MAT.SNOW || c === MAT.ICE || c === MAT.PACKSNOW) n++; else if (!AIRY[c] && d > 1) break; }
+  }
+  return n;
+}
+function pPlanIce(g, p) {
+  if (pAirAtHouses(g) >= 0 || pSnowAbout(g) < P_ISNOW) return false;
+  var r = wPlot(g, { w: P_IW, sky: 18, rough: 2, pad: 2, near: wMiddle(g), fit: pIceFit });
+  if (!r) return false;
+  var G = r.r.G, x0 = r.x0;
+  var s = bNew(g, "icepalace", p, wCleared(g, r, r.r.plan), [x0, G - 17, x0 + P_IW - 1, G - 1],
+               { wonder: true, melts: true, G: G, cells: r.r.plan.filter(function (e) { return e.v !== MAT.EMPTY && e.v !== MAT.LAMP; }).length });
+  feed(g, p.name + " is building an ice palace. everybody: snow", "#cfeaff", "plan" + s.id);
+  pSay(g, p, "planIce", true);
+  return true;
+}
+/* the palace at x0, on ground G (the lowest of gy: snow over it dug out, or built on): an ice floor; at the left a
+   gatehouse over the way in, at the right a tower, both crenellated, both with ice windows; between them a vault of
+   packed snow with a skylight of ice in the middle, and a lantern hanging under it */
+function pIceFit(g, x0, gy, hi, lo) {
+  /* (on top of the snow, not dug into it: that is what it is built of. the floor bridges a dip or two) */
+  var G = hi, plan = [], u, y;
+  function put(u, y, v, ph) { plan.push(bE(g, x0 + u, y, v, ph)); }
+  for (u = 0; u < P_IW; u++) put(u, G - 1, MAT.ICE, 1 + (u === 0 || u === P_IW - 1 ? 0 : 1));   /* (the floor) */
+  /* (no higher than a hammer reaches from the floor: nobody can get up on it to build it higher) */
+  for (y = G - 2; y >= G - 13; y--) for (u = 11; u <= 12; u++) put(u, y, (y === G - 5 || y === G - 9) ? MAT.ICE : MAT.PACKSNOW, 2 + G - 2 - y);
+  for (y = G - 12; y >= G - 13; y--) for (u = 0; u <= 1; u++) put(u, y, y === G - 12 && u === 1 ? MAT.ICE : MAT.PACKSNOW, 2 + G - 2 - y);
+  for (u = 2; u <= 10; u++) put(u, G - 12, u === 6 ? MAT.ICE : MAT.PACKSNOW, 12);
+  for (u = 2; u <= 10; u += 2) put(u, G - 13, MAT.PACKSNOW, 13);
+  put(0, G - 14, MAT.PACKSNOW, 14); put(12, G - 14, MAT.PACKSNOW, 14); put(1, G - 14, MAT.EMPTY, 0); put(11, G - 14, MAT.EMPTY, 0);
+
+  return { plan: plan, G: G, score: 10 - (G - hi) };
+}
+/* how much of it is still snow and ice */
+function pIceLeft(g, s) { var n = 0; for (var k = 0; k < s.plan.length; k++) { var c = g.m[s.plan[k].i]; if ((s.plan[k].v === MAT.PACKSNOW || s.plan[k].v === MAT.ICE) && (c === MAT.PACKSNOW || c === MAT.ICE)) n++; } return n; }
+/* snow wanted for the palace, over what is on its pile and in pockets */
+function pIceShort(g, s) {
+  /* (what is in the pockets of whoever is at it: an armful wandered off with is no use to anybody) */
+  var n = bNeed(g, s, "snow");
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k], t = q.task; if (!q.dead && t && t.site === s.id && (t.kind === "shovel" || t.kind === "build")) n -= q.snow || 0; }
+  return n;
+}
+/* anybody idle, the palace going up and short of snow: an armful of it, from near the palace */
+function pIcePick(g, p, hungry) {
+  var s = mSites(g, "icepalace")[0];
+  if (!s || hungry) return false;
+  if (s.done) {
+    /* (in it: a skate on the floor, now and then, for the bored) */
+    if (p.bored > 300 && Math.random() < 0.1 && Math.abs(s.cx - p.x) < 120 && pCell(g, s.x0 + 6, s.G - 1) === MAT.ICE) {
+      p.task = { kind: "skate", a: s.x0 + 2, b: s.x0 + 10, y: s.G - 2, t: 0, act: 0, on: 0, laps: 0, palace: s.id };
+      return true;
+    }
+    return false;
+  }
+  if (Math.abs(s.cx - p.x) > 200) return false;
+  if ((p.snow || 0) >= 1 || (bUseful(g, p, s) && !(p.failSite === s.id && p.failT > g.tick))) { bJoin(g, p, s); return true; }
+  if (pIceShort(g, s) <= 0) return false;
+  p.task = { kind: "shovel", site: s.id, t: 0, act: 0 };
+  return true;
+}
+/* (ideas.js iPick, before snowmen and snowball fights: the palace going up comes first. anybody free) */
+function pIceFirst(g, p) {
+  var s = mSites(g, "icepalace")[0];
+  if (!s || s.done || p.cold > 80) return false;
+  return pIcePick(g, p, false);
+}
+function pTaskShovel(g, p, k) {
+  var s = bSite(g, k.site);
+  if (!s || s.done || ++k.t > 2000) return iDone(p, (p.snow || 0) > 0);
+  if ((p.snow || 0) >= P_IHAND || ((p.snow || 0) >= 1 && pIceShort(g, s) <= 0)) { bJoin(g, p, s); return true; }
+  function ok(g2, x, y) { return Math.abs(x - s.cx) <= P_ISHOVEL && !(x >= s.x0 && x <= s.x1 && y >= s.y0 && y <= s.G) && lSnowy(g2, x, y); }
+  if (!k.sx || !ok(g, k.sx, k.sy)) {
+    var t = Math.abs(p.x - s.cx) < P_ISHOVEL + 30 ? pFind(g, p, P_SNOW, 40, ok, 10) : null;
+    if (!t && Math.abs(p.x - s.cx) > 12) {
+      /* (a long way off: over to the palace first, and look about there) */
+      var fx = Math.round(s.cx), fy = s.G - 1;
+      if (lGo(g, p, k, "toice" + s.id, fx, fy, 10, 12, 12) < 0) return iDone(p, false);
+      return false;
+    }
+    if (!t) { if ((p.snow || 0) >= 1) { bJoin(g, p, s); return true; } if (p.sayT <= 0) pSay(g, p, "nosnow"); return iDone(p, false); }
+    k.sx = t.x; k.sy = t.y;
+  }
+  var go = lGo(g, p, k, "shovel" + k.sx + "," + k.sy, k.sx, k.sy, 2, 10, 2);
+  if (go <= 0) return false;
+  p.dir = k.sx + 0.5 < p.x ? -1 : 1; k.act++;
+  p.pose = (k.act % 10) < 5 ? "chopA" : "chopB";
+  if (k.act % 10 !== 5) return true;
+  /* (an armful, the cold and all: the hole it leaves is no colder than the snow was, and no warmer) */
+  heatVanish(g, k.sy * g.gw + k.sx); p.snow = (p.snow || 0) + 1;
+  for (var n = 0; n < 2; n++) {
+    var j2 = sandHas(g, k.sx, k.sy + 1, MAT.SNOW);
+    if (j2 < 0 || bMarked(g, j2 % g.gw, (j2 / g.gw) | 0) || !ok(g, j2 % g.gw, ((j2 / g.gw) | 0) + 0) && !AIRY[g.m[j2 - g.gw]]) break;
+    heatVanish(g, j2); p.snow++;
+  }
+  k.sx = 0;
+  if (p.sayT <= 0 && Math.random() < 0.06) pSay(g, p, "shovel");
+  return true;
+}
+/* every W_STRIDE ticks: what has gone in packed hard and cold; the thaw coming before it was finished; the lantern's
+   little warmth; the cosy in it; and melting, and the mourning */
+function pIcePalaceStep(g, s) {
+  var k, e, warm = pAirAtHouses(g);
+  for (k = 0; k < s.plan.length; k++) {
+    e = s.plan[k];
+    if (e.packed || (e.v !== MAT.PACKSNOW && e.v !== MAT.ICE) || g.m[e.i] !== e.v) continue;
+    /* (packed hard and cold as the snow it was packed from: snowman-cold. leftovers.js does the same) */
+    e.packed = true; g.T[e.i] = Math.min(g.T[e.i], -8); g.lat[e.i] = 0; heatAccept(g, e.i);
+  }
+  if (!s.done) {
+    /* (all hands: anybody about with nothing that matters to do is called over, before the thaw) */
+    if (warm < 0) for (k = 0; k < g.peasants.length; k++) {
+      var h = g.peasants[k];
+      if (!wIdle(g, h) || h.hunger > P_HUNGRY || h.cold > 80 || Math.abs(h.x - s.cx) > 160 || (h.task && h.task.kind === "skate")) continue;
+      if (pIcePick(g, h, false) && h.sayT <= 0 && Math.random() < 0.1) pSay(g, h, "planIce");
+    }
+    if (warm > 2 && g.tick - s.t0 > 3000 && pIceLeft(g, s) < (s.cells >> 2)) {
+      feed(g, "the thaw came before the ice palace was finished. what there is of it will melt", "#c8d0dc", "plan" + s.id);
+      pIceGone(g, s, false);
+    }
+    return;
+  }
+  /* the lantern, hung from the skylight: a little real warmth, from the oil burning in it, into the ice it hangs from.
+     (the skylight drips, in the end) */
+  var lj = (s.G - 12) * g.gw + s.x0 + 6;
+  if (g.m[lj] === MAT.ICE) heatAdd(g, lj, 1);
+  /* in it: out of the cold, lantern-lit */
+  for (k = 0; k < g.peasants.length; k++) {
+    var q = g.peasants[k];
+    if (q.dead || q.x < s.x0 + 2 || q.x > s.x0 + 11 || Math.abs(q.y - (s.G - 2)) > 1) continue;
+    q.cosyT = g.tick + 40; q.cold = Math.max(0, (q.cold || 0) - 4);
+    if (q.sayT <= 0 && Math.random() < 0.01) pSay(g, q, "icePalace");
+  }
+  if (pIceLeft(g, s) * 2 < s.cells) {
+    feed(g, "the ice palace has melted. it is a ruin now. it was a palace for " + Math.round((g.tick - s.last) / 3600) + " minutes", "#c8d0dc", "plan" + s.id);
+    pIceGone(g, s, true);
+  }
+}
+/* gone: the site let go (what is left of it melts in its own time), and the village is sorry */
+function pIceGone(g, s, mourn) {
+  var idx = g.sites.indexOf(s);
+  if (idx >= 0) bRemove(g, idx);
+  if (!mourn) return;
+  var n = 0;
+  for (var k = 0; k < g.peasants.length && n < 3; k++) {
+    var q = g.peasants[k];
+    if (q.dead || q.sleep || Math.abs(q.x - s.cx) > 80) continue;
+    pSay(g, q, "iceGone", true); n++;
+  }
+  wTale(g, "ice", null, "", s.cx, s.G);
+}
+var P_IGLOW = hex32("#9ad0ff"), P_ILAMP = hex32("#ffe0a0"), P_ICORD = hex32("#5a4a3a");
+/* the walls glow blue with the lantern behind them, and the lantern itself */
+function pDrawIce(g, s) {
+  if (!s.done) return 0;
+  var k, e, lx = s.x0 + 6, ly = s.G - 10;
+  /* (the lantern: the light in it, on a cord from the skylight) */
+  wBack(g, lx, ly, P_ILAMP); wBack(g, lx, ly - 1, P_ICORD);
+  if (g.m[ly * g.gw + lx] === MAT.EMPTY) g.gpx[ly * g.gw + lx] = P_ILAMP;
+  for (k = 0; k < s.plan.length; k++) {
+    e = s.plan[k];
+    var c = g.m[e.i];
+    if (c !== MAT.ICE && c !== MAT.PACKSNOW) continue;
+    var dx = (e.i % g.gw) - lx, dy = ((e.i / g.gw) | 0) - ly, r = Math.sqrt(dx * dx + dy * dy);
+    g.px[e.i] = blend32(g.px[e.i], P_IGLOW, clamp(0.5 - r * 0.03, 0.1, 0.45) * (c === MAT.ICE ? 1.4 : 1));
+    if (c === MAT.ICE) g.gpx[e.i] = blend32(g.px[e.i], P_IGLOW, 0.3);
+  }
+  mGlow(g, lx, ly, 6, 0.3);
+  return 1;
+}

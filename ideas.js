@@ -370,6 +370,8 @@ function iPick(g, p) {
   if (K.farm && !hungry && iGoShoo(g, p)) return true;
   /* a field wants hands, not wood: anybody will do */
   if (K.farm && (s = iFieldWork(g, p, 160))) { bJoin(g, p, s); return true; }
+  /* (an ice palace going up, before the thaw: before snowmen and snowballs, anybody free lends a hand. pleasures.js) */
+  if (g.wAny && !hungry && pIceFirst(g, p)) return true;
   /* snow on the ground, or ice to skate on, and time on their hands: that is what it is for (leftovers.js) */
   if (!hungry && lPlay(g, p)) return true;
   /* (a field dug up for a mine or a well is sown again somewhere else: straight away, wherever there is room) */
