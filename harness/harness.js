@@ -230,7 +230,9 @@ Harness.prototype._tickQuiet = function () {
 };
 
 Harness.prototype.pause = function (on) { this.g.paused = on === false ? 0 : 1; return this; };
-Harness.prototype.slow = function (on) { this.g.slow = on === false ? 0 : 1; return this; };
+/* slow motion is the slowest speed; off is normal speed */
+Harness.prototype.slow = function (on) { this.g.speed = on === false ? this._eval("SPEED_1") : 0; this.g.speedAcc = 0; return this; };
+Harness.prototype.speed = function (i) { this.g.speed = i; this.g.speedAcc = 0; return this; };
 
 /* fresh village. same seed, same people, same hills */
 Harness.prototype.reset = function (seed) {

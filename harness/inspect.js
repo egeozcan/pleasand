@@ -74,7 +74,7 @@ function stateOf(h, opts) {
     sandTick: g.tick,
     time: round(g.t, 2),
     paused: !!g.paused,
-    slow: !!g.slow,
+    speed: h._eval("SPEEDS")[g.speed],
     grid: { w: g.gw, h: g.gh },
     counts: {
       peasants: pe.length, alive: alive, dead: dead,

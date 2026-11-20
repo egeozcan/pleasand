@@ -11,17 +11,19 @@ var UI_FONT = '"Menlo", "Consolas", "DejaVu Sans Mono", "Courier New", monospace
 var GW = Math.floor((VW - PANEL) / CELL), GH = Math.floor((VH - PLAY_Y - BAR_H) / CELL);
 var ROW0 = PLAY_Y + 2, ROWH = 10, FUN_N = 7, FUN_GAP = 4;
 var SIZE_Y = 341, BTN_Y = 354, BTN2_Y = 367, BTN3_Y = 380;
+/* how fast time goes: sand ticks per frame, slowest first. SPEED_1 is normal */
+var SPEEDS = [0.25, 0.5, 1, 2, 4], SPEED_NAMES = ["1/4", "1/2", "1x", "2x", "4x"], SPEED_1 = 2;
 var TIPS = [
   "tip: pick PEASANT, grab one, and throw it at the hut",
   "tip: WHEEL changes the brush size. SHIFT-drag draws a straight line",
-  "tip: middle-click picks up whatever is under the cursor. S is slow motion, R is a new village",
+  "tip: middle-click picks up whatever is under the cursor. S and A make time slower and faster, R is a new village",
   "tip: pour some seeds near a duck",
   "tip: lightning in a duck pond is a terrible idea",
   "tip: peasants can swim. they cannot breathe under ice",
   "tip: put a nuke next to a cloner. then stand well back",
   "tip: lightning in a pond zaps everybody in the pond",
   "tip: fireworks make peasants happy. briefly",
-  "tip: S is slow motion. try it on a nuke",
+  "tip: S slows time down. try it on a nuke",
   "tip: throw a peasant hard enough, straight up, and it goes to space",
   "tip: gas pools under ceilings. a hut has a ceiling",
   "tip: seeds on sand plus water make flowers. peasants like flowers",
@@ -201,7 +203,7 @@ function gameInit(g) {
     if (Math.random() < 0.3) g.stars.push({ i: i, b: b, p: Math.random() * 6.28, s: 1 + Math.random() * 3 });
   }
 
-  g.sel = FUN_N; g.size = 5; g.paused = 0; g.slow = 0; g.lx = null; g.ax = null;
+  g.sel = FUN_N; g.size = 5; g.paused = 0; g.speed = SPEED_1; g.speedAcc = 0; g.lx = null; g.ax = null;
   sandLandscape(g);
 }
 
@@ -330,13 +332,19 @@ function gameUpdate(g, dt) {
   toolHold(g);
   ageBangs(g);
   if (g.helloT > 0 && --g.helloT === 0 && g.helloP && !g.helloP.dead) pSay(g, g.helloP, "hello", true);
-  var step = !g.paused && (!g.slow || (g.frame++ & 3) === 0);
-  if (step) {
+  /* at 1/4 speed the world moves one frame in four; at 4x, four times a frame */
+  var steps = 0;
+  if (!g.paused) {
+    g.speedAcc += SPEEDS[g.speed];
+    while (g.speedAcc >= 1) { g.speedAcc--; steps++; }
+  }
+  for (var n = 0; n < steps; n++) {
     sandStep(g);
     partStep(g);
     peasantsStep(g);
     ducksStep(g);
-  } else {
+  }
+  if (!steps) {
     if (g.held) pHeld(g, g.held);
     if (g.heldDuck) dHeld(g, g.heldDuck);
   }
@@ -804,7 +812,9 @@ function drawPanel(g, c) {
   var r1 = g.my >= BTN_Y && g.my < BTN_Y + 12 && g.mx < PANEL, r2 = g.my >= BTN2_Y && g.my < BTN2_Y + 12 && g.mx < PANEL;
   button(c, 4, BTN_Y, 42, g.paused ? "PLAY" : "PAUSE", g.paused, r1 && g.mx < 48);
   button(c, 48, BTN_Y, 42, "CLEAR", false, r1 && g.mx >= 48);
-  button(c, 4, BTN2_Y, 42, "SLOW-MO", g.slow, r2 && g.mx < 48);
+  button(c, 4, BTN2_Y, 10, "-", false, r2 && g.mx < 14);
+  txt(c, SPEED_NAMES[g.speed], 25, BTN2_Y + 9, 8, g.speed === SPEED_1 ? "#9aa6b8" : "#ffd94a", "center", true);
+  button(c, 36, BTN2_Y, 10, "+", false, r2 && g.mx >= 36 && g.mx < 48);
   button(c, 48, BTN2_Y, 42, "NEW", false, r2 && g.mx >= 48);
   var r3 = g.my >= BTN3_Y && g.my < BTN3_Y + 12 && g.mx < PANEL;
   button(c, 4, BTN3_Y, 42, "THERMAL", g.thermal, r3 && g.mx < 48);
@@ -1163,8 +1173,8 @@ function drawOverlays(g, c) {
     rct(c, cx - 50, VH / 2 - 14, 100, 28, "rgba(0,0,0,0.75)");
     txt(c, "PAUSED", cx, VH / 2 + 1, 12, "#ffd94a", "center", true);
     txt(c, ". = ONE STEP", cx, VH / 2 + 10, 7, "#c8d0dc", "center");
-  } else if (g.slow) {
-    txt(c, "SLOW-MO", PANEL + 6, PLAY_Y + 12, 8, "#ffd94a", "left", true);
+  } else if (g.speed !== SPEED_1) {
+    txt(c, (g.speed < SPEED_1 ? "SLOW " : "FAST ") + SPEED_NAMES[g.speed], PANEL + 6, PLAY_Y + 12, 8, "#ffd94a", "left", true);
   }
   if (g.debug) {
     var dbg = (g.fps | 0) + " fps  " + g.ms.toFixed(1) + " ms  particles " + g.np;
@@ -1240,14 +1250,16 @@ function gameTap(g, x, y) {
     if (x < 48) g.paused = g.paused ? 0 : 1;
     else sandClear(g);
   } else if (y >= BTN2_Y && y < BTN2_Y + 12) {
-    if (x < 48) g.slow = g.slow ? 0 : 1;
-    else sandLandscape(g);
+    if (x < 14) gameSpeed(g, -1);
+    else if (x >= 36 && x < 48) gameSpeed(g, 1);
+    else if (x >= 48) sandLandscape(g);
   } else if (y >= BTN3_Y && y < BTN3_Y + 12) {
     if (x < 48) g.thermal = !g.thermal;
     else g.hush = !g.hush;
   }
   else g.tip = (g.tip + 1) % TIPS.length;
 }
+function gameSpeed(g, d) { g.speed = clamp(g.speed + d, 0, SPEEDS.length - 1); g.speedAcc = 0; }
 function gameWheel(g, d) {
   saveInput(g, "wheel", { d: d });
   if (g.mx < PANEL) { var n = PICK.length; g.sel = (g.sel + n + d) % n; }   /* over the list: scroll the list */
@@ -1262,7 +1274,8 @@ function gameKey(g, k) {
   else if (k === "[" || k === "-") g.size = clamp(g.size - 1, 1, SAND_MAXSIZE);
   else if (k === "]" || k === "=" || k === "+") g.size = clamp(g.size + 1, 1, SAND_MAXSIZE);
   else if (k === " " || k === "p") g.paused = g.paused ? 0 : 1;
-  else if (k === "s") g.slow = g.slow ? 0 : 1;
+  else if (k === "s") gameSpeed(g, -1);
+  else if (k === "a") gameSpeed(g, 1);
   else if (k === "c") sandClear(g);
   else if (k === ".") { if (g.paused) { sandStep(g); partStep(g); peasantsStep(g); ducksStep(g); } }
   else if (k === "r") sandLandscape(g);

@@ -241,7 +241,7 @@ var HANDLERS = {
   clearEvents: function (h) { h.clearEvents(); return { ok: true }; },
   tickRaw: function (h, r) { for (var i = 0; i < num(r.n, 1); i++) h.tickRaw(); return { tick: h.ticks, sandTick: h.g.tick }; },
   pause: function (h, r) { h.pause(r.on !== false); return { paused: !!h.g.paused }; },
-  slow: function (h, r) { h.slow(r.on !== false); return { slow: !!h.g.slow }; },
+  slow: function (h, r) { h.slow(r.on !== false); return { speed: h.g.speed }; },
   history: function (h, r) { h.history(num(r.n, 24), { every: num(r.every, 1) }); return { frames: h.frames(), max: num(r.n, 24) }; },
   historyOff: function (h) { h.historyOff(); return { ok: true }; },
   checkpoint: function (h, r) { return { id: h.checkpoint(r.label) }; },

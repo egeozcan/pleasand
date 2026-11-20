@@ -220,7 +220,7 @@ function saveSummary(g) {
     if (typeof g[k] === "number") res[k] = saveR(g[k]);
   });
   return {
-    tick: g.tick, time: saveR(g.t), paused: !!g.paused, slow: !!g.slow,
+    tick: g.tick, time: saveR(g.t), paused: !!g.paused, speed: SPEEDS[g.speed],
     counts: {
       peasants: pe.length, alive: pe.filter(function (p) { return !p.dead && p.state !== "space"; }).length,
       inSpace: pe.filter(function (p) { return p.state === "space"; }).length,
