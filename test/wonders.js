@@ -56,6 +56,43 @@ module.exports = function (test, check, sim) {
     check(a === b && a === q, "the grids came out different: " + [a, b, q].map(function (v) { return v.toString(16); }).join(" "));
   });
 
+  /* (master's own tables, before any of the great works: the names of its speech and its achievements, and hashes of
+     them and of its ideas. recorded from a worktree of master) */
+  var MASTER_TABLES = { say: ["abseil", "acid", "admire", "admireDead", "admireSelf", "arrive", "backache", "bail", "bailBush", "bailDone", "bailField", "bailFloor", "bailOut", "bailPond", "bailThrow", "bailYard", "bed", "blank", "blasted", "bombfish", "boot", "bored", "brigade", "brine", "build", "built", "buried", "camp", "cast", "caught", "charge", "cheer", "chop", "chute", "chuteburn", "chutefail", "climb", "clone", "coal", "cold", "cooked", "cough", "crowWorks", "crowned", "dig", "dizzy", "dong", "douse", "dry", "duck", "duckbite", "ducklings", "eat", "evac", "explore", "fall", "festival", "fill", "finale", "fire", "fish", "fishrain", "fizzle", "float", "flower", "forge", "forged", "frozen", "fuse", "gather", "gatherAsh", "gatherGlass", "gatherPowder", "gatherSalt", "gatherScrap", "genius", "ghost", "glassblow", "glub", "gold", "grab", "greet", "grind", "grit", "hello", "help", "helpFarm", "home", "homeDone", "hot", "hungry", "idea_bell", "idea_bucket", "idea_dig", "idea_farm", "idea_festival", "idea_fish", "idea_forest", "idea_forge", "idea_glass", "idea_grave", "idea_lamp", "idea_lift", "idea_masonry", "idea_mine", "idea_oil", "idea_potash", "idea_powder", "idea_rocket", "idea_salt", "idea_scarecrow", "idea_smelt", "idea_statue", "idle", "iron", "jump", "launch", "lift", "light", "lookout", "lostHome", "mourn", "moveIn", "nap", "nibble", "noFuel", "noclear", "nocoal", "nofish", "nogold", "noiron", "noore", "nope", "nosnow", "nostone", "nowater", "nowood", "nuke", "offer", "oil", "oof", "ooh", "oops", "ore", "out", "pack", "packed", "panic", "phew", "pick", "planBell", "planBridge", "planCrow", "planFarm", "planFurnace", "planGlass", "planGrave", "planGrove", "planHouse", "planJetty", "planLadder", "planLamp", "planLift", "planMine", "planPond", "planPost", "planStairs", "planStatue", "planStone", "planTower", "planWell", "plant", "pockets", "pond", "pondFull", "potash", "pump", "raid", "refuel", "repair", "rocketLand", "rope", "rubber", "safe", "salt", "salted", "saltfish", "scald", "season", "shoo", "shooed", "skate", "skid", "sleep", "slip", "slipped", "smell", "smelt", "snap", "snowHit", "snowJoin", "snowball", "snowman", "snowmanDone", "snowmanGone", "snowmanHello", "snowmanMine", "sow", "sown", "space", "spawn", "spotFire", "starving", "sump", "swim", "swing", "thrown", "tidy", "tidyAway", "tidyClean", "tidyDoor", "tidyFill", "tidyHeap", "tidyHome", "tidyLevel", "tidyPile", "tidyWeed", "till", "timber", "toolsBroke", "touchdown", "treeless", "view", "visit", "wade", "wake", "warm", "watched", "water", "wheat", "zap"],
+    sayHash: "211f8b688c9e5dca", ach: ["arrive", "arson", "bell", "blast", "bloom", "bombfish", "bridge", "brigade", "camp", "chute", "coal", "door", "duck", "ducklings", "duckspace", "enlightened", "explorer", "factory", "farm", "festival", "fish", "forge", "frost", "full", "glass", "glasshouse", "gold", "grave", "grit", "grove", "harvest", "heap", "house", "iron", "jetty", "ladder", "lamp", "leave", "lift", "mine", "ninja", "nuke", "oil", "ore", "pack", "pockets", "pond", "post", "potash", "powder", "rebuilt", "roast", "rocket", "rubber", "ruin", "salt", "saltfish", "scarecrow", "shock", "shoo", "skate", "slip", "snowball", "snowman", "space", "stairs", "statue", "stonehouse", "strike", "tidy", "tower", "tree", "village", "well"], achHash: "0545d3da1973bf7e", ideas: 23, ideasHash: "84eb7cca8383ceb2" };
+  test("wonders: the great works only add to the village's own tables: master's speech, achievements and ideas are as they were", function () {
+    var h = H.open({ seed: 1 }), crypto = require("crypto");
+    function sub(T, keys) { return crypto.createHash("sha256").update(JSON.stringify(keys.map(function (k) { return [k, T[k]]; }))).digest("hex").slice(0, 16); }
+    var P = h._eval("P_SAY"), A = h._eval("P_ACHIEVE"), I = h._eval("IDEAS");
+    var changed = MASTER_TABLES.say.filter(function (k) { return !(k in P); });
+    check(sub(P, MASTER_TABLES.say) === MASTER_TABLES.sayHash, "master's speech changed: " + (changed.length ? "missing " + changed : "lines replaced"));
+    check(sub(A, MASTER_TABLES.ach) === MASTER_TABLES.achHash, "master's achievements changed");
+    check(crypto.createHash("sha256").update(JSON.stringify(I.slice(0, MASTER_TABLES.ideas))).digest("hex").slice(0, 16) === MASTER_TABLES.ideasHash, "master's ideas changed");
+  });
+  test("wonders: a plain village draws master's dice tick for tick, warm and talking, and after NEW with a field dug up", function () {
+    var crypto = require("crypto");
+    function hash(o) { return crypto.createHash("sha256").update(JSON.stringify(o)).digest("hex").slice(0, 16); }
+    /* (recorded on master: the dice's state after every one of 3000 ticks) */
+    var want = { 1: "27c63d83572cdf83", 2: "e4a8c3ddf17eef3f" };
+    for (var sd in want) {
+      var h = H.open({ seed: +sd }), tr = [];
+      for (var t = 0; t < 3000; t++) { h.step(1); tr.push(h.loaded.rng.state); }
+      check(hash(tr) === want[sd], "seed " + sd + " drew other dice than master's");
+    }
+    /* (a peasant too warm, 700 ticks of it: what they say, and how long they wait to say it again. master: 6fb63dd69527) */
+    var ht = H.open({ seed: 1 }), pg = ht.g, pe = pg.peasants[0], fx = Math.floor(pe.x), fy = Math.floor(pe.y), heat = ht._eval("pHeat"), draws = [];
+    pg.t = 1; pe.warm = 121; [0, 4, 7].forEach(function (dy) { pg.T[(fy - dy) * pg.gw + fx] = 60; });
+    for (var i = 0; i < 700; i++) { if (pe.sayT > 0) pe.sayT--; heat(pg, pe, fx, fy); draws.push(ht.loaded.rng.state); }
+    check(crypto.createHash("sha256").update(JSON.stringify(draws)).digest("hex").slice(0, 12) === "6fb63dd69527", "a warm peasant drew other dice than master's");
+    /* (a field dug up, NEW before it is sown again, and the first field let come of itself. master: tick 1528, at 150) */
+    var hn = H.open({ seed: 2 }), gn = hn.g;
+    hn._eval("(function () { g.know.farm = 'TEST'; var q = g.peasants[0]; if (!iPlanFarm(g, q, true)) throw Error('no farm'); var s = g.sites.filter(function (s) { return s.kind === 'farm'; })[0]; mDigUpFields(g, s.x0, s.x1); })()");
+    hn._eval("sandLandscape(g)");
+    for (t = 0; t < 18000 && !gn.sites.some(function (s) { return s.kind === "farm"; }); t++) hn.step(1);
+    var f = gn.sites.filter(function (s) { return s.kind === "farm"; })[0];
+    check(gn.tick === 1528 && f && f.x0 === 150 && hn.hash() === "dc6bb627", "after NEW the first field came at " + gn.tick + ", " + (f && f.x0) + " (master: 1528, 150), hash " + hn.hash());
+  });
+
   test("wonders: wet concrete sets in its form, faster warm, frost ruins it, and poured it sinks under water", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200;
     flat(w, x0, 20, G);

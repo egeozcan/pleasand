@@ -115,7 +115,7 @@ function wIdea(id) { for (var k = 0; k < IDEAS.length; k++) if (IDEAS[k].id === 
 var W_GKEYS = ["curseSlips", "dmask", "draught", "hConst", "hLake", "hLakeT", "hLightFame", "hRock", "hRockOut", "hShower", "kilnN",
   "kingDied", "lastKing", "lastSwim", "looks", "moonCrew", "moonFlag", "moonLooks", "moonT", "noField", "noFieldT", "packFlights",
   "rocket", "rocketBooms", "thinkerDied", "wChar", "wDuckPalace", "wIceN", "wLump", "wNo", "wPlanT", "wPyrFame", "wQuarryFar",
-  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "festX", "resow"];
+  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "festX"];   /* (only keys of the great works': resow and the rest are the village's, as on master) */
 /* lightning, as it strikes at (x, y) (world.js sandLightning, not taken down a rod): any great work standing that
    answers it (the lighthouse's lantern) */
 function wStruck(g, x, y) {
