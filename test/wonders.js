@@ -94,6 +94,16 @@ module.exports = function (test, check, sim) {
     check(water() === n0, "water went from " + n0 + " to " + water());
   });
 
+  test("wonders: a save picks the brush it was saved with by name: one from before wet concrete was in the list keeps its CLONER", function () {
+    var w = sim.load(1), g = w.g, k, cl = -1;
+    for (k = 0; k < w.PICK.length; k++) if (w.PICK[k].name === "CLONER") cl = k;
+    check(cl > 0, "(the test wants a CLONER)");
+    var doc = JSON.parse(JSON.stringify(w.saveDocument(g, { source: "test" })));
+    doc.ui.sel = "CLONER"; doc.state.sel = cl - 1;   /* (its place in the list before WET CONCRETE went in ahead of it) */
+    w.saveLoad(g, doc);
+    check(w.curPick(g).name === "CLONER", "loaded with " + w.curPick(g).name + " picked");
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;

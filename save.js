@@ -495,6 +495,10 @@ function saveLoad(g, doc, opts) {
     src = kf.state;
   }
   saveApplyState(g, saveDecode(src), !!opts.keepPointer);
+  /* the brush picked, by its name, not its place in the list: a save from before something was put in the list (wet
+     concrete, say) would otherwise come back with the one next to it picked */
+  var sel = !kf && doc.ui && doc.ui.sel;
+  if (sel && typeof PICK !== "undefined") for (var k = 0; k < PICK.length; k++) if (PICK[k].name === sel) { g.sel = k; break; }
   /* and the dice, where the save has them and this game owns its own (the browser; the harness sets its own) */
   var dice = kf ? kf.rng : doc.rng;
   if (RNG && dice != null) RNG.state = dice;
