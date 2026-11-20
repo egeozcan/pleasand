@@ -158,6 +158,18 @@ module.exports = function (test, check, sim) {
     check(after(8) === after(0), "the dice after a dozen bangs differ with eight rings fading and with none");
   });
 
+  test("wonders: a legacy save's keyframe, restored as a harness checkpoint, picks its brush by name too", function () {
+    var h = H.open({ seed: 1 }), w = h.game, g = h.g, k, cl = -1;
+    for (k = 0; k < w.PICK.length; k++) if (w.PICK[k].name === "CLONER") cl = k;
+    var doc = JSON.parse(JSON.stringify(h.save()));
+    var st = w.saveDecode(doc.state); delete st.tales; st.sel = cl - 1;   /* (a save from master: no tales, no list of picks) */
+    delete doc.ui.picks; doc.ui.sel = "CLONER";
+    doc.keyframes = [{ why: "test", tick: g.tick, t: 0, updates: 0, rng: null, state: w.saveEncode(st, []) }];
+    h.load(doc);
+    h.restore("kf0");
+    check(w.curPick(h.g).name === "CLONER", "restored checkpoint kf0 with " + w.curPick(h.g).name + " picked");
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;

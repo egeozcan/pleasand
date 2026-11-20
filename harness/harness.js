@@ -1157,6 +1157,8 @@ Harness.prototype.load = function (src, opts) {
     if (kf && i === opts.keyframe) return;
     var st;
     try { st = decode(f.state); } catch (e) { return; }
+    var ns = self._eval("saveSelOf")(doc, st, false);   /* (its brush, by name: save.js) */
+    if (ns != null) st.sel = ns;
     self.checkpointList.push({ id: "kf" + i, tick: f.updates != null ? f.updates : -1, snap: {
       version: 1, seed: self.seed, ticks: f.updates != null ? f.updates : self.ticks, sandTick: f.tick, time: f.t,
       rng: f.rng != null ? f.rng : self.loaded.rng.state, clock: self.loaded.clock.t, state: st } });

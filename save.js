@@ -483,6 +483,17 @@ function saveApplyState(g, state, keepPointer) {
   return g;
 }
 
+/* the brush a saved state (st: decoded, the save's own or one of its keyframes) had picked, as its place in the list now:
+   by its name, for the save's own state (ui.sel); for a keyframe, by its place in the list the save was made with (ui.picks,
+   or, in a save from before that was kept, the list as it was then: with wet concrete in it if it is a village with great
+   works in it (g.tales), without if it is from before them). null if there is no knowing */
+function saveSelOf(doc, st, own) {
+  if (typeof PICK === "undefined") return null;
+  var names = (doc.ui && doc.ui.picks) || PICK.map(function (q) { return q.name; }).filter(function (n) { return "tales" in st || n !== "WET CONCRETE"; });
+  var sel = own && doc.ui && doc.ui.sel ? doc.ui.sel : names[st.sel];
+  for (var k = 0; k < PICK.length; k++) if (PICK[k].name === sel) return k;
+  return null;
+}
 /* load a save (the parsed json) into g. opts.keyframe: an index into doc.keyframes, to load that instead */
 function saveLoad(g, doc, opts) {
   opts = opts || {};
@@ -498,14 +509,8 @@ function saveLoad(g, doc, opts) {
   saveApplyState(g, st, !!opts.keepPointer);
   /* the brush picked, by its name, not its place in the list: a save from before something was put in the list (wet
      concrete, say) would otherwise come back with the one next to it picked */
-  if (typeof PICK !== "undefined") {
-    /* (a keyframe's, by its place in the list the save was made with: ui.picks, or, in a save from before that was kept,
-       the list as it was then: with wet concrete in it if it is a village with great works in it (g.tales), and without
-       if it is from before them) */
-    var names = (doc.ui && doc.ui.picks) || PICK.map(function (q) { return q.name; }).filter(function (n) { return "tales" in st || n !== "WET CONCRETE"; });
-    var sel = !kf && doc.ui && doc.ui.sel ? doc.ui.sel : names[g.sel];
-    for (var k = 0; k < PICK.length; k++) if (PICK[k].name === sel) { g.sel = k; break; }
-  }
+  var ns = saveSelOf(doc, st, !kf);
+  if (ns != null) g.sel = ns;
   /* and the dice, where the save has them and this game owns its own (the browser; the harness sets its own) */
   var dice = kf ? kf.rng : doc.rng;
   if (RNG && dice != null) RNG.state = dice;
