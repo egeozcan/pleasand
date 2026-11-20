@@ -336,6 +336,16 @@ module.exports = function (test, check, sim) {
     for (k = 0; k < 12000 && !s.plan.every(function (e) { return g.m[e.i] === M.CONCRETE; }); k++) sim.step(w, 1);
     check(s.plan.every(function (e) { return g.m[e.i] === M.CONCRETE; }), "the kept lumps never went into the great work: " + JSON.stringify(g.salvage) + ", carried " + q.lump);
   });
+  test("wonders: what the dead left is kept through CLEAR, but a NEW village starts with none of it", function () {
+    var w = sim.load(1), g = w.g, p = g.peasants[0];
+    p.lump = 3; p.moonrock = 1;
+    w.pDie(g, p, "old");
+    check(g.salvage && g.salvage.lump === 3 && g.wSalv, "(the test wants something kept)");
+    w.sandClear(g);
+    check(g.salvage && g.salvage.lump === 3, "CLEAR lost what was kept: " + JSON.stringify(g.salvage));
+    w.sandLandscape(g);
+    check(!g.salvage && !g.wSalv, "a NEW village has the old one's salvage: " + JSON.stringify(g.salvage));
+  });
   test("wonders: dead in a tunnel with a load of concrete, they do not plug it: whoever else is in there can still get out", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y, k;
     flat(w, x0 - 40, 80, G);
