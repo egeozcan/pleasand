@@ -116,6 +116,13 @@ var W_GKEYS = ["curseSlips", "dmask", "draught", "hConst", "hLake", "hLakeT", "h
   "kingDied", "lastKing", "lastSwim", "looks", "moonCrew", "moonFlag", "moonLooks", "moonT", "noField", "noFieldT", "packFlights",
   "rocket", "rocketBooms", "thinkerDied", "wChar", "wDuckPalace", "wIceN", "wLump", "wNo", "wPlanT", "wPyrFame", "wQuarryFar",
   "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare"];
+/* the world cleared (C, and a new village: world.js sandClear): what of the great works was in it, in the air over it,
+   or due in it, gone with it. what the village knows and has done is its own, and stays */
+function wClearWorld(g) {
+  delete g.rocket; delete g.moonT; delete g.hRock; delete g.hRockOut; delete g.wDuckPalace;   /* (and a falling star on its way down: heavens.js) */
+  g.draught = {}; if (g.dmask) g.dmask.fill(0);
+  g.kiln = [];
+}
 function wReset(g) {
   for (var k = 0; k < W_GKEYS.length; k++) delete g[W_GKEYS[k]];
   g.tales = []; g.kiln = []; g.wDone = {}; g.wAny = false; g.swims = 0;

@@ -1218,6 +1218,8 @@ function sandClear(g) {
   g.sites = []; if (g.bmark) g.bmark.fill(0);
   /* and what was left over in it: charges, snowballs in the air, snowmen (leftovers.js) */
   if (typeof lClearWorld === "function") lClearWorld(g);
+  /* and the great works' things in the air or due in it: a rocket going up, a flag due on the moon (wonders.js) */
+  if (typeof wClearWorld === "function") wClearWorld(g);
 }
 
 /* no dip in the land for a pond (or the only one is under a hut): dig a small deep one, somewhere out of the huts' way

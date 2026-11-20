@@ -291,6 +291,18 @@ module.exports = function (test, check, sim) {
     check(fire() <= f0, "fire in the new village: " + fire());
   });
 
+  test("wonders: the world cleared (C) has nothing of the great works in the air: a rocket going up is gone, and sets nothing alight", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    g.rocket = { x: 120.5, y: 140, vy: -0.2, cells: [{ dx: 0, dy: 0, v: M.METAL, a: 0, sh: 0 }], site: 999, t: 40, fireQ: 0, n: 1 };
+    g.moonT = g.tick + 5; g.know.moonrocket = "TEST";
+    w.sandClear(g);
+    check(!g.rocket && !g.moonT, "the rocket (or its flag) is still about after the world was cleared");
+    var fire = 0;
+    for (var k = 0; k < 60; k++) { sim.step(w, 1); for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.FIRE) fire++; }
+    check(fire === 0, "fire in the cleared world: " + fire);
+    check(g.know.moonrocket, "(and what they know is still known)");
+  });
+
   test("wonders: gold is gilding: with none about it is stone, and gilded when gold turns up", function () {
     var w = sim.load(1), g = w.g, p = g.peasants[0], M = w.MAT;
     g.peasants.forEach(function (q) { q.gold = 0; });
