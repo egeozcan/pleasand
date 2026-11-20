@@ -107,7 +107,7 @@ function hLevel(g, x0, gy, u0, u1, R0, hlo, hhi, cell, ph, extra) {
         /* (nothing of ours: the ground as it is, but dug off over the floor, and made up under it where it is low) */
         if (y < G && h >= 1) continue;
         if (y < R0 && y >= G) { if (AIRY[c]) continue; if (bMarked(g, x, y)) return null; if (!B_DIG[c] && !ROCK[c] && !mClear(g, x, y, c)) return null; e = bE(g, x, y, MAT.EMPTY, 0); if (ROCK[c]) e.mine = true; plan.push(e); work += ROCK[c] ? 2 : 1; continue; }
-        if (y >= R0 && y < G && h >= hlo && AIRY[c]) { plan.push(bE(g, x, y, MAT.BRICK, 1)); work++; }
+        if (y >= R0 && y < G && h >= hlo && AIRY[c]) { plan.push(bE(g, x, y, MAT.BRICK, wFillPh(y))); work++; }
         continue;
       }
       if (LIQUID[c]) return null;
@@ -126,14 +126,16 @@ function hLevel(g, x0, gy, u0, u1, R0, hlo, hhi, cell, ph, extra) {
       if (y >= G) work++;   /* (built up where the ground was low) */
     }
     /* (and the ground under the floor's row made up, where the floor is over air) */
-    for (y = R0 + 1 - hlo; y < G; y++) if (AIRY[pCell(g, x, y)]) { plan.push(bE(g, x, y, MAT.BRICK, 1)); work++; }
+    for (y = G - 1; y >= R0 + 1 - hlo; y--) if (AIRY[pCell(g, x, y)]) { plan.push(bE(g, x, y, MAT.BRICK, wFillPh(y))); work++; }
   }
   return { plan: plan, work: work };
 }
 /* the best level, from the lowest ground up to the highest: least work */
 function hBestLevel(g, x0, gy, hi, lo, make) {
   var best = null;
-  for (var R0 = lo; R0 >= hi; R0--) { var r = make(R0); if (r && (!best || r.work < best.work)) { best = r; best.R0 = R0; } }
+  /* (no more than three rows dug off the high side: a bank dug into any deeper comes down on whoever is digging. the
+     low side is made up in stone instead, as far as it has to be) */
+  for (var R0 = Math.min(lo, hi + 3); R0 >= hi; R0--) { var r = make(R0); if (r && (!best || r.work < best.work)) { best = r; best.R0 = R0; } }
   return best;
 }
 
@@ -263,12 +265,19 @@ function hPlanObs(g, p) {
   }
   if (!best) {
     /* no tower: the highest ground there is, nine wide and level */
-    var r = wPlot(g, { w: 10, sky: 16, rough: 2, near: mid, pad: 2, fit: function (g, x0, gy, hi, lo) {
-      var pl = hDomePlan(g, x0, lo, false);
-      return pl ? { plan: pl, score: 200 - lo * 3 } : null;
+    /* (on rough ground, a terrace of stone under the low side, and the high side dug down to it) */
+    var r = wPlot(g, { w: 10, sky: 16, rough: 8, near: mid, pad: 2, fit: function (g, x0, gy, hi, lo) {
+      var b = null;
+      for (var F = lo; F >= hi; F--) {
+        var t = wTerrace(g, x0, gy, F);
+        if (!t) continue;
+        var pl = hDomePlan(g, x0, F, false);
+        if (pl && (!b || t.work < b.work)) b = { plan: t.plan.concat(pl), F: F, work: t.work, score: 200 - F * 3 - t.work };
+      }
+      return b;
     } });
     if (!r) return false;
-    best = { xl: r.x0, F: r.lo, plan: wCleared(g, r, r.r.plan), tower: 0 };
+    best = { xl: r.x0, F: r.r.F, plan: wCleared(g, r, r.r.plan), tower: 0 };
   }
   var s = bNew(g, "observatory", p, wGild(g, best.plan), [best.xl, best.F - 13, best.xl + 9, best.F - 1],
                { wonder: true, xl: best.xl, F: best.F, tower: best.tower, astro: p.id, spot: best.xl + 5 });
@@ -613,7 +622,7 @@ function hLightTick(g) {
 function hPlanLight(g, p) {
   var L = hLakeScan(g);
   if (!L || L.n < H_LAKE) return false;
-  var r = wPlot(g, { w: 7, sky: 34, rough: 3, near: (L.x0 + L.x1) / 2, pad: 2, fit: function (g, x0, gy, hi, lo) {
+  var r = wPlot(g, { w: 7, sky: 34, rough: 8, near: (L.x0 + L.x1) / 2, pad: 2, fit: function (g, x0, gy, hi, lo) {
     var side = x0 + 3 < (L.x0 + L.x1) / 2 ? 1 : -1, d = side > 0 ? L.x0 - (x0 + 6) : x0 - L.x1;
     if (d < 3 || d > 14 || Math.abs(lo - L.top) > 10) return null;
     var pl = hLightPlan(g, x0, gy, side);
@@ -901,7 +910,7 @@ function hFoundryFit(g, x0, gy, hi, lo) {
 }
 function hPlanFoundry(g, p) {
   var f = mSites(g, "furnace", true)[0];
-  var r = wPlot(g, { w: H_FW, sky: 16, rough: 6, near: f ? f.cx : wMiddle(g), pad: 2, fit: hFoundryFit });
+  var r = wPlot(g, { w: H_FW, sky: 16, rough: 12, near: f ? f.cx : wMiddle(g), pad: 2, fit: hFoundryFit });
   if (!r) return false;
   var s = hFoundryAt(g, p, r.x0, r.r.R0, wCleared(g, r, r.r.plan));
   feed(g, p.name + " is building a foundry by the furnace", "#ffd94a", "plan" + s.id);
@@ -1280,7 +1289,7 @@ function hRocketFit(g, x0, gy, hi, lo) {
   return r ? { plan: r.plan, R0: r.R0, score: 30 - r.work * 0.2 } : null;
 }
 function hPlanRocket(g, p) {
-  var r = wPlot(g, { w: H_RW, sky: 40, rough: 6, near: wMiddle(g), pad: 3, fit: hRocketFit });
+  var r = wPlot(g, { w: H_RW, sky: 40, rough: 12, near: wMiddle(g), pad: 2, fit: hRocketFit });
   if (!r) return false;
   var s = hRocketAt(g, p, r.x0, r.r.R0, wGild(g, wCleared(g, r, r.r.plan)));
   feed(g, p.name + " is building a rocket. for the moon", "#ffd94a", "plan" + s.id);

@@ -55,6 +55,10 @@ var W_IRON_HOLD = 30;       /* iron to spare, before new tools, while a wonder w
 var W_BATH_LO = 30, W_BATH_HI = 45;   /* warm water: a bath. hotter than P_SWEAT, and they get out */
 var W_ONLY = ["firebrick", "stained", "plate", "bell"];   /* what nothing but a great work wants (and lime: wLimeWant) */
 var W_NOFURNACE = ["theatre", "pyramid", "icepalace"];   /* the great works that want nothing of the furnace's */
+/* which is looked for room for first, when the valley could start more than one: the two that want the most open ground
+   while there is still some; then the quick ones, which a crowded valley still has a corner for; the long ones last */
+var W_ORDER = ["theatre", "pyramid", "observatory", "foundry", "baths", "organ", "moonrocket", "duckpalace", "lighthouse", "gardens", "cathedral", "icepalace"];
+function wRank(d) { var r = W_ORDER.indexOf(d.id); return r < 0 ? W_ORDER.length + W_DEFS.indexOf(d) : r; }
 
 P_SAY.haul = ["for the great work", "where does this go", "one more for the pile", "it's for the wonder", "heavy, this"];
 P_SAY.quarry = ["*tink*", "stone for the wonder", "deeper. always deeper", "a bench, they said", "it's honest work"];
@@ -275,8 +279,9 @@ function wPick(g, p, hungry) {
   /* a wonder thought of, and none going up: somewhere for it (one great work at a time) */
   if (!p.planCD && g.tick > (g.wPlanT || 0) && Math.random() < 0.3) {
     g.wPlanT = g.tick + 300;
-    for (k = 0; k < W_DEFS.length; k++) {
-      d = W_DEFS[k];
+    var O = W_DEFS.slice().sort(function (a, b) { return wRank(a) - wRank(b); });
+    for (k = 0; k < O.length; k++) {
+      d = O[k];
       if (!d.plan || !g.know[d.id] || (g.wDone && g.wDone[d.id] && !d.again) || iCount(g, d.id) || (!d.exempt && wGreat(g))) continue;
       if (g.wNo && g.wNo[d.id] > g.tick) continue;
       if (d.wait && d.wait(g)) continue;   /* (not for want of room: the ice palace, waiting for a freeze. pleasures.js) */
@@ -1010,15 +1015,17 @@ function wPartOfIt(g, s, f) { var d = wOf(s.kind); return !!(d && d.partOfIt && 
 /* -------------------------------------------------------------------
    WHERE: wPlot, for any wonder. o = {w (columns), sky (rows of open air
    wanted over the highest ground), rough (how far the ground may go up
-   and down under it), near (a column to be near), edge (rather near an
-   edge of the valley), pad (columns kept clear either side), fit(g, x0,
-   gy) (the wonder's own say: a score, the higher the better, or null)}.
-   never on a house, a field, a mine or the heap; never over water,
-   fire or anything that goes bang. {x0, gy (the ground, column by
-   column), hi, lo, score, r (what fit said)} or null
+   and down under it: a wonder that takes it rough makes it level, a
+   terrace of stone under the low side, wTerrace), near (a column to be
+   near), edge (rather near an edge of the valley), pad (columns kept
+   clear either side), fit(g, x0, gy, hi, lo) (the wonder's own say: a
+   score, the higher the better, or null)}. never on a house, a field, a
+   mine, a pond or the heap, or anybody's site; never over water, fire
+   or anything that goes bang. {x0, gy (the ground, column by column),
+   hi, lo, score, r (what fit said)} or null
    ------------------------------------------------------------------- */
 function wPlot(g, o) {
-  var best = null, W = o.w, pad = o.pad == null ? 3 : o.pad, x0, x, y, k, c, gy, hi, lo, ok, r, sc;
+  var best = null, W = o.w, pad = o.pad == null ? 3 : o.pad, sky = o.sky || 12, x0, x, y, k, c, gy, hi, lo, ok, r, sc;
   for (x0 = 6 + pad; x0 + W - 1 < g.gw - 6 - pad; x0++) {
     gy = []; hi = 1e9; lo = -1; ok = true;
     for (x = x0; x < x0 + W && ok; x++) {
@@ -1026,19 +1033,19 @@ function wPlot(g, o) {
       if (y < 10 || !pSolid(g, x, y)) { ok = false; break; }
       gy.push(y); hi = Math.min(hi, y); lo = Math.max(lo, y);
     }
-    if (!ok || lo - hi > (o.rough == null ? 4 : o.rough) || hi - (o.sky || 12) < 4) continue;
-    if (g.tip && x0 - pad <= g.tip.x + 10 && x0 + W - 1 + pad >= g.tip.x - 10) continue;   /* (the heap: tidy.js) */
+    if (!ok || lo - hi > (o.rough == null ? 4 : o.rough) || hi - sky < 4) continue;
+    if (g.tip && x0 <= g.tip.x + 8 && x0 + W - 1 >= g.tip.x - 8) continue;   /* (the heap: tidy.js. its site has room about it already) */
     for (k = 0; k < g.sites.length && ok; k++) {
       var t = g.sites[k];
-      if (x0 + W - 1 + pad >= t.x0 && x0 - pad <= t.x1 && lo + 4 >= t.y0 && hi - (o.sky || 12) <= t.y1) ok = false;
+      if (x0 + W - 1 + pad >= t.x0 && x0 - pad <= t.x1 && lo + 4 >= t.y0 && hi - sky <= t.y1) ok = false;
     }
-    for (y = hi - (o.sky || 12); y <= lo + 2 && ok; y++) for (x = x0 - 2; x <= x0 + W + 1 && ok; x++) {
+    for (y = hi - sky; y <= lo + 2 && ok; y++) for (x = x0 - 2; x <= x0 + W + 1 && ok; x++) {
       c = pCell(g, x, y);
       if (LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c]) ok = false;
     }
     /* open sky over it: air, or what a spade (or an axe) can clear (a bush, a tree: cleared first) */
     var clear = [];
-    for (x = x0; x < x0 + W && ok; x++) for (y = hi - (o.sky || 12); y < gy[x - x0]; y++) {
+    for (x = x0; x < x0 + W && ok; x++) for (y = hi - sky; y < gy[x - x0]; y++) {
       c = pCell(g, x, y);
       if (AIRY[c]) continue;
       if (!mClear(g, x, y, c) || bMarked(g, x, y)) { ok = false; break; }
@@ -1050,6 +1057,28 @@ function wPlot(g, o) {
   }
   return best;
 }
+/* the ground under a great work made level at row F (the floor's row: solid, under it all): dug off where it is higher,
+   made up in stone where it is lower, a terrace, from the ground up. {plan, work} or null */
+function wTerrace(g, x0, gy, F) {
+  var plan = [], work = 0, u, x, y, c, e;
+  for (u = 0; u < gy.length; u++) {
+    x = x0 + u;
+    for (y = gy[u]; y < F; y++) {
+      c = pCell(g, x, y);
+      if (AIRY[c]) continue;
+      if (bMarked(g, x, y) || (!B_DIG[c] && !ROCK[c] && !mClear(g, x, y, c))) return null;
+      /* (sand dug more than a couple of rows down into a bank comes down on whoever is digging: made up instead) */
+      if (B_DIG[c] && F - y > 2) return null;
+      e = bE(g, x, y, MAT.EMPTY, 0); if (ROCK[c]) e.mine = true; plan.push(e); work += 2;
+    }
+    for (y = gy[u] - 1; y >= F; y--) { plan.push(bE(g, x, y, MAT.BRICK, wFillPh(y))); work++; }
+  }
+  return { plan: plan, work: work };
+}
+/* a terrace's phase, row by row: the bottom row first, all the way along, then the next. built a cell at a time
+   wherever it touches something, it would go in from the side walls over the rows under it, and leave those where
+   nobody standing on top can reach them (a phase between the clearing, 0, and anything of the wonder's own, 1 on) */
+function wFillPh(y) { return 1 - y / 1000; }
 /* the clearing of a plot: every bush and tree over it out first (phase 0), then the plan */
 function wCleared(g, r, plan) {
   var out = [];

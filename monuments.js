@@ -402,7 +402,7 @@ function mPyramidFit(g, x0, gy, hi, lo) {
     if (r && (!best || r.score > best.score)) best = r;
   }
   /* (it goes to the side, out of the way: a pyramid is not built where anybody lives) */
-  for (var k = 0; best && k < g.sites.length; k++) if (g.sites[k].kind === "house" && Math.abs(g.sites[k].cx - (x0 + 11)) < 30) return null;
+  for (var k = 0; best && k < g.sites.length; k++) if (g.sites[k].kind === "house" && Math.abs(g.sites[k].cx - (x0 + 11)) < 24) return null;
   return best;
 }
 function mPyramidAt(g, x0, gy, G) {

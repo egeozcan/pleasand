@@ -804,7 +804,7 @@ function pOrganWatch(g) {
 function pOPipeX(s, n) { return s.x0 + 3 + 2 * n; }
 /* where it goes: on level ground with a lot of sky over it, near where the shows go up */
 function pPlanOrgan(g, p) {
-  var r = wPlot(g, { w: P_OW, sky: 27, rough: 2, pad: 2, near: g.festX || wMiddle(g), fit: pOrganFit });
+  var r = wPlot(g, { w: P_OW, sky: 27, rough: 8, pad: 2, near: g.festX || wMiddle(g), fit: pOrganFit });
   if (!r) return false;
   var x0 = r.x0, G = r.r.G;
   /* (the tips stone to begin with, and gilded afterwards if there is gold about: wonders.js wRegild. a tip of gold at the top of a
@@ -823,13 +823,24 @@ function pPlanOrgan(g, p) {
    a plinth of brick with the firebox in the middle of it, the tank, the lid, the rack, and a ladder up the left of
    it to the first pipe (the rack is a stair from there, for whoever builds it and whoever mends it) */
 function pOrganFit(g, x0, gy, hi, lo) {
-  var G = lo, plan = [], u, y, c, x, n;
+  /* (the apron's row: the lowest of the ground, the high end dug down to it (two rows at most); or higher, on a terrace
+     of stone made up under the low end. whichever wants the least stone) */
+  var best = null;
+  for (var G = lo; G >= hi; G--) { var r = pOrganAt(g, x0, gy, G); if (r && (!best || r.score > best.score)) best = r; }
+  return best;
+}
+function pOrganAt(g, x0, gy, G) {
+  var plan = [], u, y, c, x, n, work = 0;
   function put(u, y, v, ph, cost) { var e = bE(g, x0 + u, y, v, ph); if (cost != null) e.cost = cost; plan.push(e); return e; }
   for (u = 0; u < P_OW; u++) {
     x = x0 + u;
-    /* (the ground made level: anything over the apron's row dug out, and something firm under it) */
+    /* (the ground made level: anything over the apron's row dug out, and something firm under it: the ground, or a
+       terrace, from the ground up) */
+    /* (no more than a couple of rows of it dug: a bank dug into any deeper comes down on whoever is digging) */
+    if (gy[u] < G - 2) return null;
     for (y = gy[u]; y < G; y++) { c = pCell(g, x, y); if (!B_DIG[c]) return null; put(u, y, MAT.EMPTY, 0); }
-    if (!pSolid(g, x, G + 1)) return null;
+    for (y = gy[u] - 1; y > G; y--) { put(u, y, MAT.BRICK, wFillPh(y)); work++; }
+    if (gy[u] <= G + 1 && !pSolid(g, x, G + 1)) return null;
     c = pCell(g, x, G);
     if (!AIRY[c] && !B_DIG[c] && !ROCK[c]) return null;
     put(u, G, u >= 7 && u <= 11 ? MAT.FIREBRICK : MAT.CONCRETE, 1);
@@ -855,7 +866,7 @@ function pOrganFit(g, x0, gy, hi, lo) {
   /* (sky over all of it, and no tree or roof to stop the steam on its way up) */
   for (u = 0; u < P_OW; u++) for (y = G - 6 - P_OH[6] - 2; y >= Math.max(0, G - 60); y -= 3) { c = pCell(g, x0 + u, y); if (!AIRY[c]) return null; }
   for (n = 0; n < plan.length; n++) if (plan[n].v === MAT.GOLD) plan[n].cost = null;
-  return { plan: plan, G: G, score: 20 };
+  return { plan: plan, G: G, score: 20 - work * 0.2 };
 }
 function pOrganT(g, s) {
   var t = 0, n = 0;
