@@ -578,6 +578,36 @@ module.exports = function (test, check, sim) {
     check(most === 12 && s.oil === 12, "the rocket had up to " + most + " barrels in it");
     check(all() === n0, "barrels went from " + n0 + " to " + all());
   });
+  test("moon rocket: a bell's ninths kept under a shelf of rock are fetched from footing the village can walk to, and mend it", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, x, y, t;
+    var q = g.peasants[0], donor = g.peasants[1];
+    g.peasants.forEach(function (o) { if (o !== q && o !== donor) o.dead = 1; });
+    q.x = 200.5; q.y = 149; q.hunger = 0;
+    var cx = Math.round(s.cx);
+    for (x = cx - 14; x <= cx + 14; x++) for (y = 33; y <= 39; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (a shelf of rock up over it) */
+    var e = s.plan.filter(function (e2) { return e2.res === "bell"; })[0];
+    w.heatVanish(g, e.i); s.done = false; s.repair = true;
+    donor.bell = 8 / 9; w.pDie(g, donor, "old");
+    var at = w.wSalvageSpot(g);
+    check(at && at.y > 39, "the salvage is to be fetched from on top of the shelf: " + JSON.stringify(at));
+    for (t = 0; t < 8000 && g.m[e.i] !== M.METAL; t++) { q.hunger = 0; sim.step(w, 1); }
+    check(g.m[e.i] === M.METAL, "the bell's cell was never mended: " + JSON.stringify(g.salvage));
+  });
+  test("moon rocket: a bell's ninths in the pocket of somebody who cannot get there are not counted on: the spare is fetched", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, G = R.G, x, y, t;
+    var q = g.peasants[0], carrier = g.peasants[1], donor = g.peasants[2];
+    g.peasants.forEach(function (o) { if (o !== q && o !== carrier && o !== donor) o.dead = 1; });
+    q.x = 200.5; q.y = 149; q.hunger = 0;
+    /* (the carrier across a wall of rock from everything) */
+    for (x = 212; x < g.gw; x++) for (y = 0; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < G ? M.EMPTY : M.STONE);
+    for (x = 205; x <= 211; x++) for (y = 65; y < G; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    carrier.x = 221.5; carrier.y = 149; carrier.bell = 8 / 9; donor.bell = 1 / 9;
+    var e = s.plan.filter(function (e2) { return e2.res === "bell"; })[0];
+    w.heatVanish(g, e.i); s.done = false; s.repair = true;
+    w.pDie(g, donor, "old");
+    for (t = 0; t < 8000 && g.m[e.i] !== M.METAL; t++) { carrier.hunger = 0; q.hunger = 0; sim.step(w, 1); }
+    check(g.m[e.i] === M.METAL, "the bell's cell was never mended: salvage " + JSON.stringify(g.salvage) + ", carrier " + carrier.bell);
+  });
   test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 12;

@@ -1039,10 +1039,11 @@ function hFoundryWant(g, s) {
     if (!t.wonder || t.done) continue;
     bell += Math.max(0, bNeed(g, t, "bell")); plate += Math.max(0, bNeed(g, t, "plate"));
   }
-  bell -= wPocketed(g, "bell"); plate -= wPocketed(g, "plate");
-  /* (and what is kept in the salvage, a bell's ninths and all: fetched, not cast again. wonders.js) */
-  var sv = g.salvage || {};
-  bell -= sv.bell || 0; plate -= sv.plate || 0;
+  /* (less what is in the pockets of those who can get it there, and what is kept in the salvage where it can be got at,
+     a bell's ninths and all: fetched, not cast again. wonders.js wPocketedSure, wSalvageSure) */
+  bell -= wPocketedSure(g, "bell"); plate -= wPocketedSure(g, "plate");
+  if (bell > 1e-6) bell -= wSalvageSure(g, "bell");
+  if (plate > 0.5) plate -= wSalvageSure(g, "plate");
   if (bell > 1e-6) return "an engine bell";   /* (a bell is cast whole: for a cell of one to mend, too) */
   if (plate > 0.5) return Math.ceil(plate) + " plates";
   if (!s.casts && mIronToHand(g) >= 12) return "a first pour";   /* (to see that it works: once) */

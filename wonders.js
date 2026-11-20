@@ -858,18 +858,37 @@ function wSurplus(g, p) {
 /* where to stand to fetch from the salvage: the standing cell (navStand: ground, room, nothing deadly; in the world, not
    over the top of it) nearest where it is kept (wSalvageAt), beside the store. {x, y} or null */
 function wSalvageSpot(g) {
-  var a = wSalvageAt(g), best = null, bd = 1e9, d, x, y;
-  for (d = 0; d <= 80 && bd > d; d++) for (var sd = -1; sd <= 1; sd += 2) {
+  var a = wSalvageAt(g), C = [], d, x, y, k;
+  for (d = 0; d <= 80; d++) for (var sd = -1; sd <= 1; sd += 2) {
     x = a.x + sd * d;
     if (x < 1 || x > g.gw - 2) continue;
-    for (y = 9; y < g.gh; y++) {
-      if (navStand(g, x, y) !== 1) continue;
-      var c = d + Math.abs(y - a.y) * 0.5;
-      if (c < bd) { bd = c; best = { x: x, y: y }; }
-    }
+    for (y = 9; y < g.gh; y++) if (SOLID[pCell(g, x, y + 1)] && navStand(g, x, y) === 1) C.push({ x: x, y: y, c: d + Math.abs(y - a.y) * 0.5 });
     if (!d) sd = 2;
   }
-  return best;
+  C.sort(function (u, v) { return u.c - v.c; });
+  /* (and one that can be walked to from where the village lives: not the top of a shelf of rock over it. heavens.js hHome) */
+  var home = hHome(g);
+  for (k = 0; k < C.length && k < 200; k++) if (home.at(C[k].x, C[k].y) || navFind(g, C[k].x, C[k].y, home.at, home.x, home.y, H_REACH)) return { x: C[k].x, y: C[k].y };
+  return null;
+}
+/* someone who has lately given up getting to a great work (wBackoff, or bFail's failSite): what they carry is not to be
+   counted on, for ordering more of it or leaving the salvage be */
+function wStranded(g, q) {
+  if (q.failSite && q.failT > g.tick) { var f = bSite(g, q.failSite); if (f && f.wonder) return true; }
+  for (var id in q.noGo || {}) if (q.noGo[id] > g.tick) return true;
+  return false;
+}
+/* what of r is in the pockets of the living who are not stranded: to be counted on */
+function wPocketedSure(g, r) {
+  var n = 0;
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q)) n += q[r] || 0; }
+  return n;
+}
+/* what of r there is in the salvage that can be got at (a spot to fetch it from that the village can walk to) */
+function wSalvageSure(g, r) {
+  var sv = g.salvage;
+  if (!sv || !((sv[r] || 0) > 1e-6)) return 0;
+  return wSalvageSpot(g) ? sv[r] : 0;
 }
 /* how much of r in the salvage is wanted now, by a great work, or (moon rock) by everybody */
 function wSalvageWant(g, r) {
@@ -883,7 +902,7 @@ function wSalvageWant(g, r) {
   var S = wSites(g).filter(function (t) { return !t.done || t.repair; });
   for (k = 0; k < S.length; k++) n += Math.max(0, r === "lime" ? wLimeWant(g, S[k]) : bNeed(g, S[k], r === "lump" ? "mortar" : r));
   /* (less what is in pockets already, to be hauled there: nothing fetched that would only be left over) */
-  n -= r === "lump" ? wPocketed(g, "lump") + wPocketed(g, "mortar") : wPocketed(g, r);
+  n -= r === "lump" ? wPocketedSure(g, "lump") + wPocketedSure(g, "mortar") : wPocketedSure(g, r);
   if (n <= 1e-6) return 0;
   /* (a bell is wanted in ninths, a cell of it to mend: fetched so. the rest, a whole one at a time) */
   return Math.min(sv[r], r === "bell" ? n : Math.ceil(n - 1e-6));
