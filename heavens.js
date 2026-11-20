@@ -996,7 +996,7 @@ function hFoundryWant(g, s) {
     bell += Math.max(0, bNeed(g, t, "bell")); plate += Math.max(0, bNeed(g, t, "plate"));
   }
   bell -= wPocketed(g, "bell"); plate -= wPocketed(g, "plate");
-  if (bell > 0.5) return "an engine bell";
+  if (bell > 1e-6) return "an engine bell";   /* (a bell is cast whole: for a cell of one to mend, too) */
   if (plate > 0.5) return Math.ceil(plate) + " plates";
   if (!s.casts && mIronToHand(g) >= 12) return "a first pour";   /* (to see that it works: once) */
   return "";

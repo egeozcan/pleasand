@@ -564,6 +564,16 @@ module.exports = function (test, check, sim) {
     w.hRocketStep(g, s);
     check(!s.gone, "it went with a plate gone");
   });
+  test("moon rocket: a cell of its engine bell gone, the foundry is asked for a whole bell to mend it with", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT;
+    var gy = []; for (var k = 0; k < w.H_FW; k++) gy.push(R.G);
+    var fr = w.hFoundryFit(g, 112, gy, R.G, R.G), f = w.hFoundryAt(g, g.peasants[0], 112, fr.R0, fr.plan);
+    sim.build(w, f); f.done = true;
+    g.peasants.forEach(function (q) { q.bell = 0; });
+    var bell = s.plan.filter(function (e) { return e.res === "bell" && g.m[e.i] === M.METAL; })[0];
+    w.sandPlace(g, bell.i, M.EMPTY); s.done = false; s.repair = true;
+    check(w.hFoundryWant(g, f) === "an engine bell", "the foundry is asked for " + JSON.stringify(w.hFoundryWant(g, f)) + " for a ninth of a bell");
+  });
   test("moon rocket: fire by a fuelled rocket blows it up, and anybody aboard is thrown clear", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 4;
