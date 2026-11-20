@@ -390,6 +390,7 @@ function tInTheWay(g, cells) {
 function tOwned(g, cells) {
   for (var k = 0; k < cells.length; k++) {
     var x = cells[k] % g.gw, y = (cells[k] / g.gw) | 0;
+    if (mCryptAt(g, x, y)) return true;   /* (water in the crypt: the cathedral bails its own, up the ladder. monuments.js) */
     for (var q = 0; q < g.sites.length; q++) {
       var s = g.sites[q];
       if (tOwnWater(s) && x >= s.x0 - 2 && x <= s.x1 + 2 && y >= s.y0 - 3 && y <= s.y1 + 2) return true;

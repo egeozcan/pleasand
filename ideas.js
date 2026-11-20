@@ -1516,6 +1516,7 @@ function iWeather(g, s, flower) {
   for (j = 0; j < s.plan.length; j++) if (g.m[s.plan[j].i] === MAT.WOOD) sandSet(g, s.plan[j].i, MAT.EMPTY);
   for (j = 0; j < g.dead.length; j++) if (g.dead[j].site === s.id) g.dead[j].site = -1;
   feed(g, "the cross for " + iName(s.of) + " has weathered away", "#c8d0dc");
+  wSpark(g, pOther(g, { x: s.cx, y: s.y1 }, 60), "cathedral");   /* (whoever was at the graveyard when it went: monuments.js) */
   j = s.y1 * g.gw + x;
   if (flower && g.m[j] === MAT.EMPTY && pSolid(g, x, s.y1 + 1)) { sandSet(g, j, MAT.FLOWER); g.sh[j] = irnd(42) * 6 + 1 + irnd(5); }
 }
