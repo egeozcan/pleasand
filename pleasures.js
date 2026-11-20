@@ -187,7 +187,7 @@ function pTaskStoke(g, p, k) {
   if (++k.t > 12000 && !hot) return iDone(p, false);
   /* coal first, if a coal is going to be wanted: their own, or off whoever has some close by, or off the furnace's pile */
   if (!k.coal && (p.coal || 0) < 1 && !hot) {
-    if (iChipIn(g, "coal", 1, p.x, 6)) p.coal = (p.coal || 0) + 1;
+    if (iChipIn(g, "coal", 1, p.x, 6, p)) p.coal = (p.coal || 0) + 1;
     else {
       var f = mSites(g, "furnace", true)[0];
       if (!f || !f.stock || (f.stock.coal || 0) < 1) { if (p.sayT <= 0) pSay(g, p, "nocoal"); return iDone(p, false); }
@@ -1004,7 +1004,8 @@ function pTaskOrgan(g, p, k) {
   var t = pOrganT(g, s), lit = pOFire(g, s);
   /* coal first, if the fire will want some: their own, off whoever has some, or off the furnace's pile */
   if (s.state !== "idle" && (p.coal || 0) < 1 && !k.noCoal) {
-    if (iChipIn(g, "coal", 2, p.x, 20) >= 1) p.coal = (p.coal || 0) + 1;
+    var chip = iChipIn(g, "coal", 2, p.x, 20, p);
+    if (chip >= 1) p.coal = (p.coal || 0) + chip;   /* (all that was chipped in: none of it left in the air) */
     else {
       var f = mSites(g, "furnace", true)[0];
       if (!f || !f.stock || (f.stock.coal || 0) < 1) {

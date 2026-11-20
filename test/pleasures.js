@@ -282,6 +282,17 @@ module.exports = function (test, check, sim) {
     console.log("      (of " + s.lastUsed + " cells boiled off, the gutter caught " + s.caught + " back into the tank in 6000 ticks)");
   });
 
+  test("organ: coal chipped in to the organist by the village is all the organist's: none of it lost", function () {
+    var O = organ(2), w = O.w, g = O.g, s = O.s;
+    var a = g.peasants[0], b = g.peasants[1];
+    a.coal = 0; b.coal = 5; b.x = a.x + 2;
+    var f = w.mSites(g, "furnace", true)[0]; if (f && f.stock) f.stock.coal = 0;
+    var c0 = a.coal + b.coal;
+    a.task = { kind: "organ", site: s.id, t: 0, act: 0, brave: true }; s.state = "firing"; s.fireT = g.tick;
+    w.pTaskOrgan(g, a, a.task);
+    check(a.coal + b.coal === c0, "coal went from " + c0 + " to " + (a.coal + b.coal) + " chipping in to the organist");
+  });
+
   test("organ: a boiler shut up tight with steam in it a long while has its organist open a pipe to let it breathe", function () {
     var O = organ(1), w = O.w, g = O.g, s = O.s, M = O.M;
     /* (the HEAT brush on the tank, with every valve shut: steam, and nowhere for it to go) */
