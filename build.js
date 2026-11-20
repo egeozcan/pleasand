@@ -147,6 +147,7 @@ function bGiveBack(s, p) {
   for (var r in s.stock) {
     if (!(s.stock[r] > 0)) continue;
     if (r === "wood") p.boards = (p.boards || 0) + s.stock.wood; else p[r] = (p[r] || 0) + s.stock[r];
+    if (r === "stained") bTints(s, p, s.stock[r]);
     s.stock[r] = 0;
   }
 }
@@ -330,8 +331,16 @@ function bDeposit(g, p, s) {
     if (r === "wood") {
       give = Math.min(p.boards || 0, need); p.boards = (p.boards || 0) - give; st.wood = (st.wood || 0) + give; need -= give;
       while (need > 1e-6 && p.logs > 0) { p.logs--; st.wood += B_BOARDS; need -= B_BOARDS; }
-    } else { give = Math.min(p[r], need); p[r] -= give; st[r] = (st[r] || 0) + give; }
+    } else { give = Math.min(p[r], need); p[r] -= give; st[r] = (st[r] || 0) + give; if (r === "stained") bTints(p, s, give); }
   }
+}
+/* coloured panes moved from a to b (a peasant's pockets, or a site's pile): their colours with them, the first in first
+   out (a.tints, kept beside the count, for panes fired at the kiln: wonders.js). a pane with no colour kept goes in as
+   the window was drawn */
+function bTints(a, b, n) {
+  if (!a.tints || !a.tints.length) return;
+  var mv = a.tints.splice(0, Math.min(Math.round(n), a.tints.length));
+  b.tints = (b.tints || []).concat(mv);
 }
 function bCanPay(g, p, s, e) {
   var pr = bPrice(e);
@@ -341,7 +350,7 @@ function bCanPay(g, p, s, e) {
 function bPay(g, p, s, e) {
   var pr = bPrice(e), st = s.stock || (s.stock = {});
   if (!pr) return true;
-  if ((st[pr.r] || 0) >= pr.n - 1e-6) { st[pr.r] -= pr.n; if (Math.abs(st[pr.r]) < 1e-4) st[pr.r] = 0; return true; }   /* (no crumbs of float left on it) */
+  if ((st[pr.r] || 0) >= pr.n - 1e-6) { st[pr.r] -= pr.n; if (Math.abs(st[pr.r]) < 1e-4) st[pr.r] = 0; bTint(s, e); return true; }   /* (no crumbs of float left on it) */
   if (pr.r === "wood") {
     if ((p.boards || 0) < pr.n - 1e-6 && p.logs > 0) {
       p.logs--; p.boards = (p.boards || 0) + B_BOARDS; g.fx.saw++;
@@ -351,8 +360,10 @@ function bPay(g, p, s, e) {
     p.boards -= pr.n; return true;
   }
   if ((p[pr.r] || 0) < pr.n - 1e-6) return false;
-  p[pr.r] -= pr.n; return true;
+  p[pr.r] -= pr.n; bTint(p, e); return true;
 }
+/* a coloured pane paid for out of o (a peasant, or a site for its pile): the window is the colour of the pane */
+function bTint(o, e) { if (e.v === MAT.STAINED && o.tints && o.tints.length) e.a = o.tints.shift(); }
 /* do they carry anything site s still wants */
 function bBrings(g, p, s) {
   for (var k = 0; k < B_KINDS.length; k++) if (bHas(p, B_KINDS[k]) >= 0.2 - 1e-6 && bNeed(g, s, B_KINDS[k]) > 1e-6) return true;   /* (a fifth of a bar is a girder's worth) */
@@ -811,7 +822,6 @@ function bPlace(g, s, e, p) {
   if (e.redo && g.m[e.i] === MAT.PLANK) p.boards = (p.boards || 0) + 1;   /* (the old board, out, and into their pocket) */
   if (e.gild && g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5;   /* (the stand-in, out: wonders.js) */
   if (e.v === MAT.STAINED && g.m[e.i] === MAT.GLASS) p.glass = (p.glass || 0) + 1;   /* (the plain pane, out: monuments.js) */
-  if (e.v === MAT.STAINED && s.tints && s.tints.length) e.a = s.tints.shift();   /* (the colour of the pane that goes in: wonders.js) */
   /* (concrete goes in wet, into its form, and sets there: wonders.js) */
   sandSet(g, e.i, e.v === MAT.CONCRETE ? MAT.MORTAR : e.v);
   g.aux[e.i] = e.v === MAT.CONCRETE ? 128 : e.a;
@@ -877,6 +887,7 @@ function bFinish(g, s, p) {
   /* what is left on the pile (a log sawn for one board, say) goes home with whoever finished it */
   if (s.stock && p) for (var r in s.stock) {
     if (r === "wood") p.boards = (p.boards || 0) + s.stock.wood; else p[r] = (p[r] || 0) + s.stock[r];
+    if (r === "stained") bTints(s, p, s.stock[r]);
     s.stock[r] = 0;
   }
   g.fx.pop++;

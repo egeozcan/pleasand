@@ -435,6 +435,26 @@ module.exports = function (test, check, sim) {
     check(g.aux[first.i] === 1, "the one pane, fired with ore, went in " + ["ruby", "green", "amber"][g.aux[first.i] % 3]);
   });
 
+  test("wonders: a pane's colour goes with the pane: its carrier dies, and the pane fired in its place goes in its own colour", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, k;
+    know(g, ["farm", "dig", "mine", "smelt", "masonry", "glass", "stained"]);
+    var p = g.peasants[0];
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+    var f = sim.build(w, sites(g, "furnace")[0]);
+    var x = f.x1 + 12, G = w.mGround(g, x), s = cairn(w, p, x, G, 1, function () { return M.STAINED; }), e = s.plan[0];
+    e.a = 0;   /* (drawn ruby) */
+    g.peasants.forEach(function (q) { q.task = null; q.mineCD = 1e9; q.hunger = 0; q.ore = 0; q.gold = 0; q.coal = 0; q.glass = 0; q.stained = 0; });
+    f.stock = { ore: 1, coal: 0, glass: 1 };
+    var carrier = null;
+    for (k = 0; k < 8000 && !carrier; k++) { sim.step(w, 1); carrier = g.peasants.filter(function (q) { return !q.dead && (q.stained || 0) >= 1; })[0] || null; }
+    check(!!carrier, "(the test wants a green pane fired)");
+    carrier.dead = 1; carrier.stained = 0;   /* (and its carrier gone, pane and all, before it was put in) */
+    f.stock = { ore: 0, coal: 3, glass: 1 };
+    for (k = 0; k < 12000 && g.m[e.i] !== M.STAINED; k++) sim.step(w, 1);
+    check(g.m[e.i] === M.STAINED, "(the test wants the window glazed)");
+    check(g.aux[e.i] === 2, "the pane fired with coal went in " + ["ruby", "green", "amber"][g.aux[e.i] % 3]);
+  });
+
   test("wonders: wet concrete is mixed from lime, sand and a bucket of water, poured in its form, and a pail dawdled with goes off", function () {
     var w = sim.load(1), g = w.g, M = w.MAT;
     know(g, ["farm", "dig", "bucket", "concrete"]);
