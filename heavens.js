@@ -965,7 +965,28 @@ function hMould(g, s, which) {
   return out;
 }
 function hMouldHot(g, s) { var t = AMBIENT; hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (j) { if (g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA) t = Math.max(t, g.T[j]); }); return t; }
-function hMouldFull(g, s, which) { return hMould(g, s, which).some(function (j) { return !AIRY[g.m[j]]; }); }
+/* a cast in the mould, not yet prised out (iron in it, set or running) */
+function hMouldFull(g, s, which) { return hMould(g, s, which).some(function (j) { return g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA; }); }
+/* whatever else has got into a mould (a drop of rain, sand blown in): out, before it is cast into. water shoved out of
+   it (build.js bShove), anything else swept out */
+function hMouldSweep(g, s, which) {
+  var mo = hMould(g, s, which), not = {};
+  mo.forEach(function (q) { not[q] = 1; });
+  mo.forEach(function (q) { var c = g.m[q]; if (WET[c]) { if (!bShove(g, q, not)) hBail(g, q, not); } else if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) heatVanish(g, q); });
+}
+/* a cell of water with no way out through the water it is in (the bell's mould is shut in under the chamber): bailed out,
+   a scoop, and tipped onto the open air nearest it, heat and all */
+function hBail(g, j, not) {
+  var gw = g.gw, x0 = j % gw, y0 = (j / gw) | 0, r, x, y, i;
+  for (r = 1; r < 30; r++) for (y = y0 - r; y <= y0 + r; y++) for (x = x0 - r; x <= x0 + r; x++) {
+    if (Math.max(Math.abs(x - x0), Math.abs(y - y0)) !== r || x < 1 || y < 1 || x >= gw - 1 || y >= g.gh - 1) continue;
+    i = y * gw + x;
+    if (g.m[i] !== MAT.EMPTY || (not && not[i]) || g.m[i - gw] !== MAT.EMPTY) continue;
+    heatSync(g, j); heatSync(g, i); sandSwap(g, j, i);
+    return true;
+  }
+  return false;
+}
 /* what the foundry is wanted for: plates, or an engine bell, for a great work going up (more than is in pockets) */
 function hFoundryWant(g, s) {
   var bell = 0, plate = 0;
@@ -991,8 +1012,10 @@ function hSpotAt(g, s) { var sp = hSpot(s), G = mGroundNear(g, sp.x, false, sp.y
 function hFoundryStep(g, s) {
   if (!s.done || s.repair) return;
   if (s.phase === 0 && hFoundryWant(g, s)) {
-    s.mould = hFoundryWant(g, s) === "an engine bell" && !hMouldFull(g, s, "bell") ? "bell" : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
-    if (s.mould) s.phase = 1;
+    /* (a bell wanted is cast as a bell, when the bell's mould is free of the last one: never plates instead) */
+    var bell = hFoundryWant(g, s) === "an engine bell";
+    s.mould = bell ? (!hMouldFull(g, s, "bell") ? "bell" : "") : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
+    if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; }
   }
   if (s.phase === 4 && hMouldHot(g, s) < H_PRISE) s.phase = 5;
   if (s.phase === 0 || s.phase === 4 || mCrew(g, "found", s.id)) return;
@@ -1079,8 +1102,7 @@ function hTaskFound(g, p, k) {
         j = hPlug(g, s);
         /* (anything that has got into the moulds, sand blown in, a bit of glass, swept out first) */
         /* (the mould it is going into, not the other: water in it shoved out, as a builder's stone shoves it, not lost) */
-        var mo = hMould(g, s, s.mould), not = {}; mo.forEach(function (q) { not[q] = 1; });
-        mo.forEach(function (q) { var c = g.m[q]; if (WET[c]) bShove(g, q, not); else if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) heatVanish(g, q); });
+        hMouldSweep(g, s, s.mould);
         s.phase = 3; s.pourT = g.tick; s.casts++;
         pSay(g, p, "tap", true); g.fx.clang++;
         sparks(g, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, 10, 0.8, SPARK_HOT, 10, 0.3, PK_GLINT);

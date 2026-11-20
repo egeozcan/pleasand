@@ -335,6 +335,21 @@ module.exports = function (test, check, sim) {
     check(g.m[bell[0]] === M.WATER || w.WET[g.m[bell[0]]], "the water in the bell mould, not being cast into, was taken out");
     check(water() === n0, "water (and steam) went from " + n0 + " to " + water() + " as it was tapped");
   });
+  test("foundry: a bell wanted, and a drop of water in the bell's mould: the drop is shoved out, and it is a bell that is cast", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
+    w.wDef({ id: "bellwant" });
+    var x = s.x1 + 20, G = w.mGround(g, x), e = w.bE(g, x, G - 1, M.METAL, 0); e.res = "bell"; e.cost = 1;
+    w.bNew(g, "bellwant", F.p, [e], [x, G - 1, x, G - 1], { wonder: true });
+    s.phase = 0; s.mould = "";
+    var bell = w.hMould(g, s, "bell");
+    w.sandPlace(g, bell[0], M.WATER);
+    function water() { var n = 0; for (var j = 0; j < g.m.length; j++) if (w.WET[g.m[j]]) n++; return n; }
+    var n0 = water();
+    w.hFoundryStep(g, s);
+    check(s.mould === "bell", "with a bell wanted, it was set to cast " + JSON.stringify(s.mould));
+    check(!bell.some(function (j) { return w.WET[g.m[j]]; }), "the drop is still in the bell's mould");
+    check(water() === n0, "water went from " + n0 + " to " + water());
+  });
   test("foundry: a charge of two bars, tapped, sets in the plate mould and is prised out as plates; the iron is all there, none of it outside, and the ash is raked out", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F), fb = fireb(F), first = 0, set = 0;
     var mould = w.hMould(g, s, "plate");
