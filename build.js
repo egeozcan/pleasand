@@ -782,16 +782,31 @@ function bTillCell(g, s, e, p) {
   if (p.sayT <= 0 && Math.random() < 0.06) pSay(g, p, "till");
 }
 /* a board into the plan. the cell keeps whatever heat it had: a board brought in at room temperature, near enough */
+/* the water in cell j shoved out of the way: through the water it is part of, to the nearest open air over or beside it
+   (the top of it, or a gap in a lid over it), heat and all. false if it is shut in, with nowhere to go */
+function bShove(g, j, not) {   /* (not: cells it is not to go to: a mould it is being shoved out of, say) */
+  var gw = g.gw, n = g.m.length, seen = {}, Q = [j], h = 0, i, k, nb, to = -1;
+  seen[j] = 1;
+  while (h < Q.length && h < 600 && to < 0) {
+    i = Q[h++];
+    var x = i % gw, N = [i - gw, x > 0 ? i - 1 : -1, x < gw - 1 ? i + 1 : -1, i + gw];
+    for (k = 0; k < 4 && to < 0; k++) {
+      nb = N[k];
+      if (nb < 0 || nb >= n || seen[nb]) continue;
+      seen[nb] = 1;
+      if (g.m[nb] === MAT.EMPTY) { if (not && not[nb]) Q.push(nb); else to = nb; }
+      else if (WET[g.m[nb]]) Q.push(nb);
+    }
+  }
+  if (to < 0) return false;
+  heatSync(g, j); heatSync(g, to); sandSwap(g, j, to);
+  return true;
+}
 function bPlace(g, s, e, p) {
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0;
   /* (where it goes in water, the water is shoved out of the way, up to the top of it, heat and all: none of it lost. a
      pocket of water shut in, with nowhere to go: left a while) */
-  if (WET[g.m[e.i]]) {
-    var up = e.i - gw;
-    while (up >= 0 && WET[g.m[up]]) up -= gw;
-    if (up < 0 || g.m[up] !== MAT.EMPTY) { e.wait = g.tick + 300; return; }
-    heatSync(g, e.i); heatSync(g, up); sandSwap(g, e.i, up);
-  }
+  if (WET[g.m[e.i]] && !bShove(g, e.i)) { e.wait = g.tick + 300; return; }
   if (!bPay(g, p, s, e)) return;
   if (e.redo && g.m[e.i] === MAT.PLANK) p.boards = (p.boards || 0) + 1;   /* (the old board, out, and into their pocket) */
   if (e.gild && g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5;   /* (the stand-in, out: wonders.js) */

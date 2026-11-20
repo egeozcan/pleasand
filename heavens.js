@@ -1078,7 +1078,9 @@ function hTaskFound(g, p, k) {
            what comes out of the hole is drawn: the chamber stays shut, and its fire with it) */
         j = hPlug(g, s);
         /* (anything that has got into the moulds, sand blown in, a bit of glass, swept out first) */
-        hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (q) { var c = g.m[q]; if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) heatVanish(g, q); });
+        /* (the mould it is going into, not the other: water in it shoved out, as a builder's stone shoves it, not lost) */
+        var mo = hMould(g, s, s.mould), not = {}; mo.forEach(function (q) { not[q] = 1; });
+        mo.forEach(function (q) { var c = g.m[q]; if (WET[c]) bShove(g, q, not); else if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) heatVanish(g, q); });
         s.phase = 3; s.pourT = g.tick; s.casts++;
         pSay(g, p, "tap", true); g.fx.clang++;
         sparks(g, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, 10, 0.8, SPARK_HOT, 10, 0.3, PK_GLINT);

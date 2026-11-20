@@ -324,6 +324,17 @@ module.exports = function (test, check, sim) {
     check(F.p.coal < 80, "none of the coal went in");
     check(s.phase >= 3, "it never melted (phase " + s.phase + ", " + Math.round(w.hChamber(g, s).hi) + "°)");
   });
+  test("foundry: tapped, water in the mould is shoved out of it, not lost, and the other mould is let be", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k;
+    var plate = w.hMould(g, s, "plate"), bell = w.hMould(g, s, "bell");
+    w.sandPlace(g, plate[0], M.WATER); w.sandPlace(g, bell[0], M.WATER);
+    function water() { var n = 0; for (var j = 0; j < g.m.length; j++) if (w.WET[g.m[j]] || g.m[j] === M.STEAM) n++; return n; }
+    var n0 = water();
+    for (k = 0; k < 12000 && s.phase < 3; k++) sim.step(w, 1);
+    check(s.phase === 3, "(the test wants it tapped: phase " + s.phase + ")");
+    check(g.m[bell[0]] === M.WATER || w.WET[g.m[bell[0]]], "the water in the bell mould, not being cast into, was taken out");
+    check(water() === n0, "water (and steam) went from " + n0 + " to " + water() + " as it was tapped");
+  });
   test("foundry: a charge of two bars, tapped, sets in the plate mould and is prised out as plates; the iron is all there, none of it outside, and the ash is raked out", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F), fb = fireb(F), first = 0, set = 0;
     var mould = w.hMould(g, s, "plate");

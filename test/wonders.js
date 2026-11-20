@@ -122,6 +122,20 @@ module.exports = function (test, check, sim) {
     check(at(true), "a smelter four rows over the mouth was not let work it, in a village with great works going on");
   });
 
+  test("wonders: stone put in under a capped column of water shoves it round, through the water, to the open top beside it", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y;
+    flat(w, x0, 20, G);
+    for (x = x0; x <= x0 + 3; x++) for (y = G - 6; y < G; y++) w.sandPlace(g, y * g.gw + x, x === x0 || x === x0 + 3 ? M.STONE : (y >= G - 4 ? M.WATER : M.EMPTY));
+    w.sandPlace(g, (G - 5) * g.gw + x0 + 1, M.STONE);   /* (a lid over the left column: the right one is open) */
+    function water() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.WATER) n++; return n; }
+    var p = g.peasants[0], s = cairn(w, p, x0 + 1, G, 1, function () { return M.BRICK; });
+    s.stock = { stone: 4 };
+    var n0 = water();
+    w.bPlace(g, s, s.plan[0], p);
+    check(g.m[s.plan[0].i] === M.BRICK, "the stone did not go in under the capped water");
+    check(water() === n0, "water went from " + n0 + " to " + water());
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;
