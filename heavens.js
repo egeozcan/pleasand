@@ -180,7 +180,7 @@ P_SAY.observe = ["hmm", "there's one", "if you squint, it's a duck", "the moon h
 P_SAY.foretell = ["there'll be falling stars tonight", "watch the sky later", "something's coming. lots of somethings",
   "keep your heads up tonight"];
 P_SAY.stars = ["ooh", "OOOH", "make a wish", "there's another", "look! look!", "they're falling!", "i wished for a duck"];
-P_SAY.hot = ["it's still hot", "don't touch it", "it came out of the SKY", "give it a minute", "*poke*. ow"];
+P_SAY.starHot = ["it's still hot", "don't touch it", "it came out of the SKY", "give it a minute", "*poke*. ow"];
 P_SAY.meteorite = ["iron! from the sky!", "there's gold in it!", "a star. in my pocket", "it fell for us"];
 P_ACHIEVE.meteorite = ["FALLING STAR", "it came out of the sky, and there was gold in the middle of it"];
 var H_NAMES = ["THE BIG DUCK", "GARY'S HAT", "THE LADLE", "THE SLEEPING COW", "THE SPADE", "THE LITTLE PYRAMID", "THE BUCKET", "THE LONG SOCK",
@@ -501,7 +501,7 @@ function hTaskMeteorite(g, p, k) {
   left.forEach(function (j) { hot = Math.max(hot, g.T[j]); });
   if (hot > 60) {
     k.wait = true; p.pose = "stand";
-    if (p.sayT <= 0 && Math.random() < 0.02) pSay(g, p, "hot");
+    if (p.sayT <= 0 && Math.random() < 0.02) pSay(g, p, "starHot");
     return true;
   }
   k.wait = false; k.act++;
@@ -873,7 +873,7 @@ var H_PRISE = 100;          /* and it is prised out of the mould under this */
 P_SAY.idea_foundry = ["the furnace makes a bar at a time. what if it made a ship", "a bigger furnace. MUCH bigger", "pour the iron. into a shape",
   "what if the iron ran like water"];
 P_SAY.planFoundry = ["a foundry, by the furnace", "firebrick. lots of firebrick", "a chamber, a door, a tap", "we'll cast plates"];
-P_SAY.charge = ["iron in", "coal on top", "a layer of each", "*clunk* *clunk*", "two bars of it"];
+P_SAY.foundryCharge = ["iron in", "coal on top", "a layer of each", "*clunk* *clunk*", "two bars of it"];
 P_SAY.bellows = ["*whoomf* *whoomf*", "pump, pump", "hotter", "feed it", "it's roaring now", "keep it going"];
 P_SAY.tap = ["TAP IT", "stand back!", "here it comes", "out of the way of the mould"];
 P_SAY.poured = ["look at it go", "like honey. hot honey", "it's in the mould", "don't step in that"];
@@ -1105,7 +1105,7 @@ function hTaskFound(g, p, k) {
     var bars = Math.max(0, Math.ceil((H_CHARGE - c.met - c.liq) / 5));
     if (bars > 0 && (p.iron || 0) < bars) { var chip = iChipIn(g, "iron", bars - Math.floor(p.iron || 0), null, null, p); p.iron = (p.iron || 0) + chip; }
     bars = Math.min(bars, Math.floor(p.iron || 0));
-    if (bars <= 0 && c.met + c.liq < 5) { if (p.sayT <= 0) pSay(g, p, "noiron"); s.phase = 0; return iDone(p, false); }
+    if (bars <= 0 && c.met + c.liq < 5) { if (p.sayT <= 0) pSay(g, p, "foundryNoIron"); s.phase = 0; return iDone(p, false); }
     var metal = bars * 5, put = 0;
     for (n = 0; n < s.cells.length; n++) {
       j = s.cells[n];   /* (bottom up) */
@@ -1119,7 +1119,7 @@ function hTaskFound(g, p, k) {
     /* (what there was no room for in the chamber goes back in their pocket: iron in is the iron that went in) */
     p.iron -= bars - metal / 5; s.bars = (s.bars || 0) + bars - metal / 5;
     g.fx.thud++;
-    if (p.sayT <= 0) pSay(g, p, "charge");
+    if (p.sayT <= 0) pSay(g, p, "foundryCharge");
     s.phase = 2; s.meltT = g.tick; k.act = 0;
     return true;
   }
@@ -1199,7 +1199,7 @@ function hTaskFound(g, p, k) {
   }
   return iDone(p, false);
 }
-P_SAY.noiron = ["no iron", "not a bar to be had", "we need iron for it"];
+P_SAY.foundryNoIron = ["no iron", "not a bar to be had", "we need iron for it"];
 /* a cell of liquid iron out of the chamber (the lowest, the nearest the tap) and into the mould (the first room in it),
    heat and all */
 function hPourCell(g, s, p) {

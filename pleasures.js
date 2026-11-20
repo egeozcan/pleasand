@@ -770,7 +770,7 @@ P_SAY.organFire = ["get it boiling", "more coal, she's not singing yet", "*clunk
 P_SAY.organist = ["and... the next bit", "*pulls a lever*", "this is the good part", "from the top", "nobody clap yet"];
 P_SAY.breathe = ["let it breathe", "she's building up. open one", "too much steam in her", "*pssssh*"];
 P_SAY.bitLoud = ["it's a bit loud", "IT'S A BIT LOUD", "lovely. what?", "is that the one about the duck", "*sways*", "my ears"];
-P_SAY.bail = ["*slosh*", "back in you go", "the rain's come back", "every drop counts"];
+P_SAY.organBail = ["*slosh*", "back in you go", "the rain's come back", "every drop counts"];
 
 wDef({
   id: "organ",
@@ -1066,7 +1066,7 @@ function pTaskOrgan(g, p, k) {
   /* the gutter bailed back into the tank */
   var W = pOGutter(g, s), D = [];
   for (j = s.L + P_OTH - 1; j >= s.L && !D.length; j--) for (u = s.px0; u < s.px0 + P_OBW; u++) if (g.m[j * g.gw + u] === MAT.EMPTY) { D.push(j * g.gw + u); break; }
-  if (W.length && D.length) { pLift(g, W[0], D[0]); s.caught++; if (p.sayT <= 0 && Math.random() < 0.2) pSay(g, p, "bail"); return true; }
+  if (W.length && D.length) { pLift(g, W[0], D[0]); s.caught++; if (p.sayT <= 0 && Math.random() < 0.2) pSay(g, p, "organBail"); return true; }
   if (s.breatheT) return true;
   p.bored = 0;
   return iDone(p, true);
