@@ -443,6 +443,8 @@ function wQuarryPlot(g, near, p) {
       cols.push(x);
     }
     if (cols.length < 3) continue;
+    /* (one let be a while, nobody having been able to get to it: as for bare rock, below) */
+    if (g.wQuarryFar && g.wQuarryFar[cols[0] + ":" + F] > g.tick) continue;
     sc = cols.length * 10 - Math.abs(t.cx - near) * 0.05;
     /* (where it meets the shaft, the ladder goes down to the new floor with it: the bottom of the shaft only) */
     var sh = !t.lv && Math.abs(cols[0] - m.col) === 2 && wFloorAt(g, m.col, m.B) === F ? m.col : -1;

@@ -398,6 +398,27 @@ module.exports = function (test, check, sim) {
     var at = w.wSalvageSpot(g);
     check(at && at.y >= 0 && w.navStand(g, at.x, at.y) === 1, "the salvage is to be fetched from " + JSON.stringify(at));
   });
+  test("wonders: a gallery to quarry that nobody can get to, let be, loses to bare rock they can", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 120, x, y, k;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = G; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var p = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== p) o.dead = 1; });
+    p.x = 180.5; p.y = G - 1;
+    /* (a mine with a gallery off it, its shaft sealed: no way down) */
+    var m = w.bNew(g, "mine", p, [], [80, G, 85, 179], { mine: true, col: 83, B: 173 }); m.done = true;
+    var t = w.bNew(g, "tunnel", p, [], [85, 163, 102, 173], { mine: true, col: 83, xa: 85, xb: 102, dir: 1, B: 173, S: G, of: m.id }); t.done = true;
+    for (x = 81; x < 103; x++) for (y = 162; y <= 173; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+    var r = w.wQuarryPlot(g, 180, p);
+    check(r && r.of === t.id, "(the test wants the gallery chosen first)");
+    g.know.mine = "TEST";
+    var plan = []; for (k = 0; k < 16; k++) plan.push(w.bE(g, 190 + k, G - 1, M.BRICK, 0));
+    w.bNew(g, "pyramid", p, plan, [190, G - 1, 206, G - 1], { wonder: true });
+    for (k = 0; k < 12000 && !g.wQuarryFar; k++) { g.tick++; if (!p.task) w.wGoQuarry(g, p); if (p.task) w.wTaskQuarry(g, p, p.task); }
+    check(!!g.wQuarryFar, "(the test wants the gallery given up on)");
+    var r2 = w.wQuarryPlot(g, 180, p);
+    check(r2 && r2.of !== t.id, "the gallery given up on is still the one chosen");
+  });
   test("wonders: dead in a tunnel with a load of concrete, they do not plug it: whoever else is in there can still get out", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y, k;
     flat(w, x0 - 40, 80, G);
