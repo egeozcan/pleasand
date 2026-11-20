@@ -254,4 +254,121 @@ module.exports = function (test, check, sim) {
     for (var t = 0; t < 4000 && !s.breathe; t += 30) { if (t < 1500) heat(); sim.step(w, 30); }
     check(s.breathe >= 1, "nobody let it breathe (steam " + w.pOrganSteam(g, s) + ", shut since " + s.shutT + ")");
   });
+
+  /* ---------------------------------------------------------------
+     THE DUCK PALACE
+     --------------------------------------------------------------- */
+  /* a flat bank at 150 from x 90 to 200, a pond from 200 to 245 (eight deep), the duck palace on its bank, built. ducks:
+     where to put them. peasants: none, unless keep */
+  function palace(keep) {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y, k;
+    for (k = g.sites.length - 1; k >= 0; k--) if (g.sites[k].x1 >= 80 && g.sites[k].x0 <= 255) w.bRemove(g, k);
+    for (x = 80; x <= 255; x++) {
+      for (y = 40; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+      var pond = x >= 200 && x <= 245;
+      for (y = G; y < G + 12; y++) w.sandPlace(g, y * g.gw + x, pond && y < G + 8 ? M.WATER : (y < G + 9 && (x < 185 || x > 250) ? M.SAND : M.STONE));   /* (a bank of rock: sand would slump into the water) */
+    }
+    know(g, ["farm", "dig", "bucket", "scarecrow", "duckpalace"]);
+    g.ducks.length = 0;
+    g.peasants.forEach(function (q, k) { if (k >= (keep || 0)) q.dead = 1; else { q.x = 150 + k * 3; q.y = G - 1; q.task = null; q.hunger = 0; } });
+    var p = g.peasants[0];
+    check(w.pPlanPalace(g, p), "nowhere for the duck palace on the pond");
+    var s = sites(g, "duckpalace")[0];
+    sim.build(w, s);
+    w.wFinish(g, s, p);
+    g.duckArriveT = 1e12;
+    sim.step(w, 1);
+    return { w: w, g: g, s: s, M: M, G: G };
+  }
+  function seedTrough(P) { P.w.pTrough(P.g, P.s).forEach(function (j) { if (P.g.m[j] === P.M.EMPTY) { P.w.sandPlace(P.g, j, P.M.SEED); } }); }
+
+  test("duck palace: thought of by whoever shoos the most ducks; planned at the water's edge, half out over it", function () {
+    var w = sim.load(1), g = w.g, p = g.peasants[0], M = w.MAT;
+    know(g, ["farm", "dig", "bucket", "scarecrow"]);
+    g.raids = 40;
+    while (w.pDucksAbout(g) < 4) w.duckSpawn(g, 240, 155, null, false, true);
+    g.peasants[1].shoos = 3; p.shoos = 3; p.spark = null;
+    w.pShooed(g, p);
+    check(p.spark === "duckpalace", "the duck palace was not put into the head of whoever shooed the most (" + p.spark + ")");
+    g.know.duckpalace = "TEST";
+    check(w.pPlanPalace(g, p), "nowhere for the duck palace in seed 1");
+    var s = sites(g, "duckpalace")[0], over = 0, on = 0;
+    s.plan.forEach(function (e) {
+      if (e.v !== M.PLANK || ((e.i / g.gw) | 0) !== s.Y) return;
+      var x = e.i % g.gw, y;
+      for (y = s.Y + 1; y < g.gh && w.AIRY[g.m[y * g.gw + x]]; y++);
+      if (g.m[y * g.gw + x] === M.WATER) over++; else on++;
+    });
+    check(over >= 4 && on >= 4, "the deck is not half on the bank and half over the water: " + on + " on, " + over + " over");
+  });
+
+  test("duck palace: the reaper keeps seed, the feeder fills the trough, and the seed draws a duck past the wheat", function () {
+    var P = palace(1), w = P.w, g = P.g, s = P.s, M = P.M, p = g.peasants[0];
+    /* (a handful kept at the harvest) */
+    var wx = 120, j = (P.G - 1) * g.gw + wx;
+    w.sandPlace(g, j, M.WHEAT);
+    p.x = wx + 1.5; p.y = P.G - 1; p.hunger = 900; p.seed = 0;
+    p.task = { kind: "eat", x: wx, y: P.G - 1, t: 0, act: 0, n: 0 };
+    for (var t = 0; t < 200 && g.m[j] === M.WHEAT; t++) sim.step(w, 1);
+    check(p.seed === 1, "no seed kept from the harvest (" + p.seed + ")");
+    /* the feeder */
+    p.seed = 2; p.hunger = 0; p.task = null;
+    check(w.pPalacePick(g, p, false), "nobody went to feed the ducks");
+    for (t = 0; t < 2000 && !w.pTroughSeed(g, s).length; t++) sim.step(w, 1);
+    check(w.pTroughSeed(g, s).length >= 2, "no seed in the trough");
+    p.dead = 1;
+    /* a duck at 150, wheat ten behind it, the trough fifty ahead */
+    var wheat = (P.G - 1) * g.gw + 140;
+    w.sandPlace(g, wheat, M.WHEAT); w.sandPlace(g, wheat - g.gw, M.WHEAT);
+    var d = w.duckSpawn(g, 150.5, P.G - 0.5, null, false, true);
+    d.dir = -1;
+    var seeds = w.pTroughSeed(g, s).length, ate = false;
+    for (t = 0; t < 6000 && !ate; t++) { sim.step(w, 1); if (w.pTroughSeed(g, s).length < seeds) ate = true; }
+    check(ate, "the duck never ate from the trough (it is at " + Math.floor(d.x) + "," + Math.floor(d.y) + " " + d.state + ", trough " + w.pTrough(g, s).map(function (j) { return g.m[j]; }).join(",") + " seed " + JSON.stringify(d.seed) + ")");
+    check(g.m[wheat] === M.WHEAT, "the duck went for the wheat");
+  });
+
+  test("duck palace: with the trough kept fed, raids on the wheat fall by half", function () {
+    function raids(fed) {
+      var P = palace(0), w = P.w, g = P.g, s = P.s, M = P.M, x, y;
+      /* a field of ripe wheat, no scarecrow, and four ducks between it and the palace */
+      function wheat() { for (x = 120; x <= 140; x += 2) for (y = P.G - 4; y < P.G; y++) { var j = y * g.gw + x; if (w.AIRY[g.m[j]]) w.sandPlace(g, j, M.WHEAT); } }
+      wheat();
+      for (var k = 0; k < 4; k++) w.duckSpawn(g, 150 + k * 8 + 0.5, P.G - 0.5, null, false, true);
+      if (!fed) { w.bRemove(g, g.sites.indexOf(s)); g.wDuckPalace = 0; }
+      var r0 = g.raids;
+      for (var t = 0; t < 10000; t += 100) { if (fed) seedTrough(P); if (t % 1000 === 0) wheat(); sim.step(w, 100); }
+      return g.raids - r0;
+    }
+    var without = raids(false), withP = raids(true);
+    check(without >= 4, "(the test wants raids without the palace: " + without + ")");
+    check(withP * 2 <= without, "raids in 10,000 ticks: " + without + " without the palace, " + withP + " with it fed");
+    console.log("      (raids in 10,000 ticks: " + without + " without the palace, " + withP + " with it, fed)");
+  });
+
+  test("duck palace: ducklings hatch at the palace twice as often, never past the cap on ducks", function () {
+    var P = palace(0), w = P.w, g = P.g, s = P.s;
+    var mum = w.duckSpawn(g, w.pDU(s, 7) + 0.5, s.Y - 0.5, null, false, true);
+    check(w.pPalaceMother(g) === mum, "a duck on the deck is not at home");
+    var n0 = g.ducks.length;
+    check(w.pPalaceHatch(g, mum, 4), "no ducklings hatched");
+    check(g.ducks.length === n0 + 4 && s.hatched === 4, "ducklings: " + (g.ducks.length - n0));
+    while (g.ducks.length < w.D_MAX) w.duckSpawn(g, 100, 140, null, false, true);
+    w.pPalaceHatch(g, mum, 5);
+    check(g.ducks.length <= w.D_MAX, g.ducks.length + " ducks, over the cap of " + w.D_MAX);
+  });
+
+  test("duck palace: throw a duck at it, and the ducks keep away from it a while", function () {
+    var P = palace(0), w = P.w, g = P.g, s = P.s;
+    seedTrough(P);
+    var d = w.duckSpawn(g, s.cx, s.Y - 6, null, false, true);
+    d.state = "thrown"; d.flyT = 4; d.vx = 0.5; d.vy = 0.5;
+    sim.step(w, 2);
+    check(s.boycott > g.tick, "the ducks were not offended");
+    var o = w.duckSpawn(g, s.cx - 30, P.G - 0.5, null, false, true);
+    check(!w.pPalaceSeed(g, o), "a duck made for the trough during the boycott");
+    sim.step(w, w.P_DBOYCOTT + 30);
+    seedTrough(P); o.x = s.cx - 30; o.y = P.G - 0.5; o.state = "walk";
+    check(!!w.pPalaceSeed(g, o), "the ducks never forgave it");
+  });
 };

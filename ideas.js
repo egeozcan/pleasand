@@ -1316,6 +1316,7 @@ function iTaskShoo(g, p, k) {
     if (d && !d.dead && d.state === "fly" && k.near) {
       if (p.sayT <= 0 && Math.random() < 0.6) pSay(g, p, "shooed");
       achieve(g, "shoo"); p.bored = Math.max(0, p.bored - 300);
+      if (g.raids >= 40) pShooed(g, p);   /* (if you can't beat them, house them: pleasures.js) */
       return iDone(p, true);
     }
     return iDone(p, false);

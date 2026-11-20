@@ -1064,3 +1064,263 @@ function pDrawOrgan(g, s) {
   wBack(g, s.x0, s.G - 4, P_OKEYS); wBack(g, s.x0, s.G - 3, P_OKEYS); wBack(g, s.x0, s.G - 5, s.state === "playing" ? P_OIVORY : P_OKEYS);
   return hot;
 }
+
+/* =====================================================================
+   THE DUCK PALACE: if you can't beat them, house them. a plank deck at
+   the edge of the biggest fresh water there is, half on the bank and
+   half out over the water, a pavilion with a little dome on it (gold,
+   if there is gold), three nests under it, a ramp down into the water,
+   and at the bank end a trough. whoever reaps the wheat keeps a handful
+   of seed back, and the feeder scatters it in the trough: real seed,
+   and a duck will go a long way for seed, further than for the wheat
+   with a scarecrow in it. a duck at home on the deck has ducklings
+   twice as often, and the eldest duck wears a crown. throw a duck at
+   it, and the ducks will not go near it for a while
+   ===================================================================== */
+var P_DW = 11;                     /* the deck, across: five on the bank (the trough at that end), six over the water */
+var P_DTROUGH = [1, 2, 3];         /* the trough's columns, between its two lips */
+var P_DFEED = 3;                   /* seed to a handful, scattered */
+var P_DREACH = 160;                /* how far off a duck notices seed in the trough */
+var P_DBOYCOTT = 2000;             /* ticks the ducks keep away, after somebody threw one at it */
+
+P_SAY.idea_duckpalace = ["if you can't beat them, house them", "a house. for the ducks. a nice one", "what if we just fed them", "they keep coming back. give them a reason"];
+P_SAY.planDucks = ["a palace. for ducks", "with a dome!", "out over the water, so they feel at home", "they'd better appreciate this"];
+P_SAY.feedDucks = ["here, ducky ducky", "dinner!", "the ducks are not impressed. well, a bit", "*scatter scatter*", "one at a time. ONE AT A TIME"];
+P_SAY.mobbed = ["they're all over me", "ow. that's my foot", "there's enough for everybody", "QUACK yourself"];
+P_SAY.boycott = ["the ducks aren't speaking to us", "they saw what you did", "nobody mention the palace", "it was only one duck"];
+P_SAY.crown = ["all hail the duck", "is that a crown?", "your majesty", "she wears it well"];
+
+wDef({
+  id: "duckpalace",
+  idea: { name: "the duck palace", title: "THE DUCK PALACE", sub: "if you can't beat them, house them", hint: "a scarecrow, and a great many raids on the wheat",
+          ready: function (g) { return !!g.know.scarecrow && (g.raids || 0) >= 40 && pDucksAbout(g) >= 4; } },
+  achieve: ["THE DUCK PALACE", "a deck, a dome and a trough, for the ducks. they eat there now. mostly"],
+  plan: pPlanPalace,
+  pick: pPalacePick,
+  task: function (g, p, k) { return k.kind === "feedducks" ? pTaskFeedDucks(g, p, k) : undefined; },
+  step: pPalaceStep,
+  tick: pPalaceTick,
+  draw: pDrawPalace,
+  drawOver: pDrawCrown,
+  finish: function (g, s, p) { feed(g, "the duck palace is built. now it wants seed in the trough", "#ffd94a", "plan" + s.id); g.wDuckPalace = s.id; g.wTick = true; },
+  label: function () { return "the duck palace"; },
+  readout: function (g, s) {
+    if (!s.done) return "";
+    if (s.boycott > g.tick) return "the ducks are not speaking to anybody";
+    var n = pTroughSeed(g, s).length, h = pPalaceHome(g, s);
+    return (n ? n + " seed in the trough" : "the trough is empty") + ". " + h + " duck" + (h === 1 ? "" : "s") + " at home" + (s.hatched ? ". " + s.hatched + " ducklings hatched here" : "");
+  },
+  mood: function (g, p, k) { return k.kind === "feedducks" ? (k.on ? "is feeding the ducks at the palace" : "is taking seed to the duck palace") : ""; }
+});
+function pDucksAbout(g) { var n = 0; for (var k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead && !g.ducks[k].baby) n++; return n; }
+/* a duck shooed out of the wheat, the fortieth raid long past: whoever has shooed the most has had enough */
+function pShooed(g, p) {
+  p.shoos = (p.shoos || 0) + 1;
+  for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead && (g.peasants[k].shoos || 0) > p.shoos) return;
+  wSpark(g, p, "duckpalace");
+}
+/* the palace's columns, bank first: u (0 .. P_DW - 1) to x */
+function pDU(s, u) { return s.d > 0 ? s.x0 + u : s.x1 - u; }
+/* the biggest fresh water there is, in bodies: {xa, xb (its surface, across), W (its surface row), n (how much)} */
+function pWaters(g) {
+  var out = [], x, y, c, cur = null;
+  for (x = 2; x < g.gw - 2; x++) {
+    for (y = 1; y < g.gh && AIRY[g.m[y * g.gw + x]]; y++);
+    /* (under a jetty or a bridge of theirs is still the water's surface) */
+    for (var b = 0; b < 4 && y < g.gh - 1 && bMarked(g, x, y) && !WET[g.m[y * g.gw + x]]; b++) for (y++; y < g.gh && AIRY[g.m[y * g.gw + x]]; y++);
+    c = y < g.gh ? g.m[y * g.gw + x] : 0;
+    if (c !== MAT.WATER) { cur = null; continue; }
+    if (!cur || Math.abs(cur.W - y) > 1) { cur = { xa: x, xb: x, W: y }; out.push(cur); }
+    cur.xb = x; cur.W = Math.min(cur.W, y);
+  }
+  /* (how much: counted down from the surface, a column at a time) */
+  out.forEach(function (b) { b.n = 0; for (x = b.xa; x <= b.xb; x++) for (y = b.W; y < g.gh && g.m[y * g.gw + x] === MAT.WATER; y++) b.n++; });
+  return out.filter(function (b) { return b.n >= 30; }).sort(function (a, b) { return b.n - a.n; });
+}
+function pPlanPalace(g, p) {
+  var B = pWaters(g), best = null, k, d;
+  for (k = 0; k < B.length && k < 3; k++) for (d = -1; d <= 1; d += 2) {
+    var r = pPalaceFit(g, B[k], d);
+    if (r && (!best || r.score > best.score)) best = r;
+  }
+  if (!best) return false;
+  /* (the dome: gold if there is gold to spare, and planks painted if there is not) */
+  var gold = mGoldToHand(g);
+  best.plan.forEach(function (e) { if (e.v !== MAT.GOLD) return; if (gold >= B_AMT[MAT.GOLD]) gold -= B_AMT[MAT.GOLD]; else { e.v = MAT.PLANK; e.paint = true; } });
+  var s = bNew(g, "duckpalace", p, best.plan, [best.x0, best.Y - 10, best.x0 + P_DW - 1, best.Y],
+               { wonder: true, d: best.d, Y: best.Y, hatched: 0, fed: 0 });
+  feed(g, p.name + " is building a palace. for the ducks", "#ffd94a", "plan" + s.id);
+  pSay(g, p, "planDucks", true);
+  if (bCarries(p)) bJoin(g, p, s);
+  return true;
+}
+/* the palace on the d > 0 bank of body b (the bank to the left of it) or the d < 0 (the right): {plan, x0, Y (the
+   deck's row), d, score} or null. the deck is level with the top of the bank, and out over the water it is the
+   water's own height or more over it */
+function pPalaceFit(g, b, d) {
+  var edge = d > 0 ? b.xa : b.xb, x0 = d > 0 ? edge - 5 : edge - (P_DW - 6), plan = [], u, y, x, c, k;
+  if (b.xb - b.xa < 8 || x0 < 6 || x0 + P_DW + 2 > g.gw - 6) return null;
+  function X(u) { return d > 0 ? x0 + u : x0 + P_DW - 1 - u; }
+  var bank = X(4), Gb = mGround(g, bank);
+  if (Gb < 12 || !pSolid(g, bank, Gb) || b.W < Gb) return null;
+  /* (the deck level with the top of the bank at the water's edge; the bank behind it dug down to it, or bridged where it
+     dips. a beach that climbs steeply is no place for it) */
+  var Y = Gb - 1;
+  for (u = 0; u <= 4; u++) { var gu = mGround(g, X(u)); if (gu < 0 || gu < Y - 5 || LIQUID[pCell(g, X(u), gu)]) return null; }
+  for (k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (x0 + P_DW + 2 >= t.x0 && x0 - 1 <= t.x1 && Y + 2 >= t.y0 && Y - 11 <= t.y1) return null; }
+  function put(u, y, v, ph) { var e = bE(g, X(u), y, v, ph); plan.push(e); return e; }
+  /* (sky over it: air, or what a spade or an axe can clear) */
+  for (u = 0; u < P_DW; u++) for (y = Y - 10; y <= Y; y++) {
+    x = X(u); c = pCell(g, x, y);
+    if (AIRY[c] || (y === Y && u <= 4 && (B_DIG[c] || ROCK[c]))) continue;
+    if (bMarked(g, x, y) || LIQUID[c] || (!B_DIG[c] && !mFellable(g, x, y, c))) return null;
+    put(u, y, MAT.EMPTY, 0);
+  }
+  /* the deck, out from the bank; the trough's lips; two posts and a roof; the dome */
+  for (u = 0; u < P_DW; u++) { c = pCell(g, X(u), Y); if (ROCK[c]) put(u, Y, MAT.EMPTY, 0).mine = true; put(u, Y, MAT.PLANK, 1 + u); }
+  put(0, Y - 1, MAT.PLANK, 20); put(4, Y - 1, MAT.PLANK, 20);
+  /* (the posts: a duck goes through the foot of one as through a door, which is what it is) */
+  for (y = Y - 1; y >= Y - 6; y--) { var v = y >= Y - 3 ? MAT.DOOR : MAT.PLANK; put(5, y, v, 21 + Y - y); put(9, y, v, 21 + Y - y); }
+  for (u = 4; u <= 10; u++) put(u, Y - 7, MAT.PLANK, 30);
+  for (u = 5; u <= 9; u++) put(u, Y - 8, MAT.PLANK, 31);
+  put(6, Y - 9, MAT.PLANK, 32); put(7, Y - 9, MAT.GOLD, 32); put(8, Y - 9, MAT.PLANK, 32); put(7, Y - 10, MAT.GOLD, 33);
+  /* the ramp, down into the water off the far end */
+  x = X(P_DW - 1) + d;
+  for (y = Y + 1, k = 0; k < 4 && y < b.W; y++, k++, x += d) { if (!AIRY[pCell(g, x, y)]) break; plan.push(bE(g, x, y, MAT.PLANK, 12 + k)); }
+  var mid = wMiddle(g);
+  return { plan: plan, x0: x0, Y: Y, d: d, score: b.n * 0.2 - Math.abs(x0 - mid) * 0.05 };
+}
+/* the trough's cells (where the seed goes) and what is in it */
+function pTrough(g, s) { return P_DTROUGH.map(function (u) { return (s.Y - 1) * g.gw + pDU(s, u); }); }
+function pTroughSeed(g, s) { return pTrough(g, s).filter(function (j) { return g.m[j] === MAT.SEED; }); }
+function pPalaceAt(g) { var s = g.wDuckPalace ? bSite(g, g.wDuckPalace) : null; if (!s || !s.done) { if (g.wDuckPalace && !s) g.wDuckPalace = 0; return null; } return s; }
+/* (ducks.js dHeading) seed in the trough, for duck d to make for: a long way further than it would look for seed
+   anywhere else, and over wheat. none while the ducks are offended */
+function pPalaceSeed(g, d) {
+  var s = pPalaceAt(g);
+  if (!s || s.boycott > g.tick || Math.abs(d.x - s.cx) > P_DREACH || d.y > s.Y + 30 || d.y < s.Y - 40) return null;
+  var T = pTroughSeed(g, s);
+  if (!T.length) return null;
+  var j = T[d.id % T.length];
+  return { x: j % g.gw, y: (j / g.gw) | 0 };
+}
+/* the ducks on the deck, or beside it (on the water under it, or the bank at its end) */
+function pPalaceHome(g, s) { var n = 0; for (var k = 0; k < g.ducks.length; k++) if (pOnDeck(g, s, g.ducks[k])) n++; return n; }
+function pOnDeck(g, s, d) { return !d.dead && !d.baby && d.state !== "fly" && d.state !== "thrown" && d.x >= s.x0 - 2 && d.x <= s.x1 + 3 && d.y >= s.Y - 3 && d.y <= s.Y + 4; }
+/* (ducks.js duckArrivals) a grown duck at home on the deck: the mother, when the duckling roll comes up */
+function pPalaceMother(g) {
+  var s = pPalaceAt(g);
+  if (!s || s.boycott > g.tick) return null;
+  for (var k = 0; k < g.ducks.length; k++) if (pOnDeck(g, s, g.ducks[k])) return g.ducks[k];
+  return null;
+}
+/* her ducklings, hatched in a nest on the deck, in a line behind her (under the cap on ducks, as any are) */
+function pPalaceHatch(g, mum, n) {
+  var s = pPalaceAt(g), prev = mum, kids = 0;
+  for (var c = 1; c <= n; c++) {
+    var b = duckSpawn(g, pDU(s, 6 + (c % 4)) + 0.5, s.Y - 0.5, mum.kind, true, true);
+    if (!b) break;
+    b.dir = mum.dir; b.lead = prev; prev = b; kids++;
+  }
+  if (!kids) return false;
+  s.hatched += kids;
+  feed(g, "ducklings, hatched at the duck palace. " + kids + " of them", "#ffd94a", "duckarrive");
+  achieve(g, "ducklings");
+  var q = pOther(g, { x: s.cx, y: s.Y }, 60);
+  if (q && q.sayT <= 0) pSay(g, q, "ducklings", true);
+  return true;
+}
+/* somebody with seed in their pocket, and the trough low: off to feed the ducks */
+function pPalacePick(g, p, hungry) {
+  var s = pPalaceAt(g);
+  if (!s || hungry || (p.seed || 0) < 1 || s.boycott > g.tick || Math.abs(s.cx - p.x) > 220 || iCrew(g, "feedducks", s.id)) return false;
+  if (pTroughSeed(g, s).length > 1) return false;
+  p.task = { kind: "feedducks", site: s.id, t: 0, act: 0 };
+  return true;
+}
+/* the feeder: onto the bank end of the deck, by the trough, and the seed scattered in it (real seed, a handful's worth)
+   wherever there is room. the ducks come running */
+function pTaskFeedDucks(g, p, k) {
+  var s = bSite(g, k.site);
+  if (!s || !s.done || ++k.t > 3000 || (p.seed || 0) < 1) return iDone(p, (k.n || 0) > 0);
+  var sx = pDU(s, 5), sy = s.Y - 1;
+  /* (stood just past the trough's lip, on the deck: the far side of it from the bank) */
+  if (Math.abs(p.x - sx - 0.5) > 2 || Math.abs(Math.floor(p.y) - sy) > 2) {
+    if (iWalk(g, p, k, "ducks" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 2 && Math.abs(y - sy) <= 2; })) pGiveUp(g, p, sx);
+    return false;
+  }
+  if (!k.on) { k.on = true; if (p.sayT <= 0) pSay(g, p, "feedDucks", true); }
+  p.dir = -s.d; p.idle = 0; k.act++;
+  p.pose = (k.act % 20) < 10 ? "hammerA" : "eatB";
+  if (k.act % 20) return true;
+  var T = pTrough(g, s), put = 0;
+  for (var j = 0; j < T.length && put < P_DFEED; j++) if (g.m[T[j]] === MAT.EMPTY) { sandSet(g, T[j], MAT.SEED); g.aux[T[j]] = 0; heatAccept(g, T[j]); put++; }
+  p.seed--; s.fed += put; k.n = (k.n || 0) + 1;
+  pChips(g, pDU(s, 2) + 0.5, s.Y - 2, 4, [SAND_PAL[MAT.SEED][0], SAND_PAL[MAT.SEED][120]]);
+  /* mobbed */
+  var near = 0;
+  for (var q = 0; q < g.ducks.length; q++) { var d = g.ducks[q]; if (!d.dead && Math.abs(d.x - p.x) < 8 && Math.abs(d.y - p.y) < 6) { near++; if (Math.random() < 0.2) dSay(g, d, "quack", true); } }
+  if (near >= 3 && p.sayT <= 0) pSay(g, p, "mobbed", true);
+  if (!put || pTroughSeed(g, s).length >= T.length) { p.bored = 0; return iDone(p, true); }
+  return true;
+}
+/* every tick, while it stands: a duck thrown at it (one in the air, landing on it, or about to) and the ducks are
+   offended */
+function pPalaceTick(g, s) {
+  if (!s.done || s.boycott > g.tick) return;
+  for (var k = 0; k < g.ducks.length; k++) {
+    var d = g.ducks[k];
+    if (d.dead || d.state !== "thrown" || d.flyT < 3 || d.x < s.x0 - 2 || d.x > s.x1 + 2 || d.y < s.Y - 12 || d.y > s.Y + 3) continue;
+    s.boycott = g.tick + P_DBOYCOTT;
+    feed(g, "somebody threw a duck at the duck palace. the ducks are offended", "#c8d0dc", "boycott" + s.id);
+    for (var j = 0; j < g.ducks.length; j++) { var o = g.ducks[j]; if (!o.dead && Math.abs(o.x - s.cx) < 40) { o.seed = null; if (Math.random() < 0.5) dSay(g, o, "quack", true); } }
+    var q = pOther(g, { x: s.cx, y: s.Y }, 80);
+    if (q && q.sayT <= 0) pSay(g, q, "boycott", true);
+    return;
+  }
+}
+/* every W_STRIDE ticks: the books, and the ducks off the deck while they are offended */
+function pPalaceStep(g, s) {
+  if (!s.done) return;
+  g.wDuckPalace = s.id; g.wTick = true;
+  if (s.boycott > g.tick) {
+    /* (off it, and the other way: they will not be seen on it) */
+    for (var k = 0; k < g.ducks.length; k++) { var d = g.ducks[k]; if (pOnDeck(g, s, d) && d.state === "walk") { d.dir = d.x < s.cx ? -1 : 1; d.seed = null; } }
+  }
+  if ((g.tick % 900) === 0 && s.boycott > 0 && s.boycott <= g.tick && s.boycott > g.tick - 900) feed(g, "the ducks have forgiven the duck palace", "#ffd94a", "boycott" + s.id);
+  if ((g.tick % 1200) === 0) { var e = pEldest(g), q = e ? pOther(g, { x: e.x, y: e.y }, 20) : null; if (q && q.sayT <= 0 && Math.random() < 0.3) pSay(g, q, "crown"); }
+}
+/* the eldest duck: the one that has been in the valley longest */
+function pEldest(g) { var e = null; for (var k = 0; k < g.ducks.length; k++) { var d = g.ducks[k]; if (!d.dead && !d.baby && !d.kind.rubber && (!e || d.id < e.id)) e = d; } return e; }
+var P_NEST = hex32("#c8a050"), P_NEST_D = hex32("#8a6a30"), P_EGG = hex32("#f4f0e4"), P_DOME = hex32("#5a8ac0");
+var P_CROWN = hex32("#ffd94a"), P_CROWN_J = hex32("#e03050");
+/* the nests under the pavilion (an egg in one now and then), and the dome painted, if it is not gold */
+function pDrawPalace(g, s) {
+  if (!s.done) return 0;
+  /* (three nests of straw on the deck under the pavilion, and the trough's seed-box at the bank end) */
+  [6, 7, 8].forEach(function (u, n) {
+    var x = pDU(s, u), y = s.Y - 1;
+    wBack(g, x, y, n === 1 ? P_NEST : P_NEST_D);
+    if (((s.id + n + ((g.tick / 3000) | 0)) % 3) === 0) wBack(g, x, y - 1, P_EGG);
+  });
+  for (var k = 0; k < s.plan.length; k++) {
+    var e = s.plan[k];
+    /* (the dome, painted where it is not gold; the roof edged) */
+    if (e.paint && g.m[e.i] === MAT.PLANK) g.px[e.i] = blend32(g.px[e.i], P_DOME, 0.7);
+    else if (((e.i / g.gw) | 0) === s.Y - 8 && g.m[e.i] === MAT.PLANK) g.px[e.i] = blend32(g.px[e.i], P_DOME, 0.6);
+  }
+  /* (and a pennant on top, the way the wind would blow it, if there were any) */
+  var fx = pDU(s, 7), fy = s.Y - 11;
+  wBack(g, fx, fy, P_CROWN_J); wBack(g, fx + s.d, fy, P_CROWN_J); wBack(g, fx, fy - 1, P_CROWN_J);
+  return 0;
+}
+/* the crown, on the eldest duck's head */
+function pDrawCrown(g, s) {
+  if (!s.done) return;
+  var d = pEldest(g);
+  if (!d || d.state === "held") return;
+  var rows = d.state === "swim" ? 4 : (d.state === "fly" || d.state === "thrown" ? 3 : 5);
+  var hx = Math.floor(d.x) + (d.dir < 0 ? -1 : 1), hy = Math.floor(d.y) - rows;
+  wPut(g, hx - 1, hy, P_CROWN); wPut(g, hx, hy, P_CROWN_J); wPut(g, hx + 1, hy, P_CROWN);
+  wPut(g, hx - 1, hy - 1, P_CROWN); wPut(g, hx + 1, hy - 1, P_CROWN);
+}

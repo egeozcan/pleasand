@@ -2112,6 +2112,7 @@ function pTask(g, p) {
       pChips(g, k.x + 0.5, k.y + 0.5, 3, [SAND_PAL[MAT.PLANT][0], SAND_PAL[MAT.PLANT][100]]);
       p.hunger = Math.max(0, p.hunger - (c === MAT.FLOWER ? 1000 : (c === MAT.WHEAT ? 900 : 700)) - lSeason(g, p)); p.bored = Math.max(0, p.bored - 100); k.n++;
       if (c === MAT.WHEAT) achieve(g, "harvest");
+      if (c === MAT.WHEAT && g.wDuckPalace) p.seed = Math.min(3, (p.seed || 0) + 1);   /* (a handful kept, for the duck palace: pleasures.js) */
       if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, c === MAT.FLOWER && Math.random() < 0.5 ? "flower" : (c === MAT.WHEAT && Math.random() < 0.6 ? "wheat" : "eat"));
       more = p.hunger > 300 && k.n < P_BITES ? pFind(g, p, P_FOOD, 3, pEdible) : null;
       if (more) { k.x = more.x; k.y = more.y; } else p.task = null; p.taskDone = true;
