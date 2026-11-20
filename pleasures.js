@@ -388,6 +388,8 @@ var P_GSTEP = 5;                   /* rows each terrace stands over the last */
 var P_GSKY = 7;                    /* clear rows over each (wheat grows I_CROP_H, give or take two) */
 var P_GPOOL = 5;                   /* the pool: P_GPW wide, this deep */
 var P_GPOOL_N = P_GPW * P_GPOOL;   /* and so this much water in it, full */
+var P_GTURN = 6;                   /* water in the pool (and more) for somebody to start turning the screw; under it, it is filled */
+var P_GSTOP = 3;                   /* and under this, whoever is turning it stops */
 var P_SCREW = 20;                  /* strokes of the crank to a cell of water */
 var P_SCREW_IRON = 3;              /* iron in the screw, all told */
 var P_SHIFT = 12;                  /* cells a turner lifts before handing over */
@@ -626,7 +628,7 @@ function pTerraces(g, s) {
 function pGardensPick(g, p, hungry) {
   var s = mSites(g, "gardens", true)[0];
   if (!s || hungry || s.repair) return false;
-  if (wBathNeed(g, s) > 8 && Math.abs(s.cx - p.x) < 220 && Math.random() < 0.4 && pGoFill(g, p, s)) return true;
+  if (P_GPOOL_N - wBathNeed(g, s) < P_GTURN && Math.abs(s.cx - p.x) < 220 && Math.random() < 0.4 && pGoFill(g, p, s)) return true;
   return false;
 }
 /* every W_STRIDE ticks: the terraces kept, and a screw-turner while there is water in the pool to lift */
@@ -634,8 +636,8 @@ function pGardensStep(g, s) {
   if (s.built) pTerracesSown(g, s);   /* (mending, or not) */
   if (!s.done || s.repair) return;
   if (g.tick % 600 === 0) pTerraces(g, s);   /* (a terrace the village gave up on is a terrace again, a while later) */
-  pCallFill(g, s, 8);
-  if (pTurner(g, s) || P_GPOOL_N - wBathNeed(g, s) < 6 || g.tick < (s.turnT || 0) || g.blaze.length) return;
+  pCallFill(g, s, P_GPOOL_N - P_GTURN);   /* (filled up before it is too low to turn the screw on: or it never is) */
+  if (pTurner(g, s) || P_GPOOL_N - wBathNeed(g, s) < P_GTURN || g.tick < (s.turnT || 0) || g.blaze.length) return;
   /* (not until the terraces are sown: a furrow under water is a furrow nobody can sow) */
   for (var j = 0; j < g.sites.length; j++) if (g.sites[j].terrace === s.id && !g.sites[j].done) return;
   var best = null, bd = 1e9, k, q;
@@ -667,7 +669,7 @@ function pTaskScrew(g, p, k) {
   var from = -1, to = -1, x, y, cxs = pCisternX(s), Y2 = pGBed(s.Y0, 2);
   for (y = s.L; y < s.L + P_GPOOL && from < 0; y++) for (x = s.px0; x < s.px0 + P_GPW; x++) if (WET[pCell(g, x, y)]) { from = y * g.gw + x; break; }
   for (y = Y2 - 6; y < Y2 && to < 0; y++) if (pCell(g, cxs, y) === MAT.EMPTY) to = y * g.gw + cxs;
-  if (from < 0 || to < 0 || P_GPOOL_N - wBathNeed(g, s) < 3 || k.n >= P_SHIFT) {
+  if (from < 0 || to < 0 || P_GPOOL_N - wBathNeed(g, s) < P_GSTOP || k.n >= P_SHIFT) {
     s.turnT = g.tick + 2400;
     if (p.sayT <= 0) pSay(g, p, "screwDone", true);
     p.bored = 0;

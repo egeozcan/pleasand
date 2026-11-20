@@ -182,6 +182,19 @@ module.exports = function (test, check, sim) {
     check(box() === n0, "water in the gardens went from " + n0 + " to " + box());
   });
 
+  test("gardens: a pool left too low to turn the screw on is sent for water, and the screw turns once it is up", function () {
+    var G = gardens(3, true), w = G.w, g = G.g, s = G.s, M = G.M, k, most = 0, x, y;
+    /* (two cells left in it, its floor: what a turner leaves, stopping) */
+    for (y = s.L; y < s.L + w.P_GPOOL - 1; y++) for (x = s.px0; x < s.px0 + w.P_GPW; x++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+    g.peasants.forEach(function (q) { q.task = null; q.bored = 0; });
+    while (g.tick % 300) sim.step(w, 1);
+    w.pGardensStep(g, s);
+    check(g.peasants.some(function (q) { return q.task && q.task.kind === "pfill"; }), "nobody sent for water for a pool too low to turn the screw on");
+    var lifted0 = s.lifted || 0;
+    for (k = 0; k < 15000 && (s.lifted || 0) <= lifted0; k += 30) { sim.step(w, 30); most = Math.max(most, w.P_GPOOL_N - w.wBathNeed(g, s)); }
+    check(most >= w.P_GTURN && (s.lifted || 0) > lifted0, "the pool came up to " + most + " and the screw lifted " + ((s.lifted || 0) - lifted0));
+  });
+
   /* ---------------------------------------------------------------
      THE STEAM ORGAN
      --------------------------------------------------------------- */
