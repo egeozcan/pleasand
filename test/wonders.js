@@ -68,6 +68,19 @@ module.exports = function (test, check, sim) {
     check(g.m[(G - 1) * g.gw + x] === M.MORTAR || g.m[(G - 1) * g.gw + x] === M.CONCRETE, "poured wet concrete did not sink under the water: " + g.m[(G - 1) * g.gw + x]);
   });
 
+  test("wonders: wet concrete in its form stays put: water under it does not float up through it", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y, k, moved = 0, tops = [];
+    for (x = 150; x < 250; x++) { for (y = 100; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY); for (y = G; y < G + 9; y++) w.sandPlace(g, y * g.gw + x, M.STONE); }
+    for (k = 0; k < 20; k++) {
+      var top = (G - 3) * g.gw + 160 + 4 * k;
+      w.sandPlace(g, top + g.gw, M.WATER); w.sandPlace(g, top + 2 * g.gw, M.WATER);
+      w.sandSet(g, top, M.MORTAR); g.aux[top] = 128; w.heatAccept(g, top);   /* (formed: as a builder pours it) */
+      tops.push(top);
+    }
+    for (k = 0; k < 300; k++) { sim.step(w, 1); tops.forEach(function (t) { if (g.m[t] !== M.MORTAR && g.m[t] !== M.CONCRETE) moved++; }); }
+    check(moved === 0, "wet concrete was out of its form " + moved + " times");
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;

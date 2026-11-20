@@ -265,8 +265,11 @@ function sandHotNb(g, x, y) {
 function sandCan(g, src, j) {
   var t = g.m[j];
   return t === MAT.EMPTY ||
-         (g.stamp[j] !== g.tick && SAND_FREE[t] === 1 && SAND_DENS[t] < SAND_DENS[src] && (FLUID[t] || FLUID[src]));
+         (g.stamp[j] !== g.tick && SAND_FREE[t] === 1 && SAND_DENS[t] < SAND_DENS[src] && (FLUID[t] || FLUID[src]) && !sandHeld(g, j));
 }
+/* wet concrete poured into its form (the top bit of aux: wonders.js) is held where it was put, while it sets: nothing
+   pushes it out of the way, floats up past it or bubbles through it */
+function sandHeld(g, j) { return g.m[j] === MAT.MORTAR && (g.aux[j] & 128) !== 0; }
 /* index of a touching cell holding water of either kind, or -1 */
 function sandWet(g, x, y) {
   for (var k = 0; k < 4; k++) {
@@ -724,13 +727,13 @@ function sandFire(g, i, x, y) {
 function sandBubble(g, i, x, y) {
   var m = g.m, gw = g.gw, j = i - gw, dd, k, nx;
   if (y === 0) return false;
-  if (LIQUID[m[j]] && g.stamp[j] !== g.tick) { sandSwap(g, i, j); return true; }
+  if (LIQUID[m[j]] && g.stamp[j] !== g.tick && !sandHeld(g, j)) { sandSwap(g, i, j); return true; }
   dd = Math.random() < 0.5 ? -1 : 1;
   for (k = 0; k < 2; k++, dd = -dd) {
     nx = x + dd;
     if (nx < 0 || nx >= gw) continue;
     j = i - gw + dd;
-    if (LIQUID[m[j]] && LIQUID[m[i - gw]] && g.stamp[j] !== g.tick) { sandSwap(g, i, j); return true; }
+    if (LIQUID[m[j]] && LIQUID[m[i - gw]] && g.stamp[j] !== g.tick && !sandHeld(g, j) && !sandHeld(g, i - gw)) { sandSwap(g, i, j); return true; }
   }
   return false;
 }
@@ -886,7 +889,7 @@ function sandPressure(g, i) {
 function sandFloat(g, i, x, y) {
   var j = sandNb(g, x, y, 0), v = g.m[i];
   if (j >= 0 && g.stamp[j] !== g.tick && SAND_FREE[g.m[j]] === 1 && SAND_DENS[g.m[j]] > SAND_DENS[v] &&
-      (FLUID[g.m[j]] || FLUID[v]) && Math.random() < 0.5) {
+      (FLUID[g.m[j]] || FLUID[v]) && !sandHeld(g, j) && Math.random() < 0.5) {
     sandSwap(g, i, j); return true;
   }
   return false;
