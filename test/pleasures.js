@@ -195,6 +195,17 @@ module.exports = function (test, check, sim) {
     check(most >= w.P_GTURN && (s.lifted || 0) > lifted0, "the pool came up to " + most + " and the screw lifted " + ((s.lifted || 0) - lifted0));
   });
 
+  test("gardens: a pool silted up with sand is not full: the sand is cleared out of it, and it is filled with water again", function () {
+    var G = gardens(3, true), w = G.w, g = G.g, s = G.s, M = G.M, k, x, y, n = 0;
+    for (y = s.L; y < s.L + w.P_GPOOL; y++) for (x = s.px0; x < s.px0 + w.P_GPW; x++) { w.sandPlace(g, y * g.gw + x, n < w.P_GPOOL_N - 8 ? M.EMPTY : (n < w.P_GPOOL_N - 2 ? M.SAND : M.WATER)); n++; }
+    function count(v) { var c = 0; for (var y = s.L; y < s.L + w.P_GPOOL; y++) for (var x = s.px0; x < s.px0 + w.P_GPW; x++) if (g.m[y * g.gw + x] === v) c++; return c; }
+    check(w.P_GPOOL_N - w.wBathNeed(g, s) === count(M.WATER), "the pool counts " + (w.P_GPOOL_N - w.wBathNeed(g, s)) + " of water, with " + count(M.WATER) + " in it");
+    var cleared = false;
+    for (k = 0; k < 24000 && count(M.WATER) < w.P_GTURN; k += 30) { sim.step(w, 30); if (s.repair) cleared = true; }
+    check(cleared, "nobody set about clearing the sand out of the pool");
+    check(count(M.WATER) >= w.P_GTURN, "the pool has only " + count(M.WATER) + " of water in it, and " + count(M.SAND) + " of sand");
+  });
+
   /* ---------------------------------------------------------------
      THE STEAM ORGAN
      --------------------------------------------------------------- */

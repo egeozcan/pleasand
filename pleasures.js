@@ -120,10 +120,11 @@ function pPlanBaths(g, p) {
   if (bCarries(p)) bJoin(g, p, s);
   return true;
 }
-/* the dry cells of the basin, and how warm the water in it is */
+/* the cells of the basin with no water in them (dry, or silted up: sand in it is not water), and how warm the water in
+   it is */
 function wBathNeed(g, s) {
-  var n = 0, bw = s.bw || 9, bh = s.bh || 3;   /* (nine by three, the baths; the gardens' pool and the organ's say their own) */
-  for (var x = s.px0; x < s.px0 + bw; x++) for (var y = s.L; y < s.L + bh; y++) if (AIRY[pCell(g, x, y)]) n++;
+  var n = 0, bw = s.bw || 9, bh = s.bh || 3, c;   /* (nine by three, the baths; the gardens' pool and the organ's say their own) */
+  for (var x = s.px0; x < s.px0 + bw; x++) for (var y = s.L; y < s.L + bh; y++) { c = pCell(g, x, y); if (!WET[c] && c !== MAT.ICE) n++; }
   return n;
 }
 function pBathT(g, s) {
@@ -380,9 +381,9 @@ function pLift(g, i, j) {
    and round, less what the wheat drinks on the way
    ===================================================================== */
 var P_GW = 21;                     /* the gardens, across: pool, three terraces, cistern */
-var P_GPW = 2;                     /* the pool, across, inside its walls */
-var P_GLIP = [3, 8, 13];           /* each terrace's lip (and the pier under it; the first is the pool's wall); its bed is the four columns after */
-var P_GBED = 4;                    /* a terrace field, across (a field on the flat is I_FARM_W) */
+var P_GPW = 3;                     /* the pool, across, inside its walls (room for whoever digs it out, and clears it) */
+var P_GLIP = [4, 9, 14];           /* each terrace's lip (and the pier under it; the first is the pool's wall); its bed is the columns after, to the next */
+function pGBedEnd(k) { return k < 2 ? P_GLIP[k + 1] - 1 : P_GC - 1; }   /* (four, four, and three under the cistern) */
 var P_GC = 18;                     /* the cistern: its low wall (spilling onto the top terrace), its inside, its high wall */
 var P_GSTEP = 5;                   /* rows each terrace stands over the last */
 var P_GSKY = 7;                    /* clear rows over each (wheat grows I_CROP_H, give or take two) */
@@ -499,7 +500,11 @@ function pGardensFit(g, x0, gy, d) {
         if (u > 0 && u < P_GLIP[0]) { if (!AIRY[c] && !B_DIG[c]) return null; put(u, y, MAT.CONCRETE, 9).drive = !AIRY[c]; continue; }
         if ((u === 0 || y >= Y0) && !brickAt(u, y, 2 + Y0 + P_GPOOL - y)) return null;
       }
-      else if (!digOut(u, y)) return null;
+      else {
+        if (!digOut(u, y)) return null;
+        /* (the inside of the pool kept clear: sand washed into it is cleared out again, as a pond's is. build.js bInspect) */
+        if (y >= Y0) { var ie = at[y * g.gw + x] || put(u, y, MAT.EMPTY, 0); ie.clear = true; }
+      }
     }
     if (!pSolid(g, x, Y0 + P_GPOOL + 1)) return null;
   }
@@ -613,7 +618,7 @@ function pTerraces(g, s) {
     for (j = 0; j < g.sites.length; j++) if (g.sites[j].kind === "farm" && g.sites[j].terrace === s.id && g.sites[j].tier === k) have = true;
     if (have) continue;
     var Yk = pGBed(s.Y0, k), plan = [], xa = 1e9, xb = -1;
-    for (u = P_GLIP[k] + 1; u <= P_GLIP[k] + P_GBED; u++) {
+    for (u = P_GLIP[k] + 1; u <= pGBedEnd(k); u++) {
       var x = pGU(s, u);
       xa = Math.min(xa, x); xb = Math.max(xb, x);
       /* (a stalk in every furrow, not every other one as on the flat: a gap between two stalks is a little pond that
