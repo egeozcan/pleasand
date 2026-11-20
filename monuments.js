@@ -87,7 +87,7 @@ function mU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + 20 - u; }
 function mPlanTheatre(g, p) {
   var best = null;
   for (var d = -1; d <= 1; d += 2) {
-    var r = wPlot(g, { w: 21, sky: 14, rough: 6, near: wMiddle(g), fit: function (g, x0, gy) { return mTheatreFit(g, x0, gy, d); } });
+    var r = wPlot(g, { w: 21, sky: 14, rough: 8, near: wMiddle(g), fit: function (g, x0, gy) { return mTheatreFit(g, x0, gy, d); } });
     if (r && (!best || r.score > best.score)) { best = r; best.d = d; }
   }
   if (!best) return false;
@@ -99,40 +99,47 @@ function mPlanTheatre(g, p) {
   return true;
 }
 /* the plan for a theatre at x0 (stage at the d < 0 end, or the d > 0), on ground gy: {plan, G (the stage's ground),
-   seats, lo, score} or null. the stage wants level ground; the tiers like it rising away from the stage (they are dug
-   in), and do with it flat (they are built up) */
+   seats, lo, score} or null. u runs from the back of the stage (0) to the back of the top tier (20):
+     u 0       the backdrop: a plank wall ten high, and a beam out over the stage off the top of it
+     u 0..6    the stage: a stone plinth, a plank deck on that (two up off the ground), a lantern at either end of the beam
+     u 7..8    the pit, on the ground, where the late stand
+     u 9..20   three tiers, four columns each, two up each, stone, with a seat at either end of each
+   the stage wants level ground (made up, or dug down, a row or two). the tiers like it rising away from the stage (they
+   are cut into it), and do with it flat (built up) */
 function mTheatreFit(g, x0, gy, d) {
   function X(u) { return d > 0 ? x0 + u : x0 + 20 - u; }
   function Gy(u) { return gy[X(u) - x0]; }
-  var G = Gy(3), u, y, k, plan = [], seats = [], work = 0, lo = -1, c;
-  for (u = 0; u <= 8; u++) if (Math.abs(Gy(u) - G) > 1) return null;
-  /* the stage: a plank floor a cell up, the ground under it made up (or dug down), a backdrop at the back, a beam over
-     it, and two lanterns */
+  var G = Gy(3), u, y, k, plan = [], seats = [], work = 0, lo = -1, c, e;
+  function dig(x, y) { c = pCell(g, x, y); if (!B_DIG[c] && !AIRY[c] && !mFellable(g, x, y, c)) return false; plan.push(bE(g, x, y, MAT.EMPTY, 0)); work += 0.3; return true; }
+  for (u = 0; u <= 8; u++) if (Math.abs(Gy(u) - G) > 2) return null;
+  /* the stage and the pit: the ground under them made level (dug down where it is high, made up in stone where low) */
   for (u = 0; u <= 8; u++) {
     var x = X(u), gu = Gy(u);
-    for (y = gu; y < G; y++) plan.push(bE(g, x, y, MAT.EMPTY, 0));                      /* (high: dug down) */
-    for (y = G; y < gu; y++) { plan.push(bE(g, x, y, MAT.BRICK, 1)); work++; }          /* (low: made up) */
-    if (u <= 6) plan.push(bE(g, x, G - 1, MAT.PLANK, 2));
+    for (y = gu; y < G; y++) if (!dig(x, y)) return null;
+    for (y = G; y < gu; y++) { plan.push(bE(g, x, y, MAT.BRICK, 1)); work++; }
+    if (u <= 6) { plan.push(bE(g, x, G - 1, MAT.BRICK, 2), bE(g, x, G - 2, MAT.PLANK, 3)); work++; }
     lo = Math.max(lo, gu);
   }
-  for (y = G - 2; y >= G - 8; y--) plan.push(bE(g, X(0), y, MAT.PLANK, 3 + G - 2 - y));
-  plan.push(bE(g, X(1), G - 8, MAT.PLANK, 10), bE(g, X(2), G - 8, MAT.PLANK, 11));
-  plan.push(bE(g, X(1), G - 7, MAT.LAMP, 12), bE(g, X(6), G - 2, MAT.LAMP, 12));
-  /* the tiers: three, four columns each, a step up each, stone, each with two seats on it */
+  for (y = G - 3; y >= G - 12; y--) plan.push(bE(g, X(0), y, MAT.PLANK, 4 + G - 3 - y));
+  for (u = 1; u <= 6; u++) plan.push(bE(g, X(u), G - 12, MAT.PLANK, 13 + u));
+  plan.push(bE(g, X(1), G - 11, MAT.LAMP, 20), bE(g, X(6), G - 11, MAT.LAMP, 20));
+  /* the tiers: stone, built up from the stage's ground where it is low. where the bank is there already, it is faced
+     where it lies, two deep under it (as far down as a builder standing on it reaches): the seats and the risers
+     between them are stone, and the slope is the rest of the shape */
   for (k = 1; k <= 3; k++) for (u = 5 + 4 * k; u <= 8 + 4 * k; u++) {
-    var xx = X(u), gk = Gy(u), top = G - k;
+    var xx = X(u), gk = Gy(u), top = G - 2 * k, bot = gk >= G ? gk : Math.min(G, Math.max(gk, top) + 2);
     lo = Math.max(lo, gk);
-    if (gk < top - 4) return null;   /* (a bank too steep to dig the seats into) */
-    for (y = gk; y < top; y++) { c = pCell(g, xx, y); if (!B_DIG[c] && !AIRY[c] && !mFellable(g, xx, y, c)) return null; plan.push(bE(g, xx, y, MAT.EMPTY, 0)); work += 0.3; }
-    for (y = top; y < Math.max(gk, top + 1); y++) { var e = bE(g, xx, y, MAT.BRICK, 2 + gk - y); e.drive = true; plan.push(e); work++; }
+    if (gk < top - 8) return null;   /* (a bank too steep to dig the seats into) */
+    for (y = gk; y < top; y++) if (!dig(xx, y)) return null;
+    for (y = top; y < bot; y++) { e = bE(g, xx, y, MAT.BRICK, 2 + bot - y); e.drive = true; plan.push(e); work += y >= gk ? 0.6 : 1; }
     if (u === 6 + 4 * k || u === 8 + 4 * k) seats.push({ x: xx, y: top - 1 });
   }
   /* a slope rising away from the stage is what it is for */
   var rise = G - Gy(20);
-  return { plan: plan, G: G, seats: seats, lo: lo, score: 20 - work + Math.min(rise, 4) * 3 };
+  return { plan: plan, G: G, seats: seats, lo: lo, score: 30 - work + Math.min(rise, 4) * 3 };
 }
 /* the stage: where the actors stand (u 2, 5 and 4), feet on the planks */
-function mMark(s, r) { return { x: mU(s, [2, 5, 4][r] || 3), y: s.G - 2 }; }
+function mMark(s, r) { return { x: mU(s, [2, 5, 4][r] || 3), y: s.G - 3 }; }
 /* the goings on, every W_STRIDE ticks: a play now and then, and the beats of it */
 function mTheatreStep(g, s) {
   if (!s.done || s.repair) { if (s.play) mEndPlay(g, s, false); return; }
@@ -254,16 +261,36 @@ function mOnStage(g, s, f) {
   mEndPlay(g, s, false);
   return false;
 }
-var M_CURTAIN = hex32("#7a1e26"), M_CURTAIN_D = hex32("#5a141a"), M_HAT = hex32("#1a1a1a"), M_HAT_BAND = hex32("#a8322a");
-/* the backdrop's curtain, drawn behind the stage, and the lanterns' light */
+var M_CURTAIN = hex32("#8a2028"), M_CURTAIN_D = hex32("#5a141a"), M_CURTAIN_L = hex32("#b0343a"), M_TIE = hex32("#e0b848");
+var M_CLOTH_SKY = hex32("#26304e"), M_CLOTH_HILL = hex32("#3a5a34"), M_CLOTH_MOON = hex32("#f0e8c0"), M_POST = hex32("#7a5432");
+var M_HAT = hex32("#1a1a1a"), M_HAT_BAND = hex32("#a8322a");
+/* the proscenium: a post at the front of the stage, up to the beam. the curtains: one hung full at the back, one tied
+   back at the front, and a pelmet along the beam. between them, a painted cloth (a hill, a night, a moon). and the
+   lanterns' light. all drawn behind, over thin air: nobody bumps into a curtain */
 function mDrawTheatre(g, s) {
   if (!s.done) return 0;
-  var u, y, hot = 0;
-  for (u = 1; u <= 6; u++) for (y = s.G - 7; y <= s.G - 2; y++) {
-    var x = mU(s, u);
-    if (u <= 2 || y === s.G - 7) wBack(g, x, y, (u + y) & 1 ? M_CURTAIN : M_CURTAIN_D, 0.85);
+  var G = s.G, u, y, dy, k, hot = 0, x;
+  /* (the cloth first, then the drapes over its edges) */
+  for (u = 2; u <= 5; u++) for (dy = 3; dy <= 10; dy++) {
+    var hill = dy <= 3 + ((u * 5) % 3);
+    wBack(g, mU(s, u), G - dy, u === 4 && dy === 8 ? M_CLOTH_MOON : (hill ? M_CLOTH_HILL : M_CLOTH_SKY), 0.75);
   }
-  [[1, s.G - 7], [6, s.G - 2]].forEach(function (l) { var x = mU(s, l[0]); if (pCell(g, x, l[1]) === MAT.LAMP) { mGlow(g, x, l[1], 7, 0.35); hot++; } });
+  /* (the back drape hangs full; the front one is tied back to the post, so it is wide at the top and narrow below) */
+  var back = [9, 7], front = [[6, 9], [5, 5], [4, 3]];
+  for (u = 1; u <= 2; u++) for (dy = 11 - back[u - 1]; dy <= 11; dy++) wBack(g, mU(s, u), G - dy, (dy + u) % 3 === 0 ? M_CURTAIN_D : (u === 2 ? M_CURTAIN_L : M_CURTAIN), 0.92);
+  for (k = 0; k < front.length; k++) for (dy = 11 - front[k][1] + 1; dy <= 11; dy++) wBack(g, mU(s, front[k][0]), G - dy, (dy + k) % 3 === 0 ? M_CURTAIN_D : (k === 2 ? M_CURTAIN_L : M_CURTAIN), 0.92);
+  for (dy = 2; dy >= 1; dy--) wBack(g, mU(s, 6), G - 6 - dy + 1, M_TIE, 0.9);
+  /* the pelmet, scalloped */
+  for (u = 1; u <= 7; u++) { wBack(g, mU(s, u), G - 11, M_CURTAIN, 0.95); if (u & 1) wBack(g, mU(s, u), G - 10, M_CURTAIN_D, 0.95); }
+  /* the risers in shadow, under the lip of each tier above, so the steps read as steps */
+  for (k = 1; k <= 3; k++) {
+    var ri = (G - 2 * k + 1) * g.gw + mU(s, 5 + 4 * k);
+    if (g.m[ri] === MAT.BRICK) g.px[ri] = blend32(g.px[ri], 0xff000000, 0.3);
+  }
+  /* the post, on the ground at the edge of the pit, up to the end of the beam */
+  x = mU(s, 7);
+  for (y = G - 12; y <= G - 1; y++) wBack(g, x, y, y === G - 12 ? SAND_PAL[MAT.PLANK][40] : M_POST, 0.95);
+  [[1, G - 11], [6, G - 11]].forEach(function (l) { var lx = mU(s, l[0]); if (pCell(g, lx, l[1]) === MAT.LAMP) { mGlow(g, lx, l[1], 8, 0.4); hot++; } });
   return hot;
 }
 /* somebody in a hat: whoever is playing the dead */

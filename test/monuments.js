@@ -20,10 +20,11 @@ module.exports = function (test, check, sim) {
       for (y = G + 6; y < 182; y++) if (!w.ROCK[g.m[y * g.gw + x]]) w.sandPlace(g, y * g.gw + x, w.MAT.STONE);
     }
   }
-  /* a theatre on a slope at column 150 of seed 1, rising away from the stage, built */
+  /* a theatre on a slope in seed 1 (one is made at column 150, rising away from the stage, if the valley has none
+     nearer the houses), built */
   function theatre(build) {
     var w = sim.load(1), g = w.g, x0 = 150;
-    ground(w, 120, 200, function (x) { return x < x0 + 9 ? 150 : 150 - Math.min(5, ((x - x0 - 9) / 3) | 0); });
+    ground(w, 120, 200, function (x) { return x < x0 + 9 ? 150 : 150 - Math.min(7, ((x - x0 - 9) / 2) | 0); });
     know(g, ["farm", "dig", "bucket", "festival", "mine", "masonry", "theatre"]);
     var p = g.peasants[0];
     p.x = x0 + 4.5; p.y = 149;
@@ -37,9 +38,13 @@ module.exports = function (test, check, sim) {
     var T = theatre(false), w = T.w, g = T.g, s = T.s;
     var top = w.mU(s, 20), rise = s.G - w.mGround(g, top);
     check(rise >= 2, "the theatre is not on a slope: the back of it is " + rise + " up");
-    /* (stepped into the slope: less stone made up under the tiers than on the flat, which wants 24) */
-    var made = s.plan.filter(function (e) { return e.v === w.MAT.BRICK; }).length;
-    check(made < 24, made + " blocks of stone made up under the seats, as many as on the flat");
+    /* (stepped into the slope: less stone built up out of thin air than on the flat, where the tiers and the stage's
+       plinth want 55) */
+    var made = s.plan.filter(function (e) { return e.v === w.MAT.BRICK && w.AIRY[g.m[e.i]]; }).length;
+    check(made < 40, made + " blocks of stone built up out of nothing, near enough as many as on the flat");
+    /* (and stone faces it, where the audience sits and where the steps go up: not sand) */
+    s.seats.forEach(function (st) { check(s.plan.some(function (e) { return e.i === (st.y + 1) * g.gw + st.x && e.v === w.MAT.BRICK; }), "a seat at " + st.x + " is not on stone"); });
+    check(s.plan.filter(function (e) { return e.v === w.MAT.LAMP; }).length === 2, "not two lanterns");
     check(s.seats.length === 6, s.seats.length + " seats");
     /* built: wood and stone enough for it in the village's pockets, and the time it takes */
     g.peasants.forEach(function (q) { q.boards = 8; q.stone = 12; q.hunger = 0; q.task = null; q.x = w.mU(s, 7 + (q.id & 1)) + 0.5; q.y = s.G - 1; q.state = "walk"; });
@@ -59,7 +64,7 @@ module.exports = function (test, check, sim) {
     /* (everybody about, in the pit in front of the stage) */
     g.peasants.forEach(function (q) { q.task = null; q.bored = 900; q.hunger = 0; q.tired = 0; q.x = w.mU(s, 7 + (q.id & 1)) + 0.5; q.y = s.G - 1; q.nav = null; q.mineCD = 1e9; q.state = "walk"; q.vx = q.vy = 0; });
     s.playT = 0;
-    sim.step(w, 30);
+    w.mTheatreStep(g, s);   /* (now: before a field nearby gives them all something better to do) */
     check(!!s.play, "no play was put on");
     return s.play;
   }
@@ -70,7 +75,7 @@ module.exports = function (test, check, sim) {
     for (var k = 0; k < 4000 && s.play; k++) {
       sim.step(w, 1);
       if (!s.play || !s.play.on) continue;
-      var n = s.play.cast.filter(function (id) { var q = w.lAlive(g, id); return q && Math.floor(q.y) === s.G - 2 && Math.abs(q.x - w.mU(s, 3)) < 5; }).length;
+      var n = s.play.cast.filter(function (id) { var q = w.lAlive(g, id); return q && Math.floor(q.y) === w.mMark(s, 0).y && Math.abs(q.x - w.mU(s, 3)) < 5; }).length;
       onStage = Math.max(onStage, n);
       seated = Math.max(seated, g.peasants.filter(function (q) { return q.task && q.task.kind === "audience" && q.task.sat && q.pose === "sit"; }).length);
     }
