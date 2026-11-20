@@ -115,7 +115,7 @@ function wIdea(id) { for (var k = 0; k < IDEAS.length; k++) if (IDEAS[k].id === 
 var W_GKEYS = ["curseSlips", "dmask", "draught", "hConst", "hLake", "hLakeT", "hLightFame", "hRock", "hRockOut", "hShower", "kilnN",
   "kingDied", "lastKing", "lastSwim", "looks", "moonCrew", "moonFlag", "moonLooks", "moonT", "noField", "noFieldT", "packFlights",
   "rocket", "rocketBooms", "thinkerDied", "wChar", "wDuckPalace", "wIceN", "wLump", "wNo", "wPlanT", "wPyrFame", "wQuarryFar",
-  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "festX"];   /* (only keys of the great works': resow and the rest are the village's, as on master) */
+  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "wSalvNo", "festX"];   /* (only keys of the great works': resow and the rest are the village's, as on master) */
 /* lightning, as it strikes at (x, y) (world.js sandLightning, not taken down a rod): any great work standing that
    answers it (the lighthouse's lantern) */
 function wStruck(g, x, y) {
@@ -128,7 +128,7 @@ function wStruck(g, x, y) {
    finds it somewhere to be). a new village (wReset, W_GKEYS) starts with none of it */
 function wClearWorld(g) {
   delete g.rocket; delete g.moonT; delete g.hRock; delete g.hRockOut; delete g.wDuckPalace;   /* (and a falling star on its way down: heavens.js) */
-  delete g.wNo; delete g.wQuarryFar; delete g.wQuarryNo; delete g.noFieldT; delete g.festX;
+  delete g.wNo; delete g.wQuarryFar; delete g.wQuarryNo; delete g.noFieldT; delete g.festX; delete g.wSalvNo;
   g.draught = {}; if (g.dmask) g.dmask.fill(0);
   g.kiln = [];
 }
@@ -834,7 +834,7 @@ function wSalvage(g, p, rs) {
     if (r === "stained") bTints(p, sv, p[r]);
     p[r] = 0;
   });
-  if (sv) { sv.x = Math.floor(p.x); if (!g.wSalv) { g.wSalv = 1; feed(g, "what " + p.name + " was carrying for the great works was kept. it is at " + wSalvageAt(g).name, "#c8d0dc", "salvage"); } }
+  if (sv) { sv.x = Math.floor(p.x); sv.y = Math.floor(p.y); if (!g.wSalv) { g.wSalv = 1; feed(g, "what " + p.name + " was carrying for the great works was kept. it is at " + wSalvageAt(g).name, "#c8d0dc", "salvage"); } }
 }
 /* where the salvage is kept: {x, y, name}. at the store by the furnace; with no furnace, by the first great work; with
    neither, where the last of it was left */
@@ -842,9 +842,9 @@ function wSalvageAt(g) {
   var f = mSites(g, "furnace", true)[0];
   if (f) return { x: f.sx, y: mSpotRow(g, f), name: "the store by the furnace" };
   var W = wSites(g);
-  if (W.length) { var x = Math.round(W[0].cx); return { x: x, y: Math.max(9, mGround(g, x) - 1), name: "the foot of " + bLabel(W[0]) }; }
-  var x0 = Math.max(2, Math.min(g.gw - 3, (g.salvage && g.salvage.x) || (g.gw >> 1)));
-  return { x: x0, y: Math.max(9, mGround(g, x0) - 1), name: "where it was left" };
+  if (W.length) { var ft = wFoot(g, W[0]); return { x: ft.x, y: Math.max(9, Math.min(g.gh - 1, ft.y)), name: "the foot of " + bLabel(W[0]) }; }
+  var sv = g.salvage || {}, x0 = Math.max(2, Math.min(g.gw - 3, sv.x || (g.gw >> 1)));
+  return { x: x0, y: sv.y != null ? Math.max(9, Math.min(g.gh - 1, sv.y)) : Math.max(9, mGround(g, x0) - 1), name: "where it was left" };
 }
 /* what of a great work's p carries that none of them wants now (less what is on its way): into the salvage, where it is
    fetched from when one does */
@@ -861,16 +861,21 @@ function wSurplus(g, p) {
    over the top of it) nearest where it is kept (wSalvageAt), beside the store. {x, y} or null */
 function wSalvageSpot(g) {
   var a = wSalvageAt(g), C = [], d, x, y, k;
-  for (d = 0; d <= 80; d++) for (var sd = -1; sd <= 1; sd += 2) {
+  /* (beside it: a few columns off, a few rows up or down. not at the foot of the cliff it stands on) */
+  for (d = 0; d <= 12; d++) for (var sd = -1; sd <= 1; sd += 2) {
     x = a.x + sd * d;
     if (x < 1 || x > g.gw - 2) continue;
-    for (y = 9; y < g.gh; y++) if (SOLID[pCell(g, x, y + 1)] && navStand(g, x, y) === 1) C.push({ x: x, y: y, c: d + Math.abs(y - a.y) * 0.5 });
+    for (y = Math.max(9, a.y - 8); y < g.gh && y <= a.y + 8; y++) if (SOLID[pCell(g, x, y + 1)] && navStand(g, x, y) === 1) C.push({ x: x, y: y, c: d + Math.abs(y - a.y) * 0.5 });
     if (!d) sd = 2;
   }
   C.sort(function (u, v) { return u.c - v.c; });
-  /* (and one that can be walked to from where the village lives: not the top of a shelf of rock over it. heavens.js hHome) */
+  /* (and one that can be walked to from where the village lives, and back: not the top of a shelf of rock over it, nor
+     the far side of a drop nobody can climb back up. heavens.js hHome) */
   var home = hHome(g);
-  for (k = 0; k < C.length && k < 200; k++) if (home.at(C[k].x, C[k].y) || navFind(g, C[k].x, C[k].y, home.at, home.x, home.y, H_REACH)) return { x: C[k].x, y: C[k].y };
+  for (k = 0; k < C.length && k < 200; k++) {
+    var c = C[k], there = function (x2, y2) { return Math.abs(x2 - c.x) <= 2 && Math.abs(y2 - c.y) <= 4; };
+    if (home.at(c.x, c.y) || (navFind(g, home.x, home.y, there, c.x, c.y, H_REACH) && navFind(g, c.x, c.y, home.at, home.x, home.y, H_REACH))) return { x: c.x, y: c.y };
+  }
   return null;
 }
 /* someone who has lately given up getting to a great work (wBackoff, or bFail's failSite): what they carry is not to be
@@ -890,8 +895,12 @@ function wPocketedSure(g, r) {
 function wSalvageSure(g, r) {
   var sv = g.salvage;
   if (!sv || !((sv[r] || 0) > 1e-6)) return 0;
+  /* (and not while a fetch from it has lately come to nothing: wTaskSalvage, pGiveUp. it is the proof of it) */
+  if (g.wSalvNo > g.tick) return 0;
   return wSalvageSpot(g) ? sv[r] : 0;
 }
+/* a fetch from the salvage that came to nothing: not counted on, for a while (wSalvageSure) */
+function wSalvageFailed(g, p) { g.wSalvNo = g.tick + 6000; wBackoff(g, p, "salvage"); }
 /* how much of r in the salvage is wanted now, by a great work, or (moon rock) by everybody */
 function wSalvageWant(g, r) {
   var sv = g.salvage, n = 0, k, s;
@@ -918,11 +927,12 @@ function wGoSalvage(g, p) {
   return false;
 }
 function wTaskSalvage(g, p, k) {
-  if (!g.salvage || ++k.t > 3000) return iDone(p, false);
+  if (!g.salvage) return iDone(p, false);
+  if (++k.t > 3000) { wSalvageFailed(g, p); return iDone(p, false); }
   var at = k.at;
-  if (!at || navStand(g, at.x, at.y) !== 1) { at = k.at = wSalvageSpot(g); if (!at) { wBackoff(g, p, "salvage"); return iDone(p, false); } }
+  if (!at || navStand(g, at.x, at.y) !== 1) { at = k.at = wSalvageSpot(g); if (!at) { wSalvageFailed(g, p); return iDone(p, false); } }
   if (Math.abs(p.x - at.x - 0.5) > 2 || Math.abs(Math.floor(p.y) - at.y) > 4) {
-    if (iWalk(g, p, k, "salvage", at.x, at.y, function (x, y) { return Math.abs(x - at.x) <= 2 && Math.abs(y - at.y) <= 4; })) pGiveUp(g, p, at.x);
+    if (iWalk(g, p, k, "salvage", at.x, at.y, function (x, y) { return Math.abs(x - at.x) <= 2 && Math.abs(y - at.y) <= 4; })) { wSalvageFailed(g, p); pGiveUp(g, p, at.x); }
     p.idle = 0;
     return false;
   }

@@ -433,6 +433,24 @@ module.exports = function (test, check, sim) {
     check(g.salvage && Math.abs(g.salvage.bell - 7 / 9) < 1e-6, "the salvage has " + JSON.stringify(g.salvage) + ", not 7/9 of a bell");
     void t;
   });
+  test("foundry: a bell's ninths kept at a store over a drop nobody can climb back up are not counted on: a bell is cast", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, x, y;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = x >= 210 ? 102 : 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (a terrace, steep: down is a drop, up is no way) */
+    var p = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== p) o.dead = 1; });
+    p.x = 170.5; p.y = 149; p.task = null;
+    var f = w.bNew(g, "furnace", p, [], [215, 89, 228, 103], { sx: 214, sy: 101, G: 102 }); f.done = true;
+    var e = w.bE(g, 176, 148, M.METAL, 0, 1 / 9); e.res = "bell"; e.cost = 1 / 9;
+    var pad = w.bNew(g, "moonrocket", p, [e], [175, 148, 182, 149], { wonder: true }); pad.repair = true;
+    var fo = w.hFoundryAt(g, p, 110, 150, []); fo.done = true; fo.casts = 1;
+    p.iron = 12; p.coal = 12;
+    w.wDropAll(g, { x: 214.5, name: "the bell carrier", bell: 1 / 9 });
+    check(g.salvage && g.salvage.bell > 0, "(the test wants the bell's ninth kept, up at the store)");
+    check(w.hFoundryWant(g, fo) === "an engine bell", "the foundry counts on a bell's ninth nobody can get to: " + JSON.stringify(w.hFoundryWant(g, fo)));
+    w.hFoundryStep(g, fo);
+    check(fo.phase === 1, "no cast begun: phase " + fo.phase);
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });
