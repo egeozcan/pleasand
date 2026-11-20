@@ -499,6 +499,22 @@ module.exports = function (test, check, sim) {
     for (k = 0; k < 8000 && s.oil < 12; k++) sim.step(w, 1);
     check(s.oil === 12 && !q.barrel, "the barrel in hand never went into the rocket: " + s.oil + " barrels, barrel " + q.barrel);
   });
+  test("moon rocket: moon rock with no gantry and no statue to set it out by is set out on open ground, and with none, kept", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y, k;
+    flat(w, 110, 230, G);
+    know(g, ["moonrocket"]);   /* (it went up, and was pulled down after) */
+    var q = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
+    function rock() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.MOONROCK) n++; return n; }
+    /* (shut in a stone box first: nowhere to set it out) */
+    for (x = 160; x <= 172; x++) for (y = G - 14; y < G; y++) if (x < 163 || x > 169 || y < G - 11) w.sandPlace(g, y * g.gw + x, M.STONE);
+    q.x = 166.5; q.y = G - 1; q.moonrock = 2; q.task = null; q.hunger = 0; q.fromSpace = 0;
+    for (k = 0; k < 400; k++) sim.step(w, 1);
+    check(q.moonrock === 2 && rock() === 0, "moon rock thrown away with nowhere to set it out: " + q.moonrock + " carried, " + rock() + " out");
+    for (x = 160; x <= 172; x++) for (y = G - 14; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);   /* (let out) */
+    for (k = 0; k < 6000 && q.moonrock > 0; k++) sim.step(w, 1);
+    check(!q.moonrock && rock() === 2, "the moon rock was not set out on open ground: " + q.moonrock + " carried, " + rock() + " out");
+  });
   test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 12;

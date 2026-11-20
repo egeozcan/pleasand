@@ -1447,25 +1447,27 @@ function hTaskGantry(g, p, k) {
 function hRocketPick(g, p, hungry) {
   if (hungry) return false;
   /* back from the moon with moon rock: set out where everybody can see it */
-  if ((p.moonrock || 0) > 0 && p.state === "walk" && !p.fromSpace) { p.task = { kind: "moonrock", t: 0, act: 0 }; return true; }
+  if ((p.moonrock || 0) > 0 && p.state === "walk" && !p.fromSpace && !(p.rockT > g.tick)) { p.task = { kind: "moonrock", t: 0, act: 0 }; return true; }
   var s = mSites(g, "moonrocket", true)[0];
   if (!s || s.repair || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "gantry", s.id) || (s.crew && s.crew.length)) return false;
   if (Math.random() >= 0.03) return false;
   p.task = { kind: "gantry", site: s.id, t: 0, act: 0 };
   return true;
 }
-/* the moon rock, set out at the foot of the statue (or of the gantry, if there is no statue) */
+/* the moon rock, set out at the foot of the statue (or of the gantry; or, with neither, on open ground near where they
+   are). never thrown away: with nowhere to set it out, it is kept, and they try again in a while (and dead, it is set
+   down where they fell, or put on a pile: wonders.js wDropAll) */
 function hTaskMoonRock(g, p, k) {
-  if (!(p.moonrock > 0) || ++k.t > 4000) return iDone(p, false);
-  var t = mSites(g, "statue", true)[0] || mSites(g, "moonrocket", true)[0];
-  if (!t) { p.moonrock = 0; return iDone(p, false); }
+  if (!(p.moonrock > 0)) return iDone(p, false);
+  if (++k.t > 4000) { p.rockT = g.tick + 600; return iDone(p, false); }
+  var fx = Math.floor(p.x), t = mSites(g, "statue", true)[0] || mSites(g, "moonrocket", true)[0] || { x0: fx, x1: fx, cx: fx, id: 0, kind: "" };
   if (k.x == null) {
     /* the first bit of open ground beside it, out of anybody's way */
     for (var d = 2; d < 30 && k.x == null; d++) for (var sd = -1; sd <= 1 && k.x == null; sd += 2) {
       var x = Math.round(sd < 0 ? t.x0 - d : t.x1 + d), y = hGround(g, x);
       if (y > 0 && pSolid(g, x, y) && AIRY[pCell(g, x, y - 1)] && !bMarked(g, x, y - 1) && !bSiteAround(g, x, y - 1, null, 0)) { k.x = x; k.y = y - 1; }
     }
-    if (k.x == null) { p.moonrock = 0; return iDone(p, false); }
+    if (k.x == null) { p.rockT = g.tick + 600; return iDone(p, false); }   /* (kept, for later) */
   }
   if (hGo(g, p, k, "moonrock", k.x + (p.x < k.x ? -2 : 2), k.y, 1, 2)) return false;
   p.idle = 0; k.act++; p.pose = (k.act % 16) < 8 ? "eatB" : "stand";
@@ -1474,7 +1476,7 @@ function hTaskMoonRock(g, p, k) {
   if (!AIRY[g.m[j]]) { k.x = null; return false; }
   sandPlace(g, j, MAT.MOONROCK); heatAccept(g, j);
   p.moonrock--; k.y--; k.act = 0;
-  if (!g.hRockOut) { g.hRockOut = 1; feed(g, p.name + " set out the moon rock by " + bLabel(t) + ". it is mostly dust", "#e0e0f0", "moonrock"); }
+  if (!g.hRockOut) { g.hRockOut = 1; feed(g, p.name + " set out the moon rock" + (t.kind ? " by " + bLabel(t) : "") + ". it is mostly dust", "#e0e0f0", "moonrock"); }
   if (p.moonrock <= 0) { if (p.sayT <= 0) pSay(g, p, "moonrock"); return iDone(p, true); }
   return true;
 }
