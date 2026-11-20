@@ -458,7 +458,7 @@ function pGardensFit(g, x0, gy, d) {
     if (AIRY[c]) return true;
     if (ROCK[c] && !bMarked(g, X(u), y)) { put(u, y, MAT.EMPTY, ph || 0).mine = true; dig += 3; return true; }
     if (!B_DIG[c] && !mFellable(g, X(u), y, c)) return false;
-    put(u, y, MAT.EMPTY, ph || 0); dig++; return true;
+    put(u, y, MAT.EMPTY, ph || 0).clear = ph === 40; dig++; return true;   /* (sky over a bed, cleared again whenever sand slides into it) */
   }
   /* (brick, whatever is there but rock: driven into sand, as a tier of the theatre's is, so that what it holds back
      does not pour in while it goes in. bottom up, a row at a time) */
@@ -521,10 +521,14 @@ function pGardensFit(g, x0, gy, d) {
   /* the cistern: a box one wide on top of the stair, brick walls and a concrete bottom, its low side the top terrace's
      end, spilling onto it. (a wall one wide is no form for wet concrete: it runs off before it goes off) */
   var Y2 = pGBed(Y0, 2);
+  /* (and no hill going on up past it, higher than its wall: what is up there would come down over it, into it and onto
+     the top terrace, every time the wind did not blow) */
+  for (u = P_GW; u <= P_GW + 3; u++) { var gb = mGround(g, X(u)); if (gb >= 0 && gb < Y2 - 5 + (u - P_GW) && !ROCK[pCell(g, X(u), gb)]) return null; }
   for (u = 26; u <= 28; u++) {
     x = X(u);
     var Gc = Gy(u), top = u === 26 ? Y2 - 3 : (u === 28 ? Y2 - 6 : Y2);
     for (y = Y2 - 7; y < top; y++) if (!digOut(u, y, 40)) return null;
+    if (u === 27) for (y = Y2 - 5; y < Y2; y++) if (!at[y * g.gw + x]) put(u, y, MAT.EMPTY, 40).clear = true;   /* (the inside of it, kept clear) */
     for (y = top; y <= Y2; y++) {
       c = pCell(g, x, y);
       if (u !== 27) { if (!AIRY[c] && !B_DIG[c] && !ROCK[c]) return null; if (!ROCK[c]) brickAt(u, y); continue; }
@@ -573,9 +577,20 @@ function pTurner(g, s) { for (var k = 0; k < g.peasants.length; k++) { var q = g
 function pGardensDone(g, s, p) {
   feed(g, "the hanging gardens are built. now the terraces want sowing, and the pool wants filling", "#ffd94a", "plan" + s.id);
   s.plan = s.plan.filter(function (e) { return !e.bed; });
+  s.built = true;
   pTerraces(g, s);
 }
 /* a field on each terrace that has none */
+/* a terrace field tilled, and a stalk in every furrow, green or ripe: sown, whether or not the sower stayed to say so
+   (a stalk that ripened before anybody called the field finished would otherwise hold it up, and in time the village
+   would give up on a field with wheat standing in it) */
+function pTerracesSown(g, s) {
+  for (var k = 0; k < g.sites.length; k++) {
+    var t = g.sites[k];
+    if (t.kind !== "farm" || t.terrace !== s.id || t.done) continue;
+    if (t.plan.every(function (e) { var c = g.m[e.i]; return bOk(g, e) || (e.v === MAT.CROP && (c === MAT.CROP || c === MAT.WHEAT)); })) { t.done = true; t.repair = t.sow = false; t.last = g.tick; }
+  }
+}
 function pTerraces(g, s) {
   for (var k = 0; k < 3; k++) {
     var have = false, j, u;
@@ -602,9 +617,12 @@ function pGardensPick(g, p, hungry) {
 }
 /* every W_STRIDE ticks: the terraces kept, and a screw-turner while there is water in the pool to lift */
 function pGardensStep(g, s) {
+  if (s.built) pTerracesSown(g, s);   /* (mending, or not) */
   if (!s.done || s.repair) return;
   if (g.tick % 600 === 0) pTerraces(g, s);   /* (a terrace the village gave up on is a terrace again, a while later) */
   if (pTurner(g, s) || P_GPOOL_N - wBathNeed(g, s) < 6 || g.tick < (s.turnT || 0) || g.blaze.length) return;
+  /* (not until the terraces are sown: a furrow under water is a furrow nobody can sow) */
+  for (var j = 0; j < g.sites.length; j++) if (g.sites[j].terrace === s.id && !g.sites[j].done) return;
   var best = null, bd = 1e9, k, q;
   for (k = 0; k < g.peasants.length; k++) {
     q = g.peasants[k];

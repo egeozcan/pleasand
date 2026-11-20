@@ -171,6 +171,7 @@ module.exports = function (test, check, sim) {
   test("gardens: the screw lifts the pool into the cistern, the water runs down to the bottom terrace, and none is lost", function () {
     var G = gardens(1, false), w = G.w, g = G.g, s = G.s, M = G.M;
     delete g.know.farm;   /* (nobody sows the terraces: wheat drinks what lands on it, and this is about where the water goes) */
+    G.T.forEach(function (t) { t.plan = []; t.done = true; });   /* (bare earth, called sown, so the screw is turned) */
     function box() { var n = 0; for (var y = s.y0 - 3; y <= s.y1 + 2; y++) for (var x = s.x0 - 4; x <= s.x1 + 4; x++) if (g.m[y * g.gw + x] === M.WATER) n++; return n; }
     var n0 = box(), bottom = 0, top = 0;
     check(n0 === w.P_GPOOL_N, "(the test wants the pool full: " + n0 + ")");
