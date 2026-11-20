@@ -148,6 +148,16 @@ module.exports = function (test, check, sim) {
     check(w.curPick(g).name === "CLONER", "its keyframe loaded with " + w.curPick(g).name + " picked");
   });
 
+  test("wonders: a bang rolls the same dice however many rings are still fading on the screen (the game at any speed)", function () {
+    function after(rings) {
+      var w = sim.load(1), g = w.g, k;
+      for (k = 0; k < rings; k++) g.rings.push({ x: 0, y: 0, r: 0, R: 1, t: 0 });
+      for (k = 0; k < 12; k++) w.sandBoom(g, (130 + k) * g.gw + 40 + 15 * k, 3, 1.2);   /* (a meteorite's size of bang, a dozen) */
+      return w.eval("Math.random()");
+    }
+    check(after(8) === after(0), "the dice after a dozen bangs differ with eight rings fading and with none");
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;

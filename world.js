@@ -545,7 +545,11 @@ function sandBoom(g, i, R, P) {
   }
   g.shake = Math.min(big ? 18 : 6, g.shake + (big ? 18 : 0.7));
   g.flash = Math.max(g.flash, big ? 1 : 0.08);
-  if (g.rings.length < 8 && (big || Math.random() < 0.15)) g.rings.push({ x: x0, y: y0, r: 0, R: R * (big ? 3 : 2.2), t: 0 });
+  /* (whether this one has a ring is the simulation's dice, rolled whatever: whether there is room among the rings still
+     going, which fade by the frame, not the tick, only says if it is drawn. otherwise the game played at another speed
+     would roll other dice) */
+  var ring = big || Math.random() < 0.15;
+  if (ring && g.rings.length < 8) g.rings.push({ x: x0, y: y0, r: 0, R: R * (big ? 3 : 2.2), t: 0 });
   peasantsBlast(g, x0, y0, R, P);
   ducksBlast(g, x0, y0, R, P);
   /* (a note of it, for anybody who wants to know what just happened round here: leftovers.js) */
