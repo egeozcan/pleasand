@@ -781,6 +781,14 @@ function bTillCell(g, s, e, p) {
 /* a board into the plan. the cell keeps whatever heat it had: a board brought in at room temperature, near enough */
 function bPlace(g, s, e, p) {
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0;
+  /* (where it goes in water, the water is shoved out of the way, up to the top of it, heat and all: none of it lost. a
+     pocket of water shut in, with nowhere to go: left a while) */
+  if (WET[g.m[e.i]]) {
+    var up = e.i - gw;
+    while (up >= 0 && WET[g.m[up]]) up -= gw;
+    if (up < 0 || g.m[up] !== MAT.EMPTY) { e.wait = g.tick + 300; return; }
+    heatSync(g, e.i); heatSync(g, up); sandSwap(g, e.i, up);
+  }
   if (!bPay(g, p, s, e)) return;
   if (e.redo && g.m[e.i] === MAT.PLANK) p.boards = (p.boards || 0) + 1;   /* (the old board, out, and into their pocket) */
   if (e.gild && g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5;   /* (the stand-in, out: wonders.js) */

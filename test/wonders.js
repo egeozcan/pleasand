@@ -81,6 +81,19 @@ module.exports = function (test, check, sim) {
     check(moved === 0, "wet concrete was out of its form " + moved + " times");
   });
 
+  test("wonders: a great work's stone put in where there is water shoves the water up, and none of it is lost", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y, k;
+    flat(w, x0, 20, G);
+    for (x = x0; x <= x0 + 4; x++) for (y = G - 6; y < G; y++) w.sandPlace(g, y * g.gw + x, x === x0 || x === x0 + 4 ? M.STONE : (y >= G - 4 ? M.WATER : M.EMPTY));
+    function water() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.WATER) n++; return n; }
+    var p = g.peasants[0], s = cairn(w, p, x0 + 1, G, 3, function () { return M.BRICK; });   /* (three in the bottom row of the water) */
+    s.stock = { stone: 10 };
+    var n0 = water();
+    for (k = 0; k < s.plan.length; k++) w.bPlace(g, s, s.plan[k], p);
+    check(s.plan.every(function (e) { return g.m[e.i] === M.BRICK; }), "the stone did not go in");
+    check(water() === n0, "water went from " + n0 + " to " + water());
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;
