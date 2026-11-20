@@ -158,7 +158,7 @@ function bRemove(g, idx) {
   for (var q = 0; q < g.peasants.length; q++) {
     var t = g.peasants[q].task;
     if (t && ((t.site === s.id && t.kind !== "sow" && t.kind !== "till" && t.kind !== "water" && t.kind !== "shoo") || t.field === s.id || t.pond === s.id)) {
-      if (t.kind === "cbail" && t.load) mTipOut(g, g.peasants[q], t, true);   /* (a pail of the crypt's water, carried: tipped out, not lost. monuments.js) */
+      if (t.kind === "cbail" && g.peasants[q].pail) mTipOut(g, g.peasants[q], t, true);   /* (a pail of the crypt's water, carried: tipped out, not lost. monuments.js) */
       g.peasants[q].task = null;
     }
   }

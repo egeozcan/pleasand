@@ -335,11 +335,24 @@ module.exports = function (test, check, sim) {
     idleBy(w, s);
     function wet() { var n = 0; for (var j = 0; j < g.m.length; j++) if (w.WET[g.m[j]]) n++; return n; }
     var bailer = null;
-    for (k = 0; k < 20000 && !bailer; k++) { sim.step(w, 1); bailer = g.peasants.filter(function (q) { return q.task && q.task.kind === "cbail" && q.task.load; })[0]; }
+    for (k = 0; k < 20000 && !bailer; k++) { sim.step(w, 1); bailer = g.peasants.filter(function (q) { return q.task && q.task.kind === "cbail" && q.pail; })[0]; }
     check(!!bailer, "(the test wants somebody carrying a pail up out of the crypt)");
-    var n0 = wet() + bailer.task.load.length;
+    var n0 = wet() + bailer.pail.length;
     w.bRemove(g, g.sites.indexOf(s));
     check(wet() === n0, "water went from " + n0 + " to " + wet() + " as the cathedral went");
+  });
+
+  test("cathedral: a bailer who dies carrying the crypt's water up spills it, not loses it", function () {
+    var C = cathedral(true), w = C.w, g = C.g, s = C.s, M = w.MAT, x, y, k;
+    for (y = s.F + 7; y <= s.F + 9; y++) for (x = s.x0 + 5; x <= s.x0 + 14; x++) w.sandPlace(g, y * g.gw + x, M.WATER);
+    idleBy(w, s);
+    function wet() { var n = 0; for (var j = 0; j < g.m.length; j++) if (w.WET[g.m[j]]) n++; return n; }
+    var bailer = null;
+    for (k = 0; k < 20000 && !bailer; k++) { sim.step(w, 1); bailer = g.peasants.filter(function (q) { return q.task && q.task.kind === "cbail" && q.pail; })[0]; }
+    check(!!bailer, "(the test wants somebody carrying a pail up out of the crypt)");
+    var n0 = wet() + bailer.pail.length;
+    w.pDie(g, bailer, "old");
+    check(wet() === n0, "water went from " + n0 + " to " + wet() + " with the bailer dead");
   });
 
   test("cathedral: the bored go down to the crypt with a candle, to somebody's niche", function () {

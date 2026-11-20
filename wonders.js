@@ -709,12 +709,14 @@ function wTaskMix(g, p, k) {
   var s = bSite(g, k.site), fx = Math.floor(p.x), fy = Math.floor(p.y), j;
   if (!s || s.done || ++k.t > 4000) return iDone(p, false);
   /* a bucket of water first: from real water, never out of a pond being filled */
+  if (k.water && !p.pail) k.water = 0;   /* (spilt on the way: another) */
   if (!k.water) {
     var bar = iBarred(g, true);
     j = iScoopAt(g, fx, fy, true, bar);
     if (j >= 0 && !p.swimming && !LIQUID[pCell(g, fx, fy)]) {
       p.pose = (k.act >> 3) & 1 ? "eatB" : "stand";
-      if (++k.act === 16) { var load = iScoop(g, j, true); k.water = load ? load.length : 0; k.act = 0; k.best = null; }
+      /* (the water in the pail, in their hands, heat and all, until it is mixed in: dropped, it is spilt. ideas.js iSpill) */
+      if (++k.act === 16) { var load = iScoop(g, j, true); if (load && load.length) p.pail = load; k.water = load ? load.length : 0; k.act = 0; k.best = null; }
       return true;
     }
     if (k.t % 120 === 0) k.w = iFindWater(g, p, 200, null, true, bar, false) || k.w;
@@ -724,7 +726,7 @@ function wTaskMix(g, p, k) {
   }
   /* two spadefuls of sand, near the site (looked for from the foot of it: from the water's edge, all the sand in reach
      can be under the water, or at the far end of the valley) */
-  if (k.sand < 2 && (p.sand || 0) < 2) {
+  if ((p.sand || 0) < 2) {
     if (!k.sx || !lSandy(g, k.sx, k.sy)) {
       var f0 = wFoot(g, s), ok0 = function (g2, x, y) { return !pAvoid(g2, p, x) && lSandy(g2, x, y); };
       var t = pFind(g, { x: f0.x + 0.5, y: f0.y, dir: p.x < f0.x ? -1 : 1 }, P_SANDY, 60, ok0, 10) || pFind(g, p, P_SANDY, 60, ok0, 10);
@@ -736,7 +738,7 @@ function wTaskMix(g, p, k) {
     p.dir = k.sx + 0.5 < p.x ? -1 : 1; k.act++;
     p.pose = (k.act % 16) < 8 ? "chopA" : "chopB";
     if (k.act % 16 !== 8) return true;
-    heatVanish(g, k.sy * g.gw + k.sx); k.sand++; g.fx.thud++; k.sx = 0;
+    heatVanish(g, k.sy * g.gw + k.sx); p.sand = (p.sand || 0) + 1; g.fx.thud++; k.sx = 0;   /* (in a pocket, not in the job: kept if it is given up) */
     return true;
   }
   /* to the site, and stir */
@@ -748,7 +750,7 @@ function wTaskMix(g, p, k) {
   if (k.act === 10 && p.sayT <= 0) pSay(g, p, "mix");
   if (k.act < 90) return true;
   s.stock.lime--;
-  if (k.sand < 2) p.sand -= 2 - k.sand;
+  p.sand -= 2; p.pail = null;   /* (the sand and the bucket of water, mixed in) */
   p.mortar = W_PAIL; p.mortarT = g.tick;
   pSay(g, p, "mixed", true);
   if (!g.got.concrete) { feed(g, p.name + " mixed the first concrete. hurry", "#e0e0d4", "concrete"); achieve(g, "concrete"); }
@@ -1050,7 +1052,7 @@ function wMood(g, p) {
   if (!k) return (p.mortar || 0) >= 1 ? "is carrying a pail of wet concrete. it is going off" : "";
   if (k.kind === "haul") return (s = bSite(g, k.site)) ? "is taking " + (mPockets(p) || "something") + " to " + bLabel(s) : "is carrying things";
   if (k.kind === "quarry") return k.haul ? "is carrying stone up out of the quarry" : "is cutting stone for the great work" + ((p.stone || 0) >= 1 ? ". " + Math.floor(p.stone) + " so far" : "");
-  if (k.kind === "mix") return !k.water ? "is fetching water to mix concrete with" : (k.sand < 2 ? "is digging sand for the concrete" : "is mixing concrete");
+  if (k.kind === "mix") return !k.water ? "is fetching water to mix concrete with" : ((p.sand || 0) < 2 ? "is digging sand for the concrete" : "is mixing concrete");
   if (k.kind === "kiln") return k.carry ? "is carrying " + k.r + " from the kiln" : "is burning " + (k.r === "coal" ? "charcoal" : k.r) + " at the furnace";
   if (k.kind === "audience") return k.sit ? "is sitting, watching" : "is watching";
   for (var j = 0; j < W_DEFS.length; j++) if (W_DEFS[j].mood) { var m = W_DEFS[j].mood(g, p, k); if (m) return m; }

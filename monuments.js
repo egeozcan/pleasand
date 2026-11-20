@@ -563,7 +563,7 @@ wDef({
   },
   mood: function (g, p, k) {
     if (k.kind === "crypt") return k.on ? "is in the crypt, with a candle, by " + pTitle(iShort(k.name)) + "'s name" : "is going down to the crypt, with a candle";
-    if (k.kind === "cbail") return k.load ? "is carrying water up out of the crypt" : "is bailing out the crypt";
+    if (k.kind === "cbail") return p.pail ? "is carrying water up out of the crypt" : "is bailing out the crypt";
     if (k.kind === "preach") return "is saying a few words for the dead";
     if (k.kind === "audience" && k.of === "service") return k.sit ? "is at the service, on a pew" : "is at the service, at the back";
     return "";
@@ -892,7 +892,7 @@ function mTaskCrypt(g, p, k) {
 function mTaskCryptBail(g, p, k) {
   var s = bSite(g, k.site), fx = Math.floor(p.x), fy = Math.floor(p.y);
   if (!s || !s.done || ++k.t > 8000) { mTipOut(g, p, k, true); return iDone(p, false); }
-  if (!k.load) {
+  if (!p.pail) {
     if (!mCryptWater(g, s)) { p.bored = 0; return iDone(p, true); }
     var inside = fx >= s.x0 + 2 && fx <= s.x0 + 14 && fy > s.F && fy < s.F + 10;
     if (!inside) {
@@ -903,8 +903,9 @@ function mTaskCryptBail(g, p, k) {
     p.pose = (k.act >> 3) & 1 ? "eatB" : "stand"; p.idle = 0;
     if (++k.act < 16) return true;
     k.act = 0; k.best = null;
-    k.load = mScoopCrypt(g, s, p);
-    if (!k.load) return iDone(p, true);
+    /* (in their pail, heat and all, not in the job: dropped, it is spilt where they are. ideas.js iSpill, iPail) */
+    p.pail = mScoopCrypt(g, s, p);
+    if (!p.pail) return iDone(p, true);
     if (p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "bailCrypt");
     k.to = mDumpAt(g, s, p);
     return true;
@@ -921,7 +922,7 @@ function mTaskCryptBail(g, p, k) {
   if (k.act < 14) return true;
   k.act = 0; k.best = null;
   mTipOut(g, p, k);
-  if (k.load) return true;   /* (no room in front of them for all of it: again, in a moment) */
+  if (p.pail) return true;   /* (no room in front of them for all of it: again, in a moment) */
   g.fx.splash++;
   s.bailed = (s.bailed || 0) + 1;
   return true;
@@ -929,9 +930,7 @@ function mTaskCryptBail(g, p, k) {
 /* the pail, emptied in front of them (iSpill finds the air for it). what finds no room stays in the pail, for the next
    try; unless the job is over (all), when it goes in the first air over them */
 function mTipOut(g, p, k, all) {
-  if (!k.load) return;
-  var keep = p.pail;
-  p.pail = k.load; iSpill(g, p, !!all); k.load = p.pail; p.pail = keep;
+  if (p.pail) iSpill(g, p, !!all);
 }
 /* a pailful out of the crypt: the cells of water nearest p, each with its heat */
 function mScoopCrypt(g, s, p) {
@@ -1027,6 +1026,6 @@ function mDrawCathOver(g, s) {
     if (p.dead || !t || t.site !== s.id || p.state !== "walk") continue;
     var hx = Math.floor(p.x) + p.dir, hy = Math.floor(p.y) - 4;
     if (t.kind === "crypt") { mGlow(g, hx, hy, 5, 0.35); wPut(g, hx, hy, M_FLAME[(g.tick >> 2) % 3], true); wPut(g, hx, hy + 1, hex32("#f4f0e6")); }
-    else if (t.kind === "cbail" && t.load) { wPut(g, hx, hy + 1, I_PAIL); wPut(g, hx + p.dir, hy + 1, I_PAIL); wPut(g, hx, hy, SAND_PAL[MAT.WATER][0]); }
+    else if (t.kind === "cbail" && p.pail) { wPut(g, hx, hy + 1, I_PAIL); wPut(g, hx + p.dir, hy + 1, I_PAIL); wPut(g, hx, hy, SAND_PAL[MAT.WATER][0]); }
   }
 }

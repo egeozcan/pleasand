@@ -199,6 +199,24 @@ module.exports = function (test, check, sim) {
     check(ops[ops.length - 1].args.sel === "CLONER" && h2.scenario().picks, "a new pick is recorded as " + JSON.stringify(ops[ops.length - 1].args));
   });
 
+  test("wonders: a mixer's bucket of water is in their pail, and spilt, not lost, if they die before it is mixed", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    know(g, ["farm", "dig", "bucket", "concrete"]);
+    var p = g.peasants[0];
+    var x = Math.floor(p.x) + 6, G = w.mGround(g, x);
+    var s = cairn(w, p, x, G, 4, function () { return M.CONCRETE; });
+    s.stock = { lime: 2 };
+    g.peasants.forEach(function (q) { if (q !== p) q.x = 10; q.task = null; q.hunger = 0; });
+    check(w.wGoMix(g, p, s), "(the test wants somebody mixing)");
+    function water() { var n = 0; for (var j = 0; j < g.m.length; j++) if (w.WET[g.m[j]]) n++; return n; }
+    var n0 = water(), k;
+    for (k = 0; k < 4000 && !(p.task && p.task.water); k++) sim.step(w, 1);
+    check(p.task && p.task.water > 0, "(the test wants a bucket scooped)");
+    w.pDie(g, p, "old");
+    sim.step(w, 1);
+    check(water() === n0, "water went from " + n0 + " to " + water() + " with the mixer dead");
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;
