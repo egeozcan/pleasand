@@ -83,12 +83,25 @@ function hDeliverBarrel(g, p) {
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     if (!s.done || s.repair) continue;
-    var want = (s.kind === "moonrocket" && !s.gone && (s.oil || 0) < H_FUEL) || (s.kind === "lighthouse" && s.fuel < H_BARREL);
-    if (want && Math.abs(s.cx - p.x) < bd) { bd = Math.abs(s.cx - p.x); best = s; }
+    if (wNoGo(g, p, s.id) || !hOilRoom(g, s, p)) continue;
+    if (Math.abs(s.cx - p.x) < bd) { bd = Math.abs(s.cx - p.x); best = s; }
   }
   if (best) { p.task = { kind: best.kind === "lighthouse" ? "keep" : "fuel", site: best.id, t: 0, act: 0 }; if (best.kind === "lighthouse") best.keeper = p.id; return true; }
   /* (nowhere wants it yet: back into a well's tank with room, else the salvage, to be fetched when somewhere does) */
   if (!wTankIn(g, p)) wSalvage(g, p, ["barrel"]); else p.barrel = 0;
+  return false;
+}
+/* room in s for one more barrel of oil, counting those already on their way to it (but p's): the rocket's tank, short
+   of H_FUEL with the barrels coming; a lighthouse's lamp, low, with nobody else seeing to it */
+function hOilRoom(g, s, p) {
+  if (!s.done || s.repair) return false;
+  var n = 0, k, q;
+  for (k = 0; k < g.peasants.length; k++) {
+    q = g.peasants[k];
+    if (q !== p && !q.dead && q.task && q.task.site === s.id && (q.task.kind === "fuel" || q.task.kind === "keep")) n++;
+  }
+  if (s.kind === "moonrocket") return !s.gone && (s.oil || 0) + n < H_FUEL;
+  if (s.kind === "lighthouse") return s.fuel < H_BARREL && !n;
   return false;
 }
 /* a barrel of oil out of the nearest well's tank, at its pump: for the keeper and the rocket. 1 once they have it, 0
@@ -750,7 +763,7 @@ function hBeacon(g, p) {
 /* the keeper: a barrel from the well's tank, up the ladder, into the lamp */
 function hTaskKeep(g, p, k) {
   var s = bSite(g, k.site);
-  if (!s || !s.done || s.repair || ++k.t > 6000) return iDone(p, false);
+  if (!s || !s.done || s.repair || ++k.t > 6000) { if (s) wBackoff(g, p, s.id); return iDone(p, false); }
   var b = hFetchBarrel(g, p, k);
   if (b < 0) { if (p.sayT <= 0) pSay(g, p, "noOil"); s.noOil = g.tick + 1200; return iDone(p, false); }
   if (b === 0) return false;
@@ -785,7 +798,7 @@ function hLightStep(g, s) {
   }
   if (s.fuel < H_LOW && !(s.noOil > g.tick) && !mCrew(g, "keep", s.id)) {
     var q = hWho(g, s.keeper);
-    if (!q || !wIdle(g, q) || !oTankFor(g, q, 1)) q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1); });
+    if (!q || !wIdle(g, q) || !oTankFor(g, q, 1) || wNoGo(g, q, s.id)) q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1) && !wNoGo(g, c, s.id); });
     if (q) { q.task = { kind: "keep", site: s.id, t: 0, act: 0 }; s.keeper = q.id; }
   }
 }
@@ -1027,6 +1040,9 @@ function hFoundryWant(g, s) {
     bell += Math.max(0, bNeed(g, t, "bell")); plate += Math.max(0, bNeed(g, t, "plate"));
   }
   bell -= wPocketed(g, "bell"); plate -= wPocketed(g, "plate");
+  /* (and what is kept in the salvage, a bell's ninths and all: fetched, not cast again. wonders.js) */
+  var sv = g.salvage || {};
+  bell -= sv.bell || 0; plate -= sv.plate || 0;
   if (bell > 1e-6) return "an engine bell";   /* (a bell is cast whole: for a cell of one to mend, too) */
   if (plate > 0.5) return Math.ceil(plate) + " plates";
   if (!s.casts && mIronToHand(g) >= 12) return "a first pour";   /* (to see that it works: once) */
@@ -1379,12 +1395,15 @@ function hRocketAt(g, p, x0, R0, plan) {
 /* a barrel from the well's tank to the rocket's pile */
 function hTaskFuel(g, p, k) {
   var s = bSite(g, k.site);
-  if (!s || !s.done || s.repair || s.gone || ++k.t > 6000) return iDone(p, false);
+  if (!s || !s.done || s.repair || s.gone || ++k.t > 6000) { if (s) wBackoff(g, p, s.id); return iDone(p, false); }
+  /* (full, or as good as, with the barrels on their way: not another fetched. one in hand: somewhere else with it) */
+  if (!p.barrel && !hOilRoom(g, s, p)) return iDone(p, false);
   var b = hFetchBarrel(g, p, k);
   if (b < 0) { s.noOil = g.tick + 1200; return iDone(p, false); }
   if (b === 0) return false;
   var fx = s.x0 + 11, fy = s.R0 - 3;
   if (hGo(g, p, k, "fuel" + s.id, fx, fy, 2, 2)) return false;
+  if ((s.oil || 0) >= H_FUEL) { p.task = null; hDeliverBarrel(g, p); return false; }
   p.barrel = 0; s.oil = (s.oil || 0) + 1;
   if (p.sayT <= 0) pSay(g, p, "fuel");
   if (s.oil === H_FUEL) feed(g, "the moon rocket is fuelled. " + H_FUEL + " barrels of oil in it, and a spark would do", "#ffd94a", "fuel" + s.id);
@@ -1460,7 +1479,7 @@ function hTaskGantry(g, p, k) {
 function hRocketPick(g, p, hungry) {
   if (hungry) return false;
   /* back from the moon with moon rock: set out where everybody can see it */
-  if ((p.moonrock || 0) > 0 && p.state === "walk" && !p.fromSpace && !(p.rockT > g.tick)) { p.task = { kind: "moonrock", t: 0, act: 0 }; return true; }
+  if ((p.moonrock || 0) > 0 && p.state === "walk" && !p.fromSpace && !(p.rockT > g.tick) && !wNoGo(g, p, "moonrock")) { p.task = { kind: "moonrock", t: 0, act: 0 }; return true; }
   var s = mSites(g, "moonrocket", true)[0];
   if (!s || s.repair || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "gantry", s.id) || (s.crew && s.crew.length)) return false;
   if (Math.random() >= 0.03) return false;
@@ -1524,8 +1543,8 @@ function hRocketStep(g, s) {
   if ((s.oil || 0) > 0 && hRocketAlight(g, s)) { hRocketBoom(g, s); return; }
   if (s.repair) return;
   if ((s.oil || 0) < H_FUEL) {
-    if (!(s.noOil > g.tick) && mCrew(g, "fuel", s.id) < 2) {
-      q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1); });
+    if (!(s.noOil > g.tick) && mCrew(g, "fuel", s.id) < 2 && hOilRoom(g, s, null)) {
+      q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1) && !wNoGo(g, c, s.id); });
       if (q) q.task = { kind: "fuel", site: s.id, t: 0, act: 0 };
     }
     return;

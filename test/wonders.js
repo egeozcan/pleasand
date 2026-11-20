@@ -346,6 +346,21 @@ module.exports = function (test, check, sim) {
     w.sandLandscape(g);
     check(!g.salvage && !g.wSalv, "a NEW village has the old one's salvage: " + JSON.stringify(g.salvage));
   });
+  test("wonders: the salvage by a great work as tall as the world is fetched from footing beside it, in the world", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, y, k;
+    flat(w, x0 - 40, 80, G);
+    var p = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== p) o.dead = 1; });
+    var s = cairn(w, p, x0, G, 4); s.done = true;
+    for (y = 0; y < G; y++) w.sandPlace(g, y * g.gw + Math.round(s.cx), M.STONE);   /* (up to the top of the world, where it is kept) */
+    g.salvage = { moonrock: 2, x: x0 };
+    p.x = x0 - 20.5; p.y = G - 1; p.task = null; p.hunger = 0; g.know.moonrocket = "TEST";
+    for (k = 0; k < 3000 && g.salvage; k++) sim.step(w, 1);
+    check(!g.salvage, "the moon rock was never fetched: " + JSON.stringify(g.salvage) + ", carried " + (p.moonrock || 0));
+    g.salvage = { moonrock: 1, x: x0 };
+    var at = w.wSalvageSpot(g);
+    check(at && at.y >= 0 && w.navStand(g, at.x, at.y) === 1, "the salvage is to be fetched from " + JSON.stringify(at));
+  });
   test("wonders: dead in a tunnel with a load of concrete, they do not plug it: whoever else is in there can still get out", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y, k;
     flat(w, x0 - 40, 80, G);

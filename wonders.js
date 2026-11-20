@@ -136,6 +136,20 @@ function wReset(g) {
   for (var k = 0; k < W_GKEYS.length; k++) delete g[W_GKEYS[k]];
   g.tales = []; g.kiln = []; g.wDone = {}; g.wAny = false; g.swims = 0;
 }
+/* DESTINATIONS: a great work (or the salvage, the moon rock's spot) somebody could not get to, or gave up on, is let be
+   by them a while, and the next one tried (peasants.js pGiveUp; the tasks' own timeouts). id: a site's, or a task's kind */
+var W_NOGO = 1500;   /* (as long as bFail lets a site be, for a walk given up) */
+function wBackoff(g, p, id, t) { (p.noGo || (p.noGo = {}))[id] = g.tick + (t || W_NOGO); }
+function wNoGo(g, p, id) { return !!(p.noGo && p.noGo[id] > g.tick); }
+/* what of r is on its way to s already, in the pockets of whoever is hauling to it or building it (but p) */
+function wInbound(g, s, r, p) {
+  var n = 0, k, q;
+  for (k = 0; k < g.peasants.length; k++) {
+    q = g.peasants[k];
+    if (q !== p && !q.dead && q.task && q.task.site === s.id && (q.task.kind === "haul" || q.task.kind === "build")) n += r === "mortar" ? (q.lump || 0) : (q[r] || 0);
+  }
+  return n;
+}
 /* the wonder sites: every one, or only those standing (done) */
 function wSites(g, done) {
   var out = [];
@@ -292,8 +306,10 @@ function wPick(g, p, hungry) {
      organ waiting on it) */
   for (k = 0; k < S.length; k++) {
     s = S[k];
-    if (p.failSite === s.id && p.failT > g.tick) continue;
-    if (((p.lime || 0) >= 1 && wLimeWant(g, s) > 0) || ((p.lump || 0) >= 1 && bNeed(g, s, "mortar") > 1e-6) || W_ONLY.some(function (r) { return (p[r] || 0) >= 1 && bNeed(g, s, r) > 1e-6; })) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
+    if ((p.failSite === s.id && p.failT > g.tick) || wNoGo(g, p, s.id)) continue;
+    /* (what it still wants, less what is on its way to it already) */
+    if (((p.lime || 0) >= 1 && wLimeWant(g, s) - wInbound(g, s, "lime", p) > 0) || ((p.lump || 0) >= 1 && bNeed(g, s, "mortar") - wInbound(g, s, "mortar", p) > 1e-6) ||
+        W_ONLY.some(function (r) { return (p[r] || 0) >= (r === "bell" ? 1e-6 : 1) && bNeed(g, s, r) - wInbound(g, s, r, p) > 1e-6; })) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
   }
   /* with the makings for the kiln in hand (a pane, for coloured glass; logs, for charcoal, there being no coal): the kiln,
      before the crew */
@@ -301,7 +317,7 @@ function wPick(g, p, hungry) {
   /* a wonder going up: its crew, if there is room in it; hauling, if there is not, from anywhere in the valley */
   for (k = 0; k < S.length; k++) {
     s = S[k];
-    if (p.failSite === s.id && p.failT > g.tick) continue;
+    if ((p.failSite === s.id && p.failT > g.tick) || wNoGo(g, p, s.id)) continue;
     if (!wFull(g, s, p) && bUseful(g, p, s)) { bJoin(g, p, s); return true; }
     if (bBrings(g, p, s) || ((p.lime || 0) >= 1 && wLimeWant(g, s) > 0)) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
     /* the next of it wants wet concrete, and there is lime for it: somebody mixes some (pleasures.js uses this) */
@@ -362,7 +378,7 @@ function wTaskHaul(g, p, k) {
   if (!s || s.done || ++k.t > 4000) return iDone(p, false);
   var f = wFoot(g, s), at = wNear(g, s, 2);
   if (!at(Math.floor(p.x), Math.floor(p.y))) {
-    if (iWalk(g, p, k, "haul" + s.id, f.x, f.y, at)) { bFail(g, p, s, 1500, "walk"); }
+    if (iWalk(g, p, k, "haul" + s.id, f.x, f.y, at)) bFail(g, p, s, 1500, "walk");   /* (failSite: let be a while) */
     return false;
   }
   bDeposit(g, p, s);
@@ -370,6 +386,8 @@ function wTaskHaul(g, p, k) {
   /* (a lump of concrete gone off: on the pile, to go in set where wet concrete would have: build.js bPay) */
   var lumps = Math.min(p.lump || 0, Math.max(0, Math.floor(bNeed(g, s, "mortar"))));
   if (lumps > 0) { s.stock = s.stock || {}; s.stock.lump = (s.stock.lump || 0) + lumps; p.lump -= lumps; }
+  /* (what is left over, that no other great work wants either: into the salvage, not carried about for ever) */
+  wSurplus(g, p);
   if (p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "haul");
   p.bored = 0;
   return iDone(p, true);
@@ -822,14 +840,41 @@ function wSalvageAt(g) {
   var f = mSites(g, "furnace", true)[0];
   if (f) return { x: f.sx, y: mSpotRow(g, f), name: "the store by the furnace" };
   var W = wSites(g);
-  if (W.length) { var x = Math.round(W[0].cx); return { x: x, y: mGround(g, x) - 1, name: "the foot of " + bLabel(W[0]) }; }
+  if (W.length) { var x = Math.round(W[0].cx); return { x: x, y: Math.max(9, mGround(g, x) - 1), name: "the foot of " + bLabel(W[0]) }; }
   var x0 = Math.max(2, Math.min(g.gw - 3, (g.salvage && g.salvage.x) || (g.gw >> 1)));
-  return { x: x0, y: mGround(g, x0) - 1, name: "where it was left" };
+  return { x: x0, y: Math.max(9, mGround(g, x0) - 1), name: "where it was left" };
+}
+/* what of a great work's p carries that none of them wants now (less what is on its way): into the salvage, where it is
+   fetched from when one does */
+function wSurplus(g, p) {
+  var U = wSites(g).filter(function (t) { return !t.done || t.repair; });
+  W_KEEP.concat(["lump"]).forEach(function (r) {
+    if (!((p[r] || 0) > 1e-6)) return;
+    var want = 0;
+    for (var k = 0; k < U.length; k++) want += Math.max(0, (r === "lime" ? wLimeWant(g, U[k]) : bNeed(g, U[k], r === "lump" ? "mortar" : r)) - wInbound(g, U[k], r === "lump" ? "mortar" : r, p));
+    if (want < 1e-6) wSalvage(g, p, [r]);
+  });
+}
+/* where to stand to fetch from the salvage: the standing cell (navStand: ground, room, nothing deadly; in the world, not
+   over the top of it) nearest where it is kept (wSalvageAt), beside the store. {x, y} or null */
+function wSalvageSpot(g) {
+  var a = wSalvageAt(g), best = null, bd = 1e9, d, x, y;
+  for (d = 0; d <= 80 && bd > d; d++) for (var sd = -1; sd <= 1; sd += 2) {
+    x = a.x + sd * d;
+    if (x < 1 || x > g.gw - 2) continue;
+    for (y = 9; y < g.gh; y++) {
+      if (navStand(g, x, y) !== 1) continue;
+      var c = d + Math.abs(y - a.y) * 0.5;
+      if (c < bd) { bd = c; best = { x: x, y: y }; }
+    }
+    if (!d) sd = 2;
+  }
+  return best;
 }
 /* how much of r in the salvage is wanted now, by a great work, or (moon rock) by everybody */
 function wSalvageWant(g, r) {
   var sv = g.salvage, n = 0, k, s;
-  if (!sv || !((sv[r] || 0) >= 1)) return 0;
+  if (!sv || !((sv[r] || 0) >= (r === "bell" ? 1e-6 : 1))) return 0;
   if (r === "moonrock") return sv[r];
   if (r === "barrel") {
     for (k = 0; k < g.sites.length; k++) { s = g.sites[k]; if (s.done && !s.repair && ((s.kind === "moonrocket" && !s.gone && (s.oil || 0) < H_FUEL) || (s.kind === "lighthouse" && s.fuel < H_BARREL))) return 1; }
@@ -837,19 +882,24 @@ function wSalvageWant(g, r) {
   }
   var S = wSites(g).filter(function (t) { return !t.done || t.repair; });
   for (k = 0; k < S.length; k++) n += Math.max(0, r === "lime" ? wLimeWant(g, S[k]) : bNeed(g, S[k], r === "lump" ? "mortar" : r));
-  return Math.min(sv[r], Math.ceil(n - 1e-6));
+  /* (less what is in pockets already, to be hauled there: nothing fetched that would only be left over) */
+  n -= r === "lump" ? wPocketed(g, "lump") + wPocketed(g, "mortar") : wPocketed(g, r);
+  if (n <= 1e-6) return 0;
+  /* (a bell is wanted in ninths, a cell of it to mend: fetched so. the rest, a whole one at a time) */
+  return Math.min(sv[r], r === "bell" ? n : Math.ceil(n - 1e-6));
 }
 /* somebody to fetch what is wanted out of the salvage: one at a time */
 function wGoSalvage(g, p) {
-  if (!g.salvage || p.salvT > g.tick || p.barrel) return false;
+  if (!g.salvage || p.salvT > g.tick || p.barrel || wNoGo(g, p, "salvage")) return false;
   p.salvT = g.tick + 300;
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "salvage") return false; }
-  for (var i = 0; i < W_SALVAGE.length; i++) if (wSalvageWant(g, W_SALVAGE[i]) >= 1) { p.task = { kind: "salvage", t: 0 }; return true; }
+  for (var i = 0; i < W_SALVAGE.length; i++) if (wSalvageWant(g, W_SALVAGE[i]) >= (W_SALVAGE[i] === "bell" ? 1e-6 : 1)) { p.task = { kind: "salvage", t: 0 }; return true; }
   return false;
 }
 function wTaskSalvage(g, p, k) {
   if (!g.salvage || ++k.t > 3000) return iDone(p, false);
-  var at = wSalvageAt(g);
+  var at = k.at;
+  if (!at || navStand(g, at.x, at.y) !== 1) { at = k.at = wSalvageSpot(g); if (!at) { wBackoff(g, p, "salvage"); return iDone(p, false); } }
   if (Math.abs(p.x - at.x - 0.5) > 2 || Math.abs(Math.floor(p.y) - at.y) > 4) {
     if (iWalk(g, p, k, "salvage", at.x, at.y, function (x, y) { return Math.abs(x - at.x) <= 2 && Math.abs(y - at.y) <= 4; })) pGiveUp(g, p, at.x);
     p.idle = 0;
@@ -859,11 +909,12 @@ function wTaskSalvage(g, p, k) {
   W_SALVAGE.forEach(function (r) {
     var n = Math.min(r === "barrel" ? 1 : 8, wSalvageWant(g, r));
     if (r === "barrel" && p.barrel) n = 0;
-    if (n < 1) return;
+    if (r === "bell" ? n <= 1e-6 : n < 1) return;
     sv[r] -= n; p[r] = (p[r] || 0) + n; got += n;
     if (r === "stained") bTints(sv, p, n);
   });
   if (W_SALVAGE.every(function (r) { return !((sv[r] || 0) > 1e-6); })) g.salvage = null;
+  if (!got) wBackoff(g, p, "salvage", 600);
   p.idle = 20;
   return iDone(p, got > 0);
 }

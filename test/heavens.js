@@ -130,6 +130,19 @@ module.exports = function (test, check, sim) {
     s.done = true;
     return s;
   }
+  test("lighthouse: a lamp nobody can get up to is let be, and the barrel goes where it can (a tank), not carried for thousands of ticks", function () {
+    var L = lighthouse(true), w = L.w, g = L.g, s = L.s, M = w.MAT, k, x, y;
+    s.fuel = 0; s.noOil = g.tick + 1e9;
+    var tank = well(w, s.cx + (s.side > 0 ? -60 : 60), w.mGround(g, s.cx + (s.side > 0 ? -60 : 60)), 1);
+    var q = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
+    /* (INERT across the gallery: every bit of air over its floor, out to the edges, but where the lamp is filled from) */
+    for (x = s.x0 - 2; x <= s.x1 + 2; x++) for (y = s.G1 - 10; y < s.G1; y++) if (g.m[y * g.gw + x] === M.EMPTY && Math.abs(x - s.spot) > 1) w.sandPlace(g, y * g.gw + x, M.INERT);
+    q.barrel = 1; q.task = null; q.hunger = 0; q.x = s.cx + (s.side > 0 ? -12 : 12); q.y = L.G - 1;
+    for (k = 0; k < 4500 && q.barrel; k++) sim.step(w, 1);
+    check(!q.barrel && tank.tank === 2, "the barrel is still carried for a lamp nobody can get to (" + k + " ticks): barrel " + q.barrel + ", tank " + tank.tank + ", lamp " + s.fuel + ", salvage " + JSON.stringify(g.salvage) + ", task " + JSON.stringify(q.task && q.task.kind));
+    check(w.wNoGo(g, q, s.id), "the lamp was not let be");
+  });
   test("barrels: dead with a barrel, it goes into a well's tank with room, passing a full one; with no room anywhere, it is kept", function () {
     var w = sim.load(1), g = w.g, G = 150, p = g.peasants[0];
     var full = well(w, 160, G, w.O_TANK), room = well(w, 260, G, 1);
@@ -405,6 +418,21 @@ module.exports = function (test, check, sim) {
     check(s.mould === "bell" && s.phase === 1, "the bell's mould, with a cold cell of iron in it, was not cast into: " + JSON.stringify([s.mould, s.phase]));
     check(Math.abs(ironOf(F) - i0) < 1e-6, "iron went from " + i0 + " to " + ironOf(F));
   });
+  test("foundry: the ninths of a bell kept in the salvage mend a bell's cell, and no new bell is cast for it", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k;
+    w.wDef({ id: "bellwant4" });
+    var x = s.x1 + 20, G = w.mGround(g, x), e = w.bE(g, x, G - 1, M.METAL, 0); e.res = "bell"; e.cost = 1 / 9;
+    var t = w.bNew(g, "bellwant4", F.p, [e], [x, G - 1, x, G - 1], { wonder: true });
+    g.salvage = { bell: 8 / 9, x: x };
+    check(w.hFoundryWant(g, s) === "", "the foundry wants to cast " + w.hFoundryWant(g, s) + ", with 8/9 of a bell kept");
+    var q = g.peasants.filter(function (o) { return !o.dead; })[0];
+    q.task = null; q.hunger = 0;
+    check(w.wGoSalvage(g, q), "(the test wants somebody sent for it)");
+    for (k = 0; k < 8000 && g.m[e.i] !== M.METAL; k++) sim.step(w, 1);
+    check(g.m[e.i] === M.METAL, "the bell's cell was never mended from the salvage: " + JSON.stringify(g.salvage));
+    check(g.salvage && Math.abs(g.salvage.bell - 7 / 9) < 1e-6, "the salvage has " + JSON.stringify(g.salvage) + ", not 7/9 of a bell");
+    void t;
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });
@@ -532,6 +560,23 @@ module.exports = function (test, check, sim) {
     for (x = 160; x <= 172; x++) for (y = G - 14; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);   /* (let out) */
     for (k = 0; k < 6000 && q.moonrock > 0; k++) sim.step(w, 1);
     check(!q.moonrock && rock() === 2, "the moon rock was not set out on open ground: " + q.moonrock + " carried, " + rock() + " out");
+  });
+  test("moon rocket: at 11 of 12 barrels, two fetching: it takes one, and the other barrel goes back, none lost", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, k;
+    var wl = well(w, 200, w.mGround(g, 200), 4);
+    s.oil = 11;
+    var a = g.peasants[0], b = g.peasants[1];
+    g.peasants.forEach(function (o) { if (o !== a && o !== b) o.dead = 1; });
+    [a, b].forEach(function (o) { o.task = { kind: "fuel", site: s.id, t: 0, act: 0 }; o.hunger = 0; });
+    function all() { return (s.oil || 0) + wl.tank + (a.barrel || 0) + (b.barrel || 0) + ((g.salvage && g.salvage.barrel) || 0); }
+    var n0 = all();
+    var most = 0;
+    for (k = 0; k < 6000; k++) {
+      sim.step(w, 1); most = Math.max(most, s.oil || 0);
+      if (s.oil === 12 && [a, b].every(function (o) { return !o.barrel && !(o.task && o.task.kind === "fuel"); })) break;   /* (before the crew get in) */
+    }
+    check(most === 12 && s.oil === 12, "the rocket had up to " + most + " barrels in it");
+    check(all() === n0, "barrels went from " + n0 + " to " + all());
   });
   test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
