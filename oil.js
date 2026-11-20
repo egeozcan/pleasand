@@ -654,6 +654,7 @@ function oLaunch(g, p) {
   var vx = p.dir * clamp((room - 20) / 140, 0.1, 0.8);
   if (!oClearFlight(g, p.x, p.y, vx)) return false;   /* (a tower, a tree, a roof in the way of the climb: not here) */
   p.fuel = oFuel(p) - 1;
+  hFlew(g, p);   /* (counted, for the moon rocket: heavens.js) */
   p.state = "fly"; p.flyT = 0; p.launch = 1; p.immune = Math.max(p.immune || 0, 600); p.fallY = p.y;
   p.vx = vx; p.vy = -O_LAUNCH; p.spin = 0;
   p.task = null; p.idle = 0; p.bored = 0; p.falling = false;

@@ -876,7 +876,7 @@ function mTaskLookout(g, p, k) {
     if (g.blaze.length) pSay(g, p, "spotFire", true);
     else pSay(g, p, "lookout", true);
   }
-  if (k.act > 360) { p.bored = 0; return iDone(p, true); }
+  if (k.act > 360) { p.bored = 0; if (s.kind === "tower") hLooked(g, p); return iDone(p, true); }   /* (counted: heavens.js) */
   return true;
 }
 
@@ -1006,6 +1006,7 @@ function mTaskSmelt(g, p, k) {
   /* a bar of iron */
   st.ore--; st.coal--; k.act = 0; k.n++;
   p.iron = (p.iron || 0) + 1; g.iron = (g.iron || 0) + 1;
+  hSmelted(g, p);   /* (counted, for the foundry: heavens.js) */
   g.fx.clang++;
   sparks(g, s.fc + 0.5, s.G - 2, 10, 0.7, SPARK_HOT, 10, 0.4, PK_GLINT);
   if (g.oilSeen) iSpark(g, p, "oil");   /* (iron, and that smell: a derrick) */

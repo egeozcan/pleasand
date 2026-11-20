@@ -61,7 +61,8 @@ B_RES[MAT.GLASS] = "glass"; B_AMT[MAT.GLASS] = 1;   /* (a pane of glass a cell: 
 B_RES[MAT.CONCRETE] = "mortar"; B_AMT[MAT.CONCRETE] = 1;
 B_RES[MAT.STAINED] = "stained"; B_AMT[MAT.STAINED] = 1;
 B_RES[MAT.FIREBRICK] = "firebrick"; B_AMT[MAT.FIREBRICK] = 1;
-var B_KINDS = ["wood", "stone", "iron", "gold", "glass", "firebrick", "stained"];
+B_RES[MAT.METAL] = "plate"; B_AMT[MAT.METAL] = 1;   /* (a rocket's hull: and its engine bell, which says so itself. heavens.js) */
+var B_KINDS = ["wood", "stone", "iron", "gold", "glass", "firebrick", "stained", "plate", "bell"];
 /* what a spade can shift: loose stuff, and greenery */
 var B_DIG = new Uint8Array(NMAT);
 [MAT.SAND, MAT.ASH, MAT.SNOW, MAT.SALT, MAT.SEED, MAT.PLANT, MAT.FLOWER, MAT.PACKSNOW].forEach(function (v) { B_DIG[v] = 1; });
@@ -208,7 +209,8 @@ function bSupported(g, e) {
 }
 function bReach(g, p, e) {
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, fy = Math.floor(p.y);
-  return Math.abs(x + 0.5 - p.x) <= B_REACH_X && y >= fy - B_REACH_UP && y <= fy + B_REACH_DOWN;
+  /* (a great work can say it is reached from further off: leaning out from a gantry, say. heavens.js) */
+  return Math.abs(x + 0.5 - p.x) <= (e.rx || B_REACH_X) && y >= fy - (e.ru || B_REACH_UP) && y <= fy + (e.rd || B_REACH_DOWN);
 }
 /* the next cell to do: the earliest phase with work left in it, and in that, the first cell that can go in now and is
    within reach of p; failing that, the nearest one to p. null when there is nothing left that can be done */
@@ -287,10 +289,10 @@ function bWood(p) { return (p.logs || 0) + (p.boards || 0) / B_BOARDS; }
 /* what they have in their pockets of a building material, in the units a cell is priced in (wood: boards) */
 function bHas(p, r) { return r === "wood" ? (p.boards || 0) + (p.logs || 0) * B_BOARDS : (p[r] || 0); }
 /* carrying anything worth bringing to a building site */
-function bCarries(p) { return bWood(p) > 0.3 || (p.stone || 0) >= 1 || (p.iron || 0) >= 0.2 - 1e-6 || (p.gold || 0) >= 0.2 || (p.glass || 0) >= 1 || (p.firebrick || 0) >= 1 || (p.stained || 0) >= 1 || (p.mortar || 0) >= 1; }
+function bCarries(p) { return bWood(p) > 0.3 || (p.stone || 0) >= 1 || (p.iron || 0) >= 0.2 - 1e-6 || (p.gold || 0) >= 0.2 || (p.glass || 0) >= 1 || (p.firebrick || 0) >= 1 || (p.stained || 0) >= 1 || (p.mortar || 0) >= 1 || (p.plate || 0) >= 1 || (p.bell || 0) >= 1; }
 /* what a cell of the plan costs: {r: what in, n: how much}. (an entry can be priced on its own: a miner's ladder is
    knocked together out of the pit props, and costs nothing anybody has to carry) */
-function bPrice(e) { var n = e.cost != null ? e.cost : B_AMT[e.v]; return n > 0 ? { r: B_RES[e.v], n: n } : null; }
+function bPrice(e) { var n = e.cost != null ? e.cost : B_AMT[e.v]; return n > 0 ? { r: e.res || B_RES[e.v], n: n } : null; }   /* (or in something of its own: heavens.js) */
 /* how much more of r a site wants, for everything still to go in, over what is already stacked on it */
 function bNeed(g, s, r) {
   var n = 0, k, e, pr;
@@ -714,7 +716,7 @@ function bTaskBuild(g, p, k) {
       return false;
     }
     /* find a way to somewhere the next piece is in reach from (paths.js) */
-    var left = pathGo(g, p, "b" + s.id + ":" + e.i, x, y, pathNear(x, y, 4, B_REACH_UP, B_REACH_DOWN));
+    var left = pathGo(g, p, "b" + s.id + ":" + e.i, x, y, pathNear(x, y, e.rx ? Math.floor(e.rx) : 4, e.ru || B_REACH_UP, e.rd || B_REACH_DOWN));
     if (left < 0) {
       /* no way there that they can see. right under it: try from further in (off the ground and onto the floor) */
       if (Math.abs(dx) <= 1.5) { k.idle += 3; p.dir = s.cx < p.x ? -1 : 1; }

@@ -170,6 +170,7 @@ function wTold(t) {
   switch (t.kind) {
     case "death": return n + " " + (W_HOW[t.also] || "died");
     case "space": return n + " went to space";
+    case "moon": return n + " went to the moon";
     case "zap": return n + " was struck by lightning";
     case "pack": return n + " came down hard on a rocket pack";
     case "nuke": return "the nuke went off";
@@ -650,7 +651,7 @@ function wWentOff(g, p) {
 /* a wonder going up wants iron: new tools wait for iron to spare (mines.js mGoForge), props and posts wait as they do */
 function wIronHeld(g) {
   if (g.wIronTest) return true;
-  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && bNeed(g, s, "iron") > 0.01) return true; }
+  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && (bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01)) return true; }   /* (plates and an engine bell are iron, cast: heavens.js) */
   return false;
 }
 /* gold in a plan is gilding: with no gold about (in pockets, or on piles), a stone stand-in, gilded later */
@@ -827,6 +828,8 @@ function wTaskAudience(g, p, k) {
 function wStep(g) {
   /* (a wonder that wants a look every tick, while it stands: the organ, listening at its pipes. pleasures.js) */
   if (g.wTick) for (var t = 0; t < g.sites.length; t++) { var ts = g.sites[t], td = ts.wonder && wOf(ts.kind); if (td && td.tick) td.tick(g, ts); }
+  /* (and every tick: whatever of theirs is in the air, a falling star or a rocket, or a beam going round. heavens.js) */
+  for (var k0 = 0; k0 < W_DEFS.length; k0++) if (W_DEFS[k0].air) W_DEFS[k0].air(g);
   if (g.tick % W_STRIDE) return;
   wDraughtStep(g);
   /* anything here going on at all: a wonder (or one of the two plain ideas they need) thought of, or a wonder site.
@@ -1006,6 +1009,8 @@ function wBack(g, x, y, col, f) {
 }
 function wDraw(g) {
   var hot = 0, k, s, d;
+  /* (and what is in the sky, whatever site it came of: falling stars, a rocket, a flag on the moon. heavens.js) */
+  for (k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].sky) hot += W_DEFS[k].sky(g) || 0;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     if (!s.wonder || !(d = wOf(s.kind)) || !d.draw) continue;

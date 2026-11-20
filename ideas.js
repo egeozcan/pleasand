@@ -314,6 +314,7 @@ function iReadyScan(g) {
 }
 /* a lit lantern within a few steps of (x, y) */
 function iLampNear(g, x, y) {
+  if (hBeamLit(g, x, y)) return true;   /* (or the lighthouse's beam, going over: heavens.js) */
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind === "lamp" && Math.abs(s.x0 - x) < 8 && Math.abs(s.y1 - y + 4) < 9 && g.m[s.plan[1].i] === MAT.LAMP) return true;

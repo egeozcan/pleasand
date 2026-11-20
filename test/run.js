@@ -2472,6 +2472,7 @@ test("a door buried over its lintel is shut, and the heap is full by its height 
 require("./wonders.js")(test, check, sim);
 require("./monuments.js")(test, check, sim);
 require("./pleasures.js")(test, check, sim);
+require("./heavens.js")(test, check, sim);
 
 var failed = 0, t0 = Date.now();
 tests.forEach(function (t) {
