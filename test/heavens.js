@@ -130,6 +130,24 @@ module.exports = function (test, check, sim) {
     s.done = true;
     return s;
   }
+  test("barrels: dead with a barrel, it goes into a well's tank with room, passing a full one; with no room anywhere, it is kept", function () {
+    var w = sim.load(1), g = w.g, G = 150, p = g.peasants[0];
+    var full = well(w, 160, G, w.O_TANK), room = well(w, 260, G, 1);
+    p.x = 165.5; p.y = G - 1; p.barrel = 1;
+    w.pDie(g, p, "drain");
+    check(room.tank === 2 && full.tank === w.O_TANK, "the barrel went " + full.tank + "/" + room.tank);
+    room.tank = w.O_TANK;
+    var q = g.peasants[1]; q.x = 165.5; q.y = G - 1; q.barrel = 1;
+    w.pDie(g, q, "drain");
+    check(g.salvage && g.salvage.barrel === 1, "the barrel was lost with every tank full: " + JSON.stringify(g.salvage));
+  });
+  test("barrels: a barrel in hand with nowhere wanting it goes back into a well's tank with room, not kept in a pocket", function () {
+    var w = sim.load(1), g = w.g, G = 150, p = g.peasants[0];
+    var s = well(w, 260, G, 1);
+    p.x = 165.5; p.y = G - 1; p.barrel = 1;
+    w.hDeliverBarrel(g, p);
+    check(!p.barrel && s.tank === 2, "the barrel stayed in the pocket: " + p.barrel + ", tank " + s.tank);
+  });
   test("lighthouse: a painted lake of 480 cells puts it into the head of the first one to swim in it", function () {
     var L = lake(), w = L.w, g = L.g, p = g.peasants[0], k;
     p.x = 190.5; p.y = L.G + 8; p.state = "walk";

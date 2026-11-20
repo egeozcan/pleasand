@@ -75,8 +75,8 @@ function hGo(g, p, k, key, x, y, dx, dy) {
   return true;
 }
 /* a barrel already in hand (a fetch that timed out, or the job taken off them): taken where it is wanted before anybody
-   fetches another, the rocket's tank or a lighthouse's lamp (wonders.js wPick, first). with nowhere wanting it yet, it is
-   kept till somewhere does. true if they have somewhere to take it */
+   fetches another, the rocket's tank or a lighthouse's lamp (wonders.js wPick, first). with nowhere wanting it yet, into
+   a well's tank with room, or the salvage (wonders.js). true if they have somewhere to take it */
 function hDeliverBarrel(g, p) {
   if (!p.barrel) return false;
   var k, s, best = null, bd = 1e9;
@@ -87,7 +87,9 @@ function hDeliverBarrel(g, p) {
     if (want && Math.abs(s.cx - p.x) < bd) { bd = Math.abs(s.cx - p.x); best = s; }
   }
   if (best) { p.task = { kind: best.kind === "lighthouse" ? "keep" : "fuel", site: best.id, t: 0, act: 0 }; if (best.kind === "lighthouse") best.keeper = p.id; return true; }
-  return false;   /* (nowhere wants it yet: kept, till somewhere does) */
+  /* (nowhere wants it yet: back into a well's tank with room, else the salvage, to be fetched when somewhere does) */
+  if (!wTankIn(g, p)) wSalvage(g, p, ["barrel"]); else p.barrel = 0;
+  return false;
 }
 /* a barrel of oil out of the nearest well's tank, at its pump: for the keeper and the rocket. 1 once they have it, 0
    while they are on their way, -1 if there is none to be had */
@@ -1456,7 +1458,7 @@ function hRocketPick(g, p, hungry) {
 }
 /* the moon rock, set out at the foot of the statue (or of the gantry; or, with neither, on open ground near where they
    are). never thrown away: with nowhere to set it out, it is kept, and they try again in a while (and dead, it is set
-   down where they fell, or put on a pile: wonders.js wDropAll) */
+   into the salvage: wonders.js wDropAll) */
 function hTaskMoonRock(g, p, k) {
   if (!(p.moonrock > 0)) return iDone(p, false);
   if (++k.t > 4000) { p.rockT = g.tick + 600; return iDone(p, false); }
