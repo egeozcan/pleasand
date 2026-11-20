@@ -1065,6 +1065,7 @@ function hTaskFound(g, p, k) {
         if ((pass === 0 && !by) || (pass === 1 && n >= 2)) continue;
         if (!hCoal(g, p, s)) break;
         sandPlace(g, j, MAT.EMBER); g.aux[j] = 1; heatAccept(g, j); s.coals = (s.coals || 0) + 1; burning++;
+        if (s.phase === 2) s.meltT = g.tick;   /* (fire in it: the melt has its while again, from now) */
       }
     }
     if (k.act % 200 === 50 && p.sayT <= 0) pSay(g, p, "bellows");
@@ -1082,7 +1083,7 @@ function hTaskFound(g, p, k) {
         pSay(g, p, "tap", true); g.fx.clang++;
         sparks(g, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, 10, 0.8, SPARK_HOT, 10, 0.3, PK_GLINT);
         if (s.casts === 1) feed(g, p.name + " tapped the foundry. the iron runs like water", "#ffd27a", "found" + s.id);
-      } else if (g.tick - s.meltT > 6000) { if (p.sayT <= 0) pSay(g, p, "nocoal"); return iDone(p, false); }
+      } else if (g.tick - s.meltT > 6000 && k.act > 10) { if (p.sayT <= 0) pSay(g, p, "nocoal"); return iDone(p, false); }   /* (not before they have had a go at stoking it) */
       return true;
     }
     /* pouring: it runs out of the tap and down into the mould, a cell at a time, and goes on running out while what is

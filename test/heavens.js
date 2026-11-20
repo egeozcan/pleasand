@@ -302,6 +302,16 @@ module.exports = function (test, check, sim) {
     var q1 = w.heatQ(g, j) + w.heatQ(g, to);
     check(Math.abs(q1 - q0) < 1e-3, "the pour went from " + q0 + " to " + q1 + " heat");
   });
+  test("foundry: charged with no coal to be had, it goes cold; coal brought later, it is fired up again and melts", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k;
+    F.p.coal = 0;
+    for (k = 0; k < 9000 && !(s.phase === 2 && g.tick - s.meltT > 6000 && !(F.p.task && F.p.task.kind === "found")); k++) sim.step(w, 1);
+    check(s.phase === 2, "(the test wants it charged, and gone cold: phase " + s.phase + ")");
+    F.p.coal = 80;
+    for (k = 0; k < 6000 && s.phase === 2; k++) sim.step(w, 1);
+    check(F.p.coal < 80, "none of the coal went in");
+    check(s.phase >= 3, "it never melted (phase " + s.phase + ", " + Math.round(w.hChamber(g, s).hi) + "°)");
+  });
   test("foundry: a charge of two bars, tapped, sets in the plate mould and is prised out as plates; the iron is all there, none of it outside, and the ash is raked out", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F), fb = fireb(F), first = 0, set = 0;
     var mould = w.hMould(g, s, "plate");
