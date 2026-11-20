@@ -122,7 +122,7 @@ function mPlotAny(g, o) {
 }
 /* the theatre's columns, stage end first: u (0 .. M_TW - 1) to x */
 var M_TW = 17;   /* the theatre, across: the stage (seven), the pit (one), three tiers of three */
-function mU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + M_TW - 1 - u; }
+function mU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + (s.tw || M_TW) - 1 - u; }   /* (s.tw: its own width, kept on it when planned) */
 function mPlanTheatre(g, p) {
   var best = null;
   for (var d = -1; d <= 1; d += 2) {
@@ -131,7 +131,7 @@ function mPlanTheatre(g, p) {
   }
   if (!best) return false;
   var f = best.r, plan = mCleared(g, best, f.plan), G = f.G, x0 = best.x0, d = best.d;
-  var s = bNew(g, "theatre", p, plan, [x0, G - 14, x0 + M_TW - 1, f.lo], { wonder: true, d: d, G: G, seats: f.seats, playT: 0 });
+  var s = bNew(g, "theatre", p, plan, [x0, G - 14, x0 + M_TW - 1, f.lo], { wonder: true, d: d, G: G, seats: f.seats, playT: 0, tw: M_TW });
   feed(g, p.name + " is building a theatre", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planTheatre", true);
   if (bCarries(p)) bJoin(g, p, s);
@@ -326,7 +326,7 @@ function mDrawTheatre(g, s) {
   for (u = 1; u <= 7; u++) { wBack(g, mU(s, u), G - 11, M_CURTAIN, 0.95); if (u & 1) wBack(g, mU(s, u), G - 10, M_CURTAIN_D, 0.95); }
   /* the risers in shadow, under the lip of each tier above, so the steps read as steps */
   for (k = 1; k <= 3; k++) {
-    var ri = (G - 2 * k + 1) * g.gw + mU(s, 5 + 3 * k);
+    var ri = (G - 2 * k + 1) * g.gw + mU(s, (s.tw || M_TW) === 21 ? 5 + 4 * k : 5 + 3 * k);
     if (g.m[ri] === MAT.BRICK) g.px[ri] = blend32(g.px[ri], 0xff000000, 0.3);
   }
   /* the post, on the ground at the edge of the pit, up to the end of the beam */

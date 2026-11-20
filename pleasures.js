@@ -383,7 +383,12 @@ function pLift(g, i, j) {
 var P_GW = 21;                     /* the gardens, across: pool, three terraces, cistern */
 var P_GPW = 3;                     /* the pool, across, inside its walls (room for whoever digs it out, and clears it) */
 var P_GLIP = [4, 9, 14];           /* each terrace's lip (and the pier under it; the first is the pool's wall); its bed is the columns after, to the next */
-function pGBedEnd(k) { return k < 2 ? P_GLIP[k + 1] - 1 : P_GC - 1; }   /* (four, four, and three under the cistern) */
+/* (a built gardens' own measures, kept on its site when it was planned: the constants may have changed since) */
+function pGLip(s) { return (s && s.glip) || P_GLIP; }
+function pGC(s) { return (s && s.gc) || P_GC; }
+function pGW(s) { return (s && s.gw) || P_GW; }
+function pGBedEnd(s, k) { return k < 2 ? pGLip(s)[k + 1] - 1 : pGC(s) - 1; }   /* (four, four, and three under the cistern) */
+function pGPoolN(s) { return (s.bw || P_GPW) * (s.bh || P_GPOOL); }
 var P_GC = 18;                     /* the cistern: its low wall (spilling onto the top terrace), its inside, its high wall */
 var P_GSTEP = 5;                   /* rows each terrace stands over the last */
 var P_GSKY = 7;                    /* clear rows over each (wheat grows I_CROP_H, give or take two) */
@@ -417,7 +422,7 @@ wDef({
   label: function () { return "the hanging gardens"; },
   readout: function (g, s) {
     if (!s.done) return "";
-    return "the pool: " + (P_GPOOL_N - wBathNeed(g, s)) + " of " + P_GPOOL_N + ". the cistern: " + pCisternWater(g, s) + (pTurner(g, s) ? ". the screw is turning" : "");
+    return "the pool: " + (pGPoolN(s) - wBathNeed(g, s)) + " of " + pGPoolN(s) + ". the cistern: " + pCisternWater(g, s) + (pTurner(g, s) ? ". the screw is turning" : "");
   },
   mood: function (g, p, k) {
     if (k.kind === "screw") return k.on ? "is turning the screw at the hanging gardens, and singing" : "is off to turn the screw at the gardens";
@@ -436,7 +441,7 @@ function pGardensNoRoom(g, p, wide) {
   wSpark(g, p, "gardens");
 }
 /* the gardens' columns, foot first: u (0 .. P_GW - 1) to x */
-function pGU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + P_GW - 1 - u; }
+function pGU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + pGW(s) - 1 - u; }
 /* terrace k's bed row, over the pool's waterline Y0 */
 function pGBed(Y0, k) { return Y0 - 3 - P_GSTEP * k; }
 function pPlanGardens(g, p) {
@@ -448,7 +453,7 @@ function pPlanGardens(g, p) {
   if (!best) return false;
   var f = best.r, x0 = best.x0, d = best.d, Y0 = f.Y0;
   var s = bNew(g, "gardens", p, wCleared(g, best, f.plan), [x0, pGBed(Y0, 2) - P_GSKY - 1, x0 + P_GW - 1, Y0 + P_GPOOL],
-               { wonder: true, d: d, Y0: Y0, bath: true, L: Y0, px0: d > 0 ? x0 + 1 : x0 + P_GW - 1 - P_GPW, bw: P_GPW, bh: P_GPOOL,
+               { wonder: true, d: d, Y0: Y0, bath: true, L: Y0, px0: d > 0 ? x0 + 1 : x0 + P_GW - 1 - P_GPW, bw: P_GPW, bh: P_GPOOL, gw: P_GW, glip: P_GLIP.slice(), gc: P_GC,
                  crankX: f.crankX, crankY: f.crankY, screw: f.path, strokes: 0, lifted: 0 });
   feed(g, p.name + " is building the hanging gardens. three fields, one over the other", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planGardens", true);
@@ -582,12 +587,12 @@ function pGardensFit(g, x0, gy, d) {
 /* the pool's dry cells, lowest first (FILLING); none, once it is nearly full */
 function pPoolDry(g, s) {
   var out = [], x, y;
-  if (P_GPOOL_N - wBathNeed(g, s) >= P_GPOOL_N - 2) return out;
+  if (pGPoolN(s) - wBathNeed(g, s) >= pGPoolN(s) - 2) return out;
   for (y = s.L + P_GPOOL - 1; y >= s.L; y--) for (x = s.px0; x < s.px0 + P_GPW; x++) if (AIRY[pCell(g, x, y)]) out.push(y * g.gw + x);
   return out;
 }
 /* the cistern: its one column, and how much water is in it */
-function pCisternX(s) { return pGU(s, P_GC + 1); }
+function pCisternX(s) { return pGU(s, pGC(s) + 1); }
 function pCisternWater(g, s) {
   var n = 0, x = pCisternX(s), Y2 = pGBed(s.Y0, 2);
   for (var y = Y2 - 6; y < Y2; y++) if (WET[pCell(g, x, y)]) n++;
@@ -618,7 +623,7 @@ function pTerraces(g, s) {
     for (j = 0; j < g.sites.length; j++) if (g.sites[j].kind === "farm" && g.sites[j].terrace === s.id && g.sites[j].tier === k) have = true;
     if (have) continue;
     var Yk = pGBed(s.Y0, k), plan = [], xa = 1e9, xb = -1;
-    for (u = P_GLIP[k] + 1; u <= pGBedEnd(k); u++) {
+    for (u = pGLip(s)[k] + 1; u <= pGBedEnd(s, k); u++) {
       var x = pGU(s, u);
       xa = Math.min(xa, x); xb = Math.max(xb, x);
       /* (a stalk in every furrow, not every other one as on the flat: a gap between two stalks is a little pond that
@@ -633,7 +638,7 @@ function pTerraces(g, s) {
 function pGardensPick(g, p, hungry) {
   var s = mSites(g, "gardens", true)[0];
   if (!s || hungry || s.repair) return false;
-  if (P_GPOOL_N - wBathNeed(g, s) < P_GTURN && Math.abs(s.cx - p.x) < 220 && Math.random() < 0.4 && pGoFill(g, p, s)) return true;
+  if (pGPoolN(s) - wBathNeed(g, s) < P_GTURN && Math.abs(s.cx - p.x) < 220 && Math.random() < 0.4 && pGoFill(g, p, s)) return true;
   return false;
 }
 /* every W_STRIDE ticks: the terraces kept, and a screw-turner while there is water in the pool to lift */
@@ -641,8 +646,8 @@ function pGardensStep(g, s) {
   if (s.built) pTerracesSown(g, s);   /* (mending, or not) */
   if (!s.done || s.repair) return;
   if (g.tick % 600 === 0) pTerraces(g, s);   /* (a terrace the village gave up on is a terrace again, a while later) */
-  pCallFill(g, s, P_GPOOL_N - P_GTURN);   /* (filled up before it is too low to turn the screw on: or it never is) */
-  if (pTurner(g, s) || P_GPOOL_N - wBathNeed(g, s) < P_GTURN || g.tick < (s.turnT || 0) || g.blaze.length) return;
+  pCallFill(g, s, pGPoolN(s) - P_GTURN);   /* (filled up before it is too low to turn the screw on: or it never is) */
+  if (pTurner(g, s) || pGPoolN(s) - wBathNeed(g, s) < P_GTURN || g.tick < (s.turnT || 0) || g.blaze.length) return;
   /* (not until the terraces are sown: a furrow under water is a furrow nobody can sow) */
   for (var j = 0; j < g.sites.length; j++) if (g.sites[j].terrace === s.id && !g.sites[j].done) return;
   var best = null, bd = 1e9, k, q;
@@ -674,7 +679,7 @@ function pTaskScrew(g, p, k) {
   var from = -1, to = -1, x, y, cxs = pCisternX(s), Y2 = pGBed(s.Y0, 2);
   for (y = s.L; y < s.L + P_GPOOL && from < 0; y++) for (x = s.px0; x < s.px0 + P_GPW; x++) if (WET[pCell(g, x, y)]) { from = y * g.gw + x; break; }
   for (y = Y2 - 6; y < Y2 && to < 0; y++) if (pCell(g, cxs, y) === MAT.EMPTY) to = y * g.gw + cxs;
-  if (from < 0 || to < 0 || P_GPOOL_N - wBathNeed(g, s) < P_GSTOP || k.n >= P_SHIFT) {
+  if (from < 0 || to < 0 || pGPoolN(s) - wBathNeed(g, s) < P_GSTOP || k.n >= P_SHIFT) {
     s.turnT = g.tick + 2400;
     if (p.sayT <= 0) pSay(g, p, "screwDone", true);
     p.bored = 0;
@@ -691,7 +696,7 @@ function pDrawGardens(g, s) {
   if (!s.done) return 0;
   var k, y, Y0 = s.Y0, t = pTurner(g, s), turning = t && t.task.on;
   for (k = 0; k < 3; k++) {
-    var Yk = pGBed(Y0, k), lx = pGU(s, P_GLIP[k]), foot = k ? pGBed(Y0, k - 1) - 1 : Y0 - 1;
+    var Yk = pGBed(Y0, k), lx = pGU(s, pGLip(s)[k]), foot = k ? pGBed(Y0, k - 1) - 1 : Y0 - 1;
     /* (a flower on the lip, where the water goes over) */
     wBack(g, lx, Yk - 2, P_FLOWERS[(k + s.id) % 4]);
     /* (vines off the lip, trailing down the face of the riser, longer and shorter) */

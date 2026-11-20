@@ -206,6 +206,18 @@ module.exports = function (test, check, sim) {
     check(count(M.WATER) >= w.P_GTURN, "the pool has only " + count(M.WATER) + " of water in it, and " + count(M.SAND) + " of sand");
   });
 
+  test("gardens: built ones keep their own measures: a terrace planned again goes where it was, whatever the plan's numbers are now", function () {
+    var G = gardens(0, true), w = G.w, g = G.g, s = G.s;
+    var T = G.T.filter(function (t) { return t.tier === 0; })[0], cols = T.plan.map(function (e) { return e.i % g.gw; }).sort().join(",");
+    w.eval("P_GLIP = [6, 13, 20]; P_GC = 27; P_GW = 30");   /* (the numbers changed since: a save from before) */
+    w.bRemove(g, g.sites.indexOf(T));
+    w.pTerraces(g, s);
+    var T2 = g.sites.filter(function (t) { return t.terrace === s.id && t.tier === 0; })[0];
+    check(!!T2, "(the test wants the terrace planned again)");
+    var cols2 = T2.plan.map(function (e) { return e.i % g.gw; }).sort().join(",");
+    check(cols2 === cols, "the terrace was planned again on " + cols2 + ", not " + cols);
+  });
+
   /* ---------------------------------------------------------------
      THE STEAM ORGAN
      --------------------------------------------------------------- */
