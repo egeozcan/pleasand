@@ -170,6 +170,22 @@ module.exports = function (test, check, sim) {
     check(w.curPick(h.g).name === "CLONER", "restored checkpoint kf0 with " + w.curPick(h.g).name + " picked");
   });
 
+  test("wonders: gold is never waited for: planned in gold, and the gold gone, it goes in in stone, to be gilded later", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0];
+    g.peasants.forEach(function (q) { q.gold = 0; });
+    p.gold = 1;   /* (gold on hand, when it was planned) */
+    var x = Math.floor(p.x) + 8, G = w.mGround(g, x);
+    cairnDef(w);
+    var plan = w.wGild(g, [w.bE(g, x, G - 1, M.BRICK, 0), w.bE(g, x, G - 2, M.GOLD, 1)]);
+    check(plan[1].v === M.GOLD, "(the test wants it planned in gold)");
+    var s = w.bNew(g, "cairn", p, plan, [x, G - 2, x, G - 1], { wonder: true });
+    g.know.cairn = "TEST";
+    p.gold = 0;   /* (and the gold gone: spent, or gone with whoever had it) */
+    sim.step(w, 60);
+    check(plan[1].v === M.BRICK, "the cell planned in gold still waits for gold that is not there");
+    void s;
+  });
+
   test("wonders: forced draught: a closed firebrick chamber of lit coal passes 1500 with the bellows, and not without", function () {
     function chamber(draught) {
       var w = sim.load(1), g = w.g, M = w.MAT, x0 = 200, y0 = 60, x, y, cells = [], hi = 0;

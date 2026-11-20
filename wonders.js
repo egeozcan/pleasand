@@ -783,10 +783,24 @@ function wGild(g, plan) {
   for (k = 0; k < plan.length; k++) {
     e = plan[k];
     if (e.v !== MAT.GOLD) continue;
+    e.gild = true;   /* (gold or not, gilding: wGoldGone) */
     if (gold >= B_AMT[MAT.GOLD] - 1e-6) { gold -= B_AMT[MAT.GOLD]; continue; }
-    e.v = MAT.BRICK; e.gild = true;
+    e.v = MAT.BRICK;
   }
   return plan;
+}
+/* gilding still to go in, and no gold in the valley for it now (spent, or gone with whoever carried it): its stand-in
+   instead (stone, or what the plan says: e.alt), gilded later if gold turns up. gold is never what a great work waits
+   for. every W_STRIDE ticks, for one going up */
+function wGoldGone(g, s) {
+  var gold = -1;
+  for (var k = 0; k < s.plan.length; k++) {
+    var e = s.plan[k];
+    if (e.v !== MAT.GOLD || !e.gild || bOk(g, e)) continue;
+    if (gold < 0) { gold = mGoldToHand(g) + ((s.stock && s.stock.gold) || 0); }
+    if (gold >= B_AMT[MAT.GOLD] - 1e-6) { gold -= B_AMT[MAT.GOLD]; continue; }
+    e.v = e.alt || MAT.BRICK; if (e.v === MAT.PLANK) e.paint = true;
+  }
 }
 /* a wonder with a stand-in in it, and gold about now: gilded, as a repair */
 function wRegild(g, s) {
@@ -990,7 +1004,7 @@ function wStep(g) {
     d = wOf(s.kind);
     /* set at last: finished (bFinish waited for it) */
     if (s.setting && !s.done && wReady(g, s) && bFinished(g, s)) bFinish(g, s, null);
-    if (s.done || s.gilding) wRegild(g, s);
+    if (s.done || s.gilding) wRegild(g, s); else wGoldGone(g, s);
     wLayBy(g, s);
     s.note = (s.laid ? "laid by: " : "") + wNote(g, s);
     if (d && d.step) d.step(g, s);

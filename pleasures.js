@@ -1218,7 +1218,7 @@ function pPlanPalace(g, p) {
   if (!best) return false;
   /* (the dome: gold if there is gold to spare, and planks painted if there is not) */
   var gold = mGoldToHand(g);
-  best.plan.forEach(function (e) { if (e.v !== MAT.GOLD) return; if (gold >= B_AMT[MAT.GOLD]) gold -= B_AMT[MAT.GOLD]; else { e.v = MAT.PLANK; e.paint = true; } });
+  best.plan.forEach(function (e) { if (e.v !== MAT.GOLD) return; e.gild = true; e.alt = MAT.PLANK; if (gold >= B_AMT[MAT.GOLD]) gold -= B_AMT[MAT.GOLD]; else { e.v = MAT.PLANK; e.paint = true; } });   /* (gold that goes later is painted planks: wonders.js wGoldGone) */
   var s = bNew(g, "duckpalace", p, best.plan, [best.x0, best.Y - 10, best.x0 + P_DW - 1, best.Y],
                { wonder: true, d: best.d, Y: best.Y, hatched: 0, fed: 0 });
   feed(g, p.name + " is building a palace. for the ducks", "#ffd94a", "plan" + s.id);
