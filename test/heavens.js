@@ -393,6 +393,26 @@ module.exports = function (test, check, sim) {
     var carried = crew.filter(function (q) { return !q.dead && q.moonrock > 0; }).length;
     check(alive > 0 && (rock >= 2 || carried > 0), alive + " came back alive, and " + rock + " moon rock was set out, " + carried + " still carrying it: " + crew.map(function (q) { return q.state + " " + q.dead + " rock " + q.moonrock + " " + (q.task && q.task.kind) + " " + q.x.toFixed(0) + "," + q.y.toFixed(0); }).join("; ") + " pad " + s.rx + " out " + g.hRockOut);
   });
+  test("moon rocket: pulled down with its crew aboard, they come out; and a save with crew aboard a rocket that is not there lets them out", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, k;
+    s.oil = 12;
+    g.peasants[2].flights = 3; g.peasants[4].flights = 1;
+    for (k = 0; k < 6000 && !s.count; k++) sim.step(w, 1);
+    var crew = g.peasants.filter(function (q) { return q.aboard === s.id; });
+    check(s.count > 0 && crew.length >= 1, "(the test wants a crew aboard, counting down)");
+    w.bRemove(g, g.sites.indexOf(s));   /* (the eraser, say) */
+    sim.step(w, 2);
+    check(crew.every(function (q) { return !q.aboard && q.state !== "space"; }), "the crew are still aboard a rocket that is gone: " + crew.map(function (q) { return q.state + " " + q.aboard; }).join(", "));
+    /* a save from before this: aboard a rocket id that is in no site, with a clock a billion ticks long */
+    var q = g.peasants[0];
+    q.aboard = 9999; q.state = "space"; q.spaceT = 1e9;
+    var doc = JSON.parse(JSON.stringify(w.saveDocument(g, { source: "test" })));
+    var w2 = sim.load(1), g2 = w2.g;
+    w2.saveLoad(g2, doc);
+    var q2 = g2.peasants.filter(function (o) { return o.id === q.id; })[0];
+    sim.step(w2, 2);
+    check(q2 && !q2.aboard && q2.state !== "space", "the loaded crew are still stranded: " + (q2 && q2.state + " " + q2.aboard));
+  });
   test("moon rocket: fire by a fuelled rocket blows it up, and anybody aboard is thrown clear", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 4;

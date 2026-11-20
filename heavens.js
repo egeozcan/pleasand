@@ -1322,10 +1322,22 @@ function hTaskBoard(g, p, k) {
   var at = Math.abs(p.x - s.walk.x - 0.5) <= 2 && p.y <= s.walk.y + 0.5 && p.y >= s.walk.y - 8 && !p.climb;
   if (!at && hGo(g, p, k, "board" + s.id, s.walk.x, s.walk.y, 1, 0)) return false;
   /* aboard: in the shell, not drawn, and kept there (as in space) until it goes */
-  p.aboard = s.id; p.task = null; p.state = "space"; p.spaceT = 1e9;
+  p.aboard = s.id; p.task = null; p.state = "space"; p.spaceT = 0;
   p.x = s.rx + 0.5; p.y = s.R0 - 8; p.vx = p.vy = 0;
   pSay(g, p, "board", true);
   return false;
+}
+/* the rocket p is aboard, while it stands on its pad to be aboard (null: gone, or never theirs) */
+function hAboardOf(g, p) {
+  var s = bSite(g, p.aboard);
+  return s && s.kind === "moonrocket" && !s.gone && s.crew && s.crew.indexOf(p.id) >= 0 ? s : null;
+}
+/* out of a rocket that is not there any more: down on the ground where they were, as they were before they got in */
+function hDisembark(g, p) {
+  var x = Math.max(1, Math.min(g.gw - 2, Math.floor(p.x))), G = mGround(g, x, false);
+  p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0;
+  if (G > 0) { p.state = "walk"; p.y = G - 1; } else { p.state = "fly"; p.flyT = 0; }
+  p.fallY = p.y;
 }
 /* the bored, now and then: up the gantry to look at the moon */
 function hTaskGantry(g, p, k) {
