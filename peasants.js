@@ -611,8 +611,8 @@ function pStep(g, p) {
     if (--p.spaceT <= 0) {
       /* (back from the moon: over the pad they went up from. heavens.js) */
       var sx = p.spaceX; p.spaceX = null;
-      p.state = "fly"; p.x = sx != null ? sx : 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = Math.random() - 0.5; p.vy = 1.5;
-      p.fromSpace = 240; p.flyT = 0;
+      p.state = "fly"; p.x = sx != null ? sx : 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = Math.random() - 0.5; p.vy = sx != null ? -0.8 : 1.5;
+      p.fromSpace = 240; p.flyT = sx != null ? 13 : 0;   /* (and slowly enough, at first, for the cord) */
       feed(g, p.name + (sx != null ? " is back from the moon" : " is back from space"), "#9ad0ff");
       pSay(g, p, "space", true);
     }

@@ -90,6 +90,53 @@ function hFetchBarrel(g, p, k) {
 }
 P_SAY.barrel = ["one barrel", "heavy, this", "*slosh*", "mind the oil", "a barrel of the black stuff"];
 
+/* a level for something u0..u1 wide (cell(u, h) says what goes where: a material, EMPTY to be kept clear, -1 for
+   nothing of ours), with its row h 0 at R0 on ground gy (gy[u - u0]) at x0 (x = x0 + u - u0): the ground over R0 dug off
+   (sand shovelled, rock cut), and under R0, where the ground is lower, made up in stone (fill), so that it stands level.
+   ph(u, h) is the order. {plan, work} or null if something is in the way. (rock where something of ours goes under the
+   floor is taken for it; over the floor, it is in the way) */
+function hLevel(g, x0, gy, u0, u1, R0, hlo, hhi, cell, ph, extra) {
+  var plan = [], work = 0, u, h, x, y, c, v, e;
+  for (u = u0; u <= u1; u++) {
+    x = x0 + u - u0;
+    var G = gy[u - u0];
+    for (h = hlo; h <= hhi; h++) {
+      y = R0 - h; c = pCell(g, x, y); v = cell(u, h);
+      if (bMarked(g, x, y) && v !== -1) return null;
+      if (v === -1) {
+        /* (nothing of ours: the ground as it is, but dug off over the floor, and made up under it where it is low) */
+        if (y < G && h >= 1) continue;
+        if (y < R0 && y >= G) { if (AIRY[c]) continue; if (bMarked(g, x, y)) return null; if (!B_DIG[c] && !ROCK[c] && !mClear(g, x, y, c)) return null; e = bE(g, x, y, MAT.EMPTY, 0); if (ROCK[c]) e.mine = true; plan.push(e); work += ROCK[c] ? 2 : 1; continue; }
+        if (y >= R0 && y < G && h >= hlo && AIRY[c]) { plan.push(bE(g, x, y, MAT.BRICK, 1)); work++; }
+        continue;
+      }
+      if (LIQUID[c]) return null;
+      if (v === MAT.EMPTY) {
+        if (AIRY[c]) continue;
+        if (!B_DIG[c] && !ROCK[c] && !mClear(g, x, y, c)) return null;
+        e = bE(g, x, y, MAT.EMPTY, 0); if (ROCK[c]) e.mine = true;
+        plan.push(e); work += ROCK[c] ? 2 : 1;
+        continue;
+      }
+      if (ROCK[c]) { if (h <= -1 || (h === 0 && v === MAT.FIREBRICK && extra && extra.rockFloor)) continue; return null; }
+      if (!AIRY[c] && !B_DIG[c]) return null;
+      e = bE(g, x, y, v === "bell" ? MAT.METAL : v, ph(u, h), extra && extra.a ? extra.a(u, h, v) : 0);
+      if (extra && extra.dress) extra.dress(e, u, h, v);
+      plan.push(e);
+      if (y >= G) work++;   /* (built up where the ground was low) */
+    }
+    /* (and the ground under the floor's row made up, where the floor is over air) */
+    for (y = R0 + 1 - hlo; y < G; y++) if (AIRY[pCell(g, x, y)]) { plan.push(bE(g, x, y, MAT.BRICK, 1)); work++; }
+  }
+  return { plan: plan, work: work };
+}
+/* the best level, from the lowest ground up to the highest: least work */
+function hBestLevel(g, x0, gy, hi, lo, make) {
+  var best = null;
+  for (var R0 = lo; R0 >= hi; R0--) { var r = make(R0); if (r && (!best || r.work < best.work)) { best = r; best.R0 = R0; } }
+  return best;
+}
+
 /* -------------------------------------------------------------------
    THE OBSERVATORY
    ------------------------------------------------------------------- */
@@ -216,12 +263,12 @@ function hPlanObs(g, p) {
   }
   if (!best) {
     /* no tower: the highest ground there is, nine wide and level */
-    var r = wPlot(g, { w: 10, sky: 16, rough: 1, near: mid, pad: 2, fit: function (g, x0, gy, hi, lo) {
-      var pl = hDomePlan(g, x0, hi, false);
-      return pl ? { plan: pl, score: 200 - hi * 3 } : null;
+    var r = wPlot(g, { w: 10, sky: 16, rough: 2, near: mid, pad: 2, fit: function (g, x0, gy, hi, lo) {
+      var pl = hDomePlan(g, x0, lo, false);
+      return pl ? { plan: pl, score: 200 - lo * 3 } : null;
     } });
     if (!r) return false;
-    best = { xl: r.x0, F: r.hi, plan: wCleared(g, r, r.r.plan), tower: 0 };
+    best = { xl: r.x0, F: r.lo, plan: wCleared(g, r, r.r.plan), tower: 0 };
   }
   var s = bNew(g, "observatory", p, wGild(g, best.plan), [best.xl, best.F - 13, best.xl + 9, best.F - 1],
                { wonder: true, xl: best.xl, F: best.F, tower: best.tower, astro: p.id, spot: best.xl + 5 });
@@ -762,7 +809,7 @@ function hDrawLight(g, s) {
    round that), the moulds sunk in the ground either side of it under a
    brick cover, a cell down and across from each tap
    ------------------------------------------------------------------- */
-var H_FW = 19;              /* the foundry, across */
+var H_FW = 12;              /* the foundry, across (and its founder stands a column or two out, either side) */
 var H_CHARGE = 10;          /* cells of iron to a charge: two bars */
 var H_RUN = 0.7;            /* "mostly running": tapped when this much of it is liquid */
 var H_POURED = 1500;        /* ticks to let it run out, the bellows still going, before the plug goes back in */
@@ -836,50 +883,25 @@ function hFoundryCell(u, h) {
   if (u >= 0 && u <= 4 && (h === 0 || h === 1)) return E;
   if (u >= -1 && u <= 5 && h === -1) return FB;
   if (u === -1 && h >= 0 && h <= 2) return FB;
-  /* the bell mould, sunk: a cup three by three under the right tap, the cell it runs in by (the one to spare), a cover */
-  if (u === 10 && h === 1) return E;
-  if (u >= 10 && u <= 12 && h >= -2 && h <= 0) return E;
-  if (u >= 9 && u <= 13 && h === -3) return FB;
-  if ((u === 9 || u === 13) && h >= -2 && h <= 0) return FB;
-  if (u >= 11 && u <= 13 && h === 1) return BR;
-  if (u >= -3 && u <= 15 && h >= 1 && h <= 9) return E;   /* (room to stand, and to work) */
+  /* the bell mould, sunk under the stack: a cup three by three (what there is to spare goes to the plates) */
+  if (u >= 7 && u <= 9 && h >= -3 && h <= -1) return E;
+  if (u >= 6 && u <= 10 && h === -4) return FB;
+  if ((u === 6 || u === 10) && h >= -3 && h <= -1) return FB;
+  if (u >= -1 && u <= 10 && h >= 1 && h <= 9) return E;   /* (room to work) */
   return -1;
 }
-/* the plan on ground gy at x0: the moulds dug into the ground (rock cut), the foundry's floor level with the lowest of the
-   ground under it, the ground above that dug off. {plan, R0, score} or null */
+/* the plan on ground gy at x0 (u -1..10 across; its founder stands a column or two out from it, either side): level, the
+   moulds sunk under its floor, the high ground dug off and the low made up. {plan, R0, score} or null */
 function hFoundryFit(g, x0, gy, hi, lo) {
-  var R0 = lo, plan = [], u, h, x, y, c, v, work = 0, ph;
-  for (u = -3; u <= 15; u++) {
-    x = x0 + 3 + u;
-    /* (the ground over the floor's row, dug off) */
-    for (y = gy[u + 3]; y < R0; y++) {
-      c = pCell(g, x, y);
-      if (hFoundryCell(u, R0 - y) > 0 || AIRY[c]) continue;   /* (where something of ours goes, it goes in over the sand) */
-      if (!B_DIG[c] && !ROCK[c] && !mClear(g, x, y, c)) return null;
-      plan.push(bE(g, x, y, MAT.EMPTY, 0)); if (ROCK[c]) plan[plan.length - 1].mine = true; work++;
-    }
-    for (h = -4; h <= 13; h++) {
-      v = hFoundryCell(u, h); y = R0 - h; c = pCell(g, x, y);
-      if (v < 0 || (y < R0 && y >= gy[u + 3] && v === MAT.EMPTY)) continue;
-      if (bMarked(g, x, y) || LIQUID[c]) return null;
-      if (v === MAT.EMPTY) {
-        if (AIRY[c]) continue;
-        if (!B_DIG[c] && !ROCK[c] && !mClear(g, x, y, c)) return null;
-        var e = bE(g, x, y, MAT.EMPTY, 0); if (ROCK[c]) e.mine = true;
-        plan.push(e); work += ROCK[c] ? 2 : 1;
-        continue;
-      }
-      if (ROCK[c]) { if (h <= -1) continue; return null; }   /* (rock where a mould's wall goes is the wall; the floor wants laying) */
-      if (!AIRY[c] && !B_DIG[c]) return null;
-      ph = h <= -1 ? 1 : (h === 0 ? 2 : 10 + h);
-      plan.push(bE(g, x, y, v, ph));
-    }
-  }
-  return { plan: plan, R0: R0, score: 30 - work * 0.2 };
+  var r = hBestLevel(g, x0, gy, hi, lo, function (R0) {
+    return hLevel(g, x0, gy, -1, 10, R0, -4, 13, hFoundryCell, function (u, h) { return h <= -1 ? 1 : (h === 0 ? 2 : 10 + h); },
+                  { dress: function (e, u, h) { if (h <= -1) e.rd = 6; } });
+  });
+  return r ? { plan: r.plan, R0: r.R0, score: 30 - r.work * 0.2 } : null;
 }
 function hPlanFoundry(g, p) {
   var f = mSites(g, "furnace", true)[0];
-  var r = wPlot(g, { w: H_FW, sky: 16, rough: 3, near: f ? f.cx : wMiddle(g), pad: 2, fit: hFoundryFit });
+  var r = wPlot(g, { w: H_FW, sky: 16, rough: 6, near: f ? f.cx : wMiddle(g), pad: 2, fit: hFoundryFit });
   if (!r) return false;
   var s = hFoundryAt(g, p, r.x0, r.r.R0, wCleared(g, r, r.r.plan));
   feed(g, p.name + " is building a foundry by the furnace", "#ffd94a", "plan" + s.id);
@@ -888,7 +910,7 @@ function hPlanFoundry(g, p) {
   return true;
 }
 function hFoundryAt(g, p, x0, R0, plan) {
-  var s = bNew(g, "foundry", p, plan, [x0, R0 - 13, x0 + H_FW - 1, R0 + 3], { wonder: true, xf: x0 + 3, R0: R0, phase: 0, founder: p ? p.id : 0, casts: 0 });
+  var s = bNew(g, "foundry", p, plan, [x0, R0 - 13, x0 + H_FW - 1, R0 + 3], { wonder: true, xf: x0 + 1, R0: R0, phase: 0, founder: p ? p.id : 0, casts: 0 });
   var cells = [];
   for (var h = 1; h <= 7; h++) for (var u = 6; u <= 8; u++) if (h > 1 || u !== 7) cells.push(hFJ(g, s, u, h));
   s.cells = cells;
@@ -914,11 +936,11 @@ function hChamber(g, s) {
 function hMould(g, s, which) {
   var out = [], u, h;
   /* (in the order it fills: from the bottom, from the tap's end) */
-  if (which === "bell") { for (h = -2; h <= 0; h++) for (u = 10; u <= 12; u++) out.push(hFJ(g, s, u, h)); out.push(hFJ(g, s, 10, 1)); }
+  if (which === "bell") { for (h = -3; h <= -1; h++) for (u = 7; u <= 9; u++) out.push(hFJ(g, s, u, h)); }
   else for (h = 0; h <= 1; h++) for (u = 4; u >= 0; u--) out.push(hFJ(g, s, u, h));
   return out;
 }
-function hMouldHot(g, s) { var t = AMBIENT; hMould(g, s, s.mould).forEach(function (j) { if (g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA) t = Math.max(t, g.T[j]); }); return t; }
+function hMouldHot(g, s) { var t = AMBIENT; hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (j) { if (g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA) t = Math.max(t, g.T[j]); }); return t; }
 function hMouldFull(g, s, which) { return hMould(g, s, which).some(function (j) { return !AIRY[g.m[j]]; }); }
 /* what the foundry is wanted for: plates, or an engine bell, for a great work going up (more than is in pockets) */
 function hFoundryWant(g, s) {
@@ -938,7 +960,9 @@ function hFoundryWant(g, s) {
 /* (at the foot of the chamber, the side of the mould: the bottom row is a bed of coal, kept burning, that the iron runs
    down onto, and out of) */
 function hPlug(g, s) { return hFJ(g, s, s.mould === "bell" ? 9 : 5, 1); }
-function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? 15 : -3), y: s.R0 - 1 }; }   /* (the bellows between them and the heat) */
+function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? 17 : -3), y: s.R0 - 1 }; }
+/* (whatever the ground is like out there, give or take a step or two) */
+function hSpotAt(g, s) { var sp = hSpot(s), G = mGroundNear(g, sp.x, false, sp.y); if (G > 0 && Math.abs(G - 1 - sp.y) <= 4) sp.y = G - 1; return sp; }   /* (the bellows between them and the heat) */
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
 function hFoundryStep(g, s) {
   if (!s.done || s.repair) return;
@@ -971,8 +995,8 @@ function hCoal(g, p, s) {
 function hTaskFound(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || !s.phase || ++k.t > 9000) return iDone(p, false);
-  var sp = hSpot(s);
-  if (hGo(g, p, k, "found" + s.id + s.mould, sp.x, sp.y, 0, 1)) return false;
+  var sp = hSpotAt(g, s);
+  if (hGo(g, p, k, "found" + s.id + s.mould, sp.x, sp.y, 1, 1)) return false;
   p.dir = s.mould === "bell" ? -1 : 1; p.idle = 0; k.act++;   /* (at the bellows, facing the stack) */
   var c, j, n;
   if (s.phase === 1) {
@@ -1021,11 +1045,14 @@ function hTaskFound(g, p, k) {
     if (k.act % 200 === 50 && p.sayT <= 0) pSay(g, p, "bellows");
     c = hChamber(g, s);
     if (s.phase === 2) {
-      var run = c.liq + c.met > 0 && c.liq / (c.liq + c.met) >= H_RUN;
+      /* (for a bell, all but a cell of it: a bell is cast whole, or it is plates) */
+      var run = c.liq + c.met > 0 && (s.mould === "bell" ? c.met <= 1 : c.liq / (c.liq + c.met) >= H_RUN);
       if (run && !s.hold) {
         /* mostly running: the plug knocked through, and stand back. (the plug is a firebrick with a hole in it, and
            what comes out of the hole is drawn: the chamber stays shut, and its fire with it) */
         j = hPlug(g, s);
+        /* (anything that has got into the moulds, sand blown in, a bit of glass, swept out first) */
+        hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (q) { var c = g.m[q]; if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) heatVanish(g, q); });
         s.phase = 3; s.pourT = g.tick; s.casts++;
         pSay(g, p, "tap", true); g.fx.clang++;
         sparks(g, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, 10, 0.8, SPARK_HOT, 10, 0.3, PK_GLINT);
@@ -1049,8 +1076,7 @@ function hTaskFound(g, p, k) {
     /* set, and cool enough to handle: out it comes, a plate a cell (an engine bell, whole, if that is what it was) */
     p.pose = (k.act % 16) < 8 ? "chopA" : "chopB";
     if (k.act % 16 !== 8) return true;
-    var M = hMould(g, s, s.mould), cup = s.mould === "bell" ? M.slice(0, 9) : [];
-    M = M.concat([hPlug(g, s)]);   /* (and whatever set in the tap) */
+    var M = hMould(g, s, "plate").concat(hMould(g, s, "bell")), cup = s.mould === "bell" ? hMould(g, s, "bell") : [];
     if (cup.length && cup.every(function (q) { return g.m[q] === MAT.METAL; }) && hFoundryWant(g, s) === "an engine bell") {
       cup.forEach(function (q) { heatVanish(g, q); });
       p.bell = (p.bell || 0) + 1; s.bells = (s.bells || 0) + 1;
@@ -1087,6 +1113,8 @@ function hPourCell(g, s, p) {
     if (sc > best) { best = sc; src = j; }
   }
   if (src < 0) return false;
+  /* (the bell's cup full, and some to spare: that goes to the plates, out of the other tap) */
+  if (s.mould === "bell" && M.every(function (q) { return !AIRY[g.m[q]]; })) M = hMould(g, s, "plate");
   for (k = 0; k < M.length && !AIRY[g.m[M[k]]]; k++);
   if (k >= M.length) return false;
   j = M[k];
@@ -1122,8 +1150,8 @@ function hDrawFoundry(g, s) {
   var u, h, i, hot = 0;
   for (h = 3; h <= 7; h += 4) for (u = 4; u <= 10; u++) { i = hFJ(g, s, u, h); if (g.m[i] === MAT.BRICK) g.px[i] = blend32(g.px[i], H_BANDC, 0.7); }
   /* (the bellows: a leather bag between the boards, a nozzle to the stack, going in and out while somebody works it) */
-  [[-2, 1], [14, -1]].forEach(function (b) {   /* (between the founder's place and the stack) */
-    var bx = s.xf + b[0], d = b[1], by = s.R0 - (b[0] > 7 ? 2 : 1), wk = mCrew(g, "found", s.id) && s.phase >= 2 && s.phase <= 3, puff = wk && ((g.tick >> 3) & 1);
+  [[-2, 1], [16, -1]].forEach(function (b) {   /* (between the founder's place and the stack) */
+    var bx = s.xf + b[0], d = b[1], by = s.R0 - 1, wk = mCrew(g, "found", s.id) && s.phase >= 2 && s.phase <= 3, puff = wk && ((g.tick >> 3) & 1);
     wBack(g, bx, by, H_BELLOWS_D); wBack(g, bx + d, by, H_BELLOWS_D);
     wBack(g, bx, by - 1, H_BELLOWS); if (!puff) wBack(g, bx + d, by - 1, H_BELLOWS);
     wBack(g, bx + 2 * d, by - 1, H_BANDC);
@@ -1236,45 +1264,32 @@ function hRocketCell(u, h) {
   return -1;
 }
 function hIsRocket(u, h) { return h >= 3 && h <= 24 && u >= 4 && u <= 10 && !(u === 4 && h === H_WALK) && !(u === 4 && (h === 10 || h === 22)); }
-/* the plan on ground gy at x0: level (the high ground dug down to the lowest), clear sky over it to the top of the world */
+/* the plan on ground gy at x0: level (the high ground dug off, the low made up), clear sky over it to the top of the
+   world */
 function hRocketFit(g, x0, gy, hi, lo) {
-  var R0 = lo, plan = [], u, h, x, y, c, v, e, work = 0;
-  for (u = 4; u <= 10; u++) for (y = 0; y < R0 - 24; y++) { c = pCell(g, x0 + u, y); if (!AIRY[c]) return null; }
-  for (u = 0; u < H_RW; u++) {
-    x = x0 + u;
-    for (y = gy[u]; y < R0; y++) {
-      c = pCell(g, x, y); v = hRocketCell(u, R0 - y);
-      if (AIRY[c] || (v !== -1 && v !== MAT.EMPTY && B_DIG[c])) continue;
-      if (!B_DIG[c] && !mClear(g, x, y, c)) return null;
-      plan.push(bE(g, x, y, MAT.EMPTY, 0)); work++;
-    }
-    for (h = 0; h <= 36; h++) {
-      v = hRocketCell(u, h); y = R0 - h; c = pCell(g, x, y);
-      if (v === -1 || (y >= gy[u] && v === MAT.EMPTY && h > 0)) continue;
-      if (bMarked(g, x, y) || LIQUID[c]) return null;
-      if (v === MAT.EMPTY) { if (!AIRY[c]) { if (!B_DIG[c] && !mClear(g, x, y, c)) return null; plan.push(bE(g, x, y, MAT.EMPTY, 0)); } continue; }
-      if (ROCK[c] && h === 0) continue;   /* (rock under the trench is a floor for it) */
-      if (!AIRY[c] && !B_DIG[c]) return null;
-      var ph = h <= 2 ? 1 + h : (hIsRocket(u, h) ? 100 + h : 10 + h);
-      e = bE(g, x, y, v === "bell" ? MAT.METAL : v, ph, v === MAT.LADDER ? u : 0);
-      if (v === "bell") { e.res = "bell"; e.cost = 1 / 9; }
-      if (hIsRocket(u, h)) { e.rk = true; e.rx = 9; e.rd = 7; }
-      if (h > H_WALK + 12) e.ru = 21;
-      plan.push(e);
-    }
-  }
-  return { plan: plan, R0: R0, score: 30 - work * 0.2 };
+  var r = hBestLevel(g, x0, gy, hi, lo, function (R0) {
+    for (var u = 4; u <= 10; u++) for (var y = 0; y < R0 - 24; y++) if (!AIRY[pCell(g, x0 + u, y)]) return null;
+    return hLevel(g, x0, gy, 0, H_RW - 1, R0, 0, 36, hRocketCell, function (u, h) { return h <= 2 ? 1 + h : (hIsRocket(u, h) ? 100 + h : 10 + h); },
+                  { rockFloor: true, a: function (u, h, v) { return v === MAT.LADDER ? u : 0; },
+                    dress: function (e, u, h, v) {
+                      if (v === "bell") { e.res = "bell"; e.cost = 1 / 9; }
+                      if (hIsRocket(u, h)) { e.rk = true; e.rx = 9; e.rd = 7; }
+                      if (h > H_WALK + 12) e.ru = 21;
+                    } });
+  });
+  return r ? { plan: r.plan, R0: r.R0, score: 30 - r.work * 0.2 } : null;
 }
 function hPlanRocket(g, p) {
-  var r = wPlot(g, { w: H_RW, sky: 40, rough: 3, near: wMiddle(g), pad: 3, fit: hRocketFit });
+  var r = wPlot(g, { w: H_RW, sky: 40, rough: 6, near: wMiddle(g), pad: 3, fit: hRocketFit });
   if (!r) return false;
-  var R0 = r.r.R0;
-  var s = bNew(g, "moonrocket", p, wGild(g, wCleared(g, r, r.r.plan)), [r.x0, R0 - 36, r.x0 + H_RW - 1, R0],
-               { wonder: true, R0: R0, oil: 0, rx: r.x0 + 7, walk: { x: r.x0 + 4, y: R0 - H_WALK - 1 } });
+  var s = hRocketAt(g, p, r.x0, r.r.R0, wGild(g, wCleared(g, r, r.r.plan)));
   feed(g, p.name + " is building a rocket. for the moon", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planRocket", true);
   if (bCarries(p)) bJoin(g, p, s);
   return true;
+}
+function hRocketAt(g, p, x0, R0, plan) {
+  return bNew(g, "moonrocket", p, plan, [x0, R0 - 36, x0 + H_RW - 1, R0], { wonder: true, R0: R0, oil: 0, rx: x0 + 7, walk: { x: x0 + 4, y: R0 - H_WALK - 1 } });
 }
 /* a barrel from the well's tank to the rocket's pile */
 function hTaskFuel(g, p, k) {
@@ -1294,7 +1309,9 @@ function hTaskFuel(g, p, k) {
 function hTaskBoard(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.gone || !s.crew || s.crew.indexOf(p.id) < 0 || ++k.t > 4000) return iDone(p, false);
-  if (hGo(g, p, k, "board" + s.id, s.walk.x, s.walk.y, 1, 0)) return false;
+  /* (at the hatch: on the walkway, or anywhere up against the top of it, where whoever built the nose may still be) */
+  var at = Math.abs(p.x - s.walk.x - 0.5) <= 2 && p.y <= s.walk.y + 0.5 && p.y >= s.walk.y - 8 && !p.climb;
+  if (!at && hGo(g, p, k, "board" + s.id, s.walk.x, s.walk.y, 1, 0)) return false;
   /* aboard: in the shell, not drawn, and kept there (as in space) until it goes */
   p.aboard = s.id; p.task = null; p.state = "space"; p.spaceT = 1e9;
   p.x = s.rx + 0.5; p.y = s.R0 - 8; p.vx = p.vy = 0;
@@ -1355,6 +1372,9 @@ function hCrew(g) {
   if (ok(a)) crew.push(a);
   var th = iThinker(g);
   for (k = 0; k < g.peasants.length && crew.length < H_CREW; k++) { q = g.peasants[k]; if (ok(q) && q.short === th.name) crew.push(q); }
+  /* (and to make up the numbers, whoever else has flown a rocket pack, most first; and at the least, somebody) */
+  var fl = g.peasants.filter(function (q) { return ok(q) && (q.flights || 0) > 0; }).sort(function (a, b) { return b.flights - a.flights; });
+  for (k = 0; k < fl.length && crew.length < H_CREW; k++) if (crew.indexOf(fl[k]) < 0) crew.push(fl[k]);
   for (k = 0; k < g.peasants.length && crew.length < 1; k++) if (ok(g.peasants[k])) crew.push(g.peasants[k]);
   return crew.slice(0, H_CREW);
 }
@@ -1502,13 +1522,29 @@ function hRocketBoom(g, s) {
   wTale(g, "nuke", null, "", s.rx, s.R0);
   g.rocketBooms = (g.rocketBooms || 0) + 1;
 }
-var H_HULL = hex32("#c8ccd4"), H_HULL_D = hex32("#8a909c"), H_FLAG = hex32("#e83a4a"), H_POLE = hex32("#f0f0f0");
+var H_HULL = hex32("#d8d8d4"), H_HULL_D = hex32("#a4a6a8"), H_FLAG = hex32("#e83a4a"), H_POLE = hex32("#f0f0f0");
 var H_HELM = hex32("#e8f4ff"), H_HELM_G = hex32("#a8d0f0");
+var H_SKIN = hex32("#e4e4e0"), H_SKIN_D = hex32("#b4b6b8"), H_FIN = hex32("#c0392e"), H_FIN_D = hex32("#8a2620"), H_BELL = hex32("#3e424c"), H_BELL_HI = hex32("#6a707c");
+/* the rocket's paint, by where the cell is in it (u across from the pad's left, h up from the ground): white plates, red
+   fins, a dark engine bell. (null: as it is) */
+function hRocketCol(u, h, v) {
+  if (v !== MAT.METAL) return null;
+  if (h >= 3 && h <= 5 && u >= 6 && u <= 8) return u === 6 ? H_BELL_HI : H_BELL;
+  if (u === 4 || u === 10 || (h <= 5 && (u === 5 || u === 9)) || h === 22 || h === 23) return u >= 8 ? H_FIN_D : H_FIN;
+  return u === 9 || (h === 6 && u === 8) ? H_SKIN_D : H_SKIN;
+}
 /* the inside of the rocket's shell, drawn; the hatch */
 function hDrawRocket(g, s) {
-  if (!s.done && !bShare(g, s)) return 0;
+  var u, h, x, y, k, e, col;
+  for (k = 0; k < s.plan.length; k++) {
+    e = s.plan[k];
+    /* (the gantry's girders, painted: a launch tower is red) */
+    if (e.v === MAT.GIRDER && g.m[e.i] === MAT.GIRDER) { y = (e.i / g.gw) | 0; g.px[e.i] = (y & 1) ? H_FIN_D : blend32(H_FIN_D, 0xff000000, 0.35); continue; }
+    if (!e.rk || g.m[e.i] !== e.v) continue;
+    col = hRocketCol(e.i % g.gw - s.x0, s.R0 - ((e.i / g.gw) | 0), g.m[e.i]);
+    if (col) g.px[e.i] = col;
+  }
   if (s.gone) return 0;
-  var u, h, x, y;
   for (h = 7; h <= 21; h++) for (u = 6; u <= 8; u++) {
     if (h === 16) continue;
     x = s.x0 + u; y = s.R0 - h;
@@ -1525,7 +1561,7 @@ function hDrawRocketSky(g) {
     for (k = 0; k < R.cells.length; k++) {
       var c = R.cells[k], x = bx + c.dx, y = by + c.dy;
       if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) continue;
-      g.px[y * g.gw + x] = SAND_PAL[c.v][c.sh];
+      g.px[y * g.gw + x] = hRocketCol(c.dx + 7, 3 - c.dy, c.v) || SAND_PAL[c.v][c.sh];
     }
     for (var h = 1; h <= 15; h++) for (var u = -1; u <= 1; u++) {
       var X = bx + u, Y = by - 3 - h;

@@ -204,7 +204,7 @@ module.exports = function (test, check, sim) {
     settle(g);
     g.peasants.forEach(function (q, n) { q.iron = 0; q.coal = 0; q.plate = 0; q.bell = 0; if (n > 0) q.dead = 1; });
     var p = g.peasants[0];
-    p.iron = 2; p.coal = 80; p.x = (mould === "bell" ? s.xf + 15 : s.xf - 3) + 0.5; p.y = s.R0 - 1;
+    p.iron = 2; p.coal = 80; p.x = (mould === "bell" ? s.xf + 17 : s.xf - 3) + 0.5; p.y = s.R0 - 1;
     s.casts = 1; s.mould = mould || "plate"; s.phase = 1; s.founder = p.id;
     return { w: w, g: g, s: s, p: p };
   }
@@ -257,7 +257,6 @@ module.exports = function (test, check, sim) {
     var mould = w.hMould(g, s, "plate");
     for (k = 0; k < 12000 && !(s.phase === 0 && k > 10); k++) {
       sim.step(w, 1);
-      if (process.env.HDEBUG && k % 300 === 0) { var cc = w.hChamber(g, s); console.log(k, "phase", s.phase, "liq", cc.liq, "met", cc.met, "emb", cc.emb, "T", Math.round(w.hLavaT(g, s)), "hot", Math.round(w.hMouldHot(g, s)), "task", F.p.task && F.p.task.kind, F.p.x.toFixed(1), F.p.y, "coal", F.p.coal); }
       var lq = mould.filter(function (j) { return g.m[j] === M.LAVA; }).length;
       if (!first && lq) first = g.tick;
       if (first && !set && !lq && s.phase >= 4) set = g.tick;
@@ -288,11 +287,118 @@ module.exports = function (test, check, sim) {
     for (k = 0; k < 9; k++) { var e = w.bE(g, 40 + (k % 3), 100 + ((k / 3) | 0), M.METAL, 1); e.res = "bell"; e.cost = 1 / 9; plan.push(e); }
     w.bNew(g, "bellstand", null, plan, [40, 100, 42, 102], { wonder: true });
     check(w.hFoundryWant(g, s) === "an engine bell", "(the test wants a bell wanted: " + w.hFoundryWant(g, s) + ")");
-    for (k = 0; k < 12000 && !(s.phase === 0 && k > 10); k++) {
-      sim.step(w, 1);
-      if (process.env.HDEBUG && k % 300 === 0) { var cc = w.hChamber(g, s); console.log(k, "phase", s.phase, "liq", cc.liq, "met", cc.met, "emb", cc.emb, "hot", Math.round(w.hMouldHot(g, s)), "task", F.p.task && F.p.task.kind, F.p.x.toFixed(1), F.p.y, "coal", F.p.coal, "iron", F.p.iron); }
-    }
+    for (k = 0; k < 12000 && !(s.phase === 0 && k > 10); k++) sim.step(w, 1);
     check(F.p.bell === 1, "no engine bell came out (" + F.p.bell + " bells, " + F.p.plate + " plates)");
     check(F.p.plate >= 0 && Math.abs(ironOf(F) - iron0) < 0.01, "the iron was " + iron0.toFixed(2) + " bars, and is " + ironOf(F).toFixed(2));
+  });
+
+  /* ---------------------------------------------------------------- the moon rocket */
+  /* the rocket on level ground at column 150 of seed 1, its plan as hRocketFit makes it; built, if build */
+  function rocket(build) {
+    var w = sim.load(1), g = w.g, G = 150, k;
+    flat(w, 110, 230, G);
+    know(g, ["farm", "dig", "bucket", "mine", "masonry", "smelt", "forge", "concrete", "moonrocket"]);
+    var gy = []; for (k = 0; k < w.H_RW; k++) gy.push(G);
+    var r = w.hRocketFit(g, 150, gy, G, G);
+    check(!!r, "(the test wants the rocket to fit on level ground)");
+    var s = w.hRocketAt(g, g.peasants[0], 150, r.R0, r.plan);
+    settle(g);
+    g.peasants.forEach(function (q) { q.x = 172 + (q.id % 9) + 0.5; q.y = G - 1; });
+    if (build) { sim.build(w, s); s.done = false; w.bFinish(g, s, g.peasants[0]); }
+    return { w: w, g: g, s: s, G: G };
+  }
+  function heatAround(R) {
+    var g = R.g, q = 0;
+    for (var y = 0; y < g.gh; y++) for (var x = R.s.x0 - 30; x <= R.s.x1 + 30; x++) q += R.w.heatQ(g, y * g.gw + x);
+    return q;
+  }
+  test("moon rocket: the moon looked at, the foundry, concrete, rocket-pack flights and barrels make it thinkable; it wants clear sky to the top of the world", function () {
+    var w = sim.load(1), g = w.g, I = w.wIdea("moonrocket");
+    know(g, ["concrete"]);
+    g.moonLooks = 12; g.wDone = { foundry: 1 }; g.packFlights = 2; g.barrels = 30;
+    check(!I.ready(g), "thought of with only two flights on a rocket pack");
+    w.hFlew(g, g.peasants[1]);
+    check(I.ready(g), "not thinkable with everything it wants");
+    var R = rocket(false), s = R.s;
+    var kinds = {};
+    s.plan.forEach(function (e) { var key = e.res || e.v; kinds[key] = (kinds[key] || 0) + 1; });
+    check(kinds[R.w.MAT.METAL] >= 45 && kinds.bell === 9 && kinds[R.w.MAT.GIRDER] >= 35 && kinds[R.w.MAT.CONCRETE] >= 12 && kinds[R.w.MAT.FIREBRICK] >= 6, "the plan: " + JSON.stringify(kinds));
+    /* (a roof over it: nowhere for a rocket) */
+    var gy = []; for (var k = 0; k < w.H_RW; k++) gy.push(R.G);
+    R.w.sandPlace(R.g, 30 * R.g.gw + 157, R.w.MAT.STONE);
+    check(!R.w.hRocketFit(R.g, 150, gy, R.G, R.G), "planned under a stone");
+  });
+  test("moon rocket: built by a crew of two out of plates, an engine bell, girders and concrete", function () {
+    var R = rocket(false), w = R.w, g = R.g, s = R.s;
+    g.peasants.forEach(function (q) { q.plate = 30; q.bell = 1; q.iron = 5; q.boards = 20; q.stone = 10; q.glass = 1; q.gold = 1; q.firebrick = 10; q.x = s.x0 - 4 + (q.id % 3) + 0.5; });
+    s.stock = { mortar: 30 };
+    w.bJoin(g, g.peasants[0], s); w.bJoin(g, g.peasants[1], s);
+    for (var k = 0; k < 20000 && !s.done; k++) sim.step(w, 1);
+    check(s.done, "the rocket was not built in 20000 ticks (" + Math.round(w.bShare(g, s) * 100) + "% up): " + s.note);
+    shot(w, "rocket", s, 10);
+  });
+  test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
+    s.oil = 12;
+    g.peasants[2].flights = 3; g.peasants[4].flights = 1;
+    var q0 = 0, fire = 0, launchedAt = 0;
+    for (k = 0; k < 6000 && !s.gone; k++) {
+      if (s.count === 1 && g.tick - s.countT === 60 * 10 - 1) q0 = heatAround(R);
+      sim.step(w, 1);
+    }
+    check(s.gone, "it never went (crew " + JSON.stringify(s.crew) + ", count " + s.count + ")");
+    var crew = g.peasants.filter(function (q) { return q.moon; });
+    check(crew.length >= 2 && crew.every(function (q) { return q.state === "space" && q.spaceX != null; }), crew.length + " went to the moon");
+    check(s.plan.every(function (e) { return !e.rk; }) && !s.plan.some(function (e) { return e.v === M.METAL; }), "the rocket's cells are still in the plan");
+    var left = 0;
+    for (var y = R.G - 30; y <= R.G; y++) for (var x = s.x0 + 4; x <= s.x0 + 10; x++) if (g.m[y * g.gw + x] === M.METAL) left++;
+    check(left === 0, left + " cells of the rocket left in the grid");
+    if (q0) check(Math.abs(heatAround(R) - q0) <= (g.rocket ? g.rocket.fireQ : 0) + 200, "the heat jumped as it went: " + Math.round(q0) + " -> " + Math.round(heatAround(R)));
+    if (SHOTS) { for (k = 0; k < 50; k++) sim.step(w, 1); shot(w, "liftoff", s, 10); }
+    var qa = heatAround(R);
+    for (k = 0; k < 3000 && g.rocket; k++) { fire = g.rocket.fireQ; sim.step(w, 1); }
+    check(!g.rocket, "the rocket never left the top of the world");
+    /* (the fire it put out goes on burning a moment, and that is heat too: half as much again, at the most) */
+    check(heatAround(R) - qa <= fire * 1.5, "more heat about the pad than the fire it put out: " + Math.round(heatAround(R) - qa) + " against " + Math.round(fire));
+    for (k = 0; k < 1000 && !g.moonFlag; k++) sim.step(w, 1);
+    check(g.moonFlag && g.got.moon, "no flag on the moon");
+  });
+  test("moon rocket: the crew come back down over the pad, open their chutes (or not), and set out moon rock", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
+    s.oil = 12;
+    g.peasants[2].flights = 3; g.peasants[4].flights = 2; g.peasants[5].flights = 1;
+    for (k = 0; k < 6000 && !s.gone; k++) sim.step(w, 1);
+    var crew = g.peasants.filter(function (q) { return q.moon; });
+    check(crew.length >= 1, "nobody went");
+    var landed = {}, chutes = 0;
+    for (k = 0; k < 9000; k++) {
+      sim.step(w, 1);
+      crew.forEach(function (q) {
+        if (q.chute) chutes++;
+        if (!landed[q.id] && (q.dead || (q.state === "walk" && !q.chute && q.fromSpace === 0 && q.moonrock !== undefined && q.spaceT <= 0))) landed[q.id] = { x: q.x, dead: q.dead };
+      });
+      if (crew.every(function (q) { return q.dead || (q.state === "walk" && !(q.moonrock > 0)); })) break;
+    }
+    check(crew.every(function (q) { return q.state !== "space"; }), "somebody is still on the moon");
+    check(crew.every(function (q) { return landed[q.id] && Math.abs(landed[q.id].x - s.rx) < 80; }), "they did not come down by the pad: " + JSON.stringify(landed));
+    check(chutes > 0, "nobody opened a parachute");
+    var rock = 0;
+    for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.MOONROCK) rock++;
+    var alive = crew.filter(function (q) { return !q.dead; }).length;
+    var carried = crew.filter(function (q) { return !q.dead && q.moonrock > 0; }).length;
+    check(alive > 0 && (rock >= 2 || carried > 0), alive + " came back alive, and " + rock + " moon rock was set out, " + carried + " still carrying it: " + crew.map(function (q) { return q.state + " " + q.dead + " rock " + q.moonrock + " " + (q.task && q.task.kind) + " " + q.x.toFixed(0) + "," + q.y.toFixed(0); }).join("; ") + " pad " + s.rx + " out " + g.hRockOut);
+  });
+  test("moon rocket: fire by a fuelled rocket blows it up, and anybody aboard is thrown clear", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
+    s.oil = 4;
+    var q = g.peasants[3];
+    s.crew = [q.id]; q.aboard = s.id; q.state = "space"; q.spaceT = 1e9;
+    var j = (R.G - 3) * g.gw + s.x0 + 11;
+    w.sandPlace(g, j, M.EMBER);   /* (a burning stick, dropped on the pad by it) */
+    for (k = 0; k < 100 && !g.rocketBooms; k++) sim.step(w, 1);
+    check(g.rocketBooms === 1 && s.oil === 0, "it did not go up");
+    check(!q.aboard && q.state !== "space", "the one aboard was not thrown clear");
+    var left = s.plan.filter(function (e) { return e.rk && g.m[e.i] === M.METAL; }).length;
+    check(left < 20, left + " plates still where they were");
   });
 };

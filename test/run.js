@@ -2479,7 +2479,7 @@ tests.forEach(function (t) {
   if (only && t.name.indexOf(only) < 0) return;
   var t1 = Date.now();
   try { t.fn(); console.log("ok    " + t.name + "  (" + ((Date.now() - t1) / 1000).toFixed(1) + "s)"); }
-  catch (e) { failed++; console.log("FAIL  " + t.name + "\n      " + (e && e.message)); if (process.env.STACK) console.log(e && e.stack); }
+  catch (e) { failed++; console.log("FAIL  " + t.name + "\n      " + (e && e.message)); }
 });
 console.log((failed ? failed + " failed" : "all passed") + " in " + ((Date.now() - t0) / 1000).toFixed(0) + "s");
 process.exit(failed ? 1 : 0);
