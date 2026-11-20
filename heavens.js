@@ -967,11 +967,19 @@ function hMould(g, s, which) {
 function hMouldHot(g, s) { var t = AMBIENT; hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (j) { if (g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA) t = Math.max(t, g.T[j]); }); return t; }
 /* a cast in the mould, not yet prised out (iron in it, set or running) */
 function hMouldFull(g, s, which) { return hMould(g, s, which).some(function (j) { return g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA; }); }
+function hMouldScrap(g, s) {
+  hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (j) {
+    if (g.m[j] !== MAT.METAL || g.T[j] >= H_PRISE) return;
+    heatVanish(g, j);
+    var q = pOther(g, { x: s.cx, y: s.R0 }, 1e4);
+    if (q) q.iron = (q.iron || 0) + L_TAKE.iron; else { s.stock = s.stock || {}; s.stock.iron = (s.stock.iron || 0) + L_TAKE.iron; }
+  });
+}
 /* whatever else has got into a mould (a drop of rain, ice, sand blown in): out, before it is cast into. water shoved out
    of it (build.js bShove), anything else lifted out (hBail) */
 function hMouldSweep(g, s, which) {
   var mo = hMould(g, s, which), not = {};
-  mo.forEach(function (q) { not[q] = 1; });
+  hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (q) { not[q] = 1; });   /* (nor into the other mould) */
   /* (and anything else in it, ice, sand blown in, a bit of glass: lifted out, and put down on the open air nearest,
      heat and all, as the water is. nothing is made to vanish) */
   mo.forEach(function (q) { var c = g.m[q]; if (WET[c]) { if (!bShove(g, q, not)) hBail(g, q, not); } else if (!AIRY[c] && c !== MAT.METAL && c !== MAT.LAVA) hBail(g, q, not); });
@@ -1016,6 +1024,10 @@ function hSpotAt(g, s) { var sp = hSpot(s), G = mGroundNear(g, sp.x, false, sp.y
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
 function hFoundryStep(g, s) {
   if (!s.done || s.repair) return;
+  /* (iron gone cold in a mould between casts, that is no cast of its own: a stray bit of plate put back, say. prised out,
+     and into the nearest pocket (or onto the pile), a fifth of a bar a cell, as scrap is: it would otherwise stop the
+     mould up for good) */
+  if (s.phase === 0) hMouldScrap(g, s);
   if (s.phase === 0 && hFoundryWant(g, s)) {
     /* (a bell wanted is cast as a bell, when the bell's mould is free of the last one: never plates instead) */
     var bell = hFoundryWant(g, s) === "an engine bell";

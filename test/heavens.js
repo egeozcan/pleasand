@@ -365,6 +365,26 @@ module.exports = function (test, check, sim) {
     check(!bell.some(function (j) { return g.m[j] === M.ICE; }), "ice still in the bell's mould");
     check(ice() === n0, "ice went from " + n0 + " to " + ice());
   });
+  test("foundry: a cold cell of iron left in an idle mould is taken out as scrap, iron and all, and the bell is cast", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
+    w.wDef({ id: "bellwant3" });
+    var x = s.x1 + 20, G = w.mGround(g, x), e = w.bE(g, x, G - 1, M.METAL, 0); e.res = "bell"; e.cost = 1;
+    w.bNew(g, "bellwant3", F.p, [e], [x, G - 1, x, G - 1], { wonder: true });
+    s.phase = 0; s.mould = "";
+    var bell = w.hMould(g, s, "bell");
+    w.sandPlace(g, bell[0], M.METAL); g.T[bell[0]] = 20; w.heatAccept(g, bell[0]);
+    var i0 = ironOf(F);
+    w.hFoundryStep(g, s);
+    check(s.mould === "bell" && s.phase === 1, "the bell's mould, with a cold cell of iron in it, was not cast into: " + JSON.stringify([s.mould, s.phase]));
+    check(Math.abs(ironOf(F) - i0) < 1e-6, "iron went from " + i0 + " to " + ironOf(F));
+  });
+  test("foundry: what is lifted out of one mould is never put down in the other", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
+    var bell = w.hMould(g, s, "bell"), plate = w.hMould(g, s, "plate");
+    bell.forEach(function (j) { w.sandPlace(g, j, M.ICE); g.T[j] = -5; w.heatAccept(g, j); });
+    w.hMouldSweep(g, s, "bell");
+    check(!plate.some(function (j) { return g.m[j] === M.ICE; }), "ice from the bell's mould was put down in the plates' mould");
+  });
   test("foundry: a charge of two bars, tapped, sets in the plate mould and is prised out as plates; the iron is all there, none of it outside, and the ash is raked out", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F), fb = fireb(F), first = 0, set = 0;
     var mould = w.hMould(g, s, "plate");
