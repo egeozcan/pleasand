@@ -1343,10 +1343,10 @@ function hTaskBoard(g, p, k) {
   pSay(g, p, "board", true);
   return false;
 }
-/* the rocket p is aboard, while it stands on its pad to be aboard (null: gone, or never theirs) */
+/* the rocket p is aboard, while it stands on its pad whole to be aboard (null: gone, wanting mending, or never theirs) */
 function hAboardOf(g, p) {
   var s = bSite(g, p.aboard);
-  return s && s.kind === "moonrocket" && !s.gone && s.crew && s.crew.indexOf(p.id) >= 0 ? s : null;
+  return s && s.kind === "moonrocket" && s.done && !s.repair && !s.gone && s.crew && s.crew.indexOf(p.id) >= 0 ? s : null;
 }
 /* out of a rocket that is not there any more: down on the ground where they were, as they were before they got in */
 function hDisembark(g, p) {
@@ -1418,6 +1418,13 @@ function hCrew(g) {
 /* every W_STRIDE ticks: fuel fetched; fuelled, the crew called and the countdown; a fire by it, the end of it */
 function hRocketStep(g, s) {
   var k, q;
+  /* (a plate gone in the countdown, or before: it cannot go like that. the countdown is off, and the crew get out,
+     till it is mended: hAboardOf) */
+  if ((!s.done || s.repair) && !s.gone && ((s.crew && s.crew.length) || s.count)) {
+    (s.crew || []).forEach(function (id) { var c = lAlive(g, id); if (c && c.task && c.task.kind === "board") c.task = null; });
+    s.crew = []; s.count = 0;
+    feed(g, "the countdown is off. the moon rocket wants mending", "#c8d0dc", "count" + s.id);
+  }
   if (!s.done || s.gone) return;
   /* a fire by a fuelled rocket: a very large firework */
   if ((s.oil || 0) > 0 && hRocketAlight(g, s)) { hRocketBoom(g, s); return; }

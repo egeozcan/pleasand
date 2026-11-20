@@ -458,6 +458,20 @@ module.exports = function (test, check, sim) {
     sim.step(w2, 2);
     check(q2 && !q2.aboard && q2.state !== "space", "the loaded crew are still stranded: " + (q2 && q2.state + " " + q2.aboard));
   });
+  test("moon rocket: a plate gone in the countdown calls it off, and the crew get out till it is mended", function () {
+    var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
+    s.oil = 12;
+    g.peasants[2].flights = 3; g.peasants[4].flights = 1;
+    for (k = 0; k < 6000 && !s.count; k++) sim.step(w, 1);
+    var crew = g.peasants.filter(function (q) { return q.aboard === s.id; });
+    check(s.count > 0 && crew.length >= 1, "(the test wants a crew aboard, counting down)");
+    var plate = s.plan.filter(function (e) { return e.rk && g.m[e.i] === M.METAL; })[0];
+    w.sandPlace(g, plate.i, M.EMPTY);   /* (the eraser, on one plate) */
+    for (k = 0; k < 600 && !(s.repair && crew.every(function (q) { return !q.aboard && q.state !== "space"; })); k++) sim.step(w, 1);
+    check(s.repair, "(the test wants it seen to want mending)");
+    check(!s.gone && !s.count, "it went (or is still counting down) with a plate gone");
+    check(crew.every(function (q) { return !q.aboard && q.state !== "space"; }), "the crew are still aboard a rocket that wants mending: " + crew.map(function (q) { return q.state + " " + q.aboard; }).join(", "));
+  });
   test("moon rocket: fire by a fuelled rocket blows it up, and anybody aboard is thrown clear", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 4;
