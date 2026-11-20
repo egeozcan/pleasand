@@ -290,6 +290,18 @@ module.exports = function (test, check, sim) {
     check(s2.phase === 2, "(the test wants it charged: phase " + s2.phase + ")");
     check(Math.abs(ironOf(F2) - i2) < 1e-6, "iron went from " + i2 + " to " + ironOf(F2) + " into a chamber with room for three cells");
   });
+  test("foundry: pouring a cell of melt into the mould makes no heat", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k;
+    var j = s.cells[0];
+    w.sandPlace(g, j, M.LAVA); g.aux[j] = M.METAL; g.T[j] = 1600; w.heatAccept(g, j);
+    for (k = 1; k < s.cells.length; k++) if (g.m[s.cells[k]] === M.LAVA) w.sandPlace(g, s.cells[k], M.EMPTY);
+    var mould = w.hMould(g, s, "plate"), to = mould.filter(function (i) { return w.AIRY[g.m[i]]; })[0];
+    var q0 = w.heatQ(g, j) + w.heatQ(g, to);
+    s.phase = 3;
+    check(w.hPourCell(g, s, F.p), "(the test wants a cell poured)");
+    var q1 = w.heatQ(g, j) + w.heatQ(g, to);
+    check(Math.abs(q1 - q0) < 1e-3, "the pour went from " + q0 + " to " + q1 + " heat");
+  });
   test("foundry: a charge of two bars, tapped, sets in the plate mould and is prised out as plates; the iron is all there, none of it outside, and the ash is raked out", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F), fb = fireb(F), first = 0, set = 0;
     var mould = w.hMould(g, s, "plate");

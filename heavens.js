@@ -1143,10 +1143,10 @@ function hPourCell(g, s, p) {
   for (k = 0; k < M.length && !AIRY[g.m[M[k]]]; k++);
   if (k >= M.length) return false;
   j = M[k];
-  heatSync(g, src);
-  g.m[j] = MAT.LAVA; g.aux[j] = g.aux[src]; g.T[j] = g.T[src]; g.lat[j] = g.lat[src]; g.sh[j] = g.sh[src]; g.vy[j] = 0;
-  heatAccept(g, j);
-  g.m[src] = MAT.EMPTY; g.aux[src] = 0; g.lat[src] = 0; g.vy[src] = 0; heatAccept(g, src);
+  /* (the melt and the air it goes into change places, each with its own heat: nothing made or lost in the pouring) */
+  heatSync(g, src); heatSync(g, j);
+  sandSwap(g, src, j);
+  g.vy[j] = 0; g.vy[src] = 0;
   s.streamT = g.tick; s.streamTo = j;
   return true;
 }
