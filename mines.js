@@ -1032,7 +1032,7 @@ function mGoForge(g, p) {
   var s = mSites(g, "furnace", true)[0];
   if (!s || Math.abs(s.cx - p.x) > 220 || mCrew(g, "forge", s.id) >= 1 || ((p.iron || 0) < 1 && mIronToHand(g) < 2)) return false;
   /* (a great work that wants iron: new tools wait for iron to spare, worn ones are still done again. wonders.js) */
-  if (!p.worn && wIronHeld(g) && mIronToHand(g) < M_IRON_SPARE) return false;
+  if (!p.worn && wIronHeld(g) && mIronToHand(g) < mIronSpare(g)) return false;
   p.task = { kind: "forge", site: s.id, t: 0, act: 0 };
   return true;
 }
@@ -1258,7 +1258,7 @@ function mFinish(g, s, p) {
     var n = 0, x;
     for (x = Math.min(s.xa, s.xb); x <= Math.max(s.xa, s.xb); x++) if (!((x - s.col) % 6)) n++;
     /* (out of the pockets of whoever is down there, or close by: carried down, not wished there) */
-    if (g.know.forge && n && mIronToHand(g) >= M_IRON_SPARE + n) s.ironProps = iChipIn(g, "iron", n, s.cx, 40) > 0;
+    if (g.know.forge && n && mIronToHand(g) >= mIronSpare(g) + n) s.ironProps = iChipIn(g, "iron", n, s.cx, 40) > 0;
     feed(g, iCap(mLabel(s)) + " is " + mReach(g, bSite(g, s.of) || s, s.dir, s.lv || 0).len + " long" + (s.ironProps ? ", propped with iron" : ""), "#e8c8a0", "plan" + s.id);
   }
   else if (s.kind === "tower") { feed(g, who + " finished the watchtower. what a view", "#c8d0dc", "plan" + s.id); achieve(g, "tower"); }
@@ -1302,6 +1302,8 @@ function mMood(g, p) {
 var M_CAVE = ["#1a1b21", "#1e1f26", "#17181d", "#22232a"].map(function (h) { return hex32(h); });
 var M_INSIDE = [hex32("#3a3630"), hex32("#332f2a")];
 var M_IRON_SPARE = 10;   /* iron kept back (for tools, a lift, a rocket pack) before any goes into the props */
+/* the iron kept back in this village: more while a great work wants iron (g.ironSpare: wonders.js wStep) */
+function mIronSpare(g) { return g.ironSpare || M_IRON_SPARE; }
 var M_PROP_I = hex32("#6a707c"), M_PROP_ID = hex32("#4c525c");   /* (iron props) */
 var M_PROP = hex32("#5a3e22"), M_PROP_D = hex32("#46301a"), M_LAMP = hex32("#ffc860"), M_SLIT = hex32("#14161c");
 var M_IRON = hex32("#6a7484"), M_IRON_D = hex32("#3e4652"), M_CHAIN = hex32("#9aa2ae");

@@ -206,10 +206,35 @@ module.exports = function (test, check, sim) {
     p.x = sites(g, "furnace")[0].cx; p.iron = 3; p.tools = 0; p.worn = 0; p.task = null;
     check(w.mGoForge(g, p), "(without a wonder, they would forge)");
     p.task = null;
-    g.wIronTest = true; w.eval("M_IRON_SPARE = 30");
+    g.wIronTest = true; g.ironSpare = 30;
     check(!w.mGoForge(g, p), "new tools were forged with a wonder wanting the iron");
     p.worn = 1;
     check(w.mGoForge(g, p), "worn-out tools were not done again");
+  });
+
+  test("wonders: the iron kept back for a great work is the village's own: a plain village loaded after one keeps back what it always did", function () {
+    var w = sim.load(1), g = w.g, p = g.peasants[0];
+    var plain = JSON.parse(JSON.stringify(w.saveDocument(g, { source: "test" })));
+    /* a great work wanting iron, and the wonders' look at it */
+    cairnDef(w);
+    var G = w.mGround(g, Math.floor(p.x) + 8), s = cairn(w, p, Math.floor(p.x) + 8, G, 4, function () { return w.MAT.GIRDER; });
+    g.know.cairn = "TEST"; g.tick = 30 * 1000; w.wStep(g);
+    check(w.mIronSpare(g) === w.W_IRON_HOLD, "(the test wants iron held back: " + w.mIronSpare(g) + ")");
+    w.saveLoad(g, plain);
+    check(w.mIronSpare(g) === w.M_IRON_SPARE, "a plain village loaded after a great work keeps back " + w.mIronSpare(g) + " iron, not " + w.M_IRON_SPARE);
+    void s;
+  });
+
+  test("wonders: a new village (R) has nothing of the old one's great works in the air: a rocket going up is gone, and sets nothing alight", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    g.rocket = { x: 120.5, y: 140, vy: -0.2, cells: [{ dx: 0, dy: 0, v: M.METAL, a: 0, sh: 0 }], site: 999, t: 40, fireQ: 0, n: 1 };
+    g.moonT = g.tick + 5; g.ironSpare = 30;
+    w.sandLandscape(g);
+    check(!g.rocket && !g.moonT && !g.ironSpare, "the old village's rocket (or flag, or iron) is still about: " + JSON.stringify([!!g.rocket, g.moonT, g.ironSpare]));
+    var fire = function () { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.FIRE) n++; return n; };
+    var f0 = fire();
+    sim.step(w, 120);
+    check(fire() <= f0, "fire in the new village: " + fire());
   });
 
   test("wonders: gold is gilding: with none about it is stone, and gilded when gold turns up", function () {

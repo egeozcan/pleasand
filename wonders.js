@@ -110,7 +110,16 @@ function wDef(d) {
 function wOf(id) { for (var k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].id === id) return W_DEFS[k]; return null; }
 function wIsWonder(id) { return !!wOf(id); }
 function wIdea(id) { for (var k = 0; k < IDEAS.length; k++) if (IDEAS[k].id === id) return IDEAS[k]; return null; }
-function wReset(g) { g.tales = []; g.kiln = []; g.wDone = {}; g.wAny = false; g.swims = 0; }
+/* a new village: nothing of the old one's great works left over, in the air or due (a rocket going up, a flag due on
+   the moon, the iron kept back for them) */
+var W_GKEYS = ["curseSlips", "dmask", "draught", "hConst", "hLake", "hLakeT", "hLightFame", "hRock", "hRockOut", "hShower", "kilnN",
+  "kingDied", "lastKing", "lastSwim", "looks", "moonCrew", "moonFlag", "moonLooks", "moonT", "noField", "noFieldT", "packFlights",
+  "rocket", "rocketBooms", "thinkerDied", "wChar", "wDuckPalace", "wIceN", "wLump", "wNo", "wPlanT", "wPyrFame", "wQuarryFar",
+  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare"];
+function wReset(g) {
+  for (var k = 0; k < W_GKEYS.length; k++) delete g[W_GKEYS[k]];
+  g.tales = []; g.kiln = []; g.wDone = {}; g.wAny = false; g.swims = 0;
+}
 /* the wonder sites: every one, or only those standing (done) */
 function wSites(g, done) {
   var out = [];
@@ -948,7 +957,7 @@ function wStep(g) {
   /* (a wonder's own look at whether anybody has had it put into their head: no dice. pleasures.js) */
   for (k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].watch && !g.know[W_DEFS[k].id]) W_DEFS[k].watch(g);
   if (!any) return;
-  M_IRON_SPARE = wIronHeld(g) ? W_IRON_HOLD : 10;
+  g.ironSpare = wIronHeld(g) ? W_IRON_HOLD : M_IRON_SPARE;   /* (on g: kept with the village it is about. mines.js mIronSpare) */
   g.kiln = wKilnOrders(g);
   for (k = 0; k < g.peasants.length; k++) {
     p = g.peasants[k];

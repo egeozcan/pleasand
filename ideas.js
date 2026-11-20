@@ -399,7 +399,7 @@ function iPick(g, p) {
   if (K.statue && !p.planCD && !iCount(g, "statue") && bOpenCount(g) < B_OPEN && ((p.stone || 0) >= 4 || (p.gold || 0) >= 1 || Math.random() < 0.2) && iPlanStatue(g, p)) return true;
   /* iron to spare, and a street with dark stretches in it: a lamp post (a village's worth of thinking about it at a
      time, not each peasant's) */
-  if (K.post && !hungry && g.tick > (g.postT || 0) && bOpenCount(g) < B_OPEN && mIronToHand(g) >= M_IRON_SPARE + I_POST_COST && Math.random() < 0.3) {
+  if (K.post && !hungry && g.tick > (g.postT || 0) && bOpenCount(g) < B_OPEN && mIronToHand(g) >= mIronSpare(g) + I_POST_COST && Math.random() < 0.3) {
     if (iPlanPost(g, p)) return true;
     g.postT = g.tick + 1500;
   }
