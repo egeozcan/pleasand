@@ -229,7 +229,36 @@ module.exports = function (test, check, sim) {
     var c2 = at(10, w.rowY(cl) + 3);
     h2.tap(c2.x, c2.y);
     var ops = h2.scenario().ops;
-    check(ops.some(function (o) { return o.op === "select" && o.args.sel === "CLONER"; }), "a click on CLONER was not kept by name: " + JSON.stringify(ops));
+    check(ops.some(function (o) { return o.op === "tap" && o.args.act === "sel:CLONER"; }), "a click on CLONER was not kept by name: " + JSON.stringify(ops));
+  });
+  /* (recorded with master's harness, in a worktree of master: GLASS clicked, the wheel and the down arrow over the list
+     (METAL, then ACID, there), SIZE +, SAND clicked, CLEAR, GLASS and the down arrow (METAL), speed +, WATER and a drag,
+     the thermal view. its hash is master's) */
+  var MASTER_SC = {"version":1,"seed":3,"ticks":158,"hash":"1597f401","ops":[{"at":0,"op":"tap","args":{"x":-43.5,"y":114.5}},{"at":5,"op":"mouse","args":{"x":-43.5,"y":114.5}},{"at":5,"op":"wheel","args":{"d":1}},{"at":5,"op":"tap","args":{"x":100,"y":60}},{"at":5,"op":"tap","args":{"x":101,"y":60}},{"at":15,"op":"key","args":{"k":"arrowdown"}},{"at":15,"op":"tap","args":{"x":120,"y":50}},{"at":25,"op":"tap","args":{"x":-8.5,"y":165.5}},{"at":25,"op":"tap","args":{"x":-43.5,"y":39.5}},{"at":25,"op":"tap","args":{"x":140,"y":40}},{"at":45,"op":"tap","args":{"x":-18.5,"y":172}},{"at":50,"op":"tap","args":{"x":-43.5,"y":114.5}},{"at":50,"op":"key","args":{"k":"arrowdown"}},{"at":50,"op":"tap","args":{"x":90,"y":70}},{"at":50,"op":"tap","args":{"x":91,"y":70}},{"at":60,"op":"tap","args":{"x":-28.5,"y":178.5}},{"at":60,"op":"tap","args":{"x":-43.5,"y":44.5}},{"at":60,"op":"drag","args":{"x0":60,"y0":30,"x1":80,"y1":30,"ticks":8,"btn":0}},{"at":98,"op":"tap","args":{"x":-38.5,"y":185}}]};
+  test("wonders: a real scenario recorded on master, clicking the panel's rows and buttons and using the wheel and arrows over the list, replays to master's hash", function () {
+    var h = H.open({ seed: MASTER_SC.seed }), r = h.replay(MASTER_SC);
+    check(r.matches, "replayed to " + r.hash + ", not master's " + MASTER_SC.hash + " (" + h.pick[h.g.sel].name + ", size " + h.g.size + ", speed " + h.g.speed + ", thermal " + h.g.thermal + ")");
+    check(h.pick[h.g.sel].name === "WATER" && h.g.size === 6 && h.g.speed === 3 && h.g.thermal, "the panel came out " + h.pick[h.g.sel].name + ", size " + h.g.size + ", speed " + h.g.speed + ", thermal " + h.g.thermal);
+  });
+  test("wonders: what is done on the panel, the wheel and the arrows is recorded as what it did, and replays as that whatever the panel's layout", function () {
+    var h = H.open({ seed: 2 }), w = h.game, k;
+    function at(sx, sy) { return { x: (sx - h.PANEL) / h.CELL - 0.5, y: (sy - h.PLAY_Y) / h.CELL - 0.5 }; }
+    for (k = 0; k < h.pick.length; k++) if (h.pick[k].name === "GLASS") break;
+    var c = at(10, w.rowY(k) + 4); h.tap(c.x, c.y);
+    h.mouse(c.x, c.y); h.wheel(1); h.key("arrowdown");
+    c = at(80, w.SIZE_Y + 5); h.tap(c.x, c.y);
+    c = at(60, w.BTN_Y + 5); h.tap(c.x, c.y);
+    var sc = h.scenario(), ops = sc.ops;
+    function arg(op, f) { return ops.filter(function (o) { return o.op === op; }).map(function (o) { return o.args[f]; }); }
+    check(arg("tap", "act").join() === "sel:GLASS,size+,clear", "taps kept as " + arg("tap", "act").join());
+    check(arg("wheel", "sel")[0] === "WET CONCRETE" && arg("key", "sel")[0] === "METAL", "wheel and arrow kept as " + arg("wheel", "sel") + ", " + arg("key", "sel"));
+    /* (the panel laid out some other way by the time it is replayed: every click somewhere else on it, and the list
+       in another order) */
+    var sc2 = JSON.parse(JSON.stringify(sc));
+    sc2.ops.forEach(function (o) { if (o.op === "tap" || o.op === "mouse") o.args.y = 5; });
+    sc2.picks = sc2.picks.slice().reverse();
+    var h2 = H.open({ seed: 2 }), r = h2.replay(sc2);
+    check(r.hash === sc.hash && h2.pick[h2.g.sel].name === "METAL" && h2.g.size === h.g.size, "replayed with the panel moved: " + h2.pick[h2.g.sel].name + ", size " + h2.g.size + ", hash " + (r.hash === sc.hash));
   });
 
   test("wonders: a pail of concrete gone off with nowhere to put it down is carried as a lump, and put down where there is room", function () {

@@ -931,42 +931,94 @@ Harness.prototype._doSelect = function (sel) {
   throw new Error("nothing in the picker called " + sel);
 };
 
-Harness.prototype.key = function (k) { this._op("key", { k: k }); return this._doKey(k); };
-Harness.prototype._doKey = function (k) { this.game.gameKey(this.g, String(k).toLowerCase()); return this; };
-
-Harness.prototype.wheel = function (d) { this._op("wheel", { d: d }); return this._doWheel(d); };
-Harness.prototype._doWheel = function (d) { this.game.gameWheel(this.g, d); return this; };
-
-/* one pointer at a time, as the shell's pointer handler leaves it */
-Harness.prototype._press = function (btn) {
-  var g = this.g, row = this.game.rowAt(g.mx, g.my);
-  g.down = 1; g.btn = btn == null ? 0 : btn; g.ptr = 1;
-  this.game.gameTap(g, g.mx, g.my);
-  /* (a click on the picker: a row, which is a brush in the list the scenario was recorded with. replayed, the brush of
-     that row in that list (a scenario from before wet concrete: the rows as they were); recorded, the brush's name
-     too, so that it replays as that brush whatever the rows are by then) */
-  if (row >= 0) {
-    if (this._replaying && this._scPicks) { if (this._scPicks[row] != null) this._doSelect(this._scPicks[row]); }
-    else this._op("select", { sel: this.pick[g.sel].name });
-  }
+/* the arrow keys and the wheel over the list go up and down the list: kept with the brush they came to, by name (sel),
+   so that they replay as that brush whatever the list is by then. one recorded without (from before that was kept) goes
+   up and down the list it was recorded with (sc.picks, or master's) */
+Harness.prototype._stepSel = function (d) {
+  var L = this._scPicks, nm = this.pick[this.g.sel].name, i = L ? L.indexOf(nm) : -1;
+  if (i < 0) return false;
+  this._doSelect(L[(i + L.length + d) % L.length]);
+  return true;
+};
+Harness.prototype.key = function (k) {
+  var a = { k: k }, kk = String(k).toLowerCase();
+  this._doKey(k);
+  if (kk === "arrowup" || kk === "arrowdown") a.sel = this.pick[this.g.sel].name;
+  this._op("key", a);
   return this;
+};
+Harness.prototype._doKey = function (k, sel) {
+  var g = this.g, kk = String(k).toLowerCase(), was = g.sel;
+  this.game.gameKey(g, kk);
+  if (kk !== "arrowup" && kk !== "arrowdown") return this;
+  if (sel != null) this._doSelect(sel);
+  else if (this._replaying && this._scPicks) { g.sel = was; if (!this._stepSel(kk === "arrowup" ? -1 : 1)) this.game.gameKey(g, kk); }
+  return this;
+};
+
+Harness.prototype.wheel = function (d) {
+  var a = { d: d }, over = this.g.mx < this.PANEL;
+  this._doWheel(d);
+  if (over) a.sel = this.pick[this.g.sel].name;
+  this._op("wheel", a);
+  return this;
+};
+Harness.prototype._doWheel = function (d, sel) {
+  var g = this.g, was = g.sel, over = g.mx < this.PANEL;
+  this.game.gameWheel(g, d);
+  if (!over) return this;
+  if (sel != null) this._doSelect(sel);
+  else if (this._replaying && this._scPicks) { g.sel = was; if (!this._stepSel(d)) this.game.gameWheel(g, d); }
+  return this;
+};
+
+/* the side panel, under the pointer, as what a click there does ("sel:<NAME>", "clear", "size+": game.js panelAt).
+   recorded with the click, so that it replays as that whatever the panel is by then. a click recorded without it (from
+   before that was kept) is read against the panel as it was when it was recorded: the list it was recorded with, and
+   the buttons under it where they were (master's, below a list without wet concrete: _scLayout) */
+Harness.prototype._panelAct = function () {
+  var g = this.g, a, L = this._replaying ? this._scLayout : null;
+  if (g.mx >= this.PANEL) return null;
+  a = this.game.panelAt(g.mx, g.my, L || undefined);
+  if (a.slice(0, 4) !== "row:") return a;
+  var names = L && this._scPicks ? this._scPicks : this.pick.map(function (q) { return q.name; }), nm = names[+a.slice(4)];
+  return nm == null ? "" : "sel:" + nm;
+};
+/* one pointer at a time, as the shell's pointer handler leaves it */
+Harness.prototype._press = function (btn, act) {
+  var g = this.g;
+  if (act == null) act = this._panelAct();
+  g.down = 1; g.btn = btn == null ? 0 : btn; g.ptr = 1;
+  this.game.gameTap(g, g.mx, g.my, act == null ? undefined : act);
+  return act;
 };
 Harness.prototype._release = function () {
   var g = this.g;
   g.down = 0; this.game.sandRelease(g); g.btn = 0; g.ptr = null;
   return this;
 };
-Harness.prototype.down = function (btn) { this._op("down", { btn: btn }); return this._doDown(btn); };
-Harness.prototype._doDown = function (btn) { return this._press(btn); };
+Harness.prototype.down = function (btn) {
+  var a = { btn: btn }, act = this._panelAct();
+  if (act != null) a.act = act;
+  this._op("down", a); return this._doDown(btn, a.act);
+};
+Harness.prototype._doDown = function (btn, act) { this._press(btn, act); return this; };
 Harness.prototype.up = function () { this._op("up", {}); return this._doUp(); };
 Harness.prototype._doUp = function () { return this._release(); };
 
 /* a click: down, the real tap handler, one frame of painting, up */
-Harness.prototype.tap = function (x, y) { this._op("tap", { x: x, y: y }); return this._doTap(x, y); };
-Harness.prototype._doTap = function (x, y) {
+Harness.prototype.tap = function (x, y) {
+  var a = { x: x, y: y }, s = this._screen(numArg(x, "x"), numArg(y, "y"));
+  if (s.mx < this.PANEL) {
+    var g = this.g, mx = g.mx, my = g.my;
+    g.mx = s.mx; g.my = s.my; a.act = this._panelAct(); g.mx = mx; g.my = my;
+  }
+  this._op("tap", a); return this._doTap(x, y, a.act);
+};
+Harness.prototype._doTap = function (x, y, act) {
   this._doMouse(x, y);
   this.g.lx = null;
-  this._press(0);
+  this._press(0, act);
   this.game.sandPaint(this.g);
   return this._release();
 };
@@ -974,14 +1026,18 @@ Harness.prototype._doTap = function (x, y) {
 /* drag across the grid, painting as the real loop would, one tick per step */
 Harness.prototype.drag = function (x0, y0, x1, y1, opts) {
   opts = opts || {};
-  var a = { x0: x0, y0: y0, x1: x1, y1: y1, ticks: opts.ticks || 8, btn: opts.btn || 0 };
+  var a = { x0: x0, y0: y0, x1: x1, y1: y1, ticks: opts.ticks || 8, btn: opts.btn || 0 }, s = this._screen(numArg(x0, "x0"), numArg(y0, "y0"));
+  if (s.mx < this.PANEL) {
+    var g = this.g, mx = g.mx, my = g.my;
+    g.mx = s.mx; g.my = s.my; a.act = this._panelAct(); g.mx = mx; g.my = my;
+  }
   this._op("drag", a); return this._doDrag(a);
 };
 Harness.prototype._doDrag = function (a) {
   var i, t = Math.max(1, a.ticks | 0);
   this._doMouse(a.x0, a.y0);
   this.g.lx = null;
-  this._press(a.btn);
+  this._press(a.btn, a.act);
   for (i = 1; i <= t; i++) {
     this._doMouse(a.x0 + (a.x1 - a.x0) * i / t, a.y0 + (a.y1 - a.y0) * i / t);
     this._tickQuiet();
@@ -1056,11 +1112,11 @@ Harness.prototype._apply = function (op) {
     case "give": return this._doGive(a);
     case "set": return this._doSet(a.path, a.value);
     case "select": return this._doSelect(a.sel);
-    case "key": return this._doKey(a.k);
-    case "wheel": return this._doWheel(a.d);
+    case "key": return this._doKey(a.k, a.sel);
+    case "wheel": return this._doWheel(a.d, a.sel);
     case "mouse": return this._doMouse(a.x, a.y);
-    case "tap": return this._doTap(a.x, a.y);
-    case "down": return this._doDown(a.btn);
+    case "tap": return this._doTap(a.x, a.y, a.act);
+    case "down": return this._doDown(a.btn, a.act);
     case "up": return this._doUp();
     case "flick": return this._doFlick(a.vx, a.vy);
     case "drag": return this._doDrag(a);
@@ -1077,8 +1133,10 @@ Harness.prototype.replay = function (sc, opts) {
   var ops = (sc.ops || []).slice().sort(function (a, b) { return a.at - b.at; });
   this.recording = false;
   this._replaying = true;
-  var wasPicks = this._scPicks;
+  var wasPicks = this._scPicks, wasLayout = this._scLayout;
   this._scPicks = sc.picks || this.pick.map(function (q) { return q.name; }).filter(function (n) { return n !== "WET CONCRETE"; });
+  this._scLayout = sc.picks ? { n: sc.picks.length, SIZE_Y: this.game.SIZE_Y, BTN_Y: this.game.BTN_Y, BTN2_Y: this.game.BTN2_Y, BTN3_Y: this.game.BTN3_Y }
+                            : { n: this._scPicks.length, SIZE_Y: 341, BTN_Y: 354, BTN2_Y: 367, BTN3_Y: 380 };   /* (master's panel) */
   try {
     if (sc.from && sc.from.path) this.load(sc.from.path, { keyframe: sc.from.keyframe, seed: sc.seed });
     else this.reset(sc.seed);
@@ -1088,7 +1146,7 @@ Harness.prototype.replay = function (sc, opts) {
     }
     var target = opts.ticks == null ? sc.ticks : opts.ticks;
     if (target > this.ticks) this._runTo(target);
-  } finally { this.recording = was; this._replaying = wasReplay; this._scPicks = wasPicks; }
+  } finally { this.recording = was; this._replaying = wasReplay; this._scPicks = wasPicks; this._scLayout = wasLayout; }
   var hash = this.hash();
   return { ticks: this.ticks, hash: hash, expected: sc.hash || null, matches: sc.hash ? hash === sc.hash : null };
 };

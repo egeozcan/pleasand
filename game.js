@@ -319,10 +319,39 @@ function sandEyedrop(g) {
 }
 
 function rowY(k) { return ROW0 + k * ROWH + (k >= FUN_N ? FUN_GAP : 0); }
-function rowAt(x, y) {
+function rowAt(x, y, n) {
   if (x >= PANEL || y < ROW0) return -1;
-  for (var k = 0; k < PICK.length; k++) if (y >= rowY(k) && y < rowY(k) + ROWH) return k;
+  for (var k = 0; k < (n == null ? PICK.length : n); k++) if (y >= rowY(k) && y < rowY(k) + ROWH) return k;
   return -1;
+}
+/* the side panel, as a click on it means: "row:<k>" (the k'th brush in the list), "size-", "size+", "pause", "clear",
+   "slower", "faster", "new", "thermal", "hush", or "tip". L is a layout of the panel (how many rows, and where the
+   buttons are), for a recording made with another (harness.js); with none, the panel as it is */
+var PANEL_LAYOUT = { n: null, SIZE_Y: SIZE_Y, BTN_Y: BTN_Y, BTN2_Y: BTN2_Y, BTN3_Y: BTN3_Y };
+function panelAt(x, y, L) {
+  L = L || PANEL_LAYOUT;
+  var row = rowAt(x, y, L.n);
+  if (row >= 0) return "row:" + row;
+  if (y >= L.SIZE_Y && y < L.SIZE_Y + 12) return x >= 44 && x < 58 ? "size-" : (x >= 76 && x < 90 ? "size+" : "");
+  if (y >= L.BTN_Y && y < L.BTN_Y + 12) return x < 48 ? "pause" : "clear";
+  if (y >= L.BTN2_Y && y < L.BTN2_Y + 12) return x < 14 ? "slower" : (x >= 36 && x < 48 ? "faster" : (x >= 48 ? "new" : ""));
+  if (y >= L.BTN3_Y && y < L.BTN3_Y + 12) return x < 48 ? "thermal" : "hush";
+  return "tip";
+}
+/* and what it does. "sel:<NAME>": that brush, by name */
+function panelDo(g, a) {
+  if (a.slice(0, 4) === "row:") { var k = +a.slice(4); if (k >= 0 && k < PICK.length) g.sel = k; return; }
+  if (a.slice(0, 4) === "sel:") { for (var i = 0; i < PICK.length; i++) if (PICK[i].name === a.slice(4)) g.sel = i; return; }
+  if (a === "size-") g.size = clamp(g.size - 1, 1, SAND_MAXSIZE);
+  else if (a === "size+") g.size = clamp(g.size + 1, 1, SAND_MAXSIZE);
+  else if (a === "pause") g.paused = g.paused ? 0 : 1;
+  else if (a === "clear") sandClear(g);
+  else if (a === "slower") gameSpeed(g, -1);
+  else if (a === "faster") gameSpeed(g, 1);
+  else if (a === "new") sandLandscape(g);
+  else if (a === "thermal") g.thermal = !g.thermal;
+  else if (a === "hush") g.hush = !g.hush;
+  else if (a === "tip") g.tip = (g.tip + 1) % TIPS.length;
 }
 
 /* -------------------------------------------------------------------
@@ -1231,7 +1260,8 @@ function drawThermalKey(c) {
 /* -------------------------------------------------------------------
    7. INPUT
    ------------------------------------------------------------------- */
-function gameTap(g, x, y) {
+/* (act: what a click on the side panel is to do, instead of what is at (x, y) there: harness.js, replaying) */
+function gameTap(g, x, y, act) {
   saveInput(g, "tap", { x: saveR(x), y: saveR(y), cell: x >= PANEL && y >= PLAY_Y ? [Math.round(g.cx), Math.round(g.cy)] : null, btn: g.btn, pick: curPick(g).name });
   g.intro = Math.max(g.intro, 4.5);
   /* the counts along the top open (and close) their popups. a click anywhere else closes it; a click on it is eaten */
@@ -1272,23 +1302,7 @@ function gameTap(g, x, y) {
     }
     return;
   }
-  var row = rowAt(x, y);
-  if (row >= 0) { g.sel = row; return; }
-  if (y >= SIZE_Y && y < SIZE_Y + 12) {
-    if (x >= 44 && x < 58) g.size = clamp(g.size - 1, 1, SAND_MAXSIZE);
-    else if (x >= 76 && x < 90) g.size = clamp(g.size + 1, 1, SAND_MAXSIZE);
-  } else if (y >= BTN_Y && y < BTN_Y + 12) {
-    if (x < 48) g.paused = g.paused ? 0 : 1;
-    else sandClear(g);
-  } else if (y >= BTN2_Y && y < BTN2_Y + 12) {
-    if (x < 14) gameSpeed(g, -1);
-    else if (x >= 36 && x < 48) gameSpeed(g, 1);
-    else if (x >= 48) sandLandscape(g);
-  } else if (y >= BTN3_Y && y < BTN3_Y + 12) {
-    if (x < 48) g.thermal = !g.thermal;
-    else g.hush = !g.hush;
-  }
-  else g.tip = (g.tip + 1) % TIPS.length;
+  panelDo(g, act != null ? act : panelAt(x, y));
 }
 function gameSpeed(g, d) { g.speed = clamp(g.speed + d, 0, SPEEDS.length - 1); g.speedAcc = 0; }
 function gameWheel(g, d) {
