@@ -117,11 +117,16 @@ function wSites(g, done) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].wonder && (!done || g.sites[k].done)) out.push(g.sites[k]);
   return out;
 }
-/* the great work going up: the one wonder not yet finished that the one-at-a-time rule applies to. null if none */
-function wGreat(g) {
-  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && !s.repair && !s.laid && !(wOf(s.kind) || {}).exempt) return s; }
-  return null;
+/* the great works going up: the wonders not yet finished that the W_GREAT-at-a-time rule applies to (not one laid by,
+   being mended, or exempt) */
+var W_GREAT = 2;
+function wGreats(g) {
+  var out = [];
+  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && !s.repair && !s.laid && !(wOf(s.kind) || {}).exempt) out.push(s); }
+  return out;
 }
+/* is there room for another great work to be begun (or one laid by to be taken up) */
+function wRoomFor(g) { return wGreats(g).length < W_GREAT; }
 /* the wonder sites going up, the great work (and anything not laid by) first: whoever is looking for something to do
    at one, or the kiln, or the quarry, looks there first */
 function wUp(g) {
@@ -130,8 +135,8 @@ function wUp(g) {
   return a.concat(b);
 }
 /* LAID BY: a great work that has not come on at all in W_LAYBY ticks (short of something nobody can get it) stops being
-   the great work, and another can be planned. it is still worked at whenever there is something it can have, and once
-   it comes on again it is taken up again (when nothing else is the great work) */
+   a great work, and another can be planned. it is still worked at whenever there is something it can have, and once
+   it comes on again it is taken up again (when there is room for another great work) */
 var W_LAYBY = 10000;
 /* (a cell put in counts, every one (s.puts: build.js bPlace); a cell dug out only once the digging is well past the
    most it has ever been: sand that runs back into a hole as fast as it is dug is not getting anywhere) */
@@ -142,7 +147,7 @@ function wLayBy(g, s) {
   if (s.progT == null || n > (s.progN || 0) || d > (s.progD || 0) + 2) {
     var was = s.progT != null;
     s.progN = n; s.progD = Math.max(d, s.progD || 0); s.progT = g.tick;
-    if (s.laid && was && !wGreat(g)) {
+    if (s.laid && was && wRoomFor(g)) {
       s.laid = false;
       feed(g, "the village has taken up " + bLabel(s) + " again", "#ffd94a", "laid" + s.id);
     }
@@ -163,11 +168,15 @@ function wCrew(g, s, but) {
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k], t = q.task; if (q !== but && !q.dead && t && t.kind === "build" && t.site === s.id) n++; }
   return n;
 }
-/* is site s's crew full, as far as p is concerned (they are not in it already) */
+/* is site s's crew full, as far as p is concerned (they are not in it already): its own cap, or the great works' crews
+   between them half the village already */
 function wFull(g, s, p) {
   if (!s.wonder || (wOf(s.kind) || {}).exempt) return false;
   if (p.task && p.task.kind === "build" && p.task.site === s.id) return false;
-  return wCrew(g, s, p) >= wCap(g);
+  if (wCrew(g, s, p) >= wCap(g)) return true;
+  var n = 0;
+  for (var k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (t.wonder && !t.done && !(wOf(t.kind) || {}).exempt) n += wCrew(g, t, p); }
+  return n >= Math.floor(bAlive(g) / 2);
 }
 /* can it be called finished: no wet concrete in it still going off */
 function wReady(g, s) {
@@ -276,13 +285,13 @@ function wPick(g, p, hungry) {
   if (g.know.glass && lGlassShort(g, mSites(g, "furnace", true)[0]) > 0 && lGlassPick(g, p)) return true;
   /* short of stone, and nowhere to get it but the rock: a quarryman */
   if (wGoQuarry(g, p)) return true;
-  /* a wonder thought of, and none going up: somewhere for it (one great work at a time) */
+  /* a wonder thought of, and room for another great work: somewhere for it (W_GREAT at a time) */
   if (!p.planCD && g.tick > (g.wPlanT || 0) && Math.random() < 0.3) {
     g.wPlanT = g.tick + 300;
     var O = W_DEFS.slice().sort(function (a, b) { return wRank(a) - wRank(b); });
     for (k = 0; k < O.length; k++) {
       d = O[k];
-      if (!d.plan || !g.know[d.id] || (g.wDone && g.wDone[d.id] && !d.again) || iCount(g, d.id) || (!d.exempt && wGreat(g))) continue;
+      if (!d.plan || !g.know[d.id] || (g.wDone && g.wDone[d.id] && !d.again) || iCount(g, d.id) || (!d.exempt && !wRoomFor(g))) continue;
       if (g.wNo && g.wNo[d.id] > g.tick) continue;
       if (d.wait && d.wait(g)) continue;   /* (not for want of room: the ice palace, waiting for a freeze. pleasures.js) */
       /* (nor before there is a furnace, for anything that wants what only a furnace makes: it would take the ground the

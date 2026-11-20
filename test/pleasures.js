@@ -466,7 +466,7 @@ module.exports = function (test, check, sim) {
     var plan = [];
     for (k = 0; k < 20; k++) plan.push(w.bE(g, 30 + (k % 5), 120 - (k / 5 | 0), M.BRICK, 0));
     w.bNew(g, "pyramid", p, plan, [30, 116, 34, 120], { wonder: true });
-    check(!!w.wGreat(g), "(the test wants a great work going up)");
+    check(w.wGreats(g).length > 0, "(the test wants a great work going up)");
     g.wPlanT = 0; p.planCD = 0;
     for (k = 0; k < 200 && !sites(g, "icepalace").length; k++) { g.wPlanT = 0; w.wPick(g, p, false); }
     check(sites(g, "icepalace").length === 1, "no ice palace planned while the pyramid was going up");

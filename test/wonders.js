@@ -124,6 +124,23 @@ module.exports = function (test, check, sim) {
     check(haul > 0, "nobody carrying stone, past the crew, brought it to the pile");
   });
 
+  test("wonders: two great works go up at once, not three; one laid by is not one of them; their crews are half the village at most", function () {
+    var w = sim.load(1), g = w.g, p = g.peasants[0], x = Math.floor(p.x) + 8, G = w.mGround(g, x);
+    var a = cairn(w, p, x, G, 24);
+    check(w.wRoomFor(g), "one great work going up left no room for another");
+    var b = cairn(w, p, x + 6, w.mGround(g, x + 6), 24);
+    check(!w.wRoomFor(g), "room for a third great work beside two");
+    b.laid = true;
+    check(w.wRoomFor(g), "a great work laid by still counted as one going up");
+    b.laid = false;
+    var c = cairn(w, p, x + 12, w.mGround(g, x + 12), 24);   /* (a third, say, taken up again) */
+    g.peasants.forEach(function (q) { q.stone = 10; q.task = null; q.hunger = 0; });
+    g.peasants.forEach(function (q) { var t = w.bNearestSite(g, q, 400); if (t) w.bJoin(g, q, t); else w.wPick(g, q, false); });
+    var crews = w.wCrew(g, a) + w.wCrew(g, b) + w.wCrew(g, c);
+    check(crews <= Math.floor(w.bAlive(g) / 2), "the great works' crews are " + crews + " of " + w.bAlive(g));
+    check([a, b, c].every(function (t) { return w.wCrew(g, t) <= w.wCap(g); }), "a crew over its cap");
+  });
+
   /* a mine with a gallery dug out east of it, all done, in seed 1 */
   function galleryVillage() {
     var w = sim.load(1), g = w.g, p = null, k;
