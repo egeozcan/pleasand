@@ -42,6 +42,15 @@ function navStand(g, x, y) {
 }
 /* somewhere they would rather not be: fire, lava, acid or a drain in or under them, or ground too hot to stand on */
 function navBad(c) { return HOT[c] || c === MAT.ACID || c === MAT.DRAIN; }
+/* a drain where they stand, under them, or under either side: it has them (peasants.js pStep) */
+function navDrainAt(g, x, y) {
+  return pCell(g, x, y) === MAT.DRAIN || pCell(g, x, y + 1) === MAT.DRAIN || pCell(g, x - 1, y + 1) === MAT.DRAIN || pCell(g, x + 1, y + 1) === MAT.DRAIN;
+}
+/* anything that would kill a peasant (navBad), within r cells of anywhere their body would be, standing at (x, y) */
+function navLethalNear(g, x, y, r) {
+  for (var dx = -r; dx <= r; dx++) for (var dy = -9 - r; dy <= 1 + r; dy++) if (navBad(pCell(g, x + dx, y + dy))) return true;
+  return false;
+}
 function navHazard(g, x, y) {
   return navBad(pCell(g, x, y + 1)) || navBad(pCell(g, x, y)) || navBad(pCell(g, x, y - 4)) || navBad(pCell(g, x, y - 7)) ||
          (!NAV_HOTOK && (pHotAt(g, x, y + 1) || pHotAt(g, x, y - 3)));   /* (where a burning peasant starts from may be hot: NAV_HOTOK) */

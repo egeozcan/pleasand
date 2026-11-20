@@ -1422,19 +1422,30 @@ function hHeld(g, p) {
   p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0;
   p.x = at.x + 0.5; p.y = at.y; p.state = "walk"; p.fallY = p.y;
 }
-/* the nearest place to them in the valley that a peasant can stand: ground under it, room over it, nothing wet, hot or
-   draining, and in nobody's site (every row looked at: a floor under a roof will do). {x, y} or null */
+/* the nearest place to them in the valley that a peasant can stand, and be safe, and get away from: ground under it
+   (the floor of the world too), room over it, nothing wet, and in nobody's site; nothing that would kill them
+   anywhere near (a drain, fire, acid: what the walking does, paths.js navLethalNear); and a way from it to open sky.
+   open sky over it is better than a roof, however much nearer. {x, y} or null */
 function hRelease(g, p) {
-  var best = null, bd = 1e18, x, y, k, px = p.x, py = p.y;
-  for (x = 1; x < g.gw - 1; x++) for (y = 9; y < g.gh - 1; y++) {
-    if (!SOLID[g.m[(y + 1) * g.gw + x]] || !AIRY[g.m[y * g.gw + x]]) continue;
-    var d = (x + 0.5 - px) * (x + 0.5 - px) + (y - py) * (y - py);
-    if (d >= bd || navStand(g, x, y) !== 1 || LIQUID[pCell(g, x, y)] || LIQUID[pCell(g, x, y - 4)]) continue;
+  var C = [], x, y, k, px = p.x, py = p.y;
+  for (x = 1; x < g.gw - 1; x++) for (y = 9; y < g.gh; y++) {
+    if (!SOLID[pCell(g, x, y + 1)] || !AIRY[g.m[y * g.gw + x]]) continue;
+    if (navStand(g, x, y) !== 1 || LIQUID[pCell(g, x, y)] || LIQUID[pCell(g, x, y - 4)] || navLethalNear(g, x, y, 3)) continue;
     for (k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1) break; }
     if (k < g.sites.length) continue;
-    bd = d; best = { x: x, y: y };
+    var sky = hSky(g, x, y);
+    C.push({ x: x, y: y, sky: sky, d: (x + 0.5 - px) * (x + 0.5 - px) + (y - py) * (y - py) + (sky ? 0 : 1e9) });
   }
-  return best;
+  C.sort(function (a, b) { return a.d - b.d; });
+  for (k = 0; k < C.length && k < 24; k++) {
+    if (C[k].sky || navFind(g, C[k].x, C[k].y, function (x2, y2) { return hSky(g, x2, y2); }, null, null, 6000)) return { x: C[k].x, y: C[k].y };
+  }
+  return null;
+}
+/* nothing but air over (x, y), to the top of the world */
+function hSky(g, x, y) {
+  for (var j = (y - 1) * g.gw + x; j >= 0; j -= g.gw) if (!AIRY[g.m[j]]) return false;
+  return true;
 }
 /* the bored, now and then: up the gantry to look at the moon */
 function hTaskGantry(g, p, k) {

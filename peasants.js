@@ -626,7 +626,7 @@ function pStep(g, p) {
   var cf = pCell(g, fx, fy), cm = pCell(g, fx, fy - 4), ch = pCell(g, fx, fy - 7), cb = pCell(g, fx, fy + 1);
 
   /* the dangers of the world, in order of how quickly they ruin your day */
-  if (cf === MAT.DRAIN || cb === MAT.DRAIN || pCell(g, fx - 1, fy + 1) === MAT.DRAIN || pCell(g, fx + 1, fy + 1) === MAT.DRAIN) { pDie(g, p, "drain"); return; }
+  if (navDrainAt(g, fx, fy)) { pDie(g, p, "drain"); return; }   /* (paths.js: the same as a rocket's crew are let out clear of) */
   if (cf === MAT.LAVA || cm === MAT.LAVA || cb === MAT.LAVA) {
     pIgnite(g, p);
     if (++p.lava > 30) { pDie(g, p, "lava"); return; }
