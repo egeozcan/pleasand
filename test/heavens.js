@@ -624,6 +624,21 @@ module.exports = function (test, check, sim) {
     }
     check(s.gone && local.moon && picked <= 1, "it went: " + !!s.gone + ", the cut-off pilot picked " + picked + " times, the other went " + !!local.moon);
   });
+  test("moon rocket: a snapshot from before it went up, restored, has no rocket in the air and no exhaust; and the great works keep nothing of the world outside g", function () {
+    var H = require("../harness"), h = H.open({ seed: 1 }), control = H.open({ seed: 1 }), before = h.snapshot();
+    h._eval("hLiftOff")(h.g, { id: 999, rx: 130, R0: 50, plan: [], crew: [] });
+    h.restore(before);
+    h.step(20); control.step(20);
+    check(!h.g.rocket && h.hash() === control.hash(), "restored, the rocket is still going up: " + !!h.g.rocket);
+    /* (what the great works' files keep at the top level, that changes: none of it the world. W_DEFS is filled as they
+       load; H_LBL is scratch for one call; P_OQ is the organ's notes waiting to be heard) */
+    var fs = require("fs"), path = require("path"), root = path.join(__dirname, ".."), found = [];
+    ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (f) {
+      var re = /^var ([A-Z_0-9]+) = (\[\]|\{\}|null|new )/gm, m, src = fs.readFileSync(path.join(root, f), "utf8");
+      while ((m = re.exec(src))) found.push(m[1]);
+    });
+    check(found.sort().join() === "H_LBL,P_OQ,W_DEFS", "the great works keep this outside g: " + found.join());
+  });
   test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 12;

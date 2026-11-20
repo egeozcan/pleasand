@@ -94,6 +94,10 @@ function apply(snap, g, keep) {
     fresh[k] = cloneValue(snap.state[k], memo, keep);
   }
   for (i = 0; i < ks.length; i++) { k = ks[i]; g[k] = fresh[k]; }
+  /* (and what has been put on g since the snapshot was taken, that was not there then: gone. a rocket in the air, a
+     falling star, the salvage: anything a module keeps on g is in the snapshot or, if it was not there yet, not there) */
+  var now = Object.keys(g);
+  for (i = 0; i < now.length; i++) { k = now[i]; if (!SKIP.has(k) && !Object.prototype.hasOwnProperty.call(snap.state, k)) delete g[k]; }
   return snap;
 }
 
