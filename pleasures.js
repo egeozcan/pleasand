@@ -379,13 +379,15 @@ function pLift(g, i, j) {
    next, and the bottom one back into the pool: the same water, round
    and round, less what the wheat drinks on the way
    ===================================================================== */
-var P_GW = 29;                     /* the gardens, across: pool, three terraces, cistern */
-var P_GLIP = [5, 12, 19];          /* each terrace's lip (and the pier under it); its bed is the six columns after */
-var P_GBED = 6;                    /* a terrace field, across (a field on the flat is I_FARM_W) */
+var P_GW = 21;                     /* the gardens, across: pool, three terraces, cistern */
+var P_GPW = 2;                     /* the pool, across, inside its walls */
+var P_GLIP = [3, 8, 13];           /* each terrace's lip (and the pier under it; the first is the pool's wall); its bed is the four columns after */
+var P_GBED = 4;                    /* a terrace field, across (a field on the flat is I_FARM_W) */
+var P_GC = 18;                     /* the cistern: its low wall (spilling onto the top terrace), its inside, its high wall */
 var P_GSTEP = 5;                   /* rows each terrace stands over the last */
 var P_GSKY = 7;                    /* clear rows over each (wheat grows I_CROP_H, give or take two) */
-var P_GPOOL = 5;                   /* the pool: four wide, this deep */
-var P_GPOOL_N = 20;                /* and so this much water in it, full */
+var P_GPOOL = 5;                   /* the pool: P_GPW wide, this deep */
+var P_GPOOL_N = P_GPW * P_GPOOL;   /* and so this much water in it, full */
 var P_SCREW = 20;                  /* strokes of the crank to a cell of water */
 var P_SCREW_IRON = 3;              /* iron in the screw, all told */
 var P_SHIFT = 12;                  /* cells a turner lifts before handing over */
@@ -443,7 +445,7 @@ function pPlanGardens(g, p) {
   if (!best) return false;
   var f = best.r, x0 = best.x0, d = best.d, Y0 = f.Y0;
   var s = bNew(g, "gardens", p, wCleared(g, best, f.plan), [x0, pGBed(Y0, 2) - P_GSKY - 1, x0 + P_GW - 1, Y0 + P_GPOOL],
-               { wonder: true, d: d, Y0: Y0, bath: true, L: Y0, px0: d > 0 ? x0 + 1 : x0 + P_GW - 5, bw: 4, bh: P_GPOOL,
+               { wonder: true, d: d, Y0: Y0, bath: true, L: Y0, px0: d > 0 ? x0 + 1 : x0 + P_GW - 1 - P_GPW, bw: P_GPW, bh: P_GPOOL,
                  crankX: f.crankX, crankY: f.crankY, screw: f.path, strokes: 0, lifted: 0 });
   feed(g, p.name + " is building the hanging gardens. three fields, one over the other", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planGardens", true);
@@ -458,8 +460,8 @@ function pGardensFit(g, x0, gy, d) {
   function X(u) { return d > 0 ? x0 + u : x0 + P_GW - 1 - u; }
   function Gy(u) { return gy[X(u) - x0]; }
   var plan = [], at = {}, u, y, k, c, x, brick = 0, dig = 0, Y0 = -1;
-  for (u = 0; u <= 5; u++) Y0 = Math.max(Y0, Gy(u));
-  for (u = 0; u <= 5; u++) if (Y0 - Gy(u) > 2) return null;   /* (the pool wants level ground) */
+  for (u = 0; u <= P_GLIP[0]; u++) Y0 = Math.max(Y0, Gy(u));
+  for (u = 0; u <= P_GLIP[0]; u++) if (Y0 - Gy(u) > 2) return null;   /* (the pool wants level ground) */
   if (Y0 - Gy(P_GW - 1) < 0) return null;                     /* (and the stair goes up from it, or along: never down) */
   var crankX = X(0) - d, cg = mGroundNear(g, crankX, false, Y0);
   if (cg < 0 || Math.abs(cg - Y0) > 2 || !pRoom(g, crankX, cg - 1)) return null;   /* (somewhere to stand at the crank) */
@@ -486,13 +488,13 @@ function pGardensFit(g, x0, gy, d) {
   }
   /* the pool: four wide and five deep, dug out of the ground, brick walls (the rock is the wall where there is rock), and
      a floor of concrete, poured once the walls are in (wet concrete runs, if there is nothing to hold it) */
-  for (u = 0; u <= 5; u++) {
+  for (u = 0; u <= P_GLIP[0]; u++) {
     x = X(u);
     for (y = Math.min(Gy(u), Y0 - 1); y <= Y0 + P_GPOOL; y++) {
-      if (u === 0 || u === 5 || y === Y0 + P_GPOOL) {
+      if (u === 0 || u === P_GLIP[0] || y === Y0 + P_GPOOL) {
         c = pCell(g, x, y);
         if (y >= Y0 && ROCK[c]) continue;   /* (rock where a wall goes is the wall: nobody cuts it out from the bottom of a pit) */
-        if (u > 0 && u < 5) { if (!AIRY[c] && !B_DIG[c]) return null; put(u, y, MAT.CONCRETE, 9).drive = !AIRY[c]; continue; }
+        if (u > 0 && u < P_GLIP[0]) { if (!AIRY[c] && !B_DIG[c]) return null; put(u, y, MAT.CONCRETE, 9).drive = !AIRY[c]; continue; }
         if ((u === 0 || y >= Y0) && !brickAt(u, y, 2 + Y0 + P_GPOOL - y)) return null;
       }
       else if (!digOut(u, y)) return null;
@@ -500,10 +502,10 @@ function pGardensFit(g, x0, gy, d) {
     if (!pSolid(g, x, Y0 + P_GPOOL + 1)) return null;
   }
   /* (nothing runny about it, down as far as it is dug: a pool dug beside a pond is the pond) */
-  for (u = -3; u <= 8; u++) for (y = Y0 - 2; y <= Y0 + P_GPOOL + 2; y++) { c = pCell(g, X(u), y); if (LIQUID[c] || c === MAT.DRAIN) return null; }
+  for (u = -3; u <= P_GLIP[0] + 3; u++) for (y = Y0 - 2; y <= Y0 + P_GPOOL + 2; y++) { c = pCell(g, X(u), y); if (LIQUID[c] || c === MAT.DRAIN) return null; }
   /* the terraces: each a pier at its lip from the ground up, a floor, a bed of sand, and sky over it */
   for (k = 0; k < 3; k++) {
-    var a = P_GLIP[k], Yk = pGBed(Y0, k), next = k < 2 ? P_GLIP[k + 1] : 26;
+    var a = P_GLIP[k], Yk = pGBed(Y0, k), next = k < 2 ? P_GLIP[k + 1] : P_GC;
     for (u = a; u < next; u++) {
       x = X(u);
       var G = Gy(u), lip = u === a;
@@ -536,49 +538,49 @@ function pGardensFit(g, x0, gy, d) {
   /* (and no hill going on up past it, higher than its wall: what is up there would come down over it, into it and onto
      the top terrace, every time the wind did not blow) */
   for (u = P_GW; u <= P_GW + 3; u++) { var gb = mGround(g, X(u)); if (gb >= 0 && gb < Y2 - 5 + (u - P_GW) && !ROCK[pCell(g, X(u), gb)]) return null; }
-  for (u = 26; u <= 28; u++) {
+  for (u = P_GC; u <= P_GC + 2; u++) {
     x = X(u);
-    var Gc = Gy(u), top = u === 26 ? Y2 - 3 : (u === 28 ? Y2 - 6 : Y2);
+    var Gc = Gy(u), top = u === P_GC ? Y2 - 3 : (u === P_GC + 2 ? Y2 - 6 : Y2);
     for (y = Y2 - 7; y < top; y++) if (!digOut(u, y, 40)) return null;
-    if (u === 27) for (y = Y2 - 5; y < Y2; y++) if (!at[y * g.gw + x]) put(u, y, MAT.EMPTY, 40).clear = true;   /* (the inside of it, kept clear) */
+    if (u === P_GC + 1) for (y = Y2 - 5; y < Y2; y++) if (!at[y * g.gw + x]) put(u, y, MAT.EMPTY, 40).clear = true;   /* (the inside of it, kept clear) */
     for (y = top; y <= Y2; y++) {
       c = pCell(g, x, y);
-      if (u !== 27) { if (!AIRY[c] && !B_DIG[c] && !ROCK[c]) return null; if (!ROCK[c]) brickAt(u, y); continue; }
+      if (u !== P_GC + 1) { if (!AIRY[c] && !B_DIG[c] && !ROCK[c]) return null; if (!ROCK[c]) brickAt(u, y); continue; }
       if (ROCK[c]) put(u, y, MAT.EMPTY, 40).mine = true;
       else if (!AIRY[c] && !B_DIG[c]) return null;
       put(u, y, MAT.CONCRETE, 70).drive = B_DIG[c] === 1;   /* (poured in where the sand was, as the brick is driven) */
     }
     /* (its pier: the two walls down to the ground, the middle made up only where it is low) */
-    for (y = Y2 + 1; y < Gc; y++) if (AIRY[pCell(g, x, y)] && (u !== 27 || Gc - y <= 2 || y === Y2 + 1)) brickAt(u, y);
+    for (y = Y2 + 1; y < Gc; y++) if (AIRY[pCell(g, x, y)] && (u !== P_GC + 1 || Gc - y <= 2 || y === Y2 + 1)) brickAt(u, y);
   }
   /* the screw: a slanting tube of iron from the pool's wall up under the terraces to the foot of the cistern (stepped
      down under each floor; through rock, it is drawn rather than made) */
   var tube = [], path = [];
-  for (u = 5; u <= 26; u++) {
-    k = u < 12 ? 0 : (u < 19 ? 1 : 2);
-    y = Math.max(Math.round(Y0 - 1 - (u - 5) * 11 / 21), pGBed(Y0, k) + 2);
-    if (u === 26) y = Math.max(y, Y2 + 1);
+  for (u = P_GLIP[0]; u <= P_GC; u++) {
+    k = u < P_GLIP[1] ? 0 : (u < P_GLIP[2] ? 1 : 2);
+    y = Math.max(Math.round(Y0 - 1 - (u - P_GLIP[0]) * 11 / (P_GC - P_GLIP[0])), pGBed(Y0, k) + 2);
+    if (u === P_GC) y = Math.max(y, Y2 + 1);
     x = X(u); c = pCell(g, x, y);
     var e2 = at[y * g.gw + x];
     path.push(y * g.gw + x);
     if (e2) continue;   /* (behind the brick of a pier: drawn there, not made) */
-    if (!AIRY[c] || u < 6 || u > 25) continue;   /* (where it runs through the hill, or a pier, it is drawn there, not made) */
+    if (!AIRY[c] || u <= P_GLIP[0] || u >= P_GC) continue;   /* (where it runs through the hill, or a pier, it is drawn there, not made) */
     tube.push(put(u, y, MAT.GIRDER, 90));
   }
   for (k = 0; k < tube.length; k++) tube[k].cost = P_SCREW_IRON / Math.max(tube.length, 8);
   /* a slope rising away from the pool is what it is for */
-  var rise = Y0 - Gy(24);
+  var rise = Y0 - Gy(P_GC - 2);
   return { plan: plan, Y0: Y0, path: path, crankX: crankX, crankY: cg - 1, score: 30 + Math.min(rise, 14) * 2 - brick * 0.15 - dig * 0.05 };
 }
 /* the pool's dry cells, lowest first (FILLING); none, once it is nearly full */
 function pPoolDry(g, s) {
   var out = [], x, y;
   if (P_GPOOL_N - wBathNeed(g, s) >= P_GPOOL_N - 2) return out;
-  for (y = s.L + P_GPOOL - 1; y >= s.L; y--) for (x = s.px0; x < s.px0 + 4; x++) if (AIRY[pCell(g, x, y)]) out.push(y * g.gw + x);
+  for (y = s.L + P_GPOOL - 1; y >= s.L; y--) for (x = s.px0; x < s.px0 + P_GPW; x++) if (AIRY[pCell(g, x, y)]) out.push(y * g.gw + x);
   return out;
 }
 /* the cistern: its one column, and how much water is in it */
-function pCisternX(s) { return pGU(s, 27); }
+function pCisternX(s) { return pGU(s, P_GC + 1); }
 function pCisternWater(g, s) {
   var n = 0, x = pCisternX(s), Y2 = pGBed(s.Y0, 2);
   for (var y = Y2 - 6; y < Y2; y++) if (WET[pCell(g, x, y)]) n++;
@@ -663,7 +665,7 @@ function pTaskScrew(g, p, k) {
   if (p.sayT <= 0 && Math.random() < 0.03) pSay(g, p, "screw");
   if (s.strokes % P_SCREW) return true;
   var from = -1, to = -1, x, y, cxs = pCisternX(s), Y2 = pGBed(s.Y0, 2);
-  for (y = s.L; y < s.L + P_GPOOL && from < 0; y++) for (x = s.px0; x < s.px0 + 4; x++) if (WET[pCell(g, x, y)]) { from = y * g.gw + x; break; }
+  for (y = s.L; y < s.L + P_GPOOL && from < 0; y++) for (x = s.px0; x < s.px0 + P_GPW; x++) if (WET[pCell(g, x, y)]) { from = y * g.gw + x; break; }
   for (y = Y2 - 6; y < Y2 && to < 0; y++) if (pCell(g, cxs, y) === MAT.EMPTY) to = y * g.gw + cxs;
   if (from < 0 || to < 0 || P_GPOOL_N - wBathNeed(g, s) < 3 || k.n >= P_SHIFT) {
     s.turnT = g.tick + 2400;
@@ -729,10 +731,13 @@ function pDrawGardens(g, s) {
    on whatever is next to the organ. and the tank is topped up from the
    pond, a bucket at a time
    ===================================================================== */
-var P_OW = 19;                     /* the organ, across: the stand and the ladder, the tank and its rack, the gutter */
-var P_OH = [6, 8, 10, 12, 14, 16, 18];   /* the pipes, left to right: the tallest is the lowest note */
-var P_OHZ = [494, 440, 392, 349, 330, 294, 262];   /* and their notes: B A G F E D C */
-var P_OTANK = 39;                  /* cells of water in a full tank */
+var P_OW = 13;                     /* the organ, across: the stand and the ladder, the tank and its rack, the gutter */
+var P_ON = 5;                      /* pipes */
+var P_OH = [6, 8, 10, 12, 14];     /* the pipes, left to right: the tallest is the lowest note */
+var P_OHZ = [392, 349, 330, 294, 262];   /* and their notes: G F E D C */
+var P_OTH = 4;                     /* the tank, inside: rows (and nine across, between the rack's end walls) */
+var P_OBW = 9;
+var P_OTANK = P_OBW * P_OTH;       /* cells of water in a full tank */
 var P_OSHOW = 30;                  /* a tank wants at least this much in it to give a concert */
 var P_OGAP = 14000;                /* ticks between concerts it gives of its own accord, at the least */
 var P_OLEAD = 1800;                /* and how long before one the organist starts firing it */
@@ -741,10 +746,10 @@ var P_ONOTE = 220;                 /* ticks a valve stays open for a note that w
 var W_TUNES = [
   { name: "the one about the duck", n: [[2, 1], [2, 1], [3, 1], [4, 1], [4, 1], [3, 1], [2, 1], [1, 1], [0, 1], [0, 1], [1, 1], [2, 1], [2, 2], [1, 1], [1, 2],
                                         [2, 1], [2, 1], [3, 1], [4, 1], [4, 1], [3, 1], [2, 1], [1, 1], [0, 1], [0, 1], [1, 1], [2, 1], [1, 2], [0, 1], [0, 2]] },
-  { name: "brother john, are you sleeping", n: [[0, 1], [1, 1], [2, 1], [0, 1], [0, 1], [1, 1], [2, 1], [0, 1], [2, 1], [3, 1], [4, 2], [2, 1], [3, 1], [4, 2],
-                                        [4, 1], [5, 1], [4, 1], [3, 1], [2, 1], [0, 1], [4, 1], [5, 1], [4, 1], [3, 1], [2, 1], [0, 1], [0, 1], [4, 1], [0, 2], [0, 2]] },
-  { name: "the long walk home", n: [[0, 1], [2, 1], [4, 1], [2, 1], [0, 1], [2, 1], [4, 2], [1, 1], [3, 1], [5, 1], [3, 1], [1, 1], [3, 1], [5, 2], [2, 1],
-                                        [4, 1], [6, 1], [4, 1], [2, 1], [4, 1], [6, 2], [5, 1], [4, 1], [3, 1], [2, 1], [1, 1], [0, 1], [4, 1], [2, 1], [0, 2]] }
+  { name: "the little one who went off", n: [[4, 1], [2, 1], [2, 2], [3, 1], [1, 1], [1, 2], [0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [4, 1], [4, 2],
+                                        [4, 1], [2, 1], [2, 2], [3, 1], [1, 1], [1, 2], [0, 1], [2, 1], [4, 1], [4, 1], [0, 2], [0, 1], [1, 1], [2, 1], [1, 1], [0, 2]] },
+  { name: "the long walk home", n: [[0, 1], [2, 1], [4, 1], [2, 1], [0, 1], [2, 1], [4, 2], [1, 1], [3, 1], [4, 1], [3, 1], [1, 1], [3, 1], [4, 2], [2, 1],
+                                        [3, 1], [4, 1], [3, 1], [2, 1], [3, 1], [4, 2], [3, 1], [2, 1], [1, 1], [0, 1], [1, 1], [0, 1], [2, 1], [1, 1], [0, 2]] }
 ];
 
 P_SAY.idea_organ = ["the kettle sang. what if a lot of kettles sang. at once", "steam, but music", "a kettle the size of a house", "it hissed in tune. nearly"];
@@ -766,7 +771,7 @@ wDef({
   task: function (g, p, k) { return k.kind === "organ" ? pTaskOrgan(g, p, k) : (k.kind === "pfill" ? pTaskFill(g, p, k) : undefined); },
   step: pOrganStep,
   tick: pOrganTick,
-  partOfIt: function (g, s, f) { for (var k = 0; k < f.length; k++) { var u = f[k] % g.gw - s.x0, y = (f[k] / g.gw) | 0; if (y !== s.G - 1 || u < 8 || u > 10) return false; } return true; },
+  partOfIt: function (g, s, f) { for (var k = 0; k < f.length; k++) { var u = f[k] % g.gw - s.x0, y = (f[k] / g.gw) | 0; if (y !== s.G - 1 || u < 5 || u > 7) return false; } return true; },
   draw: pDrawOrgan,
   finish: function (g, s, p) {
     feed(g, "the steam organ is built. it wants filling, then a show", "#ffd94a", "plan" + s.id);
@@ -801,7 +806,8 @@ function pOrganWatch(g) {
   }
 }
 /* the organ's cells, by u (0 .. P_OW - 1) across and rows over the apron (G) */
-function pOPipeX(s, n) { return s.x0 + 3 + 2 * n; }
+function pOPipeX(s, n) { return s.x0 + 2 + 2 * n; }
+function pOLid(G) { return G - 3 - P_OTH; }   /* the lid's row (the valves are in it); the pipes stand on it */
 /* where it goes: on level ground with a lot of sky over it, near where the shows go up */
 function pPlanOrgan(g, p) {
   var r = wPlot(g, { w: P_OW, sky: 27, rough: 8, pad: 2, near: g.festX || wMiddle(g), fit: pOrganFit });
@@ -811,15 +817,15 @@ function pPlanOrgan(g, p) {
      pipe, waiting on gold, would hold up the rest) */
   var plan = wCleared(g, r, r.r.plan);
   plan.forEach(function (e) { if (e.v === MAT.GOLD) { e.v = MAT.BRICK; e.gild = true; } });
-  var s = bNew(g, "organ", p, plan, [x0, G - 6 - P_OH[6] - 1, x0 + P_OW - 1, G],
-               { wonder: true, G: G, bath: true, L: G - 5, px0: x0 + 3, bw: 13, bh: 3, state: "idle", tune: 0, ni: 0, cur: -1,
-                 notes: 0, concerts: 0, caught: 0, exits: [0, 0, 0, 0, 0, 0, 0], mo: [0, 0, 0, 0, 0, 0, 0] });
+  var s = bNew(g, "organ", p, plan, [x0, pOLid(G) - P_OH[P_ON - 1] - 1, x0 + P_OW - 1, G],
+               { wonder: true, G: G, bath: true, L: pOLid(G) + 1, px0: x0 + 2, bw: P_OBW, bh: P_OTH, state: "idle", tune: 0, ni: 0, cur: -1,
+                 notes: 0, concerts: 0, caught: 0, exits: [0, 0, 0, 0, 0], mo: [0, 0, 0, 0, 0] });
   feed(g, p.name + " is building a steam organ. it is going to be loud", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planOrgan", true);
   if (bCarries(p)) bJoin(g, p, s);
   return true;
 }
-/* the organ at x0 on ground gy: an apron of concrete at the ground's row G (a gutter with a lip at the right-hand end),
+/* the organ at x0 on ground gy: an apron of concrete at the ground's row G (a gutter sunk in it at the right-hand end),
    a plinth of brick with the firebox in the middle of it, the tank, the lid, the rack, and a ladder up the left of
    it to the first pipe (the rack is a stair from there, for whoever builds it and whoever mends it) */
 function pOrganFit(g, x0, gy, hi, lo) {
@@ -843,49 +849,57 @@ function pOrganAt(g, x0, gy, G) {
     if (gy[u] <= G + 1 && !pSolid(g, x, G + 1)) return null;
     c = pCell(g, x, G);
     if (!AIRY[c] && !B_DIG[c] && !ROCK[c]) return null;
-    put(u, G, u >= 7 && u <= 11 ? MAT.FIREBRICK : MAT.CONCRETE, 1);
+    /* (the gutter, at the right-hand end: a pit sunk in the apron, its floor concrete, the ground beyond its far side) */
+    if (u === P_OW - 1) {
+      if (!pSolid(g, x0 + P_OW, G)) return null;
+      c = pCell(g, x, G + 1);
+      if (!ROCK[c]) { if (!AIRY[c] && !B_DIG[c]) return null; put(u, G + 1, MAT.CONCRETE, 1).drive = !AIRY[c]; }
+      if (!AIRY[pCell(g, x, G)]) put(u, G, MAT.EMPTY, 0);
+      continue;
+    }
+    put(u, G, u >= 4 && u <= 8 ? MAT.FIREBRICK : MAT.CONCRETE, 1);
   }
-  put(18, G - 1, MAT.BRICK, 2); put(18, G - 2, MAT.BRICK, 3);   /* (the gutter's lip: brick, which stands up on its own, as wet concrete would not) */
   /* the plinth, and the firebox in the middle of it */
-  for (u = 2; u <= 16; u++) {
-    if (u >= 8 && u <= 10) continue;
-    put(u, G - 1, u === 7 || u === 11 ? MAT.FIREBRICK : MAT.BRICK, 3);
+  for (u = 1; u <= 11; u++) {
+    if (u >= 5 && u <= 7) continue;
+    put(u, G - 1, u === 4 || u === 8 ? MAT.FIREBRICK : MAT.BRICK, 3);
   }
   /* the tank: an iron floor, two iron sides, an iron lid with a valve under each pipe */
-  for (u = 2; u <= 16; u++) { put(u, G - 2, MAT.GIRDER, 4); put(u, G - 6, MAT.GIRDER, 9); }
-  for (y = G - 5; y <= G - 3; y++) { put(2, y, MAT.GIRDER, 5 + G - 3 - y); put(16, y, MAT.GIRDER, 5 + G - 3 - y); }
+  var L0 = pOLid(G);
+  for (u = 1; u <= 11; u++) { put(u, G - 2, MAT.GIRDER, 4); put(u, L0, MAT.GIRDER, 9); }
+  for (y = L0 + 1; y <= G - 3; y++) { put(1, y, MAT.GIRDER, 5 + G - 3 - y); put(11, y, MAT.GIRDER, 5 + G - 3 - y); }
   /* the rack: a wall each side of each pipe, as high as the taller of the two, gilded at the tips of the three tallest if
      there is gold. (dressed stone, thin, and tinned: iron, a peasant walks through, as they do the lattice of a lift's
      headframe, and nobody could stand on the rack to build it any higher. as it is, it is a stair, from the ladder) */
-  for (u = 2; u <= 16; u += 2) {
-    var h = Math.max(u > 2 ? P_OH[(u - 4) >> 1] : 0, u < 16 ? P_OH[(u - 2) >> 1] : 0);
-    for (y = G - 7; y >= G - 6 - h; y--) put(u, y, y === G - 6 - h && u >= 12 ? MAT.GOLD : MAT.BRICK, 10 + G - 7 - y, 0.1);
+  for (u = 1; u <= 11; u += 2) {
+    var h = Math.max(u > 1 ? P_OH[(u - 3) >> 1] : 0, u < 11 ? P_OH[(u - 1) >> 1] : 0);
+    for (y = L0 - 1; y >= L0 - h; y--) put(u, y, y === L0 - h && u >= 7 ? MAT.GOLD : MAT.BRICK, 10 + L0 - 1 - y, 0.1);
   }
   /* the ladder, up the left of it to the first pipe's top */
-  for (y = G - 1; y >= G - 6 - P_OH[0] - 1; y--) put(1, y, MAT.LADDER, 10 + G - 1 - y);
+  for (y = G - 1; y >= L0 - P_OH[0] - 1; y--) put(0, y, MAT.LADDER, 10 + G - 1 - y);
   /* (sky over all of it, and no tree or roof to stop the steam on its way up) */
-  for (u = 0; u < P_OW; u++) for (y = G - 6 - P_OH[6] - 2; y >= Math.max(0, G - 60); y -= 3) { c = pCell(g, x0 + u, y); if (!AIRY[c]) return null; }
+  for (u = 0; u < P_OW; u++) for (y = L0 - P_OH[P_ON - 1] - 2; y >= Math.max(0, G - 60); y -= 3) { c = pCell(g, x0 + u, y); if (!AIRY[c]) return null; }
   for (n = 0; n < plan.length; n++) if (plan[n].v === MAT.GOLD) plan[n].cost = null;
   return { plan: plan, G: G, score: 20 - work * 0.2 };
 }
 function pOrganT(g, s) {
   var t = 0, n = 0;
-  for (var x = s.px0; x < s.px0 + 13; x++) for (var y = s.L; y < s.L + 3; y++) { var j = y * g.gw + x; if (WET[g.m[j]]) { t += g.T[j]; n++; } }
+  for (var x = s.px0; x < s.px0 + P_OBW; x++) for (var y = s.L; y < s.L + P_OTH; y++) { var j = y * g.gw + x; if (WET[g.m[j]]) { t += g.T[j]; n++; } }
   return n ? t / n : AMBIENT;
 }
 /* the steam in the tank, up under the lid */
 function pOrganSteam(g, s) {
   var n = 0;
-  for (var x = s.px0; x < s.px0 + 13; x++) for (var y = s.L; y < s.L + 3; y++) if (g.m[y * g.gw + x] === MAT.STEAM) n++;
+  for (var x = s.px0; x < s.px0 + P_OBW; x++) for (var y = s.L; y < s.L + P_OTH; y++) if (g.m[y * g.gw + x] === MAT.STEAM) n++;
   return n;
 }
 function pOrganDry(g, s) {
   var out = [], x, y;
   if (s.state !== "idle" || P_OTANK - wBathNeed(g, s) >= P_OTANK - 2) return out;
-  for (y = s.L + 2; y >= s.L; y--) for (x = s.px0; x < s.px0 + 13; x++) if (g.m[y * g.gw + x] === MAT.EMPTY) out.push(y * g.gw + x);
+  for (y = s.L + P_OTH - 1; y >= s.L; y--) for (x = s.px0; x < s.px0 + P_OBW; x++) if (g.m[y * g.gw + x] === MAT.EMPTY) out.push(y * g.gw + x);
   return out;
 }
-function pOValve(g, s, n) { return (s.G - 6) * g.gw + pOPipeX(s, n); }
+function pOValve(g, s, n) { return pOLid(s.G) * g.gw + pOPipeX(s, n); }
 function pOOpen(g, s, n) { var j = pOValve(g, s, n); if (g.m[j] === MAT.GIRDER) { heatVanish(g, j); g.fx.clank++; } }
 /* shut: a girder back in the lid, if there is nothing in the way of it (steam on its way through: next tick) */
 function pOShut(g, s, n) {
@@ -895,7 +909,7 @@ function pOShut(g, s, n) {
   sandSet(g, j, MAT.GIRDER); g.aux[j] = 0; heatAccept(g, j); g.fx.clank++;
   return true;
 }
-function pOAllShut(g, s) { for (var n = 0; n < 7; n++) if (g.m[pOValve(g, s, n)] !== MAT.GIRDER) return false; return true; }
+function pOAllShut(g, s) { for (var n = 0; n < P_ON; n++) if (g.m[pOValve(g, s, n)] !== MAT.GIRDER) return false; return true; }
 /* a concert, if the organ is up and has the water for one: fired now, played once it boils. for any show that wants
    it (a fireworks show, the theatre's interval, a service: monuments.js may call it). true if it will play */
 function pOrganPlay(g, why) {
@@ -911,8 +925,8 @@ function pOrganPlay(g, why) {
 function pOrganTick(g, s) {
   if (!s.done) return;
   var t = -1;
-  for (var n = 0; n < 7; n++) {
-    var x = pOPipeX(s, n), y = s.G - 7 - P_OH[n], st = g.m[y * g.gw + x] === MAT.STEAM ? 1 : 0;
+  for (var n = 0; n < P_ON; n++) {
+    var x = pOPipeX(s, n), y = pOLid(s.G) - 1 - P_OH[n], st = g.m[y * g.gw + x] === MAT.STEAM ? 1 : 0;
     if (st && !s.mo[n]) {
       s.exits[n]++; s.notes++;
       if (t < 0) t = pOrganT(g, s);
@@ -947,7 +961,7 @@ function pOrganStep(g, s) {
       var d = Math.abs(q.x - s.cx) - ((q.coal || 0) >= 1 ? 40 : 0) - (q.id === s.organist ? 60 : 0);
       if (d < bd) { bd = d; best = q; }
     }
-    if (best) { best.task = { kind: "organ", site: s.id, t: 0, act: 0 }; s.organist = best.id; o = best; }
+    if (best) { best.task = { kind: "organ", site: s.id, t: 0, act: 0, brave: true }; s.organist = best.id; o = best; }
   }
   /* (nobody to play it, a good while: the concert is off) */
   if (o) s.seenT = g.tick;
@@ -962,12 +976,12 @@ function pOrganStep(g, s) {
 }
 function pOrganist(g, s) { for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "organ" && q.task.site === s.id) return q; } return null; }
 /* the firebox's three cells, and what is burning in them */
-function pOBox(g, s, u) { return (s.G - 1) * g.gw + s.x0 + 8 + u; }
+function pOBox(g, s, u) { return (s.G - 1) * g.gw + s.x0 + 5 + u; }
 function pOFire(g, s) { var n = 0; for (var u = 0; u < 3; u++) if (g.m[pOBox(g, s, u)] === MAT.EMBER) n++; return n; }
 /* the gutter: what has rained into it (and into the right-hand end of the apron) */
 function pOGutter(g, s) {
   var out = [];
-  for (var y = s.G - 2; y <= s.G - 1; y++) if (WET[pCell(g, s.x0 + 17, y)]) out.push(y * g.gw + s.x0 + 17);
+  for (var y = s.G - 1; y <= s.G; y++) if (WET[pCell(g, s.x0 + P_OW - 1, y)]) out.push(y * g.gw + s.x0 + P_OW - 1);
   return out;
 }
 /* the organist: at the stand (by the ladder, at the left), firing it, playing it, raking it out after, and bailing what
@@ -998,7 +1012,9 @@ function pTaskOrgan(g, p, k) {
     }
   }
   k.coal = true;
-  var sx = s.x0, sy = s.G - 1;
+  /* (the stand: just off the foot of the ladder. an organist is at work at something hot on purpose (task.brave): a
+     sounding pipe, or the tank on the boil, beside them is no fire to run from) */
+  var sx = s.x0 - 1, sy = s.G - 1;
   if (Math.abs(p.x - sx - 0.5) > 1.5 || Math.abs(Math.floor(p.y) - sy) > 2) {
     if (iWalk(g, p, k, "organ" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 2; })) pGiveUp(g, p, sx);
     return false;
@@ -1036,7 +1052,7 @@ function pTaskOrgan(g, p, k) {
   if (s.breatheT && pOrganSteam(g, s) < 1 && g.tick - s.breatheT > 60) { if (pOShut(g, s, 0)) s.breatheT = 0; return true; }
   /* the gutter bailed back into the tank */
   var W = pOGutter(g, s), D = [];
-  for (j = s.L + 2; j >= s.L && !D.length; j--) for (u = s.px0; u < s.px0 + 13; u++) if (g.m[j * g.gw + u] === MAT.EMPTY) { D.push(j * g.gw + u); break; }
+  for (j = s.L + P_OTH - 1; j >= s.L && !D.length; j--) for (u = s.px0; u < s.px0 + P_OBW; u++) if (g.m[j * g.gw + u] === MAT.EMPTY) { D.push(j * g.gw + u); break; }
   if (W.length && D.length) { pLift(g, W[0], D[0]); s.caught++; if (p.sayT <= 0 && Math.random() < 0.2) pSay(g, p, "bail"); return true; }
   if (s.breatheT) return true;
   p.bored = 0;
@@ -1058,13 +1074,13 @@ function pOrganConduct(g, s, p, t) {
   if (s.cur >= 0 && g.tick - s.noteT > P_ONOTE) { if (pOShut(g, s, s.cur)) { s.cur = -1; s.ni++; s.nextNoteT = g.tick + 6; } return; }
   if (s.cur >= 0 || g.tick < s.nextNoteT) return;
   if (s.ni >= T.length) { pOrganEnd(g, s, true); return; }
-  var n = 6 - T[s.ni][0];   /* (pipe 6, the tallest, is the lowest note) */
+  var n = P_ON - 1 - T[s.ni][0];   /* (the last pipe, the tallest, is the lowest note) */
   s.cur = n; s.need = T[s.ni][1]; s.got = 0; s.noteT = g.tick;
   pOOpen(g, s, n);
   if (s.ni === 10 && p.sayT <= 0) pSay(g, p, "organist", true);
 }
 function pOrganEnd(g, s, ok) {
-  for (var n = 0; n < 7; n++) pOShut(g, s, n);
+  for (var n = 0; n < P_ON; n++) pOShut(g, s, n);
   s.state = "idle"; s.cur = -1; s.nextT = g.tick + P_OGAP + ((s.id * 7919 + g.tick) % 4000);
   g.peasants.forEach(function (q) { var k = q.task; if (!q.dead && k && k.kind === "audience" && k.site === s.id) { q.task = null; q.taskDone = true; if (ok) { q.bored = 0; if (Math.random() < 0.5) pSay(g, q, "clap", true); } } });
   if (!ok) return;
@@ -1088,23 +1104,24 @@ function pDrawOrgan(g, s) {
   /* the pipes, burnished: the iron of the rack in pewter, a highlight up the middle of each pipe (its channel, while
      there is nothing in it), the seams between darker, and a mouth near the foot of each. the tank and its lid in
      copper */
-  for (n = 0; n < 7; n++) {
+  var L0 = pOLid(s.G);
+  for (n = 0; n < P_ON; n++) {
     x = pOPipeX(s, n);
-    for (y = s.G - 7; y >= s.G - 6 - P_OH[n]; y--) {
-      var f = 0.15 + 0.5 * (s.G - 7 - y) / 18;
+    for (y = L0 - 1; y >= L0 - P_OH[n]; y--) {
+      var f = 0.15 + 0.5 * (L0 - 1 - y) / P_OH[P_ON - 1];
       j = y * g.gw + x;
-      if (g.m[j] === MAT.EMPTY) g.px[j] = y === s.G - 9 ? P_OMOUTH : blend32(P_OPIPE_HI, P_OPIPE, f);
+      if (g.m[j] === MAT.EMPTY) g.px[j] = y === L0 - 3 ? P_OMOUTH : blend32(P_OPIPE_HI, P_OPIPE, f);
       [-1, 1].forEach(function (d) { var i = j + d; if (g.m[i] === MAT.BRICK || g.m[i] === MAT.GIRDER) g.px[i] = blend32(g.px[i], d < 0 ? P_OPIPE : P_OPIPE_D, 0.85); });
     }
   }
-  for (y = s.G - 6; y <= s.G - 2; y++) for (x = s.x0 + 2; x <= s.x0 + 16; x++) {
+  for (y = L0; y <= s.G - 2; y++) for (x = s.x0 + 1; x <= s.x0 + 11; x++) {
     j = y * g.gw + x; c = g.m[j];
     if (c === MAT.GIRDER) g.px[j] = blend32(g.px[j], (x + y) % 5 ? P_OCOPPER : P_ORIVET, 0.75);
   }
-  for (n = 0; n < 7; n++) if (s.mo[n]) { var x = pOPipeX(s, n), y = s.G - 7 - P_OH[n]; wBack(g, x - 1, y - 1, P_OSTEAM, 0.5); wBack(g, x + 1, y - 1, P_OSTEAM, 0.5); }
+  for (n = 0; n < P_ON; n++) if (s.mo[n]) { var x = pOPipeX(s, n), y = L0 - 1 - P_OH[n]; wBack(g, x - 1, y - 1, P_OSTEAM, 0.5); wBack(g, x + 1, y - 1, P_OSTEAM, 0.5); }
   if (hot) for (var u = 0; u < 3; u++) { var j = pOBox(g, s, u); if (g.m[j] === MAT.EMBER) g.gpx[j] = P_OGLOW; }
   /* (a little keyboard on a stand, at the foot of the ladder) */
-  wBack(g, s.x0, s.G - 4, P_OKEYS); wBack(g, s.x0, s.G - 3, P_OKEYS); wBack(g, s.x0, s.G - 5, s.state === "playing" ? P_OIVORY : P_OKEYS);
+  wBack(g, s.x0 - 1, s.G - 4, P_OKEYS); wBack(g, s.x0 - 1, s.G - 3, P_OKEYS); wBack(g, s.x0 - 1, s.G - 5, s.state === "playing" ? P_OIVORY : P_OKEYS);
   return hot;
 }
 

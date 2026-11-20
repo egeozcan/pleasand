@@ -120,38 +120,39 @@ function mPlotAny(g, o) {
   o.floor = null;
   return best;
 }
-/* the theatre's columns, stage end first: u (0..20) to x */
-function mU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + 20 - u; }
+/* the theatre's columns, stage end first: u (0 .. M_TW - 1) to x */
+var M_TW = 17;   /* the theatre, across: the stage (seven), the pit (one), three tiers of three */
+function mU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + M_TW - 1 - u; }
 function mPlanTheatre(g, p) {
   var best = null;
   for (var d = -1; d <= 1; d += 2) {
-    var r = mPlotAny(g, { w: 21, sky: 14, rough: 14, near: wMiddle(g), fit: function (g, x0, gy) { return mTheatreFit(g, x0, gy, d); } });
+    var r = mPlotAny(g, { w: M_TW, sky: 14, rough: 14, near: wMiddle(g), fit: function (g, x0, gy) { return mTheatreFit(g, x0, gy, d); } });
     if (r && (!best || r.score > best.score)) { best = r; best.d = d; }
   }
   if (!best) return false;
   var f = best.r, plan = mCleared(g, best, f.plan), G = f.G, x0 = best.x0, d = best.d;
-  var s = bNew(g, "theatre", p, plan, [x0, G - 14, x0 + 20, f.lo], { wonder: true, d: d, G: G, seats: f.seats, playT: 0 });
+  var s = bNew(g, "theatre", p, plan, [x0, G - 14, x0 + M_TW - 1, f.lo], { wonder: true, d: d, G: G, seats: f.seats, playT: 0 });
   feed(g, p.name + " is building a theatre", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planTheatre", true);
   if (bCarries(p)) bJoin(g, p, s);
   return true;
 }
 /* the plan for a theatre at x0 (stage at the d < 0 end, or the d > 0), on ground gy: {plan, G (the stage's ground),
-   seats, lo, score} or null. u runs from the back of the stage (0) to the back of the top tier (20):
+   seats, lo, score} or null. u runs from the back of the stage (0) to the back of the top tier (16):
      u 0       the backdrop: a plank wall ten high, and a beam out over the stage off the top of it
      u 0..6    the stage: a stone plinth, a plank deck on that (two up off the ground), a lantern at either end of the beam
-     u 7..8    the pit, on the ground, where the late stand
-     u 9..20   three tiers, four columns each, two up each, stone, with a seat at either end of each
+     u 7       the pit, on the ground, where the late stand
+     u 8..16   three tiers, three columns each, two up each, stone, with a seat at either end of each
    the stage wants level ground (made up, or dug down, a row or two). the tiers like it rising away from the stage (they
    are cut into it), and do with it flat (built up) */
 function mTheatreFit(g, x0, gy, d) {
-  function X(u) { return d > 0 ? x0 + u : x0 + 20 - u; }
+  function X(u) { return d > 0 ? x0 + u : x0 + M_TW - 1 - u; }
   function Gy(u) { return gy[X(u) - x0]; }
   var G = Gy(3), u, y, k, plan = [], seats = [], work = 0, lo = -1, c, e;
   function dig(x, y) { c = pCell(g, x, y); if (!B_DIG[c] && !AIRY[c] && !mFellable(g, x, y, c)) return false; plan.push(bE(g, x, y, MAT.EMPTY, 0)); work += 0.3; return true; }
-  for (u = 0; u <= 8; u++) if (Math.abs(Gy(u) - G) > 4) return null;
+  for (u = 0; u <= 7; u++) if (Math.abs(Gy(u) - G) > 4) return null;
   /* the stage and the pit: the ground under them made level (dug down where it is high, made up in stone where low) */
-  for (u = 0; u <= 8; u++) {
+  for (u = 0; u <= 7; u++) {
     var x = X(u), gu = Gy(u);
     for (y = gu; y < G; y++) if (!dig(x, y)) return null;
     for (y = G; y < gu; y++) { plan.push(bE(g, x, y, MAT.BRICK, 1)); work++; }
@@ -164,18 +165,18 @@ function mTheatreFit(g, x0, gy, d) {
   /* the tiers: stone, built up from the stage's ground where it is low. where the bank is there already, it is faced
      where it lies, two deep under it (as far down as a builder standing on it reaches): the seats and the risers
      between them are stone, and the slope is the rest of the shape */
-  for (k = 1; k <= 3; k++) for (u = 5 + 4 * k; u <= 8 + 4 * k; u++) {
+  for (k = 1; k <= 3; k++) for (u = 5 + 3 * k; u <= 7 + 3 * k; u++) {
     var xx = X(u), gk = Gy(u), top = G - 2 * k, bot = gk >= G ? gk : Math.min(G, Math.max(gk, top) + 2);
     lo = Math.max(lo, gk);
     if (gk < top - 8) return null;   /* (a bank too steep to dig the seats into) */
     for (y = gk; y < top; y++) if (!dig(xx, y)) return null;
     for (y = top; y < bot; y++) { e = bE(g, xx, y, MAT.BRICK, 2 + bot - y); e.drive = true; plan.push(e); work += y >= gk ? 0.6 : 1; }
-    if (u === 6 + 4 * k || u === 8 + 4 * k) seats.push({ x: xx, y: top - 1 });
+    if (u === 5 + 3 * k || u === 7 + 3 * k) seats.push({ x: xx, y: top - 1 });
   }
   /* (but not on into a bank higher than the top tier: it would only run down onto the seats, for ever) */
-  for (u = 21; u <= 22; u++) { y = mGroundNear(g, X(u), true, G - 1); if (y >= 0 && y < G - 7) return null; }
+  for (u = M_TW; u <= M_TW + 1; u++) { y = mGroundNear(g, X(u), true, G - 1); if (y >= 0 && y < G - 7) return null; }
   /* a slope rising away from the stage is what it is for */
-  var rise = G - Gy(20);
+  var rise = G - Gy(M_TW - 1);
   return { plan: plan, G: G, seats: seats, lo: lo, score: 30 - work + Math.min(rise, 4) * 3 };
 }
 /* the stage: where the actors stand (u 2, 5 and 4), feet on the planks */
@@ -325,7 +326,7 @@ function mDrawTheatre(g, s) {
   for (u = 1; u <= 7; u++) { wBack(g, mU(s, u), G - 11, M_CURTAIN, 0.95); if (u & 1) wBack(g, mU(s, u), G - 10, M_CURTAIN_D, 0.95); }
   /* the risers in shadow, under the lip of each tier above, so the steps read as steps */
   for (k = 1; k <= 3; k++) {
-    var ri = (G - 2 * k + 1) * g.gw + mU(s, 5 + 4 * k);
+    var ri = (G - 2 * k + 1) * g.gw + mU(s, 5 + 3 * k);
     if (g.m[ri] === MAT.BRICK) g.px[ri] = blend32(g.px[ri], 0xff000000, 0.3);
   }
   /* the post, on the ground at the edge of the pit, up to the end of the beam */

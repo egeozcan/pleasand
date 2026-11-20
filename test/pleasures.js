@@ -121,7 +121,7 @@ module.exports = function (test, check, sim) {
     w.wFinish(g, s, p);
     var T = g.sites.filter(function (t) { return t.terrace === s.id; });
     if (sow) T.forEach(function (t) { sim.build(w, t); });
-    for (var x = s.px0; x < s.px0 + 4; x++) for (var y = s.L; y < s.L + w.P_GPOOL; y++) w.sandPlace(g, y * g.gw + x, M.WATER);
+    for (var x = s.px0; x < s.px0 + w.P_GPW; x++) for (var y = s.L; y < s.L + w.P_GPOOL; y++) w.sandPlace(g, y * g.gw + x, M.WATER);
     g.peasants.forEach(function (q, k) { if (k >= keep) q.dead = 1; else { q.x = s.crankX + 0.5 - s.d * 3 * (k + 1); q.y = s.crankY; q.task = null; q.hunger = 0; q.tired = 0; } });
     sim.step(w, 1);
     return { w: w, g: g, s: s, T: T, M: M };
@@ -194,7 +194,7 @@ module.exports = function (test, check, sim) {
     var s = sites(g, "organ")[0];
     sim.build(w, s);
     w.wFinish(g, s, p);
-    for (var x = s.px0; x < s.px0 + 13; x++) for (var y = s.L; y < s.L + 3; y++) w.sandPlace(g, y * g.gw + x, M.WATER);
+    for (var x = s.px0; x < s.px0 + s.bw; x++) for (var y = s.L; y < s.L + s.bh; y++) w.sandPlace(g, y * g.gw + x, M.WATER);
     g.peasants.forEach(function (q, k) { if (k >= keep) q.dead = 1; else { q.x = s.x0 - 3 - k; q.y = s.G - 1; q.task = null; q.hunger = 0; q.tired = 0; q.coal = 12; } });
     sim.step(w, 1);
     return { w: w, g: g, s: s, M: M };
@@ -203,7 +203,7 @@ module.exports = function (test, check, sim) {
 
   test("organ: a fired boiler makes steam that goes out of the open pipe and no other", function () {
     var O = organ(0), w = O.w, g = O.g, s = O.s, M = O.M;
-    check(tank(O) === 39, "(the test wants the tank full: " + tank(O) + ")");
+    check(tank(O) === w.P_OTANK, "(the test wants the tank full: " + tank(O) + ")");
     for (var u = 0; u < 3; u++) { var j = w.pOBox(g, s, u); w.sandPlace(g, j, M.EMBER); g.aux[j] = 1; w.heatAccept(g, j); }
     w.pOOpen(g, s, 3);
     for (var t = 0; t < 1500; t++) {
@@ -251,7 +251,7 @@ module.exports = function (test, check, sim) {
     /* (the HEAT brush on the tank, with every valve shut: steam, and nowhere for it to go) */
     s.nextT = 1e9;
     delete g.know.mine; g.sites.filter(function (t) { return t.mine; }).forEach(function (t) { w.bRemove(g, g.sites.indexOf(t)); });   /* (nobody off down a mine: the organist is who is about) */
-    function heat() { for (var x = s.px0; x < s.px0 + 13; x++) for (var y = s.L; y < s.L + 3; y++) { var j = y * g.gw + x; if (g.m[j] === M.WATER) w.heatAdd(g, j, 30); } }
+    function heat() { for (var x = s.px0; x < s.px0 + s.bw; x++) for (var y = s.L; y < s.L + s.bh; y++) { var j = y * g.gw + x; if (g.m[j] === M.WATER) w.heatAdd(g, j, 30); } }
     for (var t = 0; t < 4000 && !s.breathe; t += 30) { if (t < 1500) heat(); sim.step(w, 30); }
     check(s.breathe >= 1, "nobody let it breathe (steam " + w.pOrganSteam(g, s) + ", shut since " + s.shutT + ")");
   });
