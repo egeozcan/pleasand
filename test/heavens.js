@@ -14,7 +14,7 @@ module.exports = function (test, check, sim) {
   function shot(w, name, s, pad) {
     if (!SHOTS) return;
     pad = pad || 10;
-    sim.png(w, SHOTS + "/" + name + ".png", 5, [Math.max(0, s.x0 - pad), Math.max(0, s.y0 - pad), Math.min(w.g.gw - Math.max(0, s.x0 - pad), s.x1 - s.x0 + 2 * pad), Math.min(w.g.gh - Math.max(0, s.y0 - pad), s.y1 - s.y0 + 2 * pad)]);
+    sim.png(w, SHOTS + "/" + name + ".png", 8, [Math.max(0, s.x0 - pad), Math.max(0, s.y0 - pad), Math.min(w.g.gw - Math.max(0, s.x0 - pad), s.x1 - s.x0 + 2 * pad), Math.min(w.g.gh - Math.max(0, s.y0 - pad), s.y1 - s.y0 + 2 * pad)]);
   }
   /* flat ground from x0 to x1 at row G: sand over stone, nothing over it, and nobody's site on it */
   function flat(w, x0, x1, G) {
@@ -188,5 +188,111 @@ module.exports = function (test, check, sim) {
     var x0 = p.x;
     for (var k = 0; k < 90; k++) { sim.step(w, 1); p.breath = Math.min(p.breath, 100); }
     check(p.swimming && (p.x - x0) * (s.cx - x0) > 0, "the swimmer went the other way: " + x0.toFixed(1) + " -> " + p.x.toFixed(1) + " (the light is at " + s.cx + ")");
+  });
+
+  /* ---------------------------------------------------------------- the foundry */
+  /* a foundry built on level ground at column 150 of seed 1, its founder by the side it is to pour, everybody else gone */
+  function foundry(mould) {
+    var w = sim.load(1), g = w.g, G = 150, k;
+    flat(w, 110, 230, G);
+    know(g, ["farm", "dig", "mine", "masonry", "smelt", "forge", "concrete", "foundry"]);
+    var gy = []; for (k = 0; k < w.H_FW; k++) gy.push(G);
+    var r = w.hFoundryFit(g, 150, gy, G, G);
+    check(!!r, "(the test wants the foundry to fit on level ground)");
+    var s = w.hFoundryAt(g, g.peasants[0], 150, r.R0, r.plan);
+    sim.build(w, s); s.done = false; w.bFinish(g, s, g.peasants[0]);
+    settle(g);
+    g.peasants.forEach(function (q, n) { q.iron = 0; q.coal = 0; q.plate = 0; q.bell = 0; if (n > 0) q.dead = 1; });
+    var p = g.peasants[0];
+    p.iron = 2; p.coal = 80; p.x = (mould === "bell" ? s.xf + 15 : s.xf - 3) + 0.5; p.y = s.R0 - 1;
+    s.casts = 1; s.mould = mould || "plate"; s.phase = 1; s.founder = p.id;
+    return { w: w, g: g, s: s, p: p };
+  }
+  /* all the iron there is about the foundry: in pockets, as bars, plates and bells, and in the grid, as a fifth of a bar a cell */
+  function ironOf(F) {
+    var g = F.g, M = F.w.MAT, n = 0, s = F.s;
+    g.peasants.forEach(function (q) { n += (q.iron || 0) + 0.2 * (q.plate || 0) + 1.8 * (q.bell || 0); });
+    for (var y = s.y0 - 4; y <= s.y1 + 4; y++) for (var x = s.x0 - 4; x <= s.x1 + 4; x++) { var c = g.m[y * g.gw + x]; if (c === M.METAL || (c === M.LAVA && g.aux[y * g.gw + x] === M.METAL)) n += 0.2; }
+    return n;
+  }
+  function fireb(F) { var n = 0; F.s.plan.forEach(function (e) { if (e.v === F.w.MAT.FIREBRICK && F.g.m[e.i] === F.w.MAT.FIREBRICK) n++; }); return n; }
+  test("foundry: the forge, concrete and sixty bars put it into the head of whoever has worked the furnace most", function () {
+    var w = sim.load(1), g = w.g;
+    know(g, ["farm", "dig", "mine", "masonry", "smelt", "forge", "concrete"]);
+    check(w.mPlanFurnace(g, g.peasants[0]), "(the test wants a furnace)");
+    sim.build(w, sites(g, "furnace")[0]);
+    g.iron = 60; g.peasants[3].smelts = 30;
+    w.hSmelted(g, g.peasants[1]);
+    check(g.peasants[3].spark === "foundry", "the sixtieth bar did not put it into the head of the one who smelted most (" + g.peasants[3].spark + ")");
+    g.know.foundry = "TEST";
+    settle(g);
+    check(w.hPlanFoundry(g, g.peasants[0]), "nowhere for a foundry");
+    var s = sites(g, "foundry")[0], f = sites(g, "furnace")[0];
+    check(Math.abs(s.cx - f.cx) < 60, "the foundry is " + Math.round(Math.abs(s.cx - f.cx)) + " columns from the furnace");
+  });
+  test("foundry: a closed chamber of lit coal with the bellows worked is mostly running and over 1500 within 2500 ticks; unworked it never passes 760", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, k, best = 0, hi = 0, fb = fireb(F);
+    s.hold = true;   /* (not tapped: only heated) */
+    for (k = 0; k < 4000 && s.phase < 2; k++) sim.step(w, 1);
+    check(s.phase === 2, "the foundry was never charged");
+    var t0 = g.tick;
+    for (k = 0; k < 2500; k++) {
+      sim.step(w, 1);
+      var c = w.hChamber(g, s);
+      if (c.liq + c.met) best = Math.max(best, c.liq / (c.liq + c.met));
+      hi = Math.max(hi, w.hLavaT(g, s));
+    }
+    check(best >= 0.8 && hi > 1500, "at best " + Math.round(best * 100) + "% of it was running, at " + Math.round(hi) + "°, in 2500 ticks");
+    check(fireb(F) === fb, "the firebrick melted: " + fb + " -> " + fireb(F));
+    /* the same, charged, and nobody at the bellows or feeding the fire */
+    F = foundry("plate"); w = F.w; g = F.g; s = F.s; s.hold = true;
+    for (k = 0; k < 4000 && s.phase < 2; k++) sim.step(w, 1);
+    F.p.dead = 1;
+    hi = 0;
+    for (k = 0; k < 2500; k++) { sim.step(w, 1); for (var j = 0; j < s.cells.length; j++) if (g.m[s.cells[j]] === w.MAT.METAL || g.m[s.cells[j]] === w.MAT.LAVA) hi = Math.max(hi, g.T[s.cells[j]]); }
+    check(hi < 760, "unworked, the iron in it got to " + Math.round(hi));
+  });
+  test("foundry: a charge of two bars, tapped, sets in the plate mould and is prised out as plates; the iron is all there, none of it outside, and the ash is raked out", function () {
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F), fb = fireb(F), first = 0, set = 0;
+    var mould = w.hMould(g, s, "plate");
+    for (k = 0; k < 12000 && !(s.phase === 0 && k > 10); k++) {
+      sim.step(w, 1);
+      if (process.env.HDEBUG && k % 300 === 0) { var cc = w.hChamber(g, s); console.log(k, "phase", s.phase, "liq", cc.liq, "met", cc.met, "emb", cc.emb, "T", Math.round(w.hLavaT(g, s)), "hot", Math.round(w.hMouldHot(g, s)), "task", F.p.task && F.p.task.kind, F.p.x.toFixed(1), F.p.y, "coal", F.p.coal); }
+      var lq = mould.filter(function (j) { return g.m[j] === M.LAVA; }).length;
+      if (!first && lq) first = g.tick;
+      if (first && !set && !lq && s.phase >= 4) set = g.tick;
+      if (SHOTS && s.phase === 3 && g.tick - s.pourT === 40) shot(w, "foundry-pour", s, 8);
+      if (s.phase === 4 && !F.checked) {
+        /* (set, and before it is prised out: nothing of it outside the mould and the chamber) */
+        F.checked = true;
+        var out = 0;
+        for (var y = s.y0 - 4; y <= s.y1 + 4; y++) for (var x = s.x0 - 4; x <= s.x1 + 4; x++) {
+          var j = y * g.gw + x, c = g.m[j];
+          if ((c === M.METAL || c === M.LAVA) && mould.indexOf(j) < 0 && s.cells.indexOf(j) < 0) out++;
+        }
+        check(out === 0, out + " cells of iron outside the mould");
+      }
+    }
+    check(s.casts === 2 && s.phase === 0, "the pour was not finished: phase " + s.phase);
+    check(F.p.plate >= 8, "only " + F.p.plate + " plates came out of a two-bar charge");
+    check(Math.abs(ironOf(F) - iron0) < 0.01, "the iron was " + iron0.toFixed(2) + " bars, and is " + ironOf(F).toFixed(2));
+    check((F.p.ash || 0) > 0 && g.found.ash > 0, "no ash was raked out");
+    check(fireb(F) === fb, "the firebrick melted");
+    console.log("      (" + F.p.plate + " plates; tapped " + (s.pourT - s.meltT) + " ticks after it was charged; " + (s.coals || 0) + " coals fed in after the charge's own; liquid in the mould " + (set - first) + " ticks)");
+  });
+  test("foundry: a charge tapped into the bell mould sets as an engine bell, cast whole, and the cell to spare is a plate", function () {
+    var F = foundry("bell"), w = F.w, g = F.g, s = F.s, M = w.MAT, k, iron0 = ironOf(F);
+    /* (something that wants a bell: a great work with one in it) */
+    if (!w.wOf("bellstand")) w.wDef({ id: "bellstand" });
+    var plan = [];
+    for (k = 0; k < 9; k++) { var e = w.bE(g, 40 + (k % 3), 100 + ((k / 3) | 0), M.METAL, 1); e.res = "bell"; e.cost = 1 / 9; plan.push(e); }
+    w.bNew(g, "bellstand", null, plan, [40, 100, 42, 102], { wonder: true });
+    check(w.hFoundryWant(g, s) === "an engine bell", "(the test wants a bell wanted: " + w.hFoundryWant(g, s) + ")");
+    for (k = 0; k < 12000 && !(s.phase === 0 && k > 10); k++) {
+      sim.step(w, 1);
+      if (process.env.HDEBUG && k % 300 === 0) { var cc = w.hChamber(g, s); console.log(k, "phase", s.phase, "liq", cc.liq, "met", cc.met, "emb", cc.emb, "hot", Math.round(w.hMouldHot(g, s)), "task", F.p.task && F.p.task.kind, F.p.x.toFixed(1), F.p.y, "coal", F.p.coal, "iron", F.p.iron); }
+    }
+    check(F.p.bell === 1, "no engine bell came out (" + F.p.bell + " bells, " + F.p.plate + " plates)");
+    check(F.p.plate >= 0 && Math.abs(ironOf(F) - iron0) < 0.01, "the iron was " + iron0.toFixed(2) + " bars, and is " + ironOf(F).toFixed(2));
   });
 };

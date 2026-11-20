@@ -626,7 +626,7 @@ function pStep(g, p) {
   if (cf === MAT.LAVA || cm === MAT.LAVA || cb === MAT.LAVA) {
     pIgnite(g, p);
     if (++p.lava > 30) { pDie(g, p, "lava"); return; }
-  } else if (HOT[cf] || HOT[cm] || HOT[ch]) pIgnite(g, p);
+  } else if ((HOT[cf] || HOT[cm] || HOT[ch]) && !(p.task && p.task.brave)) pIgnite(g, p);   /* (a leather apron, at a furnace: heavens.js) */
   if (pHeat(g, p, fx, fy)) return;
   if (cf === MAT.ACID || cm === MAT.ACID || ch === MAT.ACID || cb === MAT.ACID) {
     if (p.acid < 1 || Math.random() < 0.01) pSay(g, p, "acid", p.acid < 1);
@@ -724,8 +724,8 @@ function pHeat(g, p, fx, fy) {
   /* standing on something very cold chills you too, if more slowly than being in it */
   if (feet < AMBIENT) lo = Math.min(lo, AMBIENT + (feet - AMBIENT) * 0.5);
   /* too hot */
-  if (hi > P_IGNITE || feet > P_IGNITE + 120) pIgnite(g, p);
-  else if (!p.fire && (hi > P_SCALD || (feet > P_SCALD && SOLID[g.m[(fy + 1) * gw + fx]]))) {
+  if (hi > P_IGNITE * (p.task && p.task.brave ? 2 : 1) || feet > P_IGNITE + 120) pIgnite(g, p);
+  else if (!p.fire && !(p.task && p.task.brave) && (hi > P_SCALD || (feet > P_SCALD && SOLID[g.m[(fy + 1) * gw + fx]]))) {   /* (used to it, at work at a furnace: heavens.js) */
     p.panic = Math.max(p.panic, 30); p.idle = 0;
     if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "scald", true);
     /* hot ground: a little hop, as you would */
@@ -1553,7 +1553,7 @@ function pWalk(g, p, wading) {
     if (!p.fire) {
       /* (a bucket in hand makes them braver: only flames a couple of steps ahead turn them back, not hot air. they
          keep themselves out of that: see iSafe in ideas.js) */
-      var brave = p.task && p.task.kind === "bucket";
+      var brave = p.task && (p.task.kind === "bucket" || p.task.brave);   /* (or at work at something hot on purpose: heavens.js) */
       var ax = fx + p.dir * (brave ? 2 : 4), a0 = pCell(g, ax, fy), a1 = pCell(g, ax, fy - 3), a2 = pCell(g, ax, fy + 1), a3 = pCell(g, ax, fy - 7);
       if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || (!brave && (pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3))) ||
           (!p.fire && !SOLID[a2] && pNasty(g, ax, fy))) {

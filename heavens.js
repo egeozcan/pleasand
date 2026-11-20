@@ -308,7 +308,7 @@ function hObsStep(g, s) {
   var R = g.hRock;
   if (R && R.down && !R.taken && !g.peasants.some(function (q) { return !q.dead && q.task && q.task.kind === "meteorite"; })) {
     var who = hIdlest(g, R.x, 260);
-    if (who) who.task = { kind: "meteorite", t: 0, act: 0 };
+    if (who) who.task = { kind: "meteorite", t: 0, act: 0, brave: true };
   }
 }
 /* watching the falling stars: stand still, look up, and say so */
@@ -762,10 +762,11 @@ function hDrawLight(g, s) {
    round that), the moulds sunk in the ground either side of it under a
    brick cover, a cell down and across from each tap
    ------------------------------------------------------------------- */
-var H_FW = 16;              /* the foundry, across */
+var H_FW = 19;              /* the foundry, across */
 var H_CHARGE = 10;          /* cells of iron to a charge: two bars */
-var H_RUN = 0.8;            /* "mostly running": tapped when this much of it is liquid */
+var H_RUN = 0.7;            /* "mostly running": tapped when this much of it is liquid */
 var H_POURED = 1500;        /* ticks to let it run out, the bellows still going, before the plug goes back in */
+var H_FIRE = 10;            /* coals kept burning in the chamber, at most */
 var H_PRISE = 100;          /* and it is prised out of the mould under this */
 
 P_SAY.idea_foundry = ["the furnace makes a bar at a time. what if it made a ship", "a bigger furnace. MUCH bigger", "pour the iron. into a shape",
@@ -823,38 +824,35 @@ function hFJ(g, s, u, h) { return (s.R0 - h) * g.gw + s.xf + u; }
 /* what goes at (u, h): a material, EMPTY for something kept clear, or -1 for nothing of ours (the ground as it is) */
 function hFoundryCell(u, h) {
   var FB = MAT.FIREBRICK, BR = MAT.BRICK, E = MAT.EMPTY;
-  /* the chamber, its lining, the casing, and a short chimney */
-  if (u >= 6 && u <= 8 && h >= 1 && h <= 7) return E;
+  /* the chamber, its lining (a plug each side at the foot, the door at the top), the casing, and a short chimney */
+  /* (its floor is a V, high in the middle: what runs, runs to one tap or the other, and lies in a hot corner by it) */
+  if (u >= 6 && u <= 8 && h >= 1 && h <= 7 && !(u === 7 && h === 1)) return E;
   if (u >= 5 && u <= 9 && h >= 0 && h <= 8) return FB;
-  if ((u === 4 || u === 10) && h >= 2 && h <= 9) return BR;
-  if (u >= 5 && u <= 9 && h === 9) return BR;
+  if ((u === 4 || u === 10) && h >= 2 && h <= 9) return FB;   /* (a brick casing would run: it gets as hot as the lining, in the end) */
+  if (u >= 5 && u <= 9 && h === 9) return FB;
   if ((u === 6 || u === 8) && h >= 10 && h <= 13) return BR;
   if (u === 7 && h >= 10 && h <= 13) return E;
-  if ((u === 4 || u === 10) && (h === 0 || h === 1)) return E;   /* (the spouts, and the drop under each) */
-  /* the plate mould: five long and two deep, under its cover */
-  if (u >= 0 && u <= 4 && (h === -1 || h === -2)) return E;
-  if (u >= 0 && u <= 4 && h === -3) return FB;
-  if ((u === -1 || u === 5) && (h === -1 || h === -2)) return FB;
-  if (u >= -1 && u <= 3 && h === 0) return BR;
-  /* the bell mould: a cup three by three, a lip for a cell to spare, under its cover */
-  if (u >= 10 && u <= 12 && h >= -3 && h <= -1) return E;
-  if (u === 13 && h === -1) return E;
-  if (u >= 10 && u <= 13 && h === -4) return FB;
-  if (u === 9 && h >= -4 && h <= -1) return FB;
-  if (u === 13 && (h === -3 || h === -2)) return FB;
-  if (u === 14 && h === -1) return FB;
-  if (u >= 11 && u <= 14 && h === 0) return BR;
-  if (u >= -1 && u <= 14 && h >= 1 && h <= 9) return E;   /* (room to stand, and to work) */
+  /* the plate mould, sunk a cell: five long and two deep, right up against the left tap (lava this thick will not run far) */
+  if (u >= 0 && u <= 4 && (h === 0 || h === 1)) return E;
+  if (u >= -1 && u <= 5 && h === -1) return FB;
+  if (u === -1 && h >= 0 && h <= 2) return FB;
+  /* the bell mould, sunk: a cup three by three under the right tap, the cell it runs in by (the one to spare), a cover */
+  if (u === 10 && h === 1) return E;
+  if (u >= 10 && u <= 12 && h >= -2 && h <= 0) return E;
+  if (u >= 9 && u <= 13 && h === -3) return FB;
+  if ((u === 9 || u === 13) && h >= -2 && h <= 0) return FB;
+  if (u >= 11 && u <= 13 && h === 1) return BR;
+  if (u >= -3 && u <= 15 && h >= 1 && h <= 9) return E;   /* (room to stand, and to work) */
   return -1;
 }
 /* the plan on ground gy at x0: the moulds dug into the ground (rock cut), the foundry's floor level with the lowest of the
    ground under it, the ground above that dug off. {plan, R0, score} or null */
 function hFoundryFit(g, x0, gy, hi, lo) {
   var R0 = lo, plan = [], u, h, x, y, c, v, work = 0, ph;
-  for (u = -1; u <= 14; u++) {
-    x = x0 + 1 + u;
+  for (u = -3; u <= 15; u++) {
+    x = x0 + 3 + u;
     /* (the ground over the floor's row, dug off) */
-    for (y = gy[u + 1]; y < R0; y++) {
+    for (y = gy[u + 3]; y < R0; y++) {
       c = pCell(g, x, y);
       if (hFoundryCell(u, R0 - y) > 0 || AIRY[c]) continue;   /* (where something of ours goes, it goes in over the sand) */
       if (!B_DIG[c] && !ROCK[c] && !mClear(g, x, y, c)) return null;
@@ -862,7 +860,7 @@ function hFoundryFit(g, x0, gy, hi, lo) {
     }
     for (h = -4; h <= 13; h++) {
       v = hFoundryCell(u, h); y = R0 - h; c = pCell(g, x, y);
-      if (v < 0 || (y < R0 && y >= gy[u + 1] && v === MAT.EMPTY)) continue;
+      if (v < 0 || (y < R0 && y >= gy[u + 3] && v === MAT.EMPTY)) continue;
       if (bMarked(g, x, y) || LIQUID[c]) return null;
       if (v === MAT.EMPTY) {
         if (AIRY[c]) continue;
@@ -883,17 +881,21 @@ function hPlanFoundry(g, p) {
   var f = mSites(g, "furnace", true)[0];
   var r = wPlot(g, { w: H_FW, sky: 16, rough: 3, near: f ? f.cx : wMiddle(g), pad: 2, fit: hFoundryFit });
   if (!r) return false;
-  var xf = r.x0 + 1, R0 = r.r.R0;
-  var s = bNew(g, "foundry", p, wCleared(g, r, r.r.plan), [r.x0, R0 - 13, r.x0 + H_FW - 1, R0 + 4],
-               { wonder: true, xf: xf, R0: R0, phase: 0, founder: p.id, casts: 0 });
-  var cells = [];
-  for (var h = 1; h <= 7; h++) for (var u = 6; u <= 8; u++) cells.push(hFJ(g, s, u, h));
-  s.cells = cells;
+  var s = hFoundryAt(g, p, r.x0, r.r.R0, wCleared(g, r, r.r.plan));
   feed(g, p.name + " is building a foundry by the furnace", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planFoundry", true);
   if (bCarries(p)) bJoin(g, p, s);
   return true;
 }
+function hFoundryAt(g, p, x0, R0, plan) {
+  var s = bNew(g, "foundry", p, plan, [x0, R0 - 13, x0 + H_FW - 1, R0 + 3], { wonder: true, xf: x0 + 3, R0: R0, phase: 0, founder: p ? p.id : 0, casts: 0 });
+  var cells = [];
+  for (var h = 1; h <= 7; h++) for (var u = 6; u <= 8; u++) if (h > 1 || u !== 7) cells.push(hFJ(g, s, u, h));
+  s.cells = cells;
+  return s;
+}
+/* how hot the liquid iron in the chamber is, on the whole */
+function hLavaT(g, s) { var t = 0, n = 0; for (var k = 0; k < s.cells.length; k++) if (g.m[s.cells[k]] === MAT.LAVA) { t += g.T[s.cells[k]]; n++; } return n ? t / n : 0; }
 /* what is in the chamber: liquid iron, solid iron, burning coal, ash, and how hot the hottest of it is */
 function hChamber(g, s) {
   var o = { liq: 0, met: 0, emb: 0, ash: 0, hi: AMBIENT, gap: 0 };
@@ -911,8 +913,9 @@ function hChamber(g, s) {
 /* the mould being poured into: its cells (and, for the bell, which are the cup and which the lip) */
 function hMould(g, s, which) {
   var out = [], u, h;
-  if (which === "bell") { for (h = -1; h >= -3; h--) for (u = 10; u <= 12; u++) out.push(hFJ(g, s, u, h)); out.push(hFJ(g, s, 13, -1)); }
-  else for (h = -1; h >= -2; h--) for (u = 0; u <= 4; u++) out.push(hFJ(g, s, u, h));
+  /* (in the order it fills: from the bottom, from the tap's end) */
+  if (which === "bell") { for (h = -2; h <= 0; h++) for (u = 10; u <= 12; u++) out.push(hFJ(g, s, u, h)); out.push(hFJ(g, s, 10, 1)); }
+  else for (h = 0; h <= 1; h++) for (u = 4; u >= 0; u--) out.push(hFJ(g, s, u, h));
   return out;
 }
 function hMouldHot(g, s) { var t = AMBIENT; hMould(g, s, s.mould).forEach(function (j) { if (g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA) t = Math.max(t, g.T[j]); }); return t; }
@@ -932,8 +935,10 @@ function hFoundryWant(g, s) {
   return "";
 }
 /* the plug of the tap for a mould, and where the founder stands to work it */
+/* (at the foot of the chamber, the side of the mould: the bottom row is a bed of coal, kept burning, that the iron runs
+   down onto, and out of) */
 function hPlug(g, s) { return hFJ(g, s, s.mould === "bell" ? 9 : 5, 1); }
-function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? 11 : 3), y: s.R0 - 1 }; }
+function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? 15 : -3), y: s.R0 - 1 }; }   /* (the bellows between them and the heat) */
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
 function hFoundryStep(g, s) {
   if (!s.done || s.repair) return;
@@ -950,7 +955,7 @@ function hFoundryStep(g, s) {
     for (var k = 0; k < g.peasants.length; k++) { var c = g.peasants[k]; if (wIdle(g, c) && Math.abs(c.x - s.cx) < 260 && (!q || (c.smelts || 0) > (q.smelts || 0))) q = c; }
   }
   if (!q) return;
-  q.task = { kind: "found", site: s.id, t: 0, act: 0 };
+  q.task = { kind: "found", site: s.id, t: 0, act: 0, brave: true };
   s.founder = q.id;
 }
 /* a coal for the fire: their own, off the foundry's pile, off the furnace's, or off whoever has one */
@@ -968,7 +973,7 @@ function hTaskFound(g, p, k) {
   if (!s || !s.done || s.repair || !s.phase || ++k.t > 9000) return iDone(p, false);
   var sp = hSpot(s);
   if (hGo(g, p, k, "found" + s.id + s.mould, sp.x, sp.y, 0, 1)) return false;
-  p.dir = s.mould === "bell" ? -1 : 1; p.idle = 0; k.act++;
+  p.dir = s.mould === "bell" ? -1 : 1; p.idle = 0; k.act++;   /* (at the bellows, facing the stack) */
   var c, j, n;
   if (s.phase === 1) {
     /* the charge: what iron is still in there from last time counts toward it; the rest in bars, in layers with coal */
@@ -985,7 +990,7 @@ function hTaskFound(g, p, k) {
       if (g.m[j] === MAT.ASH) hRake(g, p, j);
       if (!AIRY[g.m[j]] && g.m[j] !== MAT.FIRE) continue;
       /* (a layer of iron, a layer of coal: every other cell, as near as the room in it allows) */
-      if (metal > 0 && (n % 2 === 0 || s.cells.length - n <= metal)) { sandPlace(g, j, MAT.METAL); metal--; put++; }
+      if (metal > 0 && n >= 2 && (n % 2 === 0 || s.cells.length - n <= metal)) { sandPlace(g, j, MAT.METAL); metal--; put++; }
       else if (hCoal(g, p, s)) { sandPlace(g, j, MAT.EMBER); g.aux[j] = 1; }
       heatAccept(g, j);
     }
@@ -999,20 +1004,28 @@ function hTaskFound(g, p, k) {
     /* the bellows, and the fire fed through the door as it burns down (the ash raked out the same way) */
     p.pose = (k.act % 16) < 8 ? "hammerA" : "stand";
     if (s.phase === 3 || wClosed(g, s.cells)) wDraught(g, "found" + s.id, s.cells, 60);
-    if (k.act % 30 === 0 && (s.phase === 2 || hChamber(g, s).met > 0)) {
-      for (n = 0; n < s.cells.length; n++) {
+    if (k.act % 10 === 0 && (s.phase === 2 || hChamber(g, s).met + hChamber(g, s).liq > 0)) {
+      /* (the ash raked out; and a coal on wherever there is room for one, the bed first, while fewer than nine are burning) */
+      var burning = hChamber(g, s).emb;
+      for (n = 0; n < s.cells.length; n++) if (g.m[s.cells[n]] === MAT.ASH) hRake(g, p, s.cells[n]);
+      /* (first where it will do most good, up against the iron that is still solid; then the bed; then anywhere) */
+      for (var pass = 0; pass < 3; pass++) for (n = 0; n < s.cells.length && burning < H_FIRE; n++) {
         j = s.cells[n];
-        if (g.m[j] === MAT.ASH) hRake(g, p, j);
-        if ((AIRY[g.m[j]] || g.m[j] === MAT.FIRE || g.m[j] === MAT.SMOKE) && hBelowIron(g, s, j) && hCoal(g, p, s)) { sandPlace(g, j, MAT.EMBER); g.aux[j] = 1; heatAccept(g, j); s.coals = (s.coals || 0) + 1; }
+        if (!(AIRY[g.m[j]] || g.m[j] === MAT.FIRE || g.m[j] === MAT.SMOKE) || !hBelowIron(g, s, j)) continue;
+        var by = g.m[j - 1] === MAT.METAL || g.m[j + 1] === MAT.METAL || g.m[j - g.gw] === MAT.METAL || g.m[j + g.gw] === MAT.METAL;
+        if ((pass === 0 && !by) || (pass === 1 && n >= 2)) continue;
+        if (!hCoal(g, p, s)) break;
+        sandPlace(g, j, MAT.EMBER); g.aux[j] = 1; heatAccept(g, j); s.coals = (s.coals || 0) + 1; burning++;
       }
     }
     if (k.act % 200 === 50 && p.sayT <= 0) pSay(g, p, "bellows");
     c = hChamber(g, s);
     if (s.phase === 2) {
-      if (c.liq + c.met > 0 && c.liq / (c.liq + c.met) >= H_RUN) {
-        /* mostly running: the plug out, and stand back */
+      var run = c.liq + c.met > 0 && c.liq / (c.liq + c.met) >= H_RUN;
+      if (run && !s.hold) {
+        /* mostly running: the plug knocked through, and stand back. (the plug is a firebrick with a hole in it, and
+           what comes out of the hole is drawn: the chamber stays shut, and its fire with it) */
         j = hPlug(g, s);
-        heatVanish(g, j);
         s.phase = 3; s.pourT = g.tick; s.casts++;
         pSay(g, p, "tap", true); g.fx.clang++;
         sparks(g, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, 10, 0.8, SPARK_HOT, 10, 0.3, PK_GLINT);
@@ -1020,11 +1033,13 @@ function hTaskFound(g, p, k) {
       } else if (g.tick - s.meltT > 6000) { if (p.sayT <= 0) pSay(g, p, "nocoal"); return iDone(p, false); }
       return true;
     }
-    /* pouring: it runs out, and goes on running out while what is left melts; then the plug back in */
+    /* pouring: it runs out of the tap and down into the mould, a cell at a time, and goes on running out while what is
+       left melts; then the plug stopped up again. (iron this thick, out of a hole this small, would set in the hole: the
+       stream is the hole's business, and is drawn) */
     if (k.act % 60 === 0 && p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "poured");
-    j = hPlug(g, s);
-    if ((c.liq + c.met === 0 || g.tick - s.pourT > H_POURED) && AIRY[g.m[j]]) {
-      sandPlace(g, j, MAT.FIREBRICK); g.T[j] = Math.max(AMBIENT, g.T[j - g.gw] || AMBIENT); heatAccept(g, j);
+    if (k.act % 5 === 0 && hPourCell(g, s, p)) s.pourLast = g.tick;
+    /* (all out; or nothing has run for a while, and what is left in there is not going to: it waits for the next charge) */
+    if (c.liq + c.met === 0 || g.tick - s.pourT > H_POURED || (!c.liq && g.tick - Math.max(s.pourT, s.pourLast || 0) > 900)) {
       s.phase = 4; p.bored = 0;
       return iDone(p, true);
     }
@@ -1034,8 +1049,8 @@ function hTaskFound(g, p, k) {
     /* set, and cool enough to handle: out it comes, a plate a cell (an engine bell, whole, if that is what it was) */
     p.pose = (k.act % 16) < 8 ? "chopA" : "chopB";
     if (k.act % 16 !== 8) return true;
-    var M = hMould(g, s, s.mould), cup = s.mould === "bell" ? M.slice(0, 9) : [], su = s.mould === "bell" ? 10 : 4;
-    M = M.concat([hFJ(g, s, su, 0), hFJ(g, s, su, 1)]);   /* (and whatever set in the spout, or the drop under it) */
+    var M = hMould(g, s, s.mould), cup = s.mould === "bell" ? M.slice(0, 9) : [];
+    M = M.concat([hPlug(g, s)]);   /* (and whatever set in the tap) */
     if (cup.length && cup.every(function (q) { return g.m[q] === MAT.METAL; }) && hFoundryWant(g, s) === "an engine bell") {
       cup.forEach(function (q) { heatVanish(g, q); });
       p.bell = (p.bell || 0) + 1; s.bells = (s.bells || 0) + 1;
@@ -1058,6 +1073,30 @@ function hTaskFound(g, p, k) {
   return iDone(p, false);
 }
 P_SAY.noiron = ["no iron", "not a bar to be had", "we need iron for it"];
+/* a cell of liquid iron out of the chamber (the lowest, the nearest the tap) and into the mould (the first room in it),
+   heat and all */
+function hPourCell(g, s, p) {
+  var src = -1, best = -1e9, k, j, M = hMould(g, s, s.mould), tx = s.xf + (s.mould === "bell" ? 9 : 5);
+  /* (ash that has floated out of the tap with it, skimmed off) */
+  for (k = 0; k < M.length; k++) if (g.m[M[k]] === MAT.ASH) hRake(g, p, M[k]);
+  if (g.m[hPlug(g, s)] === MAT.ASH) hRake(g, p, hPlug(g, s));
+  for (k = 0; k < s.cells.length; k++) {
+    j = s.cells[k];
+    if (g.m[j] !== MAT.LAVA) continue;
+    var sc = ((j / g.gw) | 0) * 10 - Math.abs(j % g.gw - tx);
+    if (sc > best) { best = sc; src = j; }
+  }
+  if (src < 0) return false;
+  for (k = 0; k < M.length && !AIRY[g.m[M[k]]]; k++);
+  if (k >= M.length) return false;
+  j = M[k];
+  heatSync(g, src);
+  g.m[j] = MAT.LAVA; g.aux[j] = g.aux[src]; g.T[j] = g.T[src]; g.lat[j] = g.lat[src]; g.sh[j] = g.sh[src]; g.vy[j] = 0;
+  heatAccept(g, j);
+  g.m[src] = MAT.EMPTY; g.aux[src] = 0; g.lat[src] = 0; g.vy[src] = 0; heatAccept(g, src);
+  s.streamT = g.tick; s.streamTo = j;
+  return true;
+}
 /* the ash out of the door, into a pocket (or the wind, if it is full): the valley's ash, as no campfire gives it */
 function hRake(g, p, j) {
   heatVanish(g, j);
@@ -1072,7 +1111,7 @@ function hFoundryTick(g) {}
 function hInTheChamber(g, s, f) {
   for (var k = 0; k < f.length; k++) {
     var u = f[k] % g.gw - s.xf, h = s.R0 - ((f[k] / g.gw) | 0);
-    if (!(u >= 3 && u <= 11 && h >= -4 && h <= 14)) return false;
+    if (!(u >= -1 && u <= 13 && h >= -3 && h <= 14)) return false;
   }
   return true;
 }
@@ -1082,7 +1121,21 @@ function hDrawFoundry(g, s) {
   if (!s.done) return 0;
   var u, h, i, hot = 0;
   for (h = 3; h <= 7; h += 4) for (u = 4; u <= 10; u++) { i = hFJ(g, s, u, h); if (g.m[i] === MAT.BRICK) g.px[i] = blend32(g.px[i], H_BANDC, 0.7); }
-  [[1, 1], [13, 1]].forEach(function (b) { wBack(g, s.xf + b[0], s.R0 - b[1], H_BELLOWS); wBack(g, s.xf + b[0] + (b[0] < 7 ? 1 : -1), s.R0 - b[1], H_BELLOWS_D); });
+  /* (the bellows: a leather bag between the boards, a nozzle to the stack, going in and out while somebody works it) */
+  [[-2, 1], [14, -1]].forEach(function (b) {   /* (between the founder's place and the stack) */
+    var bx = s.xf + b[0], d = b[1], by = s.R0 - (b[0] > 7 ? 2 : 1), wk = mCrew(g, "found", s.id) && s.phase >= 2 && s.phase <= 3, puff = wk && ((g.tick >> 3) & 1);
+    wBack(g, bx, by, H_BELLOWS_D); wBack(g, bx + d, by, H_BELLOWS_D);
+    wBack(g, bx, by - 1, H_BELLOWS); if (!puff) wBack(g, bx + d, by - 1, H_BELLOWS);
+    wBack(g, bx + 2 * d, by - 1, H_BANDC);
+    wBack(g, bx, by - 2, H_BELLOWS_D); wBack(g, bx + d, by - 2, H_BELLOWS_D);
+  });
+  /* the tap knocked through, glowing, and the stream while it pours: from the tap down into the mould */
+  if (s.phase === 3) { i = hPlug(g, s); wPut(g, i % g.gw, (i / g.gw) | 0, lavaCol(1600, MAT.METAL, SAND_PAL[MAT.LAVA][g.tick & 255]), true); hot++; }
+  if (s.phase === 3 && g.tick - (s.streamT || 0) < 12) {
+    var tx = s.xf + (s.mould === "bell" ? 10 : 4), ty = s.R0 - 1, ex = s.streamTo % g.gw, ey = (s.streamTo / g.gw) | 0;
+    for (var t = 0; t <= 4; t++) { var X = Math.round(tx + (ex - tx) * t / 4), Y = Math.round(ty + (ey - ty) * t / 4); if (AIRY[pCell(g, X, Y)]) wPut(g, X, Y, lavaCol(1650, MAT.METAL, SAND_PAL[MAT.LAVA][(t * 37 + g.tick) & 255]), true); }
+    hot++;
+  }
   var c = hChamber(g, s);
   if (c.emb && c.hi > 500) {
     for (h = 10; h <= 13; h++) { i = hFJ(g, s, 7, h); if (g.m[i] === MAT.EMPTY) { g.px[i] = blend32(g.px[i], glowCol(c.hi), 0.3 * (14 - h) / 4); } }
