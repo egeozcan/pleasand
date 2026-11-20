@@ -529,7 +529,7 @@ module.exports = function (test, check, sim) {
     var crew = g.peasants.filter(function (q) { return q.aboard === s.id; });
     check(s.count > 0 && crew.length >= 1, "(the test wants a crew aboard, counting down)");
     w.bRemove(g, g.sites.indexOf(s));   /* (the eraser, say) */
-    sim.step(w, 2);
+    sim.step(w, 61);
     check(crew.every(function (q) { return !q.aboard && q.state !== "space"; }), "the crew are still aboard a rocket that is gone: " + crew.map(function (q) { return q.state + " " + q.aboard; }).join(", "));
     /* a save from before this: aboard a rocket id that is in no site, with a clock a billion ticks long */
     var q = g.peasants[0];
@@ -538,7 +538,7 @@ module.exports = function (test, check, sim) {
     var w2 = sim.load(1), g2 = w2.g;
     w2.saveLoad(g2, doc);
     var q2 = g2.peasants.filter(function (o) { return o.id === q.id; })[0];
-    sim.step(w2, 2);
+    sim.step(w2, 61);
     check(q2 && !q2.aboard && q2.state !== "space", "the loaded crew are still stranded: " + (q2 && q2.state + " " + q2.aboard));
   });
   test("moon rocket: a plate gone in the countdown calls it off, and the crew get out till it is mended", function () {
@@ -573,35 +573,30 @@ module.exports = function (test, check, sim) {
     check(crew.every(function (q) { return q.x < s.x0 || q.x > s.x1 + 1; }), "the crew came out inside the pad: " + crew.map(function (q) { return q.x.toFixed(1); }).join(", ") + " (" + s.x0 + "-" + s.x1 + ")");
     check(crew.every(function (q) { return !w.WET[w.pCell(g, Math.floor(q.x), Math.floor(q.y))]; }), "the crew came out into water");
   });
-  test("moon rocket: with nowhere off the pad to come out to, the crew stay in it till there is, and never come out inside it", function () {
+  test("moon rocket: held: with nowhere in the valley to let them out, the crew stay in, unhurt, and say so; let out where there is", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y;
-    flat(w, 110, 230, G);
-    for (x = 140; x <= 190; x++) for (y = 0; y < G; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (shut in in rock, all round, up to the sky) */
     var q = g.peasants[0];
     g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
-    var r = w.bNew(g, "moonrocket", null, [], [158, G - 36, 170, G], { wonder: true, crew: [q.id], R0: G, rx: 165 });   /* (a rocket being mended) */
-    q.aboard = r.id; q.state = "space"; q.spaceT = 0; q.x = 165.5; q.y = G - 8; q.pad = { x0: 158, x1: 170 }; q.safe = null;
-    sim.step(w, 3);
-    check(q.aboard && q.state === "space", "came out with nowhere to come out to: " + q.state + " at " + q.x.toFixed(1) + "," + q.y.toFixed(1));
-    for (x = 150; x <= 154; x++) for (y = 0; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);   /* (a way out, cleared) */
-    sim.step(w, 3);
-    check(!q.aboard && q.state !== "space" && (q.x < 158 || q.x > 171), "did not come out off the pad once there was somewhere: " + q.state + " at " + q.x.toFixed(1));
+    for (x = 0; x < g.gw; x++) for (y = 0; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (rock, everywhere) */
+    q.aboard = 999; q.state = "space"; q.spaceT = 0; q.x = 165.5; q.y = G - 8;
+    sim.step(w, 130);
+    check(q.aboard && q.state === "space" && !q.dead, "let out with nowhere to be let out to: " + q.state + " at " + q.x.toFixed(1) + "," + q.y.toFixed(1));
+    check(/shut in the rocket/.test(w.iMood(g, q)), "the readout does not say they are shut in: " + w.iMood(g, q));
+    for (x = 150; x <= 154; x++) for (y = 60; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);   /* (a hole in the rock, with a floor) */
+    sim.step(w, 61);
+    check(!q.aboard && q.state === "walk" && q.x >= 150 && q.x <= 155 && !q.dead, "not let out in the hole: " + q.state + " at " + q.x.toFixed(1));
   });
-  test("moon rocket: the world cleared under a crew aboard, they come out at once to footing far off, or drop from the foot of where it stood", function () {
+  test("moon rocket: the world cleared under a crew aboard: held, never dropped; let out on footing far off, under a roof too", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, k;
     var q = g.peasants[0], q2 = g.peasants[1];
     g.peasants.forEach(function (o) { if (o !== q && o !== q2) o.dead = 1; });
-    [q, q2].forEach(function (o) { o.aboard = 999; o.state = "space"; o.spaceT = 0; o.x = 165.5; o.y = G - 30; o.pad = { x0: 158, x1: 170, y: G - 22 }; o.safe = null; });
+    [q, q2].forEach(function (o) { o.aboard = 999; o.state = "space"; o.spaceT = 0; o.x = 165.5; o.y = G - 30; });
     w.sandClear(g);
-    for (x = 186; x <= 196; x++) w.sandPlace(g, G * g.gw + x, M.STONE);   /* (a ledge sixteen off the pad, and nothing else) */
-    sim.step(w, 2);
-    check(!q.aboard && !q2.aboard && q.state !== "space" && q2.state !== "space", "still aboard a rocket that is not there: " + q.state + ", " + q2.state);
-    check([q, q2].every(function (o) { return o.state === "walk" && o.x >= 186 && o.x <= 197; }), "not out on the ledge (the only footing there is) at once: " + [q, q2].map(function (o) { return o.state + " " + o.x.toFixed(1); }).join(", "));
-    /* (and with no footing at all: dropped from the foot of where it stood, not from up where they sat) */
-    var q3 = q; q3.aboard = 998; q3.state = "space"; q3.x = 120.5; q3.y = G - 30; q3.pad = { x0: 114, x1: 126, y: G - 22 }; q3.safe = null;
-    w.sandClear(g);
-    sim.step(w, 1);
-    check(q3.state === "fly" && q3.fallY >= G - 24, "dropped from " + q3.fallY + ", not the foot of the rocket, " + (G - 23));
+    sim.step(w, 130);
+    check([q, q2].every(function (o) { return o.aboard && o.state === "space"; }), "not held, with nothing in the world to stand on: " + q.state + ", " + q2.state);
+    for (x = 196; x <= 206; x++) { w.sandPlace(g, G * g.gw + x, M.STONE); w.sandPlace(g, (G - 12) * g.gw + x, M.WOOD); }   /* (a ledge, and a roof over it) */
+    for (k = 0; k < 130 && (q.aboard || q2.aboard); k++) sim.step(w, 1);
+    check([q, q2].every(function (o) { return !o.aboard && o.state === "walk" && o.x >= 196 && o.x <= 207 && !o.dead; }), "not let out on the roofed ledge: " + [q, q2].map(function (o) { return o.state + " " + o.x.toFixed(1); }).join(", "));
   });
   test("moon rocket: a plate gone the tick before it goes, between lookings-over, and it does not go", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;

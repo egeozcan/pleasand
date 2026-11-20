@@ -1066,6 +1066,7 @@ function wFinish(g, s, p) {
 }
 function wMood(g, p) {
   var k = p.task, s;
+  if (p.aboard && !hAboardOf(g, p)) return "is shut in the rocket, waiting for somewhere to get out to";
   if (!k) return (p.mortar || 0) >= 1 ? "is carrying a pail of wet concrete. it is going off" : ((p.lump || 0) >= 1 ? "is carrying a lump of concrete that went off. it wants putting down" : "");
   if (k.kind === "haul") return (s = bSite(g, k.site)) ? "is taking " + (mPockets(p) || "something") + " to " + bLabel(s) : "is carrying things";
   if (k.kind === "quarry") return k.haul ? "is carrying stone up out of the quarry" : "is cutting stone for the great work" + ((p.stone || 0) >= 1 ? ". " + Math.floor(p.stone) + " so far" : "");

@@ -609,9 +609,9 @@ function pStep(g, p) {
   }
   if (p.state === "held") { pHeld(g, p); return; }
   if (p.state === "space") {
-    /* (aboard a rocket on its pad, not yet gone: no clock running, and out again if the rocket is not there now, pulled
-       down or never loaded with them. heavens.js) */
-    if (p.aboard) { if (hAboardOf(g, p)) return; hDisembark(g, p); return; }
+    /* (aboard a rocket on its pad, not yet gone: no clock running. aboard one that cannot go, or is not there: held, and
+       let out when there is somewhere. heavens.js) */
+    if (p.aboard) { if (!hAboardOf(g, p)) hHeld(g, p); return; }
     if (--p.spaceT <= 0) {
       /* (back from the moon: over the pad they went up from. heavens.js) */
       var sx = p.spaceX; p.spaceX = null;

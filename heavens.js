@@ -1382,9 +1382,6 @@ function hTaskBoard(g, p, k) {
   /* aboard: in the shell, not drawn, and kept there (as in space) until it goes */
   p.aboard = s.id; p.task = null; p.state = "space"; p.spaceT = 0;
   p.x = s.rx + 0.5; p.y = s.R0 - 8; p.vx = p.vy = 0;
-  /* (and somewhere to come out to, if it does not go: off the pad, either side. looked at again if it comes to it) */
-  p.pad = { x0: s.x0, x1: s.x1, y: s.R0 };
-  p.safe = hExit(g, p.pad);
   pSay(g, p, "board", true);
   return false;
 }
@@ -1396,42 +1393,30 @@ function hAboardOf(g, p) {
 /* out of a rocket that is not there any more: down on the ground where they were, as they were before they got in */
 /* somewhere to come out of a rocket that does not go: off the pad (x0 .. x1), the nearest on either side, on the ground,
    dry, with room to stand. {x, y} or null */
-function hExit(g, pad, far) {
-  for (var d = 1; d <= (far || 14); d++) for (var sd = -1; sd <= 1; sd += 2) {
-    var x = sd < 0 ? pad.x0 - d : pad.x1 + d;
-    if (x < 1 || x > g.gw - 2) continue;
-    var G = mGround(g, x, false);
-    if (G > 0 && navStand(g, x, G - 1) === 1 && !WET[pCell(g, x, G - 1)] && !WET[pCell(g, x, G - 5)]) return { x: x + 0.5, y: G - 1 };
-  }
-  return null;
+/* HELD: aboard a rocket that cannot go (being mended) or is not there at all (pulled down, cleared, or a save without
+   it), they are held as they were aboard: out of sight, unhurt, not moving. every 60 ticks the valley is looked over
+   for somewhere to let them out (hRelease); with nowhere, they stay held, and say so (wMood). one rule, for every way
+   a rocket can fail them: nobody is ever dropped, or put down inside the hull */
+function hHeld(g, p) {
+  if ((g.tick + p.id) % 60) return;
+  var at = hRelease(g, p);
+  if (!at) return;
+  p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0;
+  p.x = at.x + 0.5; p.y = at.y; p.state = "walk"; p.fallY = p.y;
 }
-/* out of a rocket that is not there, or not going: where they were told they would come out when they got in, if it is
-   still somewhere to stand, or the nearest such place off the pad now. never down onto the engine inside the hull, where
-   there is no way out: with nowhere to come out to, they stay in it, and come out when there is. false if they did not */
-function hDisembark(g, p) {
-  var sf = p.safe, pad = p.pad || { x0: Math.floor(p.x) - 7, x1: Math.floor(p.x) + 6 }, s = bSite(g, p.aboard);
-  if (!sf || navStand(g, Math.floor(sf.x), sf.y) !== 1 || WET[pCell(g, Math.floor(sf.x), sf.y)]) {
-    /* (the nearest off the pad; further, now and then: a look across half the valley is not every tick's work) */
-    sf = hExit(g, pad);
-    /* (further, now and then while the rocket is there to wait in; at once if it is not: there is no waiting in it) */
-    if (!sf && ((g.tick + p.id) % 60 === 0 || !s || s.kind !== "moonrocket" || s.gone)) sf = hExit(g, pad, g.gw);
+/* the nearest place to them in the valley that a peasant can stand: ground under it, room over it, nothing wet, hot or
+   draining, and in nobody's site (every row looked at: a floor under a roof will do). {x, y} or null */
+function hRelease(g, p) {
+  var best = null, bd = 1e18, x, y, k, px = p.x, py = p.y;
+  for (x = 1; x < g.gw - 1; x++) for (y = 9; y < g.gh - 1; y++) {
+    if (!SOLID[g.m[(y + 1) * g.gw + x]] || !AIRY[g.m[y * g.gw + x]]) continue;
+    var d = (x + 0.5 - px) * (x + 0.5 - px) + (y - py) * (y - py);
+    if (d >= bd || navStand(g, x, y) !== 1 || LIQUID[pCell(g, x, y)] || LIQUID[pCell(g, x, y - 4)]) continue;
+    for (k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1) break; }
+    if (k < g.sites.length) continue;
+    bd = d; best = { x: x, y: y };
   }
-  if (sf) {
-    p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = p.vy = 0; p.safe = null; p.pad = null;
-    p.x = sf.x; p.y = sf.y; p.state = "walk"; p.fallY = p.y;
-    return true;
-  }
-  /* (nowhere to stand anywhere in the valley, and the rocket not there at all, its hull gone with it: they drop, as
-     anybody does with nothing under them, from the foot of where it stood, not from up where they sat: from as low as
-     there is room) */
-  if (!s || s.kind !== "moonrocket" || s.gone) {
-    var fx = Math.floor(p.x), y = pad.y != null ? pad.y - 1 : Math.floor(p.y);
-    while (y > Math.floor(p.y) && !pRoom(g, fx, y)) y--;
-    p.aboard = 0; p.spaceT = 0; p.spaceX = null; p.task = null; p.vx = 0; p.vy = 0; p.safe = null; p.pad = null;
-    p.y = Math.max(Math.floor(p.y), Math.min(y, g.gh - 2)); p.state = "fly"; p.flyT = 0; p.fallY = p.y;
-    return true;
-  }
-  return false;
+  return best;
 }
 /* the bored, now and then: up the gantry to look at the moon */
 function hTaskGantry(g, p, k) {
@@ -1578,7 +1563,7 @@ function hLiftOff(g, s) {
   s.crew.forEach(function (id, n) {
     var q = lAlive(g, id);
     if (!q || q.aboard !== s.id) return;
-    q.aboard = 0; q.safe = null; q.pad = null; q.state = "space"; q.spaceT = H_AWAY + n * 90; q.spaceX = s.rx - 3 + n * 3; q.moon = 1; q.moonrock = 2;
+    q.aboard = 0; q.state = "space"; q.spaceT = H_AWAY + n * 90; q.spaceX = s.rx - 3 + n * 3; q.moon = 1; q.moonrock = 2;
     g.astronauts = (g.astronauts || 0) + 1;
     feed(g, q.name + " has gone to the moon", "#9ad0ff", "moon" + q.id);
     wTale(g, "moon", q, "", s.rx, s.R0);
