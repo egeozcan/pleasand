@@ -353,7 +353,10 @@ module.exports = function (test, check, sim) {
     g.duckArriveT = 1e12;
     p.x = 240.5; p.y = G + 6; p.task = null; p.swimT = 1000;
     var out = 0;
-    for (var t = 1; t <= 8000 && !out; t++) { sim.step(w, 1); if (w.pDryGoal(g)(Math.floor(p.x), Math.floor(p.y)) && !p.swimming) out = t; }
+    /* (out: on dry ground; or out of their depth no longer, with a way on foot from there to dry ground. whether they
+       then wander back in for another swim is up to the dice) */
+    function ashore(x, y) { return w.pDryGoal(g)(x, y) || !!w.navFind(g, x, y, w.pDryGoal(g), 190, G - 1, 6000); }
+    for (var t = 1; t <= 8000 && !out; t++) { sim.step(w, 1); if (!p.swimming && p.state === "walk" && ashore(Math.floor(p.x), Math.floor(p.y))) out = t; }
     check(out > 0 && !p.dead, "the swimmer never got out of the lake (at " + Math.floor(p.x) + "," + Math.floor(p.y) + ")");
   });
 

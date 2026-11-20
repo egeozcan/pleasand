@@ -250,7 +250,7 @@ function pBathsStep(g, s) {
   if (!s.done || s.repair) return;
   var t = pBathT(g, s), k, q, stoker = null;
   for (k = 0; k < g.peasants.length; k++) { q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "stoke" && q.task.site === s.id) stoker = q; }
-  if (!stoker && (t < P_BATH_LO + 4 || (t > P_BATH_HI && pBurning(g, s))) && wBathNeed(g, s) <= 6 && !g.blaze.length) {   /* (in good time: it is a walk) */
+  if (!stoker && (t < P_BATH_LO + 6 || (t > P_BATH_HI && pBurning(g, s))) && wBathNeed(g, s) <= 6 && !g.blaze.length) {   /* (in good time: it is a walk, and they may have to be fetched from far off) */
     /* the stoker: whoever it was last time, if they are about; else whoever is idle and nearest, coal in their pockets first */
     var best = null, bd = 1e9;
     for (k = 0; k < g.peasants.length; k++) {
