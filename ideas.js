@@ -938,7 +938,7 @@ function iThrowFrom(g, x, y, t) {
 }
 /* a full bucket and no bucket job (they waded, or something better came up): they put it down. where they stand */
 function iPail(g, p) {
-  if (p.pail && !(p.task && p.task.kind === "bucket")) iSpill(g, p);
+  if (p.pail && !(p.task && (p.task.kind === "bucket" || p.task.kind === "pfill"))) iSpill(g, p);   /* (pfill: a wonder's pool, or tank. pleasures.js) */
 }
 /* somewhere to stand by a fire: nothing hot in it, under it or either side of it. the brigade is brave, not daft */
 function iSafe(g, x, y) {

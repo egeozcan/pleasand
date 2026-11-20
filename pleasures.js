@@ -305,6 +305,18 @@ function pGoFill(g, p, s) {
   p.task = { kind: "pfill", site: s.id, w: w, t: 0, act: 0 };
   return true;
 }
+/* (every W_STRIDE ticks, from the wonder's step: more than dry cells dry, and nobody at it, and the nearest of the idle
+   is sent for a bucket. a busy village otherwise never gets round to it) */
+function pCallFill(g, s, dry) {
+  if (wBathNeed(g, s) <= dry || iCrew(g, "pfill", s.id) || g.blaze.length || (g.tick % 300)) return;
+  var best = null, bd = 1e9;
+  for (var k = 0; k < g.peasants.length; k++) {
+    var q = g.peasants[k];
+    if (!wIdle(g, q) || q.pail || Math.abs(q.x - s.cx) > 220) continue;
+    if (Math.abs(q.x - s.cx) < bd) { bd = Math.abs(q.x - s.cx); best = q; }
+  }
+  if (best) pGoFill(g, best, s);
+}
 function pTaskFill(g, p, k) {
   var s = bSite(g, k.site), d = s && wOf(s.kind), fx = Math.floor(p.x), fy = Math.floor(p.y), j;
   if (!s || !s.done || !d || ++k.t > 4000) { if (p.pail) iSpill(g, p); return iDone(p, false); }
@@ -620,6 +632,7 @@ function pGardensStep(g, s) {
   if (s.built) pTerracesSown(g, s);   /* (mending, or not) */
   if (!s.done || s.repair) return;
   if (g.tick % 600 === 0) pTerraces(g, s);   /* (a terrace the village gave up on is a terrace again, a while later) */
+  pCallFill(g, s, 8);
   if (pTurner(g, s) || P_GPOOL_N - wBathNeed(g, s) < 6 || g.tick < (s.turnT || 0) || g.blaze.length) return;
   /* (not until the terraces are sown: a furrow under water is a furrow nobody can sow) */
   for (var j = 0; j < g.sites.length; j++) if (g.sites[j].terrace === s.id && !g.sites[j].done) return;
@@ -910,6 +923,7 @@ function pOrganStep(g, s) {
   g.wTick = true;
   var o = pOrganist(g, s), k, q;
   if (s.state === "idle" && g.tick >= (s.nextT || 0) - P_OLEAD && P_OTANK - wBathNeed(g, s) >= P_OSHOW) pOrganPlay(g, "");
+  if (s.state === "idle") pCallFill(g, s, 6);
   /* the organist: firing, playing, raking out, bailing the gutter, or letting it breathe */
   var steam = pOrganSteam(g, s), lit = pOFire(g, s), wet = pOGutter(g, s).length;
   if (pOAllShut(g, s) && steam >= 3) s.shutT = s.shutT || g.tick; else s.shutT = 0;
