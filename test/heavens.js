@@ -617,6 +617,74 @@ module.exports = function (test, check, sim) {
     }
     check(!gaveUp, "gave the errand up at " + g.tick + ", at " + p.x.toFixed(1) + "," + p.y.toFixed(1));
   });
+  /* pi's round 30: a flat stone valley, one villager, nothing arriving */
+  function fFlat30() {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0], G = 150;
+    w.sandClear(g); g.peasants = [p]; g.ducks = [];
+    Object.assign(g, { ideaT: 1e9, arriveT: 1e9, duckArriveT: 1e9, helloT: 0, wAny: true });
+    Object.assign(p, { x: 150.5, y: G - 1, hunger: 0, task: null, state: "walk" });
+    return { w: w, g: g, M: M, p: p, G: G, put: function (x, y, v) { w.sandPlace(g, y * g.gw + x, v); } };
+  }
+  test("duck palace: a burning villager diving through its deck to the water is let dive, not pulled out as if buried (pi's round 30)", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, G = F.G, x, y, i;
+    know(g, ["farm", "dig", "bucket", "scarecrow", "duckpalace"]);
+    for (x = 0; x < g.gw; x++) for (y = G; y < g.gh; y++) F.put(x, y, x >= 200 && x <= 245 && y < G + 8 ? M.WATER : M.STONE);
+    check(w.pPlanPalace(g, p), "(the test wants a duck palace)");
+    var s = sim.build(w, sites(g, "duckpalace")[0]); w.wFinish(g, s, p);
+    var xs = s.plan.filter(function (e) { return e.v === M.PLANK && Math.floor(e.i / g.gw) === s.Y && w.WET[w.pCell(g, e.i % g.gw, s.Y + 1)]; }).map(function (e) { return e.i % g.gw; }).sort(function (a, b) { return b - a; });
+    var dx = xs[2];
+    Object.assign(p, { x: dx + 0.5, y: s.Y - 1, anim: 11, fire: 200, dir: dx > 200 ? 1 : -1, task: null, stun: 0, hunger: 0, sayT: 100 });
+    g.tick = 24;
+    for (i = 0; i < 360 && !p.dead && p.fire; i++) sim.step(w, 1);
+    check(!p.dead && !p.fire, "the diver " + (p.dead ? "burnt to death" : "still alight") + ": " + JSON.stringify(g.causes));
+  });
+  test("a batch at the kiln takes the one stone it burns, and no more: the rest is still theirs, for the foundry's masonry (pi's round 30)", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, G = F.G, x, y, i;
+    know(g, ["farm", "dig", "masonry", "smelt", "concrete", "foundry"]);
+    for (x = 0; x < g.gw; x++) for (y = G; y < g.gh; y++) F.put(x, y, y < G + 6 ? M.SAND : M.STONE);
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)"); var f = sim.build(w, sites(g, "furnace")[0]);
+    check(w.hPlanFoundry(g, p), "(the test wants a foundry)"); var s = sim.build(w, sites(g, "foundry")[0]);
+    s.done = false;
+    var fb = s.plan.filter(function (e) { return e.v === M.FIREBRICK; })[0]; w.sandPlace(g, fb.i, M.EMPTY);
+    var bricks = s.plan.filter(function (e) { return e.v === M.BRICK && !e.drive; }).slice(0, 8);
+    bricks.forEach(function (e) { w.sandPlace(g, e.i, M.EMPTY); });
+    Object.assign(p, { task: null, x: f.sx + 0.5, y: w.mSpotRow(g, f), stone: 24, coal: 1, logs: 2, sayT: 100 });
+    g.kiln = w.wKilnOrders(g);
+    check(w.wPick(g, p, false) && p.task.r === "firebrick", "(the test wants a firebrick fired)");
+    var st0 = (f.stock && f.stock.stone) || 0;
+    for (i = 0; i < w.W_KILN; i++) { g.tick++; w.wTaskKiln(g, p, p.task); }
+    check(p.firebrick === 2 && p.stone === 23 && ((f.stock && f.stock.stone) || 0) === st0, "after a batch: " + p.firebrick + " firebrick, " + p.stone + " stone in the pocket, " + ((f.stock && f.stock.stone) || 0) + " on the furnace's pile");
+    check(w.bCanPay(g, p, s, bricks[0]), "the stone left over cannot pay for the foundry's masonry");
+  });
+  test("of two ladders down side by side, the one the way goes by is the one climbed: the other, that will not have them, is not tried over and over (pi's round 30)", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, x, y, i, at = 0;
+    for (x = 1; x < g.gw - 1; x++) { F.put(x, 150, M.STONE); if (x < 99 || x === 100 || x > 102) F.put(x, 130, M.STONE); }
+    [99, 101].forEach(function (c) { for (y = 80; y <= 129; y++) F.put(c, y, M.STONE); });
+    [99, 102].forEach(function (c) { for (y = 130; y < 150; y++) { F.put(c, y, M.LADDER); g.aux[y * g.gw + c] = 1; } });
+    for (y = 130; y < 150; y++) { F.put(101, y, M.LADDER); g.aux[y * g.gw + 101] = 0; }
+    var goal = function (X, Y) { return X === 102 && Y === 149; };
+    Object.assign(p, { x: 100.5, y: 129, dir: 1 });
+    for (i = 0; i < 1600; i++) {
+      g.tick++; p.navMove = null;
+      if (!p.climb) w.pathGo(g, p, "at-depth", 102, 149, goal);
+      if (p.climb) w.bClimbStep(g, p); else w.pStepX(g, p, 0.18);
+      if (goal(Math.floor(p.x), Math.floor(p.y))) { at = g.tick; break; }
+    }
+    check(at > 0, "never got down: at " + p.x.toFixed(1) + "," + p.y.toFixed(1) + ", kept off " + JSON.stringify(p.ladNo || {}));
+  });
+  test("let go of over the organ's iron wall with nowhere in the valley to be let off, a villager is got up out of the iron all the same (pi's round 30)", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, G = F.G, x, y;
+    know(g, ["farm", "dig", "bucket", "mine", "masonry", "smelt", "concrete", "festival", "organ"]);
+    for (x = 0; x < g.gw; x++) for (y = G; y < g.gh; y++) F.put(x, y, M.STONE);
+    check(w.pPlanOrgan(g, p), "(the test wants an organ)"); var s = sim.build(w, sites(g, "organ")[0]); w.wFinish(g, s, p);
+    for (x = 0; x < g.gw; x++) for (y = G - 8; y < G; y++) if (w.pCell(g, x, y) === M.EMPTY) F.put(x, y, M.WATER);   /* (the valley flooded) */
+    var cx = s.x0 + 1, cy = s.G - 2;
+    g.mx = w.PANEL + w.CELL * (cx + 0.5); g.my = w.PLAY_Y + w.CELL * (cy - 8); g.samp = []; g.cvx = g.cvy = 0;
+    w.peasantGrab(g, p); w.sandRelease(g);
+    check(w.hRelease(g, p) === null, "(the test wants nowhere to be let off)");
+    sim.step(w, 265);
+    check(!p.dead && !g.causes.buried, "left buried: " + JSON.stringify(g.causes));
+  });
   test("observatory: a meteorite with a flower where it comes to rest crushes the flower and is all there, thirteen iron and the gold, and says so: pi's sand", function () {
     var w = sim.load(39), g = w.g, M = w.MAT, x, y;
     w.sandClear(g);

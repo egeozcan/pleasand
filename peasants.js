@@ -237,6 +237,10 @@ var P_SINK = false;
 /* a deck of planks holds nobody up for as long as they are sinking through it: a burning peasant on a bridge dives for
    the water under it (pTryDive) */
 var P_THIN = new Uint8Array(NMAT); P_THIN[MAT.PLANK] = 1;
+/* buried: feet in something solid that is not a ladder or a door (P_PASS), not soft wood or leaves they walk through
+   (P_SOFT), nor the planks they are diving through (P_SINK, P_THIN). pStep; and wonders.js wEvict goes by what it
+   counted (p.buried) */
+function pBuriedIn(cf) { return SOLID[cf] && !P_PASS[cf] && !P_SOFT[cf] && !(P_SINK && P_THIN[cf]); }
 /* is there something to stand on, under feet at row y: in this column (pFoot), or one either side (pGround) */
 function pFoot(g, x, y) {
   var c = pCell(g, x, y + 1);
@@ -691,7 +695,7 @@ function pStep(g, p) {
   if (p.state === "fly") { p.jumping = false; p.rope = null; p.chute = null; p.task = null; p.climb = null; p.sleep = 0; pFly(g, p); return; }
 
   /* buried in something: climb out the top, if there is a top */
-  if (SOLID[cf] && !P_PASS[cf] && !P_SOFT[cf] && !(P_SINK && P_THIN[cf])) {
+  if (pBuriedIn(cf)) {
     var above = pCell(g, fx, fy - 9);
     if (!SOLID[above] || P_PASS[above]) { p.y = fy - 1; p.buried = 0; }
     else if (!P_HARD[above] && (p.anim % 3) === 0) { p.y = fy - 1; if (++p.buried === 40) pSay(g, p, "buried", true); }

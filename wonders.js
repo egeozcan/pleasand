@@ -567,15 +567,17 @@ function wEvict(g) {
         for (var n = 0; n < s.plan.length; n++) { e = s.plan[n]; if (e.v !== MAT.EMPTY && pBody(g, e.i % g.gw, (e.i / g.gw) | 0)) solid[e.i] = 1; }
       }
     }
-    /* (in it as the game counts buried: their feet in the solid, peasants.js. under a low roof, a head in the stone is
-       only stooping) */
-    if (fy >= 0 && solid[fy * g.gw + fx]) stuck = true;
+    /* (buried in it, as the game counts it: peasants.js pBuriedIn, p.buried. so not diving through a plank, or flying, or
+       on a ladder or in a doorway, or in a bush; and under a low roof, a head in the stone is only stooping) */
+    if (p.buried > 0 && fy >= 0 && solid[fy * g.gw + fx]) stuck = true;
     for (var q2 = 0; q2 < g.sites.length && !stuck; q2++) {
       s = g.sites[q2]; var df = s.wonder && wOf(s.kind);
       if (df && df.inside && s.done) for (d = 0; d <= 8 && !stuck; d++) if (df.inside(g, s, fx, fy - d)) stuck = true;
     }
     if (!stuck) continue;
     var at = hRelease(g, p);
+    /* (nowhere in the valley that will do: straight up out of it, then, to the first room there is over them) */
+    if (!at) for (var uy = fy - 1; uy > 9 && !at; uy--) { var room = true; for (d = 0; d <= 8 && room; d++) if (pBody(g, fx, uy - d)) room = false; if (room && !pBody(g, fx, uy)) at = { x: fx, y: uy }; }
     if (!at) continue;
     p.x = at.x + 0.5; p.y = at.y; p.vx = p.vy = 0; p.falling = false; p.fallY = p.y; p.jumping = false; p.climb = null; p.rope = null;
     if (p.state === "fly") p.state = "walk";
@@ -832,11 +834,11 @@ function wTaskKiln(g, p, k) {
     if (iWalk(g, p, k, "kiln" + f.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);
     return false;
   }
-  /* there: what they brought goes in, and they work the bellows */
-  if (p.stone >= 1 && k.r !== "stained" && k.r !== "coal") { st.stone = (st.stone || 0) + Math.floor(p.stone); p.stone -= Math.floor(p.stone); }
+  /* there: they work the bellows. a stone a batch, off the furnace's pile or out of their own pocket as it is burnt, and
+     no more: the rest of what they carry is theirs still, for the masonry it was dug for */
   var coal = (st.coal || 0) >= 1 || (p.coal || 0) >= 1;
   var tint = k.r !== "stained" ? 1 : (wCells(p.gold) >= 1 && wRubyWanted(g, s) ? 1 : ((p.ore || 0) + (st.ore || 0) >= 1 || coal ? 1 : 0));
-  var have = k.r === "coal" ? (p.logs || 0) >= 2 : k.r === "stained" ? ((p.glass || 0) + (st.glass || 0) >= 1 && tint) : ((st.stone || 0) >= 1 && coal);
+  var have = k.r === "coal" ? (p.logs || 0) >= 2 : k.r === "stained" ? ((p.glass || 0) + (st.glass || 0) >= 1 && tint) : (((st.stone || 0) >= 1 || (p.stone || 0) >= 1) && coal);
   if (!have || k.n >= k.want) {
     if (!k.n && p.sayT <= 0) pSay(g, p, k.r === "stained" ? "noglass" : (coal ? "nostone" : "nocoal"));
     if ((p[k.r] || 0) >= 1 && k.r !== "coal") { k.carry = true; return false; }
@@ -864,7 +866,7 @@ function wTaskKiln(g, p, k) {
        the pane, in a pocket, on a pile, and into whichever window it is put in: build.js bTints) */
     (p.tints || (p.tints = [])).push(tint);
   } else {
-    st.stone--; burn("coal");
+    burn("stone"); burn("coal");
     var out = 2;   /* (two of lime to a stone burnt; a stone cut in two and fired, two firebricks) */
     p[k.r] = (p[k.r] || 0) + out; k.n += out;
   }

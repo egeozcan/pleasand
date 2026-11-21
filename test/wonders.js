@@ -814,7 +814,9 @@ module.exports = function (test, check, sim) {
     check(g.kiln.some(function (o) { return o.r === "firebrick"; }) && g.kiln.some(function (o) { return o.r === "lime"; }), "no orders on the kiln: " + JSON.stringify(g.kiln));
     function fired() { return s.plan.filter(function (e) { return g.m[e.i] === M.FIREBRICK; }).length + ((s.stock && s.stock.firebrick) || 0); }
     function limed() { return ((s.stock && s.stock.lime) || 0) + w.wPocketed(g, "mortar") + s.plan.filter(function (e) { return g.m[e.i] === M.MORTAR || g.m[e.i] === M.CONCRETE; }).length; }
-    for (var k = 0; k < 8000 && !(fired() >= 3 && limed() >= 1); k++) sim.step(w, 1);
+    /* (a while: whoever burns the lime may be up the hill, and the way down from there is not always open to them. it got
+       there at 7000 when the kiln took a carrier's whole pocket of stone; at 11000 now that it takes the stone it burns) */
+    for (var k = 0; k < 14000 && !(fired() >= 3 && limed() >= 1); k++) sim.step(w, 1);
     check(fired() >= 3, "the firebrick did not reach the wonder: " + fired());
     check(limed() >= 1, "no lime reached the wonder: " + JSON.stringify(s.stock));
   });

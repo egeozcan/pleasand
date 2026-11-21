@@ -307,7 +307,13 @@ function pathGo(g, p, key, tx, ty, goal) {
   }
   /* the route goes up (or down) a ladder from here: on they get, whether or not there is a wall in front of them */
   if (n.m === NAV_LADDER && !p.climb) {
-    var fx = Math.floor(p.x), fy = Math.floor(p.y), cx = n.y < fy ? bLadderNear(g, fx, fy) : -1;
+    var fx = Math.floor(p.x), fy = Math.floor(p.y), cx = -1;
+    /* (the ladder the route is for: up, it steps off two beside the ladder's top, so the ladder is two to one side of
+       where it comes out; down, the place it comes out is the ladder. in the great works' villages that one, and not the
+       nearest one, which may be another, one that will not have them: build.js bClimbStart) */
+    if (g.wAny && n.y < fy) for (k = -2; k <= 2; k += 4) { var lc = bLadderMid(g, n.x + k, fy); if (lc < 0) lc = bLadderMid(g, n.x + k, fy - 3); if (lc >= 0 && (cx < 0 || Math.abs(lc + 0.5 - p.x) < Math.abs(cx + 0.5 - p.x))) cx = lc; }
+    if (g.wAny && n.y > fy && bLadderMid(g, n.x, fy + 1) >= 0) cx = bLadderMid(g, n.x, fy + 1);
+    if (cx < 0 && n.y < fy) cx = bLadderNear(g, fx, fy);
     if (n.y > fy) for (k = -1; k <= 1 && cx < 0; k += 2) cx = bLadderMid(g, fx + k, fy + 1);
     /* (a ladder that will not have them on it, its column in the way of a body: not on any way of theirs, for a while, and
        the way found again, round it if there is a way round. build.js bClimbStart) */
