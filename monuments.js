@@ -474,7 +474,7 @@ function mPyramidStep(g, s) {
 /* the bored, and the explorers, climb it and look out. the king, now and then, climbs it to say a word for the last one */
 function mPyramidPick(g, p, hungry) {
   var s = mSites(g, "pyramid", true)[0];
-  if (!s || hungry || p.bored < 500 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "apex", s.id)) return false;
+  if (!s || hungry || p.bored < 500 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "apex", s.id) || wNoGo(g, p, s.id)) return false;
   var king = pKing(g) === p;
   if (Math.random() >= (king ? 0.12 : 0.05)) return false;
   p.task = { kind: "apex", site: s.id, t: 0, act: 0, spot: s.px, king: king };
@@ -866,7 +866,7 @@ function mTaskPreach(g, p, k) {
 /* the bored, now and then: down to the crypt with a candle, to somebody's niche */
 function mCathPick(g, p, hungry) {
   var s = mSites(g, "cathedral", true)[0];
-  if (!s || s.repair || hungry || s.serv || s.flood || !(s.niches || []).length || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "crypt", s.id) >= 2) return false;
+  if (!s || s.repair || hungry || s.serv || s.flood || !(s.niches || []).length || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || wNoGo(g, p, s.id) || mCrew(g, "crypt", s.id) >= 2) return false;
   if (Math.random() >= 0.06) return false;
   var n = irnd(s.niches.length), at = mNiche(s, n);
   p.task = { kind: "crypt", site: s.id, n: n, name: s.niches[n].name, x: at.x, t: 0, act: 0, on: false };

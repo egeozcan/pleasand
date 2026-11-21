@@ -155,7 +155,7 @@ function pBathsPick(g, p, hungry) {
     var w = iFindWater(g, p, 200, null, true, iBarred(g, s), true);
     if (w) { p.task = { kind: "bucket", pond: s.id, t: 0, act: 0, w: w }; return true; }
   }
-  if (pBathsReady(g, s) && Math.abs(s.cx - p.x) < 200 && (p.bored > 400 || p.cold > 0) && Math.random() < 0.12) return pGoBathe(g, p, s, p.cold > 0);
+  if (pBathsReady(g, s) && Math.abs(s.cx - p.x) < 200 && (p.bored > 400 || p.cold > 0) && !wNoGo(g, p, s.id) && Math.random() < 0.12) return pGoBathe(g, p, s, p.cold > 0);
   return false;
 }
 function pTaskBathe(g, p, k) {
@@ -1534,7 +1534,7 @@ function pIcePick(g, p, hungry) {
   if (!s || hungry) return false;
   if (s.done) {
     /* (in it: a skate on the floor, now and then, for the bored) */
-    if (p.bored > 300 && Math.random() < 0.1 && Math.abs(s.cx - p.x) < 120 && pCell(g, s.x0 + 6, s.G - 1) === MAT.ICE) {
+    if (p.bored > 300 && !wNoGo(g, p, s.id) && Math.random() < 0.1 && Math.abs(s.cx - p.x) < 120 && pCell(g, s.x0 + 6, s.G - 1) === MAT.ICE) {
       p.task = { kind: "skate", a: s.x0 + 2, b: s.x0 + 10, y: s.G - 2, t: 0, act: 0, on: 0, laps: 0, palace: s.id };
       return true;
     }

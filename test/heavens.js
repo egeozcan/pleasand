@@ -518,6 +518,19 @@ module.exports = function (test, check, sim) {
     });
     check(!bare.length, "pockets counted on without asking whether they can be got to: " + bare.join(", "));
   });
+  test("observatory, and every other great work the bored go to look at: not while they are backed off from it", function () {
+    var w = sim.load(1), g = w.g, p = g.peasants[0], k, n = 0;
+    var s = w.bNew(g, "observatory", p, [], [Math.floor(p.x) - 4, 100, Math.floor(p.x) + 4, 140], { wonder: true, spot: Math.floor(p.x), F: 120 }); s.done = true;
+    p.bored = 5000; p.task = null;
+    w.wBackoff(g, p, s.id);
+    for (k = 0; k < 400; k++) { p.task = null; if (w.hObsPick(g, p, false)) n++; }
+    check(n === 0, "a bored peasant backed off from the observatory asked to go up it " + n + " times");
+    var fs = require("fs"), path = require("path"), bare = [];
+    ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (fn) {
+      fs.readFileSync(path.join(__dirname, "..", fn), "utf8").split("\n").forEach(function (l, i) { if (/p\.bored [<>]/.test(l) && /return|kind:/.test(l) && !/wNoGo/.test(l) && /s\.cx/.test(l)) bare.push(fn + ":" + (i + 1)); });
+    });
+    check(!bare.length, "the bored sent to a great work without asking after backoff: " + bare.join(", "));
+  });
   test("observatory: an astronomer who cannot get up to it is let be till after the next look, and somebody who can looks", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, x, y, i;
     w.sandClear(g);
@@ -1132,8 +1145,25 @@ module.exports = function (test, check, sim) {
     w.sandPlace(g, j, M.EMBER);   /* (a burning stick, dropped on the pad by it) */
     for (k = 0; k < 100 && !g.rocketBooms; k++) sim.step(w, 1);
     check(g.rocketBooms === 1 && s.oil === 0, "it did not go up");
-    check(!q.aboard && q.state !== "space", "the one aboard was not thrown clear");
+    for (k = 0; k < 130 && q.aboard; k++) sim.step(w, 1);
+    check(!q.aboard && q.state !== "space", "the one aboard was not got clear");
     var left = s.plan.filter(function (e) { return e.rk && g.m[e.i] === M.METAL; }).length;
     check(left < 20, left + " plates still where they were");
+  });
+  test("moon rocket: blown up with its crew aboard, they are got out clear of the blast, not thrown into it: alive, and not burning", function () {
+    var F = fflat(2), w = F.w, g = F.g, p = F.p, M = F.M, i;
+    g.know = { moonrocket: "TEST" };
+    var gy = []; for (i = 0; i < w.H_RW; i++) gy.push(150);
+    var fit = w.hRocketFit(g, 120, gy, 150, 150), s = w.hRocketAt(g, p, 120, fit.R0, fit.plan);
+    sim.build(w, s);
+    s.oil = w.H_FUEL; s.crew = [p.id]; p.x = s.walk.x + 0.5; p.y = s.walk.y;
+    p.task = { kind: "board", site: s.id, t: 0 }; w.pTask(g, p);
+    check(p.aboard === s.id, "(the test wants them aboard)");
+    w.sandPlace(g, (s.R0 - 1) * g.gw + s.x0 + 11, M.TORCH);   /* (a fire by it, fuelled) */
+    g.tick = 29; sim.step(w, 1);
+    check(g.rocketBooms === 1, "(the test wants it blown up)");
+    var burnt = false;
+    for (i = 0; i < 1000 && !p.dead; i++) { p.hunger = 0; sim.step(w, 1); if (p.fire) burnt = true; }
+    check(!p.dead && !burnt && !p.aboard, "the crew: dead " + !!p.dead + " (" + JSON.stringify(g.causes) + "), caught fire " + burnt + ", still held " + !!p.aboard);
   });
 };

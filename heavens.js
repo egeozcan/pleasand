@@ -411,7 +411,7 @@ function hTaskStargaze(g, p, k) {
 /* the bored, when it stands: now and then up to have a look for themselves */
 function hObsPick(g, p, hungry) {
   var s = mSites(g, "observatory", true)[0];
-  if (!s || hungry || s.repair || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "observe", s.id)) return false;
+  if (!s || hungry || s.repair || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "observe", s.id) || wNoGo(g, p, s.id)) return false;
   if (Math.random() >= 0.04) return false;
   p.task = { kind: "observe", site: s.id, t: 0, act: 0 };
   return true;
@@ -1540,7 +1540,7 @@ function hRocketPick(g, p, hungry) {
   /* back from the moon with moon rock: set out where everybody can see it */
   if ((p.moonrock || 0) > 0 && p.state === "walk" && !p.fromSpace && !(p.rockT > g.tick) && !wNoGo(g, p, "moonrock")) { p.task = { kind: "moonrock", t: 0, act: 0 }; return true; }
   var s = mSites(g, "moonrocket", true)[0];
-  if (!s || s.repair || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "gantry", s.id) || (s.crew && s.crew.length)) return false;
+  if (!s || s.repair || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "gantry", s.id) || (s.crew && s.crew.length) || wNoGo(g, p, s.id)) return false;
   if (Math.random() >= 0.03) return false;
   p.task = { kind: "gantry", site: s.id, t: 0, act: 0 };
   return true;
@@ -1722,14 +1722,8 @@ function hRocketTick(g) {
 /* the crew, thrown clear; the plates, flung; and a bang the size of the valley's patience */
 function hRocketBoom(g, s) {
   var k, e, q, x, y;
-  (s.crew || []).forEach(function (id) {
-    q = lAlive(g, id);
-    if (!q) return;
-    if (q.aboard === s.id) {
-      q.aboard = 0; q.spaceT = 0; q.state = "fly"; q.flyT = 0; q.x = s.rx + 0.5; q.y = s.R0 - 14;
-      q.vx = (Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 0.8); q.vy = -2.2 - Math.random(); q.fallY = q.y; q.immune = 30;
-    } else if (q.task && q.task.kind === "board") q.task = null;
-  });
+  var C = (s.crew || []).slice();
+  C.forEach(function (id) { q = lAlive(g, id); if (q && q.aboard !== s.id && q.task && q.task.kind === "board") q.task = null; });
   s.crew = []; s.count = 0;
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
@@ -1739,6 +1733,18 @@ function hRocketBoom(g, s) {
   }
   s.oil = 0;
   sandBoom(g, (s.R0 - 10) * g.gw + s.rx, 14, 3);
+  /* the crew aboard: not thrown out into the blast, but out of the hatch on the far side of it and down, the way the
+     held are let out (hRelease: clear of anything burning, with a way home), now; or, with nowhere yet, held till there
+     is. (the dice for the old throw, rolled all the same) */
+  C.forEach(function (id) {
+    q = lAlive(g, id);
+    if (!q || q.aboard !== s.id) return;
+    Math.random(); Math.random(); Math.random();
+    q.task = null; q.spaceT = 0; q.ejected = g.tick;
+    var at = hRelease(g, q);
+    if (at) { q.aboard = 0; q.vx = q.vy = 0; q.x = at.x + 0.5; q.y = at.y; q.state = "walk"; q.fallY = q.y; }
+    else q.aboard = -1;   /* (held: no rocket of that id. hHeld lets them out when there is somewhere) */
+  });
   feed(g, "the moon rocket went up. not the way anybody meant", "#ff9a6a", "boom" + s.id);
   wTale(g, "nuke", null, "", s.rx, s.R0);
   g.rocketBooms = (g.rocketBooms || 0) + 1;

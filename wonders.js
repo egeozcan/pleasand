@@ -143,7 +143,7 @@ function wReset(g) {
 var W_KINDS = (function () {   /* (a constant, filled once) */
   var o = {};
   ["haul", "salvage", "quarry", "mix", "kiln", "moonrock", "gantry", "meteorite", "observe", "found", "keep", "fuel", "board",
-   "stoke", "bathe", "screw", "pfill", "organ", "shovel", "cbail", "act", "preach", "audience"].forEach(function (k) { o[k] = 1; });
+   "stoke", "bathe", "screw", "pfill", "organ", "shovel", "cbail", "act", "preach", "audience", "apex", "crypt"].forEach(function (k) { o[k] = 1; });
   return o;
 })();
 var W_AWAY = { shovel: 1, mix: 1, pfill: 1, bucket: 1, cbail: 1 };   /* (jobs for a site whose walks go elsewhere: snow, water) */
