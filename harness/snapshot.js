@@ -28,7 +28,7 @@ var SKIP = new Set([
   "bg", "dep", "haze", "wave",                  /* the sky and its parallax (drawing only) */
   "zmark", "zlist", "zn", "zt",                 /* lightning flood scratch */
   "pmark", "pstack", "pgen", "pressList", "pressN", "fastList",  /* pressure and heat scratch */
-  "navSeen", "navShut", "navCost", "navFrom", "navHow", "navHeapI", "navHeapF", "navGen"  /* pathfinding scratch, and the count it marks its rounds with (the two go together) */
+  "navSeen", "navShut", "navCost", "navFrom", "navHow", "navLad", "navHeapI", "navHeapF", "navGen"  /* pathfinding scratch, and the count it marks its rounds with (the two go together) */
 ]);
 
 function isTypedArray(v) {

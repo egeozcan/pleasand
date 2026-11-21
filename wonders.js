@@ -579,7 +579,7 @@ function wEvict(g) {
     /* (nowhere in the valley that will do: straight up out of it, then, to the first room there is over them that nothing
        near would kill them in, with footing to stand on there (not left in the air, to fall back down by a drain): a drain,
        fire, acid, as the walking keeps off them, paths.js navLethalNear) */
-    if (!at) for (var uy = fy - 1; uy > 9 && !at; uy--) { var room = true; for (d = 0; d <= 8 && room; d++) if (pBody(g, fx, uy - d)) room = false; if (room && navStand(g, fx, uy) && !navLethalNear(g, fx, uy, 3) && !navDrainAt(g, fx, uy)) at = { x: fx, y: uy }; }
+    if (!at) for (var uy = fy - 1; uy > 9 && !at; uy--) { var room = true; for (d = 0; d <= 8 && room; d++) if (pBody(g, fx, uy - d)) room = false; if (room && navStand(g, fx, uy) === 1 && !navLethalNear(g, fx, uy, 3) && !navDrainAt(g, fx, uy)) at = { x: fx, y: uy }; }   /* (dry footing: 2 is afloat) */
     /* (and nowhere at all: held, as the crew of a rocket that cannot go are, out of sight and unhurt, and let out as soon as
        there is somewhere: heavens.js hHeld) */
     if (!at) { p.state = "space"; p.aboard = -1; p.task = null; p.vx = p.vy = 0; p.climb = null; p.rope = null; continue; }
@@ -772,12 +772,18 @@ function wKilnOrders(g) {
   if (f && U.length && wPocketedSure(g, "coal") + ((f.stock && f.stock.coal) || 0) < W_CHAR) {
     for (k = 0; k < U.length; k++) {
       s = U[k];
-      if (bNeed(g, s, "firebrick") > 0 || wLimeWant(g, s) > 0 || bNeed(g, s, "stained") > 0 || bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01) { out.push({ r: "coal", n: W_CHAR, site: s.id }); break; }
+      /* (plain glass too, the observatory's lens say: blowing it takes a coal, leftovers.js) */
+      if (bNeed(g, s, "firebrick") > 0 || wLimeWant(g, s) > 0 || bNeed(g, s, "stained") > 0 || bNeed(g, s, "glass") > 0 || bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01) { out.push({ r: "coal", n: W_CHAR, site: s.id }); break; }
     }
   }
   return out;
 }
 var W_CHAR = 4;     /* coals of charcoal burnt at a time, when there is no coal (two logs to a coal) */
+/* what colours a pane of coloured glass for site s, as the kiln takes it (wTaskKiln) and as it is sent for (wGoKiln):
+   a pocket's gold, for a red one the window wants; ore, out of a pocket or off the furnace's pile st; or a coal */
+function wTintable(g, p, s, st) {
+  return (wCells(p.gold) >= 1 && wRubyWanted(g, s)) || (p.ore || 0) + (st.ore || 0) >= 1 || (p.coal || 0) + (st.coal || 0) >= 1;
+}
 function wGoKiln(g, p) {
   var f = mSites(g, "furnace", true)[0], k;
   if (!f || f.repair || Math.abs(f.cx - p.x) > 260 || wNoGo(g, p, f.id)) return false;
@@ -796,9 +802,7 @@ function wGoKiln(g, p) {
     var stone = (p.stone || 0) + ((s.stock && s.stock.stone) || 0) + ((f.stock && f.stock.stone) || 0);
     if (o.r !== "stained" && stone < 1) continue;
     if (o.r === "stained" && (p.glass || 0) + ((f.stock && f.stock.glass) || 0) + ((s.stock && s.stock.glass) || 0) < 1) continue;
-    /* (what colours coloured glass, as the kiln takes it: ore out of a pocket or off the furnace's pile, or a pocket's gold,
-       or else a coal) */
-    if ((p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1 && !(o.r === "stained" && ((p.ore || 0) + ((f.stock && f.stock.ore) || 0) >= 1 || wCells(p.gold) >= 1))) continue;
+    if (o.r === "stained" ? !wTintable(g, p, s, f.stock || {}) : (p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1) continue;
     p.task = { kind: "kiln", site: f.id, r: o.r, of: o.site, n: 0, want: o.n, t: 0, act: 0 };
     return true;
   }
@@ -843,7 +847,7 @@ function wTaskKiln(g, p, k) {
   /* there: they work the bellows. a stone a batch, off the furnace's pile or out of their own pocket as it is burnt, and
      no more: the rest of what they carry is theirs still, for the masonry it was dug for */
   var coal = (st.coal || 0) >= 1 || (p.coal || 0) >= 1;
-  var tint = k.r !== "stained" ? 1 : (wCells(p.gold) >= 1 && wRubyWanted(g, s) ? 1 : ((p.ore || 0) + (st.ore || 0) >= 1 || coal ? 1 : 0));
+  var tint = k.r !== "stained" ? 1 : (wTintable(g, p, s, st) ? 1 : 0);
   var have = k.r === "coal" ? (p.logs || 0) >= 2 : k.r === "stained" ? ((p.glass || 0) + (st.glass || 0) >= 1 && tint) : (((st.stone || 0) >= 1 || (p.stone || 0) >= 1) && coal);
   if (!have || k.n >= k.want) {
     if (!k.n && p.sayT <= 0) pSay(g, p, k.r === "stained" ? "noglass" : (coal ? "nostone" : "nocoal"));

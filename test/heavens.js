@@ -759,6 +759,40 @@ module.exports = function (test, check, sim) {
     sim.step(w, 265);
     check(!p.dead && (p.state === "space" || (!w.navLethalNear(g, Math.floor(p.x), Math.floor(p.y), 3) && !p.buried)), "dead, or left by a drain or buried: " + JSON.stringify(g.causes) + " " + p.state);
   });
+  test("a coloured pane to mend with no ore or coal for its colour, and gold that is not for it: no going to the kiln for it; charcoal out of the logs instead, and it is mended (pi's round 32)", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, x, y, i;
+    know(g, ["farm", "dig", "mine", "bucket", "smelt", "masonry", "glass", "stained", "cathedral"]);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) F.put(x, y, y < 156 ? M.SAND : M.STONE);
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)"); var f = sim.build(w, sites(g, "furnace")[0]);
+    check(w.mPlanCathedral(g, p, 210), "(the test wants a cathedral)"); var s = sim.build(w, sites(g, "cathedral")[0]);
+    var pane = s.plan.filter(function (e) { return e.v === M.STAINED && e.a !== 0; })[0];
+    w.sandPlace(g, pane.i, M.EMPTY); w.bInspect(g, s, g.sites.indexOf(s));
+    check(s.repair && !s.done && !w.wRubyWanted(g, s), "(the test wants a green or amber pane to mend)");
+    Object.assign(p, { task: null, x: f.sx + 0.5, y: w.mSpotRow(g, f), coal: 0, ore: 0, glass: 1, gold: 0.2, logs: 2 });
+    g.wPlanT = 1e9;
+    for (i = 0; i < 5000 && !s.done && !p.dead; i++) sim.step(w, 1);
+    check(s.done && g.m[pane.i] === M.STAINED, "not mended: done " + s.done + ", logs " + p.logs);
+  });
+  test("an observatory's lens to mend and no coal in the valley: charcoal is burnt for the glass, and it is mended (pi's round 32)", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, x, y, i;
+    know(g, ["farm", "dig", "mine", "bucket", "smelt", "masonry", "glass", "observatory"]);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) F.put(x, y, y < 156 ? M.SAND : M.STONE);
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)"); var f = sim.build(w, sites(g, "furnace")[0]);
+    check(w.hPlanObs(g, p), "(the test wants an observatory)"); var s = sim.build(w, sites(g, "observatory")[0]);
+    var lens = s.plan.filter(function (e) { return e.v === M.GLASS; })[0];
+    w.sandPlace(g, lens.i, M.EMPTY); w.bInspect(g, s, g.sites.indexOf(s));
+    check(s.repair && !s.done, "(the test wants the lens to mend)");
+    Object.assign(p, { task: null, x: f.sx + 0.5, y: w.mSpotRow(g, f), coal: 0, ore: 0, glass: 0, sand: 3, logs: 2 });
+    g.wPlanT = 1e9;
+    for (i = 0; i < 5000 && !s.done && !p.dead; i++) sim.step(w, 1);
+    check(s.done && g.m[lens.i] === M.GLASS, "not mended: done " + s.done + ", logs " + p.logs + ", coal " + p.coal);
+  });
+  test("the pathfinder's ladder scratch is not kept in a save (pi's round 32)", function () {
+    var H = require("../harness"), h = H.open({ seed: 1 });
+    h.g.wAny = true; h.step(200);
+    var doc = h.saveDoc(), txt = JSON.stringify(doc);
+    check(txt.indexOf("navLad") < 0, "navLad in the save");
+  });
   test("observatory: a meteorite with a flower where it comes to rest crushes the flower and is all there, thirteen iron and the gold, and says so: pi's sand", function () {
     var w = sim.load(39), g = w.g, M = w.MAT, x, y;
     w.sandClear(g);
