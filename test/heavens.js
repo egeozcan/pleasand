@@ -743,6 +743,43 @@ module.exports = function (test, check, sim) {
     check(charged && !s.casts, "(the test wants it charged and never cast: casts " + s.casts + ")");
     check(!q.dead && !g.causes.starve && q.hunger < 15000, "starved, or never fed, beyond a cold foundry: hunger " + Math.round(q.hunger) + ", " + JSON.stringify(g.causes));
   });
+  test("foundry: not charged while firing it would cut a hungry villager off from all food; they eat, across it cold, and then it casts. a lone flower by them is no food", function () {
+    /* (pi's valley, the fire to be lit: the house west, and the only food east, past the foundry, by the cliff. and the
+       same with one flower by the house: too little to eat, pEdible, so it feeds nobody, and holds nothing up) */
+    [false, true].forEach(function (lone) {
+      var V = fValley(), w = V.w, g = V.g, M = V.M, p = V.p, q = V.q, i, x;
+      p.x = 145.5; p.iron = 12; p.coal = 130;
+      q.x = 125.5;
+      check(w.bPlanHouse(g, q), "(the test wants a house)"); var h = sim.build(w, g.sites[g.sites.length - 1]); q.home = h.id; q.task = null;
+      check(w.hPlanFoundry(g, p), "(the test wants a foundry)"); var s = sim.build(w, g.sites[g.sites.length - 1]); p.task = null;
+      q.x = 125.5; q.hunger = 15700; q.dir = 1;
+      function food() { for (x = 184; x < 201; x++) if (g.m[149 * g.gw + x] === M.EMPTY) w.sandSet(g, 149 * g.gw + x, M.FLOWER); }
+      if (lone) w.sandSet(g, 149 * g.gw + 124, M.FLOWER);
+      var ate = -1, charged = -1, across = false;
+      for (i = 0; i < 12000 && !q.dead && !(s.casts >= 1 && ate >= 0); i++) {
+        if (i % 60 === 0) food();
+        sim.step(w, 1);
+        if (ate < 0 && q.hunger < 5000) ate = i;
+        if (charged < 0 && s.phase >= 1) { charged = i; across = ate >= 0 || q.x > s.x1 + 1; }
+      }
+      var what = (lone ? "a lone flower by them: " : "") + "hunger " + Math.round(q.hunger) + ", ate at " + ate + ", charged at " + charged + ", casts " + (s.casts || 0) + ", " + JSON.stringify(g.causes);
+      check(!q.dead && !g.causes.starve && ate >= 0, "the villager beyond the foundry was not fed: " + what);
+      check(across, "charged with the villager it would cut off still on the far side, unfed: " + what);
+      check(s.casts >= 1, "never cast, once they had eaten: " + what);
+    });
+  });
+  test("foundry: somebody hungry who could not get to food with its roof open either holds nothing up: that is not the foundry's doing", function () {
+    var V = fValley(), w = V.w, g = V.g, M = V.M, p = V.p, q = V.q, x, y;
+    p.x = 145.5; p.iron = 12; p.coal = 130;
+    check(w.hPlanFoundry(g, p), "(the test wants a foundry)"); var s = sim.build(w, g.sites[g.sites.length - 1]); p.task = null;
+    for (x = 184; x < 201; x++) if (g.m[149 * g.gw + x] === M.EMPTY) w.sandSet(g, 149 * g.gw + x, M.FLOWER);
+    /* (shut in a stone box, west, starving) */
+    for (x = 100; x <= 112; x++) for (y = 130; y <= 150; y++) if (x === 100 || x === 112 || y === 130 || y === 150) w.sandPlace(g, y * g.gw + x, M.STONE);
+    q.x = 106.5; q.y = 149; q.hunger = 15700; q.task = null;
+    check(!w.hCutOff(g, s).length, "counted as cut off by the foundry, shut in a box: " + w.hCutOff(g, s).length);
+    for (var i = 0; i < 300 && s.phase === 0; i++) { q.hunger = 15700; sim.step(w, 1); }
+    check(s.phase >= 1, "not charged for somebody it does not cut off: phase " + s.phase + " (" + s.note + ")");
+  });
   test("foundry: between the village and its open ground, they lay out a field past it, and nobody starves", function () {
     var V = fValley(), w = V.w, g = V.g, p = V.p, q = V.q, i;
     g.know.farm = "TEST"; g.know.dig = "TEST"; g.resow = 1;

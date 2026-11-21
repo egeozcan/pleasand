@@ -1114,6 +1114,39 @@ function hSpotAt(g, s) {
   return first;   /* (none: where it was meant to be, on its ground) */
 }   /* (the bellows between them and the heat) */
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
+/* who the foundry's roof, closed through a cast, would cut off from all the food they can get to, hungry enough that they
+   could starve before it opens again: a cast keeps it closed 3600 to 7000 ticks, H_CAST with some to spare. by the
+   eating's own rules: food pEdible (no lone flower), reached as the eat task reaches it, three across and ten up or two
+   down from where they stand. nobody who cannot get to food with it open, either: that is not the foundry's doing */
+var H_CAST = 8000, H_CUTWAIT = 6000;
+function hCutOff(g, s) {
+  var hungry = [], k, p;
+  for (k = 0; k < g.peasants.length; k++) {
+    p = g.peasants[k];
+    if (!p.dead && p.state === "walk" && p.hunger > P_STARVE - H_CAST && !(p.task && p.task.kind === "found")) hungry.push(p);
+  }
+  if (!hungry.length) return [];
+  var gw = g.gw, gh = g.gh, mask = new Uint8Array(gw * gh), fx = [], x, y, dx, dy;
+  for (y = 0; y < gh; y++) for (x = 0; x < gw; x++) {
+    if (!P_FOOD[g.m[y * gw + x]] || !pEdible(g, x, y)) continue;
+    fx.push(x);
+    for (dx = -3; dx <= 3; dx++) for (dy = -2; dy <= 10; dy++) { var sx = x + dx, sy = y + dy; if (sx >= 0 && sx < gw && sy >= 0 && sy < gh) mask[sy * gw + sx] = 1; }
+  }
+  if (!fx.length) return [];
+  var goal = function (x, y) { return mask[y * gw + x] === 1; }, out = [], ph = s.phase;
+  for (k = 0; k < hungry.length; k++) {
+    p = hungry[k];
+    var h = navHere(g, p);
+    if (!h || mask[h.y * gw + h.x]) continue;   /* (where they can eat already) */
+    var near = fx.reduce(function (a, b) { return Math.abs(b - h.x) < Math.abs(a - h.x) ? b : a; });
+    if (!navFind(g, h.x, h.y, goal, near, h.y)) continue;   /* (no food they can get to, roof or none) */
+    s.phase = 1;   /* (and with it closed, as it will be: paths.js navHazard, wonders.js wRoofs) */
+    var shut = !navFind(g, h.x, h.y, goal, near, h.y, NAV_CAP * 3);
+    s.phase = ph;
+    if (shut) out.push(p);
+  }
+  return out;
+}
 /* anybody (but the founder at it) on the foundry's roof, or over it on the way up, cold as it is: each sent down off it.
    how many */
 function hRoofFolk(g, s) {
@@ -1158,10 +1191,13 @@ function hFoundryStep(g, s) {
     s.mould = bell ? (!hMouldFull(g, s, "bell") ? "bell" : "") : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
     /* (and for a bell, not until there is iron enough for one, whole: in the chamber, and in pockets that can get here) */
     if (s.mould === "bell") { var cb = hChamber(g, s); if (s.ironWaitT > g.tick || cb.met + cb.liq + wCellsSure(g, "iron") < H_CHARGE) { s.note = "waiting for iron enough for a bell"; s.mould = ""; } }
+    /* (nor while its roof, closed for the cast, would cut somebody hungry off from all the food they can get to: their own
+       eating takes them across it while it is cold, and then it is charged. a while at most) */
+    if (s.mould && hCutOff(g, s).length && !(s.cutT && g.tick >= s.cutT)) { if (!s.cutT) s.cutT = g.tick + H_CUTWAIT; s.note = "waiting for somebody to come across it to eat"; s.mould = ""; }
     /* (and not with anybody up on its roof, or on the way up: sent down first, the charging waits for them a while. then
        on with it anyway, and whoever is still up there is sent off it as it warms: wonders.js wHeatGuard) */
     if (s.mould && hRoofFolk(g, s) && !(s.roofT && g.tick >= s.roofT)) { if (!s.roofT) s.roofT = g.tick + 1500; s.note = "waiting for the roof to clear"; s.mould = ""; }
-    if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; s.roofT = 0; }
+    if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; s.roofT = 0; s.cutT = 0; }
   }
   if (s.phase === 4 && hMouldHot(g, s) < H_PRISE) s.phase = 5;
   if (s.phase === 0 || s.phase === 4 || mCrew(g, "found", s.id)) return;
