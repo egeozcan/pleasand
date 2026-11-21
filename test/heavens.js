@@ -354,13 +354,16 @@ module.exports = function (test, check, sim) {
     var q1 = w.heatQ(g, j) + w.heatQ(g, to);
     check(Math.abs(q1 - q0) < 1e-3, "the pour went from " + q0 + " to " + q1 + " heat");
   });
-  test("foundry: charged with no coal to be had, it goes cold; coal brought later, it is fired up again and melts", function () {
+  test("foundry: charged with no coal to be had, it goes cold and is given up, the iron left in it; coal brought later, it is fired up again and melts", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT, k;
     F.p.coal = 0;
-    for (k = 0; k < 9000 && !(s.phase === 2 && g.tick - s.meltT > 6000 && !(F.p.task && F.p.task.kind === "found")); k++) sim.step(w, 1);
-    check(s.phase === 2, "(the test wants it charged, and gone cold: phase " + s.phase + ")");
-    F.p.coal = 80;
-    for (k = 0; k < 6000 && s.phase === 2; k++) sim.step(w, 1);
+    var charged = false;
+    for (k = 0; k < 9000 && !(charged && s.phase === 0); k++) { sim.step(w, 1); if (s.phase === 2) charged = true; }
+    /* (given up, back to idle: the iron left in the chamber for the next charge) */
+    check(charged && s.phase === 0 && w.hChamber(g, s).met > 0, "(the test wants it charged, gone cold, and given up: phase " + s.phase + ")");
+    var left = w.hChamber(g, s).met;
+    F.p.coal = 80; F.p.iron = 12; s.casts = 0;   /* (coal, and something wanted cast again: a first pour) */
+    for (k = 0; k < 8000 && s.phase < 3; k++) sim.step(w, 1);
     check(F.p.coal < 80, "none of the coal went in");
     check(s.phase >= 3, "it never melted (phase " + s.phase + ", " + Math.round(w.hChamber(g, s).hi) + "°)");
   });
@@ -683,6 +686,62 @@ module.exports = function (test, check, sim) {
     var at = w.hSpotAt(g, s);
     check(at.x === sp.x + 6 && w.navStand(g, at.x, at.y) === 1, "the station went to " + JSON.stringify(at) + ", not six out at " + (sp.x + 6));
   });
+  /* (pi's valley: a cliff at x 184, the foundry at 150 between it and the food, a villager on the cliff side) */
+  function fBasin(seed) {
+    var w = sim.load(seed), g = w.g, M = w.MAT, x, y;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = x >= 184 ? 96 : 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y >= 150 && y < 158 ? M.SAND : M.STONE);
+    g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.wAny = true; g.know = { foundry: "TEST", concrete: "TEST" };
+    g.peasants.forEach(function (p, i) { p.x = 130.5 + i * 3; p.y = 149; p.task = null; p.idle = 0; p.hunger = 0; p.bored = 0; p.life = 1e9; p.iron = 0; p.coal = 0; });
+    return w;
+  }
+  test("foundry: a charge that never catches (no coal) closes nothing, and gives up back to idle; the villager beyond it is not cut off", function () {
+    var w = fBasin(2), g = w.g, M = w.MAT, i, x;
+    var op = g.peasants[0], walker = g.peasants[1];
+    g.peasants = [op, walker];
+    op.x = 100.5; op.iron = 12; walker.x = 176.5; walker.dir = 1;
+    check(w.mPlanFurnace(g, op), "(the test wants a furnace)");
+    sim.build(w, g.sites[g.sites.length - 1]);
+    op.x = 145.5;
+    var gy = []; for (i = 0; i < w.H_FW; i++) gy.push(150);
+    var fit = w.hFoundryFit(g, 150, gy, 150, 150), s = sim.build(w, w.hFoundryAt(g, op, 150, fit.R0, fit.plan));
+    function food() { for (x = 112; x < 140; x++) if (g.m[149 * g.gw + x] === M.EMPTY) w.sandSet(g, 149 * g.gw + x, M.FLOWER); }
+    var closedCold = false;
+    for (i = 0; i < 19100 && !walker.dead; i++) {
+      if (i % 60 === 0) food();
+      sim.step(w, 1);
+      if (w.wZones(g).length && w.hChamber(g, s).hi < 100 && s.phase !== 3) closedCold = true;   /* (W_ZONE_ON) */
+    }
+    check(!walker.dead && !g.causes.starve, "the villager beyond the foundry starved: " + JSON.stringify(g.causes));
+    check(!closedCold, "a cold foundry closed its ground");
+    check(s.phase === 0 || s.phase === 1, "the charge that never caught left it at phase " + s.phase);
+  });
+  test("foundry: not fired while firing it would cut somebody off from home; and a cold foundry, idle or given up, closes nothing", function () {
+    var w = fBasin(2), g = w.g, i;
+    var op = g.peasants[0], walker = g.peasants[1];
+    g.peasants = [op, walker];
+    var gy = []; for (i = 0; i < w.H_FW; i++) gy.push(150);
+    var fit = w.hFoundryFit(g, 150, gy, 150, 150), s = sim.build(w, w.hFoundryAt(g, op, 150, fit.R0, fit.plan));
+    walker.x = 176.5; walker.task = null; walker.idle = 1e9;   /* (beyond it, and staying there) */
+    check(w.wStrands(g, s), "(the test wants the villager beyond it cut off if it closed)");
+    check(!w.wZones(g).length, "an idle cold foundry has its ground closed");
+    s.phase = 2; s.mould = "bell";
+    check(!w.wZones(g).length, "a foundry at phase 2 with a cold chamber has its ground closed");
+    s.phase = 0; s.mould = ""; s.casts = 0; op.iron = 12; op.coal = 50;
+    w.hFoundryStep(g, s);
+    check(s.phase === 0 && /across/.test(s.note || ""), "fired with somebody to be cut off by it: phase " + s.phase + " (" + s.note + ")");
+    walker.x = 120.5;   /* (over, now) */
+    w.hFoundryStep(g, s);
+    check(s.phase === 1, "everybody over, and not fired: phase " + s.phase + " (" + s.note + ")");
+  });
+  test("houses are not planned on a foundry's ground, the margin it closes while it casts", function () {
+    var w = fBasin(1), g = w.g, i, x;
+    var gy = []; for (i = 0; i < w.H_FW; i++) gy.push(150);
+    var fit = w.hFoundryFit(g, 150, gy, 150, 150), s = w.hFoundryAt(g, g.peasants[0], 150, fit.R0, fit.plan);
+    var bad = [];
+    for (x = s.x1 - 6; x <= s.x1 + w.W_ZONE_R + 2; x++) { var r = w.bPlot(g, x, 149); if (r && x <= s.x1 + w.W_ZONE_R + 4) bad.push(x); }
+    check(!bad.length, "a house planned overlapping the foundry's ground, at " + bad.join(","));
+  });
   test("foundry: its ground is nobody's but the founder's while it is hot: a whole village about it, seeds 1, 2, 3, 7, 11, 8000 ticks, nobody burnt, and the air outside it under 150", function () {
     /* (pi's two cases among them: seed 2, a passer-by fallen into a plate pour; seed 11, a hot-air pulse before the first) */
     [[1, 182.5], [2, 182.5], [3, 182.5], [7, 182.5], [11, 170.5]].forEach(function (c) {
@@ -704,7 +763,8 @@ module.exports = function (test, check, sim) {
       for (i = 0; i < 8000; i++) {
         g.peasants.forEach(function (q) { q.hunger = 0; if (q.fire) burnt++; });
         sim.step(w, 1);
-        for (x = zl - 6; x <= zr + 6; x++) if (x < zl || x > zr) for (y = 140; y < 150; y++) out = Math.max(out, g.T[y * g.gw + x]);
+        /* (the air where a body would be, standing on the floor: rows 141 to 149) */
+        for (x = zl - 6; x <= zr + 6; x++) if (x < zl || x > zr) for (y = 141; y < 150; y++) if (w.AIRY[g.m[y * g.gw + x]]) out = Math.max(out, g.T[y * g.gw + x]);
       }
       check(f.bells >= 1 && !burnt && !g.causes.fire && !g.causes.lava, "seed " + seed + ": bells " + (f.bells || 0) + ", burning " + burnt + " ticks, " + JSON.stringify(g.causes));
       check(out < 150, "seed " + seed + ": the air at head height outside the foundry's ground reached " + Math.round(out));

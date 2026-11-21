@@ -1104,6 +1104,8 @@ function hFoundryStep(g, s) {
     s.mould = bell ? (!hMouldFull(g, s, "bell") ? "bell" : "") : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
     /* (and for a bell, not until there is iron enough for one, whole: in the chamber, and in pockets that can get here) */
     if (s.mould === "bell") { var cb = hChamber(g, s); if (s.ironWaitT > g.tick || cb.met + cb.liq + wCellsSure(g, "iron") < H_CHARGE) { s.note = "waiting for iron enough for a bell"; s.mould = ""; } }
+    /* (and not if its ground, closed while it is hot, would cut somebody off from home: until they are over) */
+    if (s.mould) { var cut = wStrands(g, s, true); if (cut.length && wCallOver(g, s, cut)) { s.note = "waiting for everybody to be across before it is fired"; s.mould = ""; } else s.holdT = 0; }
     if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; }
   }
   if (s.phase === 4 && hMouldHot(g, s) < H_PRISE) s.phase = 5;
@@ -1207,7 +1209,13 @@ function hTaskFound(g, p, k) {
         pSay(g, p, "tap", true); g.fx.clang++;
         sparks(g, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, 10, 0.8, SPARK_HOT, 10, 0.3, PK_GLINT);
         if (s.casts === 1) feed(g, p.name + " tapped the foundry. the iron runs like water", "#ffd27a", "found" + s.id);
-      } else if (g.tick - s.meltT > 6000 && k.act > 10) { if (p.sayT <= 0) pSay(g, p, "nocoal"); return iDone(p, false); }   /* (not before they have had a go at stoking it) */
+      } else if (g.tick - s.meltT > 6000 && k.act > 10) {
+        /* (not before they have had a go at stoking it. given up: back to idle, the iron left in the chamber, where the next
+           charge counts it (phase 1); and its ground opens again as it cools. wonders.js wZones) */
+        if (p.sayT <= 0) pSay(g, p, "nocoal");
+        s.phase = 0; s.mould = "";
+        return iDone(p, false);
+      }
       return true;
     }
     /* pouring: it runs out of the tap and down into the mould, a cell at a time, and goes on running out while what is

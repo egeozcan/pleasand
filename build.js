@@ -509,7 +509,9 @@ function bPlot(g, x0, fy) {
   /* nobody else's site, nothing hot or wet nearby */
   for (k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
-    if (x1 + 4 >= s.x0 && x0 - 4 <= s.x1 && F + 10 >= s.y0 && F - 24 <= s.y1) return null;
+    /* (a foundry's: the ground about it it closes while it casts as well, planned or built. wonders.js W_ZONE_L, W_ZONE_R) */
+    var sx0 = s.kind === "foundry" ? s.x0 - W_ZONE_L : s.x0, sx1 = s.kind === "foundry" ? s.x1 + W_ZONE_R : s.x1;
+    if (x1 + 4 >= sx0 && x0 - 4 <= sx1 && F + 10 >= s.y0 && F - 24 <= s.y1) return null;
   }
   for (y = F - 16; y <= F + 2; y++) for (x = x0 - 3; x <= x1 + 3; x++) {
     c = pCell(g, x, y);

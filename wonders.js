@@ -143,7 +143,7 @@ function wReset(g) {
 var W_KINDS = (function () {   /* (a constant, filled once) */
   var o = {};
   ["haul", "salvage", "quarry", "mix", "kiln", "moonrock", "gantry", "meteorite", "observe", "found", "keep", "fuel", "board",
-   "stoke", "bathe", "screw", "pfill", "organ", "shovel", "cbail", "act", "preach", "audience", "apex", "crypt", "wcool"].forEach(function (k) { o[k] = 1; });
+   "stoke", "bathe", "screw", "pfill", "organ", "shovel", "cbail", "act", "preach", "audience", "apex", "crypt", "wcool", "wcross"].forEach(function (k) { o[k] = 1; });
   return o;
 })();
 var W_AWAY = { shovel: 1, mix: 1, pfill: 1, bucket: 1, cbail: 1 };   /* (jobs for a site whose walks go elsewhere: snow, water) */
@@ -411,7 +411,9 @@ function wHeatGuard(g, p) {
   if (zo != null) {
     /* (in a live foundry's ground, and not its founder, whatever they are about, a great work's job or none: out of it, to
        its nearest edge, before anything else) */
-    var kz = { kind: "wcool", t: 0, was: k || null, backT: g.tick + 200, backX: Math.max(1, Math.min(g.gw - 2, zo)), hotX: fx0, hotY: fy0, zone: true };
+    /* (brave, on the way out, as the founder is at work: the air they must go out through is warm, and the founder whose
+       shift ends in the middle of it is used to it) */
+    var kz = { kind: "wcool", t: 0, was: k || null, backT: g.tick + 200, backX: Math.max(1, Math.min(g.gw - 2, zo)), hotX: fx0, hotY: fy0, zone: true, brave: true };
     p.task = kz; p.dir = kz.backX < p.x ? -1 : 1;
     return;
   }
@@ -464,20 +466,51 @@ function wHeatOf(g, x, y) {
    out on the plates' side, ten on the hot side, the moulds under it), is nobody's to be in but the founder's. paths
    refuse it (paths.js navHazard), no step is taken into it (peasants.js), and anybody else in it is moved out
    (wHeatGuard). the stations are just outside it (heavens.js H_SPOT). recomputed once a tick */
-var W_ZONE_L = 4, W_ZONE_R = 10, W_ZC = { g: null, t: -1, z: [] };
+var W_ZONE_L = 4, W_ZONE_R = 10, W_ZONE_ON = 100, W_ZC = { g: null, t: -1, z: [] }, W_HYP = null;
+/* the ground about foundry s, closed or not */
+function wZoneOf(s) { return { x0: s.x0 - W_ZONE_L, x1: s.x1 + W_ZONE_R, y0: s.y0 - 6, y1: s.y1 + 2, s: s }; }
 function wZones(g) {
   /* (a cache for the tick: of this world, this tick, and these temperatures. a restored or loaded world has its own) */
-  if (W_ZC.g === g && W_ZC.t === g.tick && W_ZC.T === g.T && W_ZC.n === g.sites.length) return W_ZC.z;
+  if (W_ZC.g === g && W_ZC.t === g.tick && W_ZC.T === g.T && W_ZC.n === g.sites.length && W_ZC.hyp === W_HYP) return W_ZC.z;
   var z = [], k, s;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     if (s.kind !== "foundry" || !s.done || !s.cells) continue;
-    var hot = s.phase >= 1, cells = s.cells.concat(hMould(g, s, "plate"), hMould(g, s, "bell"));   /* (from the charging on: time to clear it before it is hot) */
-    for (var i = 0; i < cells.length && !hot; i++) if (g.T[cells[i]] > 150) hot = true;
-    if (hot) z.push({ x0: s.x0 - W_ZONE_L, x1: s.x1 + W_ZONE_R, y0: s.y0 - 6, y1: s.y1 + 2 });
+    /* (closed by the heat in it, not by what it is meant to be doing: anything in the chamber or a mould over W_ZONE_ON, or
+       iron running out of it. a charge that never caught, cold, closes nothing. W_HYP: as if closed, to see what that would
+       cut off) */
+    var hot = s.phase === 3 || W_HYP === s, cells = s.cells.concat(hMould(g, s, "plate"), hMould(g, s, "bell"));
+    for (var i = 0; i < cells.length && !hot; i++) if (g.T[cells[i]] > W_ZONE_ON) hot = true;
+    if (hot) z.push(wZoneOf(s));
   }
-  W_ZC.g = g; W_ZC.t = g.tick; W_ZC.T = g.T; W_ZC.n = g.sites.length; W_ZC.z = z;
+  W_ZC.g = g; W_ZC.t = g.tick; W_ZC.T = g.T; W_ZC.n = g.sites.length; W_ZC.hyp = W_HYP; W_ZC.z = z;
   return z;
+}
+/* would closing foundry s's ground cut anybody (but its founder) off from home, who can get there with it open? */
+function wStrands(g, s, all) {
+  var home = hHome(g), k, q, cut = false, who = [];
+  for (k = 0; k < g.peasants.length && (all || !cut); k++) {
+    q = g.peasants[k];
+    if (q.dead || q.state !== "walk" || q.id === s.founder) continue;
+    var x = Math.floor(q.x), y = Math.floor(q.y);
+    if (home.at(x, y) || !navFind(g, x, y, home.at, home.x, home.y, H_REACH * 2)) continue;   /* (home already, or no way home anyhow) */
+    W_HYP = s;
+    var shut = !navFind(g, x, y, home.at, home.x, home.y, H_REACH * 2);
+    W_HYP = null;
+    if (shut) { cut = true; who.push(q); }
+  }
+  return all ? who : cut;
+}
+/* foundry s wants firing, and its ground would cut these off from home: they are called over, home, first (a "wcross":
+   wTask). it waits for them a while (W_HOLD); somebody who will not come in that long waits out the one cast on the far
+   side instead (a cast is over long before anybody starves) */
+var W_HOLD = 3000;
+function wCallOver(g, s, who) {
+  if (!s.holdT) s.holdT = g.tick;
+  if (g.tick - s.holdT > W_HOLD) { s.holdT = 0; return false; }
+  var home = hHome(g);
+  who.forEach(function (q) { if (!(q.task && (q.task.kind === "wcross" || q.task.kind === "eat" || q.task.kind === "sleep"))) q.task = { kind: "wcross", t: 0, act: 0, x: home.x, y: home.y }; });
+  return true;
 }
 /* (and nothing there to catch fire from it: what grows in a live foundry's ground, a bush, a sapling, a fallen log, and
    is warm, withers to ash where it stands, before the hot air can set it alight and the fire walk out of the ground into
@@ -498,7 +531,13 @@ function wNoEntry(g, x, y) {
 /* the zone's nearest edge out of it from x, at (x, y): a column outside it, or null if (x, y) is not in one */
 function wZoneOut(g, x, y) {
   var z = wZones(g);
-  for (var k = 0; k < z.length; k++) if (x >= z[k].x0 && x <= z[k].x1 && y >= z[k].y0 && y <= z[k].y1) return x - z[k].x0 <= z[k].x1 - x ? z[k].x0 - 2 : z[k].x1 + 2;
+  for (var k = 0; k < z.length; k++) if (x >= z[k].x0 && x <= z[k].x1 && y >= z[k].y0 && y <= z[k].y1) {
+    /* (the side of it that has the way home: the nearer, if both do, or neither) */
+    var a = z[k].x0 - 2, b = z[k].x1 + 2, near = x - z[k].x0 <= z[k].x1 - x ? a : b, far = near === a ? b : a;
+    var home = hHome(g);
+    function homeFrom(ex) { var G = mGroundNear(g, ex, false, y), ey = G > 0 ? G - 1 : y; return home.at(ex, ey) || !!navFind(g, ex, ey, home.at, home.x, home.y, H_REACH); }
+    return homeFrom(near) || !homeFrom(far) ? near : far;
+  }
   return null;
 }
 /* the foundry's own: its founder, at work (and nobody else, in its ground) */
@@ -526,6 +565,12 @@ function wTask(g, p, k) {
       if (p.sayT <= 0 && Math.random() < 0.01) pSay(g, p, "scald", true);
       return false;
     }
+  }
+  if (k.kind === "wcross") {
+    var hm = hHome(g);
+    if (hm.at(Math.floor(p.x), Math.floor(p.y)) || ++k.t > W_HOLD) return iDone(p, true);
+    if (iWalk(g, p, k, "wcross", hm.x, hm.y, hm.at)) return iDone(p, false);
+    return false;
   }
   if (k.kind === "wcool") {
     if (k.zone) { var zo2 = wZoneOut(g, Math.floor(p.x), Math.floor(p.y)); if (zo2 == null) { k.backT = 0; k.hotX = null; } else { k.backT = g.tick + 60; k.backX = Math.max(1, Math.min(g.gw - 2, zo2)); } }
