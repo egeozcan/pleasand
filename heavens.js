@@ -1083,11 +1083,13 @@ function hSpotAt(g, s) {
   var sp = hSpot(s), out = s.mould === "bell" ? 1 : -1, d;
   /* (and if something has been put up where they stand, a stair, a house's wall: the nearest standing a little further
      out, further from the heat, not nearer it) */
+  var first = null;
   for (d = 0; d <= 6; d++) {
     var x = sp.x + out * d, G = mGroundNear(g, x, false, sp.y), y = G > 0 && Math.abs(G - 1 - sp.y) <= 4 ? G - 1 : sp.y;
-    if (navStand(g, x, y) === 1 || d === 6) return { x: d === 6 ? sp.x : x, y: d === 6 ? (mGroundNear(g, sp.x, false, sp.y) > 0 && Math.abs(mGroundNear(g, sp.x, false, sp.y) - 1 - sp.y) <= 4 ? mGroundNear(g, sp.x, false, sp.y) - 1 : sp.y) : y };
+    if (!d) first = { x: x, y: y };
+    if (navStand(g, x, y) === 1) return { x: x, y: y };   /* (six out counts too) */
   }
-  return sp;
+  return first;   /* (none: where it was meant to be, on its ground) */
 }   /* (the bellows between them and the heat) */
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
 function hFoundryStep(g, s) {

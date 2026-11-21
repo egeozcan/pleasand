@@ -673,6 +673,35 @@ module.exports = function (test, check, sim) {
       check(hot < w.W_TOOHOT, "seed " + seed + ": the air about the founder at work reached " + Math.round(hot) + " (limit " + w.W_TOOHOT + ")");
     });
   });
+  test("foundry: the station, built over, moves out to the first free footing, six columns out included", function () {
+    var F = fflat(1), w = F.w, g = F.g, M = F.M, s = fFoundry(F), x, y;
+    s.mould = "bell";
+    var sp = w.hSpotAt(g, s);
+    for (x = sp.x; x < sp.x + 6; x++) for (y = sp.y - 9; y <= sp.y; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (a wall over it, five wide, and the sixth column out free) */
+    var at = w.hSpotAt(g, s);
+    check(at.x === sp.x + 6 && w.navStand(g, at.x, at.y) === 1, "the station went to " + JSON.stringify(at) + ", not six out at " + (sp.x + 6));
+  });
+  test("foundry: nobody, at work or not, walks onto a fresh casting: a whole village about a foundry casting a bell and plates", function () {
+    [1, 7].forEach(function (seed) {
+      var w = sim.load(seed), g = w.g, M = w.MAT, x, y, i;
+      w.sandClear(g);
+      for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < 158 ? M.SAND : M.STONE);
+      g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.wAny = true; g.know = { foundry: "TEST", moonrocket: "TEST", concrete: "TEST" };
+      g.peasants.forEach(function (q, k) {
+        q.x = 172.5 + k; q.y = 149; q.task = null; q.idle = 0; q.hunger = 0; q.bored = 0; q.life = 1e9;
+        q.iron = 12; q.coal = 100; q.plate = 0; q.bell = 0; q.boards = 20; q.stone = 10; q.glass = 1; q.gold = 0; q.firebrick = 10;
+      });
+      var p = g.peasants[0], gy = [];
+      for (i = 0; i < w.H_FW; i++) gy.push(150);
+      var ff = w.hFoundryFit(g, 150, gy, 150, 150), f = sim.build(w, w.hFoundryAt(g, p, 150, ff.R0, ff.plan));
+      var ry = []; for (i = 0; i < w.H_RW; i++) ry.push(150);
+      var rf = w.hRocketFit(g, 220, ry, 150, 150), r = w.hRocketAt(g, p, 220, rf.R0, w.wGild(g, rf.plan));
+      r.stock = { mortar: 30 };
+      var burnt = 0;
+      for (i = 0; i < 6000; i++) { g.peasants.forEach(function (q) { q.hunger = 0; if (q.fire) burnt++; }); sim.step(w, 1); }
+      check(f.casts >= 2 && !burnt && !g.causes.fire && !g.causes.lava, "seed " + seed + ": casts " + f.casts + ", burning " + burnt + " ticks, " + JSON.stringify(g.causes));
+    });
+  });
   test("foundry, lighthouse: nobody at work at them dies of the heat, in long ordinary use: a bell and plates cast, the lamp kept lit", function () {
     /* (the foundry: a bell wanted, iron enough for it and more, a founder at the bellows, 12000 ticks) */
     var F = fflat(1), w = F.w, g = F.g, p = F.p, s = fFoundry(F), i;

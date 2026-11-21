@@ -143,7 +143,7 @@ function wReset(g) {
 var W_KINDS = (function () {   /* (a constant, filled once) */
   var o = {};
   ["haul", "salvage", "quarry", "mix", "kiln", "moonrock", "gantry", "meteorite", "observe", "found", "keep", "fuel", "board",
-   "stoke", "bathe", "screw", "pfill", "organ", "shovel", "cbail", "act", "preach", "audience", "apex", "crypt"].forEach(function (k) { o[k] = 1; });
+   "stoke", "bathe", "screw", "pfill", "organ", "shovel", "cbail", "act", "preach", "audience", "apex", "crypt", "wcool"].forEach(function (k) { o[k] = 1; });
   return o;
 })();
 var W_AWAY = { shovel: 1, mix: 1, pfill: 1, bucket: 1, cbail: 1 };   /* (jobs for a site whose walks go elsewhere: snow, water) */
@@ -400,7 +400,20 @@ function wHotAt(g, fx, fy, f) {
    (wStepBack). caught a step early, not a tick too late */
 function wHeatGuard(g, p) {
   var k = p.task;
-  if (!k || !W_KINDS[k.kind] || W_AWAY[k.kind] || p.state !== "walk" || p.fire) return;
+  if (p.state !== "walk" || p.fire) return;
+  /* (anybody else, about their own business or none: not a step onto what a great work has just made hot, a fresh casting
+     in its mould, firebrick, the exhaust. turned round at the edge of it. paths keep off it already, navHazard: this is
+     for the wandering, and whoever's job has just ended on top of it) */
+  if (!k || !W_KINDS[k.kind] || W_AWAY[k.kind]) {
+    var fx0 = Math.floor(p.x), fy0 = Math.floor(p.y), d0 = p.dir || 1;
+    if (wHotWork(g, fx0, fy0)) {
+      /* (standing in it, or it come up under them, a casting just poured: off it, now, the way with the least heat on it.
+         the job they had waits; they are back for it in a moment) */
+      var kc = { kind: "wcool", t: 0, was: k || null };
+      wStepBack(g, p, kc); kc.hotX = fx0; kc.hotY = fy0; p.task = kc; p.dir = kc.backX < p.x ? -1 : 1;
+    }
+    return;   /* (and a step into it is never taken: peasants.js, where they step) */
+  }
   var fx = Math.floor(p.x), fy = Math.floor(p.y), xs = [fx, fx + (p.dir || 1)], i, dy;
   /* (already stepping back: only a step on into heat turns them again) */
   if (k.backT > g.tick) xs = [fx + (p.dir || 1)];
@@ -411,6 +424,18 @@ function wHeatGuard(g, p) {
     for (dy = 0; dy <= 8 && !hot; dy++) { var y = fy - dy; if (y >= 0 && y < g.gh && g.T[y * g.gw + x] > W_TOOHOT) hot = true; }
     if (hot) { wStepBack(g, p, k); if (k.hotX == null) { k.hotX = x; k.hotY = fy; } p.dir = k.backX < p.x ? -1 : 1; return; }
   }
+}
+/* a great work's own heat at (x, y), where somebody would stand: too hot underfoot or about the body, and inside (or
+   right by) a great work's box */
+function wHotWork(g, x, y) {
+  if (x < 0 || x >= g.gw || y < 0 || y >= g.gh) return false;
+  /* (underfoot a step up or a step down too: walking onto a casting that stands a cell proud of the ground) */
+  var hot = false, dy;
+  for (dy = -2; dy <= 1 && !hot; dy++) { var fy = y + 1 + dy; if (fy >= 0 && fy < g.gh && SOLID[g.m[fy * g.gw + x]] && g.T[fy * g.gw + x] > W_FEETHOT) hot = true; }
+  for (dy = 0; dy <= 8 && !hot; dy++) if (y - dy >= 0 && g.T[(y - dy) * g.gw + x] > W_TOOHOT) hot = true;
+  if (!hot) return false;
+  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && x >= s.x0 - 12 && x <= s.x1 + 12 && y >= s.y0 - 4 && y <= s.y1 + 6) return true; }
+  return false;
 }
 function wStepBack(g, p, k) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), side = 0;
@@ -436,6 +461,7 @@ function wTask(g, p, k) {
       return false;
     }
   }
+  if (k.kind === "wcool") { if (++k.t > 600 || !(k.backT > g.tick) && k.hotX == null) { p.task = k.was && k.was.kind !== "wcool" ? k.was : null; return false; } return false; }
   if (k.kind === "haul") return wTaskHaul(g, p, k);
   if (k.kind === "salvage") return wTaskSalvage(g, p, k);
   if (k.kind === "quarry") return wTaskQuarry(g, p, k);

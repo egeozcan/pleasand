@@ -639,7 +639,7 @@ function pStep(g, p) {
     if (++p.lava > 30) { pDie(g, p, "lava"); return; }
   } else if ((HOT[cf] || HOT[cm] || HOT[ch]) && !(p.task && p.task.brave)) pIgnite(g, p);   /* (a leather apron, at a furnace: heavens.js) */
   /* (at work for a great work: too hot here, or a step on, and they turn back before the heat can take them. wonders.js) */
-  if (p.task && g.wAny) wHeatGuard(g, p);
+  if (g.wAny) wHeatGuard(g, p);
   if (pHeat(g, p, fx, fy)) return;
   if (cf === MAT.ACID || cm === MAT.ACID || ch === MAT.ACID || cb === MAT.ACID) {
     if (p.acid < 1 || Math.random() < 0.01) pSay(g, p, "acid", p.acid < 1);
@@ -1636,6 +1636,9 @@ function pWalk(g, p, wading) {
     var pace = (p.fire ? 0.5 : (p.panic || rush ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1);
     if (p.hold) { if (p.ivx) pGlide(g, p); }
     else if (!wading && pOnIce(g, fx, fy)) pIceStep(g, p, pace);
+    /* (never a step into what a great work has made hot, for anybody: the other way, or, hot both ways, stay put till it
+       cools. wonders.js wHotWork) */
+    else if (g.wAny && wHotWork(g, fx + p.dir, fy)) { p.dir = -p.dir; if (!wHotWork(g, fx + p.dir, fy)) pStepX(g, p, pace); }
     else pStepX(g, p, pace);
     if (!scared && !p.task) {
       if (Math.random() < 0.003) p.idle = 40 + irnd(160);
