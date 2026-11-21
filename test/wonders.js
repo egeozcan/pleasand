@@ -114,6 +114,29 @@ module.exports = function (test, check, sim) {
     h3._eval("iEureka")(g3, q);
     check(g3.know.salt && g3.got.enlightened && h3.rng() === 3492258051, "the last of master's ideas: enlightened " + !!g3.got.enlightened + ", dice " + h3.rng());
   });
+  test("wonders: the great works' ideas roll their own dice, kept with the village: the same save thinks the same with or without a frame drawn", function () {
+    var w = sim.load(1), g = w.g, p = g.peasants[0];
+    g.tick = 10000;
+    w.IDEAS.forEach(function (I) { if (!w.iFresh(I)) g.know[I.id] = p.name; });
+    g.found.ore = 2; g.ideaT = 0;
+    w.wSpark(g, p, "stained");
+    check(p.wspark === "stained", "(the test wants stained glass in mind)");
+    var doc = w.saveDocument(g, { source: "test" });
+    function fromSave(draw, n) {
+      var c = H.open({ seed: 11 }); c.load(doc);
+      var gg = c.g, a = gg.peasants[0], out = [];
+      gg.shake = 1;
+      for (var k = 0; k < n; k++) {
+        if (draw) { c._eval("gameDrawSide")(gg, c._eval("ctx")); c._eval("gameDrawSide")(gg, c._eval("ctx")); }   /* (frames drawn: the side dice rolled) */
+        gg.ideaT = 0; a.sayT = 0;
+        c._eval("iEureka")(gg, a);
+        out.push(!!gg.know.stained);
+      }
+      return out.join() + " " + c.rng() + " " + gg.wRngS;
+    }
+    var plain = fromSave(false, 6), drawn = fromSave(true, 6);
+    check(plain === drawn, "the same save thought otherwise with frames drawn: " + plain + " / " + drawn);
+  });
   test("wonders: a plain village's peasant thrown into space, and one on a rocket pack, come back as on master, die for die", function () {
     /* (recorded on master: where they come down, how fast across, the dice after, the hash) */
     var h = H.open({ seed: 1 }), g = h.g, p = g.peasants[0];

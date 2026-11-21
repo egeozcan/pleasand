@@ -350,13 +350,14 @@ function iEureka(g, p) {
   }
   /* food first (it is a full stomach doing the thinking). after that: what has been on everybody's minds longest,
      mostly, and now and then something out of nowhere */
-  /* a great work's idea, on the side dice: what happened to them (p.wspark: wonders.js wSpark) most likely; with nothing
+  /* a great work's idea, on the great works' own dice (wonders.js wRand: kept on g, saved and rewound with it, and not
+     rolled by anything else): what happened to them (p.wspark: wonders.js wSpark) most likely; with nothing
      else on their minds, the one that has been about longest, now and then */
   if (fresh.length) {
     var ws = null;
     for (k = 0; k < fresh.length; k++) if (fresh[k].id === p.wspark) ws = fresh[k];
-    if (ws && RNG_SIDE.random() < I_WSPARK) idea = ws;
-    else if (!ready.length && RNG_SIDE.random() < I_WSPARK / 2) idea = wold;
+    if (ws && wRand(g) < I_WSPARK) idea = ws;
+    else if (!ready.length && wRand(g) < I_WSPARK / 2) idea = wold;
   }
   if (!idea && ready.length) idea = !g.know.farm ? ready[0] : (Math.random() < 0.65 ? old : pick(ready));
   if (!idea) {

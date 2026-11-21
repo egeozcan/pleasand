@@ -115,7 +115,7 @@ function wIdea(id) { for (var k = 0; k < IDEAS.length; k++) if (IDEAS[k].id === 
 var W_GKEYS = ["curseSlips", "dmask", "draught", "hConst", "hLake", "hLakeT", "hLightFame", "hRock", "hRockOut", "hShower", "kilnN",
   "kingDied", "lastKing", "lastSwim", "looks", "moonCrew", "moonFlag", "moonLooks", "moonT", "noField", "noFieldT", "packFlights",
   "rocket", "rocketBooms", "thinkerDied", "wChar", "wDuckPalace", "wIceN", "wLump", "wNo", "wPlanT", "wPyrFame", "wQuarryFar",
-  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "wSalvNo", "festX"];   /* (only keys of the great works': resow and the rest are the village's, as on master) */
+  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "wSalvNo", "festX", "wRngS"];   /* (only keys of the great works': resow and the rest are the village's, as on master) */
 /* lightning, as it strikes at (x, y) (world.js sandLightning, not taken down a rod): any great work standing that
    answers it (the lighthouse's lantern) */
 function wStruck(g, x, y) {
@@ -161,6 +161,18 @@ function wInbound(g, s, r, p) {
     if (q !== p && !q.dead && q.task && q.task.site === s.id && (q.task.kind === "haul" || q.task.kind === "build")) n += r === "mortar" ? (q.lump || 0) : (q[r] || 0);
   }
   return n;
+}
+/* THE GREAT WORKS' OWN DICE: for what of theirs must not roll the village's dice before they are thought of (which of
+   their ideas comes, and when: ideas.js iEureka), and must not be rolled by drawing or sound either (rng.js RNG_SIDE is
+   theirs). one number on g (g.wRngS), so it is saved, snapshotted and rewound with the village. mulberry32, as rng.js */
+function wRand(g) {
+  var st = g.wRngS == null ? 0x2b7e1516 : g.wRngS;
+  st = (st + 0x6d2b79f5) >>> 0;
+  g.wRngS = st;
+  var t = st;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 /* the wonder sites: every one, or only those standing (done) */
 function wSites(g, done) {
