@@ -625,6 +625,41 @@ module.exports = function (test, check, sim) {
     check(!a.planned || a.phase >= 2, "planned with a station in the cliff, and never charged: " + JSON.stringify(a));
     check(b.planned && b.phase >= 2, "beside open ground it did not charge: " + JSON.stringify(b));
   });
+  test("foundry: hot air come down over the bellows, the founder steps back out of it, and does not catch fire", function () {
+    var F = fflat(1), w = F.w, g = F.g, p = F.p, s = fFoundry(F), i, d;
+    fRocketWantingBell(F); p.iron = 2;
+    for (i = 0; i < 4000 && !(s.phase === 2 && p.task && p.task.kind === "found" && p.task.act > 0); i++) { p.hunger = 0; sim.step(w, 1); }
+    check(s.phase === 2 && p.task && p.task.kind === "found", "(the test wants the founder at the bellows, firing: phase " + s.phase + ")");
+    var sp = w.hSpotAt(g, s);
+    /* (a plume over the station, head high, as smoke from the chimney blown back down: warming as it comes, to 520) */
+    for (i = 0; i < 300 && !p.fire; i++) {
+      var hot = Math.min(520, 200 + i * 2);
+      for (d = -1; d <= 1; d++) [5, 6, 7, 8].forEach(function (dy) { var j = (sp.y - dy) * g.gw + sp.x + d; g.T[j] = hot; });
+      p.hunger = 0; sim.step(w, 1);
+    }
+    check(!p.fire && !p.dead, "the founder stood in it and caught fire");
+  });
+  test("foundry, lighthouse: nobody at work at them dies of the heat, in long ordinary use: a bell and plates cast, the lamp kept lit", function () {
+    /* (the foundry: a bell wanted, iron enough for it and more, a founder at the bellows, 12000 ticks) */
+    var F = fflat(1), w = F.w, g = F.g, p = F.p, s = fFoundry(F), i;
+    fRocketWantingBell(F); p.iron = 6;
+    for (i = 0; i < 12000 && !p.dead; i++) { p.hunger = 0; sim.step(w, 1); }
+    check(!p.dead && !g.causes.fire && !g.causes.lava, "the founder died at the foundry: " + JSON.stringify(g.causes) + ", casts " + s.casts);
+    check(s.casts >= 1, "(the test wants something cast: " + s.casts + ")");
+    /* (the lighthouse: lit, and kept lit, for 8000 ticks, from a well's tank) */
+    var L = lighthouse(true), w2 = L.w, g2 = L.g;
+    L.s.fuel = 0;
+    var filled = 0, f0 = 0;
+    for (i = 0; i < 8000; i++) {
+      g2.peasants.forEach(function (q) { q.hunger = 0; });
+      /* (a barrel in somebody's hands whenever the lamp is low and nobody has one: the keeper takes it up) */
+      if (L.s.fuel < w2.H_LOW && !g2.peasants.some(function (q) { return !q.dead && q.barrel; })) { var kq = g2.peasants.filter(function (q) { return !q.dead; })[0]; if (kq) kq.barrel = 1; }
+      if (L.s.fuel > f0) filled++; f0 = L.s.fuel;
+      sim.step(w2, 1);
+    }
+    check(filled >= 1, "(the test wants the lamp filled)");
+    check(!g2.causes.fire && !g2.causes.lava, "a keeper died at the lighthouse: " + JSON.stringify(g2.causes) + ", fuel " + L.s.fuel);
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });

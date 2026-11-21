@@ -366,7 +366,44 @@ function wPick(g, p, hungry) {
   return false;
 }
 /* one tick of one of the jobs in here, or undefined if it is not one of ours */
+/* too hot where they stand to stay (body or feet, as pHeat measures it: well short of where even somebody used to the
+   heat, at work, catches fire). every great works' job: they step back out of it, the cooler way, and wait till it is
+   not, before they go on. nobody is cooked at their station, the bellows, the stoke-hole, the lamp */
+var W_TOOHOT = P_IGNITE * 1.3, W_FEETHOT = P_IGNITE;
+function wTooHot(g, p) { return wHotAt(g, Math.floor(p.x), Math.floor(p.y), 1); }
+/* too hot to stand at (x, y), or (f under 1) at that much of too hot: the body there (and a column either side), and
+   the ground under it */
+function wHotAt(g, fx, fy, f) {
+  var hi = -1e9, d, dx;
+  for (dx = -1; dx <= 1; dx++) {
+    var x = fx + dx;
+    if (x < 0 || x >= g.gw || (f >= 1 && dx)) continue;
+    [0, 4, 7].forEach(function (dy) { var y = fy - dy; if (y >= 0 && y < g.gh) hi = Math.max(hi, g.T[y * g.gw + x]); });
+  }
+  var feet = fy + 1 < g.gh && fx >= 0 && fx < g.gw ? g.T[(fy + 1) * g.gw + fx] : AMBIENT;
+  return hi > W_TOOHOT * f || feet > W_FEETHOT * f;
+}
+function wStepBack(g, p, k) {
+  var fx = Math.floor(p.x), fy = Math.floor(p.y), side = 0;
+  function heat(x) { var t = 0; for (var dy = 0; dy <= 7; dy += 3) { var y = fy - dy; if (x >= 0 && x < g.gw && y >= 0 && y < g.gh) t += g.T[y * g.gw + x]; } return t; }
+  side = heat(fx - 3) <= heat(fx + 3) ? -1 : 1;
+  k.backT = g.tick + 120;   /* (and stay back a while: it does not cool in a tick) */
+  if (k.hotX == null) { k.hotX = fx; k.hotY = fy; }   /* (where it was too hot: not back into it till it has cooled well down. wTask) */
+  k.backX = Math.max(1, Math.min(g.gw - 2, fx + side * 6));
+  return false;
+}
 function wTask(g, p, k) {
+  /* (too hot here: back, the cooler way, and wait. then on with it) */
+  if (W_KINDS[k.kind] && !W_AWAY[k.kind] && p.state === "walk") {
+    if (wTooHot(g, p)) wStepBack(g, p, k);
+    if (k.hotX != null && !(k.backT > g.tick)) { if (wHotAt(g, k.hotX, k.hotY, 0.7)) k.backT = g.tick + 60; else k.hotX = null; }
+    if (k.backT > g.tick) {
+      p.pose = "stand"; p.idle = 0;
+      if (Math.abs(p.x - k.backX - 0.5) > 1) iWalk(g, p, k, "back", k.backX, Math.floor(p.y), function (x) { return Math.abs(x - k.backX) <= 1; });
+      if (p.sayT <= 0 && Math.random() < 0.01) pSay(g, p, "scald", true);
+      return false;
+    }
+  }
   if (k.kind === "haul") return wTaskHaul(g, p, k);
   if (k.kind === "salvage") return wTaskSalvage(g, p, k);
   if (k.kind === "quarry") return wTaskQuarry(g, p, k);

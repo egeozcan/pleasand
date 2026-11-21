@@ -80,6 +80,7 @@ module.exports = function (test, check, sim) {
     }
     check(start > 0, "it never got warm");
     check(lo >= 30 && hi <= 46, "it went from " + lo.toFixed(1) + " to " + hi.toFixed(1) + " (" + B.s.coals + " coals)");
+    check(!g.causes.fire && !g.causes.lava, "the stoker died at the stoke-hole: " + JSON.stringify(g.causes));
   });
 
   test("baths: a cold peasant bathes, and stops being cold; at 60 the bathers get out", function () {
@@ -258,6 +259,7 @@ module.exports = function (test, check, sim) {
     for (var t = 0; t < 9000 && !s.concerts; t += 30) sim.step(w, 30);
     heard = g._heard || 0;
     check(s.concerts === 1, "no concert in 9000 ticks (" + s.state + ", note " + s.ni + ")");
+    check(!g.causes.fire && !g.causes.lava, "the organist died at the boiler: " + JSON.stringify(g.causes));
     check(s.ni >= 30, "the concert was " + s.ni + " notes");
     check(s.lastUsed <= 40, "the concert used " + s.lastUsed + " cells of water");
     check(before - tank(O) <= 40, "the tank went from " + before + " to " + tank(O));
