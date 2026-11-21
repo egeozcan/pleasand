@@ -959,12 +959,27 @@ function hFoundryFit(g, x0, gy, hi, lo) {
 }
 function hPlanFoundry(g, p) {
   var f = mSites(g, "furnace", true)[0];
-  var r = wPlot(g, { w: H_FW, sky: 16, rough: 12, near: f ? f.cx : wMiddle(g), pad: 2, fit: hFoundryFit });
+  /* (and only where the founder can stand to work both moulds' bellows, and get there from home: not one of them in the
+     cliff next to it) */
+  var r = wPlot(g, { w: H_FW, sky: 16, rough: 12, near: f ? f.cx : wMiddle(g), pad: 2,
+                     fit: function (g2, x0, gy, hi, lo) { var t = hFoundryFit(g2, x0, gy, hi, lo); return t && hFoundryStations(g2, x0, t.R0) ? t : null; } });
   if (!r) return false;
   var s = hFoundryAt(g, p, r.x0, r.r.R0, wCleared(g, r, r.r.plan));
   feed(g, p.name + " is building a foundry by the furnace", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planFoundry", true);
   if (bCarries(p)) bJoin(g, p, s);
+  return true;
+}
+/* can the founder work a foundry at x0 (its row R0): both stations (hSpot, either mould's bellows), standing, and a way
+   from home to each (heavens.js hHome, bounded) */
+function hFoundryStations(g, x0, R0) {
+  var home = hHome(g), xs = [x0 + 1 - 3, x0 + 1 + 17];
+  for (var k = 0; k < xs.length; k++) {
+    var sx = xs[k], G = mGroundNear(g, sx, false, R0 - 1), sy = G > 0 && Math.abs(G - 1 - (R0 - 1)) <= 4 ? G - 1 : R0 - 1;
+    if (sx < 1 || sx > g.gw - 2 || navStand(g, sx, sy) !== 1) return false;
+    var there = function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 1; };
+    if (!home.at(sx, sy) && !navFind(g, home.x, home.y, there, sx, sy, H_REACH * 4)) return false;
+  }
   return true;
 }
 function hFoundryAt(g, p, x0, R0, plan) {
@@ -1083,7 +1098,7 @@ function hFoundryStep(g, s) {
     q = null;
     for (var k = 0; k < g.peasants.length; k++) { var c = g.peasants[k]; if (wIdle(g, c, s) && Math.abs(c.x - s.cx) < 260 && (!q || (c.smelts || 0) > (q.smelts || 0))) q = c; }
   }
-  if (!q) return;
+  if (!q) { if (s.phase === 1) s.note = "nobody free who can get to the bellows"; return; }
   q.task = { kind: "found", site: s.id, t: 0, act: 0, brave: true };
   s.founder = q.id;
 }

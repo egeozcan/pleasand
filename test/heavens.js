@@ -604,6 +604,27 @@ module.exports = function (test, check, sim) {
     for (i = 0; i < 12000 && !(p.bell >= 1); i++) { p.hunger = 0; sim.step(w, 1); }
     check(p.bell >= 1, "two bars, and no bell: " + s.casts + " casts, phase " + s.phase + ", plates " + (p.plate || 0));
   });
+  test("foundry: not planned where a bellows station is in the cliff next to it; planned beside open ground, it charges", function () {
+    function run(cliff) {
+      var F = fflat(1), w = F.w, g = F.g, p = F.p, M = F.M, x, y, i, x0 = g.gw / 2 - w.H_FW / 2;
+      for (x = 0; x < g.gw; x++) if (x < x0 || x >= x0 + w.H_FW) for (y = 150; y < 158; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+      p.x = 60.5;
+      check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+      sim.build(w, sites(g, "furnace")[0]); p.task = null;
+      if (cliff) for (x = x0 + 16; x <= x0 + 23; x++) for (y = 85; y < 150; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+      p.x = x0 - 6 + 0.5; p.iron = 12; p.coal = 100;
+      if (!w.hPlanFoundry(g, p)) return { planned: false };
+      var s = sites(g, "foundry")[0];
+      sim.build(w, s); p.task = null;
+      for (x = 245; x < 245 + w.H_RW; x++) for (y = 150; y < 158; y++) w.sandPlace(g, y * g.gw + x, M.SAND);
+      fRocketWantingBell(F, 245);
+      for (i = 0; i < 11000 && s.phase < 2; i++) { p.hunger = 0; sim.step(w, 1); }
+      return { planned: true, phase: s.phase };
+    }
+    var a = run(true), b = run(false);
+    check(!a.planned || a.phase >= 2, "planned with a station in the cliff, and never charged: " + JSON.stringify(a));
+    check(b.planned && b.phase >= 2, "beside open ground it did not charge: " + JSON.stringify(b));
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });
