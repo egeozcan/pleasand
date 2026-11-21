@@ -93,6 +93,21 @@ module.exports = function (test, check, sim) {
     check(gn.tick === 1528 && f && f.x0 === 150 && hn.hash() === "dc6bb627", "after NEW the first field came at " + gn.tick + ", " + (f && f.x0) + " (master: 1528, 150), hash " + hn.hash());
   });
 
+  test("wonders: a plain village's peasant thrown into space, and one on a rocket pack, come back as on master, die for die", function () {
+    /* (recorded on master: where they come down, how fast across, the dice after, the hash) */
+    var h = H.open({ seed: 1 }), g = h.g, p = g.peasants[0];
+    p.state = "fly"; p.x = 100; p.y = -39; p.vx = 0; p.vy = -4; p.flyT = 0;
+    h.step(1); var away = p.spaceT; h.step(away);
+    check(!g.wAny && JSON.stringify([p.state, away, p.x, p.vx, h.loaded.rng.state, h.hash()]) === JSON.stringify(["fly", 435, 101.12857698556036, 0.09461914794519544, 1561192189, "54ba6452"]),
+      "back from space other than on master: " + JSON.stringify([p.state, away, p.x, p.vx, h.loaded.rng.state, h.hash()]));
+    var h2 = H.open({ seed: 2 }), g2 = h2.g, q = g2.peasants[1], t = 0;
+    q.pack = 1; q.fuel = 4; q.x = 120.5; q.y = h2._eval("mGround")(g2, 120) - 1; q.state = "walk"; q.task = null;
+    h2._eval("oLaunch")(g2, q);
+    while (q.state !== "space" && t < 600) { h2.step(1); t++; }
+    h2.step(200);
+    check(JSON.stringify([q.state, q.x, h2.loaded.rng.state, h2.hash()]) === JSON.stringify(["walk", 8.428804753296944, 587780594, "f8f5d0e6"]),
+      "a rocket pack flight other than on master: " + JSON.stringify([q.state, q.x, h2.loaded.rng.state, h2.hash()]));
+  });
   test("wonders: a village rewound to a checkpoint and played again comes out as one played straight: plain, and with great works", function () {
     [1, 2].forEach(function (seed) {
       var rw = H.open({ seed: seed }), ctl = H.open({ seed: seed });

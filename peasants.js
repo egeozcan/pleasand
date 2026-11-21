@@ -621,8 +621,8 @@ function pStep(g, p) {
       var sx = p.spaceX; p.spaceX = null;
       /* (from the moon, straight down onto it, kept in the world: no drift sideways to carry them off the edge of it from a
          pad at the edge. the dice rolled all the same) */
-      var vr = Math.random() - 0.5;
-      p.state = "fly"; p.x = sx != null ? Math.max(6, Math.min(g.gw - 7, sx)) : 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = sx != null ? 0 : vr; p.vy = sx != null ? -0.8 : 1.5;
+      if (sx == null) { p.state = "fly"; p.x = 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = Math.random() - 0.5; p.vy = 1.5; }   /* (as on master, die for die) */
+      else { p.state = "fly"; p.x = Math.max(6, Math.min(g.gw - 7, sx)); p.y = -12; Math.random(); p.vx = 0; p.vy = -0.8; }
       p.fromSpace = 240; p.flyT = sx != null ? 13 : 0;   /* (and slowly enough, at first, for the cord) */
       feed(g, p.name + (sx != null ? " is back from the moon" : " is back from space"), "#9ad0ff");
       pSay(g, p, "space", true);
