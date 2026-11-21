@@ -783,6 +783,7 @@ wDef({
   task: function (g, p, k) { return k.kind === "organ" ? pTaskOrgan(g, p, k) : (k.kind === "pfill" ? pTaskFill(g, p, k) : undefined); },
   step: pOrganStep,
   tick: pOrganTick,
+  inside: pOInside,   /* (nobody's place: wonders.js wEvict) */
   partOfIt: function (g, s, f) { for (var k = 0; k < f.length; k++) { var u = f[k] % g.gw - s.x0, y = (f[k] / g.gw) | 0; if (y !== s.G - 1 || u < 5 || u > 7) return false; } return true; },
   draw: pDrawOrgan,
   finish: function (g, s, p) {
@@ -959,28 +960,8 @@ function pOInside(g, s, x, y) {
   for (var n = 0; n < P_ON; n++) if (x === pOPipeX(s, n) && y >= pOLid(s.G) - P_OH[n] && y <= pOLid(s.G)) return true;
   return false;
 }
-/* anybody inside it (let go of there, say, by a hand: the grates keep out only what falls on them) is put out of it, at
-   once, on the ground beside it, the nearer side: not left down a pipe till they starve, or in the boiler */
-function pOrganEvict(g, s) {
-  for (var k = 0; k < g.peasants.length; k++) {
-    var p = g.peasants[k];
-    if (p.dead || g.held === p || p.state === "held" || p.state === "space") continue;
-    var fx = Math.floor(p.x), fy = Math.floor(p.y), d, inside = false;
-    for (d = 0; d <= 8 && !inside; d++) if (pOInside(g, s, fx, fy - d)) inside = true;
-    if (!inside) continue;
-    var sides = p.x < s.cx ? [-1, 1] : [1, -1], to = null;
-    for (var i = 0; i < 2 && !to; i++) for (d = 2; d <= 10 && !to; d++) {
-      var x = sides[i] < 0 ? s.x0 - d : s.x1 + d, y = mGroundNear(g, x, false, s.G) - 1;
-      if (y > 0 && navStand(g, x, y)) to = { x: x, y: y };
-    }
-    if (!to) continue;
-    p.x = to.x + 0.5; p.y = to.y; p.vy = 0; p.vx = 0; p.falling = false; p.fallY = p.y; p.jumping = false; p.climb = null; p.rope = null;
-    if (p.state === "fly") p.state = "walk";
-  }
-}
 function pOrganTick(g, s) {
   if (!s.done) return;
-  pOrganEvict(g, s);
   var t = -1;
   for (var n = 0; n < P_ON; n++) {
     var x = pOPipeX(s, n), y = pOLid(s.G) - 1 - P_OH[n], st = g.m[y * g.gw + x] === MAT.STEAM ? 1 : 0;

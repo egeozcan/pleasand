@@ -304,21 +304,56 @@ module.exports = function (test, check, sim) {
     w.peasantGrab(g, v); w.sandRelease(g);
     return v;
   }
-  test("organ: let go of down a pipe, or in its tank, at any pipe, a visitor is put out of it at once, on the ground beside it", function () {
+  test("organ: let go of down a pipe, or in its tank, at any pipe, a visitor is put out of it within a look, somewhere safe", function () {
     var n, i, bad = [];
     for (n = 0; n < 5; n++) [3, -1].forEach(function (dy) {
       var O = organ(4), w = O.w, g = O.g, s = O.s;
       g.peasants.forEach(function (q) { q.coal = 0; });   /* (no coal: nobody fires it to come and get them) */
       var x = w.pOPipeX(s, n) + 0.5, rim = w.pOLid(s.G) - w.P_OH[n], v = fRelease(w, g, s, x, rim + dy), out = -1;
-      for (i = 0; i < 30 && !v.dead; i++) {
+      for (i = 0; i < 40 && !v.dead; i++) {
         sim.step(w, 1);
         var inside = false;
         for (var d = 0; d <= 8; d++) if (w.pOInside(g, s, Math.floor(v.x), Math.floor(v.y) - d)) inside = true;
         if (out < 0 && !inside) out = i;
       }
-      if (out < 0 || out > 2 || v.dead) bad.push("pipe " + n + " " + (dy > 0 ? "inside it" : "over its rim") + ": out at " + out + (v.dead ? ", dead" : ""));
+      if (out < 0 || out > w.W_STRIDE + 1 || v.dead) bad.push("pipe " + n + " " + (dy > 0 ? "inside it" : "over its rim") + ": out at " + out + (v.dead ? ", dead" : ""));
     });
     check(!bad.length, bad.join("; "));
+  });
+  test("organ: let go of over its tank's iron wall, a visitor is put out of the iron, not buried in it (pi's round 29)", function () {
+    var w = sim.load(1), g = w.g, p = g.peasants[0];
+    know(g, ["farm", "dig", "bucket", "mine", "masonry", "smelt", "concrete", "festival", "organ"]);
+    g.wAny = true;
+    check(w.pPlanOrgan(g, p), "(the test wants an organ)");
+    var s = sim.build(w, sites(g, "organ")[0]); w.wFinish(g, s, p);
+    g.arriveT = g.ideaT = 1e9;
+    var x = s.x0 + 1, y = s.G - 2;
+    check(w.pCell(g, x, y) === w.MAT.METAL, "(the test wants the tank's wall there)");
+    g.mx = w.PANEL + w.CELL * (x + 0.5); g.my = w.PLAY_Y + w.CELL * (y - 8); g.samp = []; g.cvx = g.cvy = 0;
+    w.peasantGrab(g, p); w.sandRelease(g);
+    sim.step(w, 265);
+    check(!p.dead && !g.causes.buried, "buried in the tank's wall: " + JSON.stringify(g.causes));
+  });
+  test("organ: put out of it, a visitor is put somewhere safe: not by a drain, where they would die (pi's round 29)", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0], x, y;
+    w.sandClear(g); g.peasants = [p]; g.ducks = [];
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    g.arriveT = g.ideaT = 1e9; g.helloT = 0;
+    know(g, ["farm", "dig", "bucket", "mine", "masonry", "smelt", "concrete", "festival", "organ"]);
+    g.wAny = true;
+    Object.assign(p, { x: 110.5, y: 149, idle: 900, hunger: 0 });
+    check(w.pPlanOrgan(g, p), "(the test wants an organ)");
+    var s = sim.build(w, sites(g, "organ")[0]); w.wFinish(g, s, p);
+    w.sandPlace(g, s.G * g.gw + s.x0 - 1, M.DRAIN);   /* (a drain in the ground by it, to take away spilt water) */
+    var px = w.pOPipeX(s, 1) + 0.5, rim = w.pOLid(s.G) - w.P_OH[1];
+    Object.assign(p, { x: s.x0 - 5, y: s.G - 1, task: null, state: "walk", hunger: 0, dir: 1, chuteCD: 0, stun: 0 });
+    g.mx = w.PANEL + w.CELL * px; g.my = w.PLAY_Y + w.CELL * (rim + 3); g.samp = []; g.cvx = g.cvy = 0;
+    w.peasantGrab(g, p); w.sandRelease(g);
+    var at = null, i;
+    for (i = 0; i < 60 && !p.dead && !at; i++) { sim.step(w, 1); if (!w.pOInside(g, s, Math.floor(p.x), Math.floor(p.y))) at = { x: Math.floor(p.x), y: Math.floor(p.y) }; }
+    check(at && !w.navLethalNear(g, at.x, at.y, 3) && !w.navDrainAt(g, at.x, at.y), "put out at " + JSON.stringify(at) + ", by the drain");
+    for (i = 0; i < 3; i++) sim.step(w, 1);
+    check(!p.dead && !g.causes.drain, "dead where they were put: " + JSON.stringify(g.causes));
   });
   test("organ: a fired boiler makes steam that goes out of the open pipe and no other", function () {
     var O = organ(0), w = O.w, g = O.g, s = O.s, M = O.M;

@@ -696,15 +696,16 @@ function mCathFinished(g, s, p) {
   mRehang(g, s, p);
   s.servT = g.tick + 2000;
 }
-/* the bell, from wherever it hung, to the belfry: the old one taken down (its gold kept, for the new) */
+/* the bell, from wherever it hung, to the belfry: the old one taken down (its gold kept, for the new). what it hung
+   from, the brick brackets, is let be where it is: paid for, and nobody's to throw away */
 function mRehang(g, s, p) {
   var B = mSites(g, "bell", true), b = null, k, e, gold = 0;
   for (k = 0; k < B.length; k++) if (B[k].on !== s.id) b = B[k];
   if (!b || mSites(g, "bell").some(function (o) { return o.on === s.id; })) return;
   for (k = 0; k < b.plan.length; k++) {
     e = b.plan[k];
-    if (e.v === MAT.EMPTY || g.m[e.i] !== e.v) continue;
-    if (e.v === MAT.GOLD) gold += B_AMT[MAT.GOLD];
+    if (e.v !== MAT.GOLD || g.m[e.i] !== e.v) continue;
+    gold += B_AMT[MAT.GOLD];
     if (!heatTaken(g, e.i)) { sandSet(g, e.i, MAT.EMPTY); heatSync(g, e.i); }
   }
   for (k = 0; k < g.sites.length; k++) if (g.sites[k] === b) { bRemove(g, k); break; }

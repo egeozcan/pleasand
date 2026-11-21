@@ -589,7 +589,7 @@ module.exports = function (test, check, sim) {
     check(!w.bClimbStart(g, p, x + 1, -1) && !p.climb, "climbed into the stone");
     check(w.bClimbStart(g, p, x, -1) && p.climb, "(and the ladder itself is climbed)");
   });
-  test("a route up a ladder that will not have them on it is given up for a while, not tried every tick", function () {
+  test("a route up a ladder that will not have them on it: that ladder is kept off their way a while, not tried every tick", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0], x = 120, y;
     g.wAny = true;
     for (y = 130; y < 150; y++) { w.sandPlace(g, y * g.gw + x, M.LADDER); g.aux[y * g.gw + x] = 0; w.sandPlace(g, y * g.gw + x + 1, M.STONE); }
@@ -598,7 +598,24 @@ module.exports = function (test, check, sim) {
     var goal = function (X, Y) { return X === x && Y === 131; };
     p.nav = { key: "up", path: [{ x: x, y: 140, m: w.NAV_LADDER }, { x: x, y: 131, m: w.NAV_LADDER }], i: 0, t: g.tick, off: 0 };
     var first = w.pathGo(g, p, "up", x, 131, goal), again = w.pathGo(g, p, "up", x, 131, goal);
-    check(!p.climb && first < 0 && again < 0 && p.nav.none > g.tick, "a refused ladder kept on the route: " + first + ", " + again + ", climbing " + !!p.climb);
+    check(!p.climb && again < 0 && p.ladNo && p.ladNo[x + 1] > g.tick, "a refused ladder kept on the route: " + first + ", " + again + ", climbing " + !!p.climb + ", kept off " + JSON.stringify(p.ladNo));
+  });
+  test("a ladder that will not have them on it is kept off their way a while, and the way round it is taken: the errand is not given up (pi's round 29)", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0], x, y, t;
+    w.sandClear(g); g.wAny = true;
+    function put(x, y, v) { w.sandPlace(g, y * g.gw + x, v); }
+    for (x = 1; x < g.gw - 1; x++) { put(x, 150, M.STONE); if (x !== 99 && x !== 120) put(x, 130, M.STONE); }
+    for (x = 120; x <= 142; x++) for (y = 80; y <= 129; y++) put(x, y, M.STONE);   /* (stone over the near ladder's top: no body fits on it) */
+    [99, 120].forEach(function (lx) { for (y = 130; y < 150; y++) { put(lx, y, M.LADDER); g.aux[y * g.gw + lx] = 1; } });
+    var goal = function (X, Y) { return X === 120 && Y === 149; }, k = { kind: "crypt" }, gaveUp = false;
+    Object.assign(p, { x: 119.5, y: 129, nav: null, climb: null, task: k });
+    for (t = 0; t < 1400 && !gaveUp && !goal(Math.floor(p.x), Math.floor(p.y)); t++, g.tick++) {
+      p.navMove = null;
+      gaveUp = w.iWalk(g, p, k, "gallery", 120, 149, goal);
+      if (p.climb) w.bClimbStep(g, p); else w.pStepX(g, p, 0.18);
+      if (!p.climb && w.pCell(g, Math.floor(p.x), Math.floor(p.y) + 1) === M.EMPTY) { p.y += 1; }
+    }
+    check(!gaveUp, "gave the errand up at " + g.tick + ", at " + p.x.toFixed(1) + "," + p.y.toFixed(1));
   });
   test("observatory: a meteorite with a flower where it comes to rest crushes the flower and is all there, thirteen iron and the gold, and says so: pi's sand", function () {
     var w = sim.load(39), g = w.g, M = w.MAT, x, y;

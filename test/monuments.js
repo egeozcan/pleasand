@@ -392,4 +392,25 @@ module.exports = function (test, check, sim) {
     for (var k = 0; k < 1200 && !(p.hid && w.bInside(s, p)); k++) { sim.step(w, 1); p.panic = Math.max(p.panic, 50); }
     check(w.bInside(s, p) && p.hid, "they did not hide in the cathedral (at " + Math.floor(p.x) + "," + Math.floor(p.y) + ")");
   });
+  test("cathedral: finished, the bell rehung in its belfry: the old bell's brick brackets, paid for, are let be (pi's round 29)", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0], x, y;
+    w.sandClear(g); g.peasants = [p]; g.ducks = [];
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < 156 ? M.SAND : M.STONE);
+    Object.assign(g.know, { farm: "TEST", dig: "TEST", mine: "TEST", masonry: "TEST", bell: "TEST", stained: "TEST", cathedral: "TEST" });
+    Object.assign(p, { x: 45.5, y: 149, gold: 2, stone: 20 });
+    check(w.mPlanTower(g, p), "(the test wants a tower)");
+    sim.build(w, sites(g, "tower")[0]);
+    check(w.mPlanBell(g, p), "(the test wants a bell)");
+    var old = sites(g, "bell")[0], supports = old.plan.filter(function (e) { return e.v === M.BRICK; });
+    check(supports.length === 2, "(the test wants the bell's two brackets)");
+    old.plan.forEach(function (e) { w.bPlace(g, old, e, p); });
+    check(w.bFinished(g, old), "(the test wants the bell up)"); w.bFinish(g, old, p);
+    p.x = 165.5;
+    check(w.mPlanCathedral(g, p, 165), "(the test wants a cathedral)");
+    var c = sim.build(w, sites(g, "cathedral")[0]); c.done = false;
+    w.bFinish(g, c, p);
+    var nb = sites(g, "bell").filter(function (b) { return b.on === c.id; })[0];
+    check(nb && Math.abs(nb.stock.gold - 1.4) < 1e-6, "(the test wants the bell rehung, its gold kept)");
+    check(supports.every(function (e) { return g.m[e.i] === M.BRICK; }), "the old bell's brackets were thrown away");
+  });
 };

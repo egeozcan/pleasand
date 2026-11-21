@@ -28,6 +28,7 @@ var NAV_CAP = 4000;                 /* places looked at, at most, per search */
 var NAV_REPLAN = 240;               /* ticks a route is trusted for */
 var NAV_NOROPE = false;             /* set while looking for a route for somebody who cannot use a rope just now */
 var NAV_NOLEAP = false;             /* and for somebody burning: no leaps, no ladders */
+var NAV_LADNO = null;               /* and for somebody a ladder would not have: {column: until}, no climbing it (build.js bClimbStart) */
 var NAV_HOTOK = false;              /* (while finding where a burning peasant starts from: hot ground will do) */
 var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder", "hook", "up", "down"];
 var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5, NAV_HOOK = 6, NAV_UP = 7, NAV_DOWN = 8;
@@ -124,6 +125,7 @@ function navEdges(g, x, y, add) {
   /* a ladder, up from the foot of it to wherever it lets them off at the top. (not burning: they would let go of it.
      build.js bClimbStep) */
   var cx = NAV_NOLEAP ? -1 : bLadderNear(g, x, y);
+  if (cx >= 0 && NAV_LADNO && NAV_LADNO[cx] > g.tick) cx = -1;   /* (a ladder that would not have them on it, a while ago) */
   if (cx >= 0) {
     for (j = y; j > 0 && pCell(g, cx, j) === MAT.LADDER && !pBody(g, cx, j - 9); j--);
     if (pCell(g, cx, j) === MAT.LADDER) j = y;   /* something overhead: the climber would stop under it (bClimbStep) */
@@ -134,7 +136,7 @@ function navEdges(g, x, y, add) {
   /* and down one, from beside the top of it */
   for (s = -1; s <= 1 && !NAV_NOLEAP; s += 2) {
     cx = bLadderMid(g, x + s, y + 1);
-    if (cx < 0) continue;
+    if (cx < 0 || (NAV_LADNO && NAV_LADNO[cx] > g.tick)) continue;
     for (j = y; pCell(g, cx, j + 1) === MAT.LADDER && j < g.gh; j++);
     if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * (mLiftAt(g, cx, j) ? 0.3 : 1.2), NAV_LADDER);
   }
@@ -255,11 +257,12 @@ function pathGo(g, p, key, tx, ty, goal) {
     if (here && goal(here.x, here.y)) { p.nav = { key: key, path: [], i: 0, t: g.tick, off: 0 }; return 0; }
     /* (a rope they cannot use yet, after a fall off one: no routes that need it, until they can) */
     /* (burning, too: no rope, no hook, no leap. pTryHook, pTryLeap) */
-    NAV_NOROPE = p.ropeCD > 0 || !!p.fire; NAV_NOLEAP = !!p.fire;
+    NAV_NOROPE = p.ropeCD > 0 || !!p.fire; NAV_NOLEAP = !!p.fire; NAV_LADNO = p.ladNo || null;
     var path = here ? navFind(g, here.x, here.y, goal, tx, ty) : null;
     NAV_NOROPE = NAV_NOLEAP = false;
     /* (no way without one: the way with one, then, and they wait at the foot of it until they can) */
     if (!path && here && p.ropeCD > 0 && !p.fire) path = navFind(g, here.x, here.y, goal, tx, ty);
+    NAV_LADNO = null;
     if (!path) { p.nav = { key: key, none: g.tick + 120, path: [], i: 0, t: g.tick, off: 0 }; return -1; }
     nv = p.nav = { key: key, path: path, i: 0, t: g.tick, off: 0 };
   }
@@ -306,8 +309,11 @@ function pathGo(g, p, key, tx, ty, goal) {
   if (n.m === NAV_LADDER && !p.climb) {
     var fx = Math.floor(p.x), fy = Math.floor(p.y), cx = n.y < fy ? bLadderNear(g, fx, fy) : -1;
     if (n.y > fy) for (k = -1; k <= 1 && cx < 0; k += 2) cx = bLadderMid(g, fx + k, fy + 1);
-    /* (a ladder that will not have them on it, its column in the way of a body: no way, for a while. build.js bClimbStart) */
-    if (cx >= 0 && Math.abs(cx + 0.5 - p.x) < 2.5 && !bClimbStart(g, p, cx, n.y < fy ? -1 : 1)) { nv.none = g.tick + 300; nv.path = []; return -1; }
+    /* (a ladder that will not have them on it, its column in the way of a body: not on any way of theirs, for a while, and
+       the way found again, round it if there is a way round. build.js bClimbStart) */
+    if (cx >= 0 && Math.abs(cx + 0.5 - p.x) < 2.5 && !bClimbStart(g, p, cx, n.y < fy ? -1 : 1)) {
+      p.ladNo = p.ladNo || {}; p.ladNo[cx] = g.tick + 300; nv.t = -1e9;
+    }
   }
   return P.length - nv.i;
 }

@@ -549,6 +549,38 @@ function wBenchOk(g, x, F, depth) {
    0), shaft (the shaft's columns, to carry the ladder down), S (where the dark of the rock starts)} or null */
 /* (three rows down, if there is anywhere to; with nowhere, two, then one: a worked-out mine under sand still has a floor
    of rock a row deep about it, and one brick wants half a stone) */
+/* NOBODY IN THE STONE: anybody whose feet are in a solid cell of a great work (let go of over its wall by a hand, say),
+   or in a place inside one that is nobody's (an organ's pipes and tank: its def's inside), is put out, at once, where the
+   rocket's crew are let off (heavens.js hRelease): footing, nothing wet, nothing that kills anywhere near, out of every
+   site, and a way home from it on foot */
+function wEvict(g) {
+  var solid = null, k, s, e, d;
+  for (k = 0; k < g.peasants.length; k++) {
+    var p = g.peasants[k];
+    if (p.dead || p.aboard || g.held === p || p.state === "held" || p.state === "space") continue;
+    var fx = Math.floor(p.x), fy = Math.floor(p.y), stuck = false;
+    if (!solid) {
+      solid = {};
+      for (var q = 0; q < g.sites.length; q++) {
+        s = g.sites[q];
+        if (!s.wonder) continue;
+        for (var n = 0; n < s.plan.length; n++) { e = s.plan[n]; if (e.v !== MAT.EMPTY && pBody(g, e.i % g.gw, (e.i / g.gw) | 0)) solid[e.i] = 1; }
+      }
+    }
+    /* (in it as the game counts buried: their feet in the solid, peasants.js. under a low roof, a head in the stone is
+       only stooping) */
+    if (fy >= 0 && solid[fy * g.gw + fx]) stuck = true;
+    for (var q2 = 0; q2 < g.sites.length && !stuck; q2++) {
+      s = g.sites[q2]; var df = s.wonder && wOf(s.kind);
+      if (df && df.inside && s.done) for (d = 0; d <= 8 && !stuck; d++) if (df.inside(g, s, fx, fy - d)) stuck = true;
+    }
+    if (!stuck) continue;
+    var at = hRelease(g, p);
+    if (!at) continue;
+    p.x = at.x + 0.5; p.y = at.y; p.vx = p.vy = 0; p.falling = false; p.fallY = p.y; p.jumping = false; p.climb = null; p.rope = null;
+    if (p.state === "fly") p.state = "walk";
+  }
+}
 /* a gallery with water standing in it (as mines.js mFlooded counts it: more than four wet cells of its plan), looked at
    and nothing more: no flood written on it, no news. this is asked while a plain village is only being watched for
    whether a pyramid could be thought of, and must leave it as it is */
@@ -1343,6 +1375,7 @@ function wStep(g) {
   /* (a wonder's own look at whether anybody has had it put into their head: no dice. pleasures.js) */
   for (k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].watch && !g.know[W_DEFS[k].id]) W_DEFS[k].watch(g);
   if (!any) return;
+  wEvict(g);
   g.ironSpare = wIronHeld(g) ? W_IRON_HOLD : M_IRON_SPARE;   /* (on g: kept with the village it is about. mines.js mIronSpare) */
   g.kiln = wKilnOrders(g);
   for (k = 0; k < g.peasants.length; k++) {
