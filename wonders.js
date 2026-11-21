@@ -395,10 +395,30 @@ function wHotAt(g, fx, fy, f) {
   var feet = fy + 1 < g.gh && fx >= 0 && fx < g.gw ? g.T[(fy + 1) * g.gw + fx] : AMBIENT;
   return hi > W_TOOHOT * f || feet > W_FEETHOT * f;
 }
+/* every tick, before the heat is felt (peasants.js pStep, ahead of pHeat): somebody at a great work's job with the whole
+   of them, feet to head, in air or on ground too hot to stay in, here or a step on the way they are going, steps back
+   (wStepBack). caught a step early, not a tick too late */
+function wHeatGuard(g, p) {
+  var k = p.task;
+  if (!k || !W_KINDS[k.kind] || W_AWAY[k.kind] || p.state !== "walk" || p.fire) return;
+  var fx = Math.floor(p.x), fy = Math.floor(p.y), xs = [fx, fx + (p.dir || 1)], i, dy;
+  /* (already stepping back: only a step on into heat turns them again) */
+  if (k.backT > g.tick) xs = [fx + (p.dir || 1)];
+  for (i = 0; i < xs.length; i++) {
+    var x = xs[i];
+    if (x < 0 || x >= g.gw) continue;
+    var hot = fy + 1 < g.gh && g.T[(fy + 1) * g.gw + x] > W_FEETHOT;
+    for (dy = 0; dy <= 8 && !hot; dy++) { var y = fy - dy; if (y >= 0 && y < g.gh && g.T[y * g.gw + x] > W_TOOHOT) hot = true; }
+    if (hot) { wStepBack(g, p, k); if (k.hotX == null) { k.hotX = x; k.hotY = fy; } p.dir = k.backX < p.x ? -1 : 1; return; }
+  }
+}
 function wStepBack(g, p, k) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), side = 0;
   function heat(x) { var t = 0; for (var dy = 0; dy <= 7; dy += 3) { var y = fy - dy; if (x >= 0 && x < g.gw && y >= 0 && y < g.gh) t += g.T[y * g.gw + x]; } return t; }
-  side = heat(fx - 3) <= heat(fx + 3) ? -1 : 1;
+  /* (the way out with the least heat on it all the way, not only at the far end: walking out through the hot air is no
+     way out of it) */
+  function worst(sd) { var m = 0; for (var d = 1; d <= 6; d++) m = Math.max(m, heat(fx + sd * d)); return m; }
+  side = worst(-1) <= worst(1) ? -1 : 1;
   k.backT = g.tick + 120;   /* (and stay back a while: it does not cool in a tick) */
   if (k.hotX == null) { k.hotX = fx; k.hotY = fy; }   /* (where it was too hot: not back into it till it has cooled well down. wTask) */
   k.backX = Math.max(1, Math.min(g.gw - 2, fx + side * 6));

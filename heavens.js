@@ -872,6 +872,7 @@ var H_CHARGE = 10;          /* cells of iron to a charge: two bars */
 var H_RUN = 0.7;            /* "mostly running": tapped when this much of it is liquid */
 var H_POURED = 1500;        /* ticks to let it run out, the bellows still going, before the plug goes back in */
 var H_FIRE = 10;            /* coals kept burning in the chamber, at most */
+var H_STALL = 2000;         /* a melt that has run no further in this long is tapped as it is */
 var H_PRISE = 100;          /* and it is prised out of the mould under this */
 
 P_SAY.idea_foundry = ["the furnace makes a bar at a time. what if it made a ship", "a bigger furnace. MUCH bigger", "pour the iron. into a shape",
@@ -973,7 +974,7 @@ function hPlanFoundry(g, p) {
 /* can the founder work a foundry at x0 (its row R0): both stations (hSpot, either mould's bellows), standing, and a way
    from home to each (heavens.js hHome, bounded) */
 function hFoundryStations(g, x0, R0) {
-  var home = hHome(g), xs = [x0 + 1 - 3, x0 + 1 + 17];
+  var home = hHome(g), xs = [x0 + 1 + H_SPOT[0], x0 + 1 + H_SPOT[1]];
   for (var k = 0; k < xs.length; k++) {
     var sx = xs[k], G = mGroundNear(g, sx, false, R0 - 1), sy = G > 0 && Math.abs(G - 1 - (R0 - 1)) <= 4 ? G - 1 : R0 - 1;
     if (sx < 1 || sx > g.gw - 2 || navStand(g, sx, sy) !== 1) return false;
@@ -1072,9 +1073,22 @@ function hFoundryWant(g, s) {
 /* (at the foot of the chamber, the side of the mould: the bottom row is a bed of coal, kept burning, that the iron runs
    down onto, and out of) */
 function hPlug(g, s) { return hFJ(g, s, s.mould === "bell" ? 9 : 5, 1); }
-function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? 17 : -3), y: s.R0 - 1 }; }
+/* (out of the heat that comes off the chamber through the air: over a whole cast, measured, the air at head height falls
+   below what even the brave can stand nine columns off its hot side and five off the other. the stations are there,
+   with a column to spare either way: H_SPOT) */
+var H_SPOT = [-5, 21];
+function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? H_SPOT[1] : H_SPOT[0]), y: s.R0 - 1 }; }
 /* (whatever the ground is like out there, give or take a step or two) */
-function hSpotAt(g, s) { var sp = hSpot(s), G = mGroundNear(g, sp.x, false, sp.y); if (G > 0 && Math.abs(G - 1 - sp.y) <= 4) sp.y = G - 1; return sp; }   /* (the bellows between them and the heat) */
+function hSpotAt(g, s) {
+  var sp = hSpot(s), out = s.mould === "bell" ? 1 : -1, d;
+  /* (and if something has been put up where they stand, a stair, a house's wall: the nearest standing a little further
+     out, further from the heat, not nearer it) */
+  for (d = 0; d <= 6; d++) {
+    var x = sp.x + out * d, G = mGroundNear(g, x, false, sp.y), y = G > 0 && Math.abs(G - 1 - sp.y) <= 4 ? G - 1 : sp.y;
+    if (navStand(g, x, y) === 1 || d === 6) return { x: d === 6 ? sp.x : x, y: d === 6 ? (mGroundNear(g, sp.x, false, sp.y) > 0 && Math.abs(mGroundNear(g, sp.x, false, sp.y) - 1 - sp.y) <= 4 ? mGroundNear(g, sp.x, false, sp.y) - 1 : sp.y) : y };
+  }
+  return sp;
+}   /* (the bellows between them and the heat) */
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
 function hFoundryStep(g, s) {
   if (!s.done || s.repair) return;
@@ -1147,7 +1161,7 @@ function hTaskFound(g, p, k) {
     p.iron = (have - put) / 5; s.bars = (s.bars || 0) + put / 5;
     g.fx.thud++;
     if (p.sayT <= 0) pSay(g, p, "foundryCharge");
-    s.phase = 2; s.meltT = g.tick; k.act = 0;
+    s.phase = 2; s.meltT = g.tick; s.meltT0 = g.tick; k.act = 0;
     return true;
   }
   if (s.phase === 2 || s.phase === 3) {
@@ -1174,6 +1188,11 @@ function hTaskFound(g, p, k) {
     if (s.phase === 2) {
       /* (for a bell, all but a cell of it: a bell is cast whole, or it is plates) */
       var run = c.liq + c.met > 0 && (s.mould === "bell" ? c.met <= 1 : c.liq / (c.liq + c.met) >= H_RUN);
+      /* (and a melt that has stopped getting anywhere, stoked as full as the chamber holds, the last of it at the walls
+         never quite running: tapped as it is, after a long while, rather than burning coal on it for ever. a bell's cup
+         that comes out short is broken up for scrap and melted again, below: nothing is lost) */
+      if (!(s.liqBest >= c.liq) || s.phaseT !== s.meltT0) { s.liqBest = c.liq; s.liqT = g.tick; s.phaseT = s.meltT0; }
+      if (!run && c.liq >= 1 && g.tick - s.liqT > H_STALL) run = true;
       if (run && !s.hold) {
         /* mostly running: the plug knocked through, and stand back. (the plug is a firebrick with a hole in it, and
            what comes out of the hole is drawn: the chamber stays shut, and its fire with it) */

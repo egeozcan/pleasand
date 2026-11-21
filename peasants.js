@@ -638,6 +638,8 @@ function pStep(g, p) {
     pIgnite(g, p);
     if (++p.lava > 30) { pDie(g, p, "lava"); return; }
   } else if ((HOT[cf] || HOT[cm] || HOT[ch]) && !(p.task && p.task.brave)) pIgnite(g, p);   /* (a leather apron, at a furnace: heavens.js) */
+  /* (at work for a great work: too hot here, or a step on, and they turn back before the heat can take them. wonders.js) */
+  if (p.task && g.wAny) wHeatGuard(g, p);
   if (pHeat(g, p, fx, fy)) return;
   if (cf === MAT.ACID || cm === MAT.ACID || ch === MAT.ACID || cb === MAT.ACID) {
     if (p.acid < 1 || Math.random() < 0.01) pSay(g, p, "acid", p.acid < 1);

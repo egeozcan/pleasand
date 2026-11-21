@@ -652,6 +652,27 @@ module.exports = function (test, check, sim) {
     }
     check(!p.fire && !p.dead, "the founder stood in it and caught fire");
   });
+  test("foundry: full casts on flat ground, seeds 1, 2, 4, 6: a bell each, nobody burnt, the air about the founder never near igniting", function () {
+    [1, 2, 4, 6].forEach(function (seed) {
+      var F = fflat(seed), w = F.w, g = F.g, p = F.p, M = F.M, i, d;
+      var q = sim.load(seed).g.peasants[1];
+      q.x = 172.5; q.y = 149; q.task = null; q.idle = 0; q.hunger = 0; q.bored = 0; q.born = 0; q.iron = 0; q.coal = 50;
+      g.peasants.push(q);
+      var s = fFoundry(F); fRocketWantingBell(F); p.iron = 2;
+      var hot = 0, burnt = false;
+      for (i = 0; i < 12000 && !(s.bells >= 1); i++) {
+        p.hunger = q.hunger = 0; sim.step(w, 1);
+        [p, q].forEach(function (o) {
+          if (o.fire) burnt = true;
+          if (!o.task || o.task.kind !== "found") return;
+          var fx = Math.floor(o.x), fy = Math.floor(o.y);
+          for (d = 0; d <= 8; d++) if (fy - d >= 0) hot = Math.max(hot, g.T[(fy - d) * g.gw + fx]);
+        });
+      }
+      check(s.bells === 1 && !burnt && !g.causes.fire && !g.causes.lava, "seed " + seed + ": bells " + (s.bells || 0) + ", burnt " + burnt + ", " + JSON.stringify(g.causes));
+      check(hot < w.W_TOOHOT, "seed " + seed + ": the air about the founder at work reached " + Math.round(hot) + " (limit " + w.W_TOOHOT + ")");
+    });
+  });
   test("foundry, lighthouse: nobody at work at them dies of the heat, in long ordinary use: a bell and plates cast, the lamp kept lit", function () {
     /* (the foundry: a bell wanted, iron enough for it and more, a founder at the bellows, 12000 ticks) */
     var F = fflat(1), w = F.w, g = F.g, p = F.p, s = fFoundry(F), i;
