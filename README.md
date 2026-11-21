@@ -598,7 +598,7 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - `oil.js`: oil in the rock, the derrick that pumps it, and rocket packs
 - `tidy.js`: tidying up: puddles bailed to where water does some good, sand swept off roofs and dug away from doors, piles shovelled up, bushes cut back out of doorways, and the village heap
 - `leftovers.js`: what is left over (ash, salt, glass, gunpowder, snow, ice) and what they make of it: picking it up, snowball fights, snowmen, skating, salt on the ice and on the fish, potash, black powder (blasting, fishing with it, fireworks), glass and the glasshouse, and frost on the wheat
-- `wonders.js`: the great works, as a kind of thing: one at a time, the crew, hauling, quarrying, the kiln, concrete and stained glass, tales worth telling, gatherings, the lightning rod, and the WONDERS count
+- `wonders.js`: the great works, as a kind of thing: two going up at once, the crew, hauling, quarrying, the kiln, concrete and stained glass, tales worth telling, gatherings, the lightning rod, and the WONDERS count
 - `monuments.js`: the theatre, the pyramid, and the cathedral with its crypt
 - `pleasures.js`: the baths, the hanging gardens, the steam organ, the duck palace and the ice palace
 - `heavens.js`: the observatory and its falling stars, the lighthouse, the foundry, and the moon rocket
