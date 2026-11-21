@@ -576,9 +576,13 @@ function wEvict(g) {
     }
     if (!stuck) continue;
     var at = hRelease(g, p);
-    /* (nowhere in the valley that will do: straight up out of it, then, to the first room there is over them) */
-    if (!at) for (var uy = fy - 1; uy > 9 && !at; uy--) { var room = true; for (d = 0; d <= 8 && room; d++) if (pBody(g, fx, uy - d)) room = false; if (room && !pBody(g, fx, uy)) at = { x: fx, y: uy }; }
-    if (!at) continue;
+    /* (nowhere in the valley that will do: straight up out of it, then, to the first room there is over them that nothing
+       near would kill them in, with footing to stand on there (not left in the air, to fall back down by a drain): a drain,
+       fire, acid, as the walking keeps off them, paths.js navLethalNear) */
+    if (!at) for (var uy = fy - 1; uy > 9 && !at; uy--) { var room = true; for (d = 0; d <= 8 && room; d++) if (pBody(g, fx, uy - d)) room = false; if (room && navStand(g, fx, uy) && !navLethalNear(g, fx, uy, 3) && !navDrainAt(g, fx, uy)) at = { x: fx, y: uy }; }
+    /* (and nowhere at all: held, as the crew of a rocket that cannot go are, out of sight and unhurt, and let out as soon as
+       there is somewhere: heavens.js hHeld) */
+    if (!at) { p.state = "space"; p.aboard = -1; p.task = null; p.vx = p.vy = 0; p.climb = null; p.rope = null; continue; }
     p.x = at.x + 0.5; p.y = at.y; p.vx = p.vy = 0; p.falling = false; p.fallY = p.y; p.jumping = false; p.climb = null; p.rope = null;
     if (p.state === "fly") p.state = "walk";
   }
@@ -792,7 +796,9 @@ function wGoKiln(g, p) {
     var stone = (p.stone || 0) + ((s.stock && s.stock.stone) || 0) + ((f.stock && f.stock.stone) || 0);
     if (o.r !== "stained" && stone < 1) continue;
     if (o.r === "stained" && (p.glass || 0) + ((f.stock && f.stock.glass) || 0) + ((s.stock && s.stock.glass) || 0) < 1) continue;
-    if ((p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1 && !(o.r === "stained" && ((p.ore || 0) >= 1 || wCells(p.gold) >= 1))) continue;
+    /* (what colours coloured glass, as the kiln takes it: ore out of a pocket or off the furnace's pile, or a pocket's gold,
+       or else a coal) */
+    if ((p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1 && !(o.r === "stained" && ((p.ore || 0) + ((f.stock && f.stock.ore) || 0) >= 1 || wCells(p.gold) >= 1))) continue;
     p.task = { kind: "kiln", site: f.id, r: o.r, of: o.site, n: 0, want: o.n, t: 0, act: 0 };
     return true;
   }

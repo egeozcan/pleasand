@@ -685,6 +685,80 @@ module.exports = function (test, check, sim) {
     sim.step(w, 265);
     check(!p.dead && !g.causes.buried, "left buried: " + JSON.stringify(g.causes));
   });
+  test("up a ladder, the one the way was found by is the one climbed, not another beside it that will not have them (pi's round 31)", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, x, y, i, at = 0;
+    g.know.organ = "TEST";
+    for (x = 1; x < g.gw - 1; x++) { F.put(x, 150, M.STONE); if (x !== 100 && x !== 101) F.put(x, 130, M.STONE); }
+    for (y = 130; y < 150; y++) for (x = 100; x <= 101; x++) { F.put(x, y, M.LADDER); g.aux[y * g.gw + x] = 1 + x - 100; }
+    for (y = 136; y < 150; y++) { F.put(104, y, y === 139 ? M.STONE : M.LADDER); g.aux[y * g.gw + 104] = 1; }
+    var goal = function (X, Y) { return X === 102 && Y === 129; };
+    Object.assign(p, { x: 102.65, y: 149, dir: -1 });
+    for (i = 0; i < 2000; i++) {
+      g.tick++; p.navMove = null;
+      if (!p.climb) w.pathGo(g, p, "upper-floor", 102, 129, goal);
+      if (p.climb) w.bClimbStep(g, p); else w.pStepX(g, p, 0.18);
+      if (goal(Math.floor(p.x), Math.floor(p.y))) { at = g.tick; break; }
+    }
+    check(at > 0, "never got up: at " + p.x.toFixed(1) + "," + p.y.toFixed(1) + ", kept off " + JSON.stringify(p.ladNo || {}));
+  });
+  test("a village loaded into a game that has just had another, at the same tick: it goes on as it would in a fresh game (pi's round 31: the organ's grates)", function () {
+    var H = require("../harness");
+    function withOrgan(near) {
+      var h = H.open({ seed: 1 }), g = h.g, code = function (n) { return h._eval(n); }, M = code("MAT"), p = g.peasants[0], x, y;
+      code("sandClear")(g); g.peasants = [p]; g.ducks = [];
+      Object.assign(g, { wAny: true, ideaT: 1e9, arriveT: 1e9, duckArriveT: 1e9, helloT: 0 });
+      ["farm", "dig", "bucket", "mine", "masonry", "smelt", "concrete", "festival", "organ"].forEach(function (k) { g.know[k] = "TEST"; });
+      for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) code("sandPlace")(g, y * g.gw + x, M.STONE);
+      Object.assign(p, { x: 150.5, y: 149, hunger: 0, task: null, state: "walk", sayT: 100 });
+      g.festX = near;
+      check(code("pPlanOrgan")(g, p), "(the test wants an organ)");
+      var s = g.sites.filter(function (t) { return t.kind === "organ"; })[0];
+      s.plan.forEach(function (e) { if (e.v === M.EMPTY) { if (g.m[e.i] !== M.EMPTY) { g.m[e.i] = M.EMPTY; code("heatSync")(g, e.i); } } else { code("sandSet")(g, e.i, e.v); g.aux[e.i] = e.a; code("heatAccept")(g, e.i); } });
+      s.done = true; s.repair = false; code("wFinish")(g, s, p);
+      return { h: h, g: g, s: s, p: p, code: code };
+    }
+    var warm = withOrgan(100), saved = withOrgan(220);
+    var x = warm.code("pOPipeX")(warm.s, 0), y = warm.code("pOLid")(warm.s.G) - warm.code("P_OH")[0];
+    Object.assign(warm.p, { x: x + 0.5, y: y - 1, falling: false, stun: 100 });
+    Object.assign(saved.p, { x: x + 0.5, y: y - 1, falling: false, stun: 100 });
+    warm.g.tick = 100; saved.g.tick = 100;
+    warm.h.step(1);   /* (the warm game has its own organ's grates in mind, at tick 101) */
+    var doc = JSON.parse(JSON.stringify(saved.h.saveDoc())), cold = H.open({ seed: 1 });
+    function resume(h) { h.load(doc); h.step(1); return { hash: h.hash(), rng: JSON.stringify(h.rng()), y: h.g.peasants[0].y }; }
+    var a = resume(warm.h), b = resume(cold);
+    check(a.hash === b.hash && a.rng === b.rng, "the loaded village went on differently in the warm game: stood at " + a.y + " against " + b.y);
+  });
+  test("coloured glass is fired with the ore on the furnace's pile, as with ore in a pocket (pi's round 31)", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, x, y, i;
+    know(g, ["farm", "dig", "mine", "bucket", "smelt", "masonry", "glass", "stained", "cathedral"]);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) F.put(x, y, y < 156 ? M.SAND : M.STONE);
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)"); var f = sim.build(w, sites(g, "furnace")[0]);
+    check(w.mPlanCathedral(g, p, 210), "(the test wants a cathedral)"); var s = sim.build(w, sites(g, "cathedral")[0]);
+    s.done = false; s.stock = {};
+    var pane = s.plan.filter(function (e) { return e.v === M.STAINED; })[0]; w.sandPlace(g, pane.i, M.EMPTY);
+    Object.assign(p, { task: null, x: f.sx + 0.5, y: w.mSpotRow(g, f), coal: 0, ore: 0, glass: 1, gold: 0, logs: 0 });
+    f.stock = f.stock || {}; f.stock.ore = 3; f.stock.coal = 0;
+    g.kiln = w.wKilnOrders(g);
+    check(g.kiln.some(function (o) { return o.r === "stained"; }), "(the test wants coloured glass ordered)");
+    check(w.wGoKiln(g, p) && p.task.r === "stained", "not sent to fire coloured glass, with ore on the furnace's pile");
+    for (i = 0; i < w.W_KILN; i++) { g.tick++; w.wTaskKiln(g, p, p.task); }
+    check(p.stained === 1 && p.tints[0] === 1 && f.stock.ore === 2, "fired: " + p.stained + ", tint " + JSON.stringify(p.tints) + ", ore left on the pile " + f.stock.ore);
+  });
+  test("let go of over the organ's iron wall, the flood everywhere, and a drain over them: got up out of the iron past it to where nothing kills them, or held till there is somewhere", function () {
+    var F = fFlat30(), w = F.w, g = F.g, M = F.M, p = F.p, G = F.G, x, y;
+    know(g, ["farm", "dig", "bucket", "mine", "masonry", "smelt", "concrete", "festival", "organ"]);
+    for (x = 0; x < g.gw; x++) for (y = G; y < g.gh; y++) F.put(x, y, M.STONE);
+    check(w.pPlanOrgan(g, p), "(the test wants an organ)"); var s = sim.build(w, sites(g, "organ")[0]); w.wFinish(g, s, p);
+    for (x = 0; x < g.gw; x++) for (y = G - 8; y < G; y++) if (w.pCell(g, x, y) === M.EMPTY) F.put(x, y, M.WATER);
+    var cx = s.x0 + 1, cy = s.G - 2;
+    /* (the first room over the wall: a drain set in it, by the rack's brick) */
+    var up = -1; for (y = cy - 1; y > 9 && up < 0; y--) { var room = true; for (var d = 0; d <= 8; d++) if (w.pBody(g, cx, y - d)) room = false; if (room) up = y; }
+    if (up > 0) F.put(cx + 1, up + 1, M.DRAIN);
+    g.mx = w.PANEL + w.CELL * (cx + 0.5); g.my = w.PLAY_Y + w.CELL * (cy - 8); g.samp = []; g.cvx = g.cvy = 0;
+    w.peasantGrab(g, p); w.sandRelease(g);
+    sim.step(w, 265);
+    check(!p.dead && (p.state === "space" || (!w.navLethalNear(g, Math.floor(p.x), Math.floor(p.y), 3) && !p.buried)), "dead, or left by a drain or buried: " + JSON.stringify(g.causes) + " " + p.state);
+  });
   test("observatory: a meteorite with a flower where it comes to rest crushes the flower and is all there, thirteen iron and the gold, and says so: pi's sand", function () {
     var w = sim.load(39), g = w.g, M = w.MAT, x, y;
     w.sandClear(g);

@@ -356,6 +356,7 @@ Harness.prototype.restore = function (s) {
   /* the pathfinder's scratch is not state, but it is marked with generations:
      clear the marks so a restored generation cannot collide with a stale one */
   if (this.g.navSeen) { this.g.navSeen.fill(0); this.g.navShut.fill(0); }
+  this._eval("saveScratchReset")();   /* (and whatever is cached outside g for the tick: save.js SAVE_GEN) */
   this.loaded.rng.state = s.rng;
   this.loaded.clock.t = s.clock;
   this.ticks = s.ticks;

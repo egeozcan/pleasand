@@ -464,6 +464,11 @@ function saveProblem(g, doc) {
 }
 
 /* put a decoded state (or a keyframe's) into the live game object, in place */
+/* a count of the times a village has been put into the game, by loading or restoring. a cache kept outside g for the tick
+   (pleasures.js P_GRATE) goes by it as well: the same g, the same tick and the same number of sites, after a load, may be
+   another village altogether */
+var SAVE_GEN = 0;
+function saveScratchReset() { SAVE_GEN++; }
 function saveApplyState(g, state, keepPointer) {
   var ks = Object.keys(g), i;
   function mine(k) { return SAVE_SKIP.indexOf(k) >= 0 || SAVE_INPUT.indexOf(k) >= 0 || (keepPointer && SAVE_POINTER.indexOf(k) >= 0); }
@@ -478,6 +483,7 @@ function saveApplyState(g, state, keepPointer) {
   /* the pathfinder marks its scratch with generations: wipe them so a loaded generation cannot meet a stale one */
   if (g.navSeen) g.navSeen.fill(0);
   if (g.navShut) g.navShut.fill(0);
+  saveScratchReset();
   if (g.pmark) { g.pmark.fill(0); g.pgen = 0; }
   if (g.zmark) g.zmark.fill(0);
   return g;

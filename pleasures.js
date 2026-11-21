@@ -918,9 +918,9 @@ function pOValve(g, s, n) { return pOLid(s.G) * g.gw + pOPipeX(s, n); }
 /* THE GRATES: each pipe's valve, and the top of each pipe, are grates. steam goes up through them, open or shut, as it
    goes through air; a peasant does not, walking, standing or falling (peasants.js pSolid, pFoot, pBody, pStiff). nobody
    drops down a pipe, or through an open valve into the boiling tank. cached for the tick: P_GRATE is scratch */
-var P_GRATE = { g: null, t: -1, n: -1, j: null };
+var P_GRATE = { g: null, t: -1, n: -1, gen: -1, j: null };
 function pGrate(g, j) {
-  if (P_GRATE.g !== g || P_GRATE.t !== g.tick || P_GRATE.n !== g.sites.length) {
+  if (P_GRATE.g !== g || P_GRATE.t !== g.tick || P_GRATE.n !== g.sites.length || P_GRATE.gen !== SAVE_GEN) {   /* (a load: save.js SAVE_GEN) */
     var J = null;
     for (var k = 0; k < g.sites.length; k++) {
       var s = g.sites[k];
@@ -928,7 +928,7 @@ function pGrate(g, j) {
       J = J || {};
       for (var n = 0; n < P_ON; n++) { J[pOValve(g, s, n)] = 1; J[(pOLid(s.G) - P_OH[n]) * g.gw + pOPipeX(s, n)] = 1; }
     }
-    P_GRATE.g = g; P_GRATE.t = g.tick; P_GRATE.n = g.sites.length; P_GRATE.j = J;
+    P_GRATE.g = g; P_GRATE.t = g.tick; P_GRATE.n = g.sites.length; P_GRATE.gen = SAVE_GEN; P_GRATE.j = J;
   }
   return !!(P_GRATE.j && P_GRATE.j[j]);
 }

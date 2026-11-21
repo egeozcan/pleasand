@@ -131,14 +131,14 @@ function navEdges(g, x, y, add) {
     if (pCell(g, cx, j) === MAT.LADDER) j = y;   /* something overhead: the climber would stop under it (bClimbStep) */
     /* (a ladder with a lift on it is a good deal quicker: mines.js) */
     var rate = mLiftAt(g, cx, y) ? 0.3 : 1.2;
-    for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * rate, NAV_LADDER);
+    for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * rate, NAV_LADDER, cx);
   }
   /* and down one, from beside the top of it */
   for (s = -1; s <= 1 && !NAV_NOLEAP; s += 2) {
     cx = bLadderMid(g, x + s, y + 1);
     if (cx < 0 || (NAV_LADNO && NAV_LADNO[cx] > g.tick)) continue;
     for (j = y; pCell(g, cx, j + 1) === MAT.LADDER && j < g.gh; j++);
-    if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * (mLiftAt(g, cx, j) ? 0.3 : 1.2), NAV_LADDER);
+    if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * (mLiftAt(g, cx, j) ? 0.3 : 1.2), NAV_LADDER, cx);
   }
 }
 /* the top of the soft stuff overhead (feet out of it, standing on it), with the way up clear of anything hard: its row,
@@ -183,7 +183,8 @@ function navFind1(g, sx, sy, goal, tx, ty, cap) {
     g.navFrom = new Int32Array(n); g.navHow = new Int8Array(n);
     g.navHeapI = new Int32Array(NAV_CAP * 24); g.navHeapF = new Float32Array(NAV_CAP * 24); g.navGen = 0;
   }
-  var gen = ++g.navGen, seen = g.navSeen, shut = g.navShut, cost = g.navCost, from = g.navFrom, how = g.navHow;
+  if (g.wAny && (!g.navLad || g.navLad.length !== n)) g.navLad = new Int16Array(n);
+  var gen = ++g.navGen, seen = g.navSeen, shut = g.navShut, cost = g.navCost, from = g.navFrom, how = g.navHow, lad = g.wAny ? g.navLad : null;
   var HI = g.navHeapI, HF = g.navHeapF, hn = 0, looked = 0, start = sy * gw + sx, best = -1;
   function push(i, f) {
     if (hn >= HI.length) return;
@@ -207,12 +208,13 @@ function navFind1(g, sx, sy, goal, tx, ty, cap) {
   seen[start] = gen; cost[start] = 0; from[start] = -1; how[start] = 0;
   push(start, h(sx, sy));
   var cur, cx, cy, base;
-  function add(x, y, c, m) {
+  function add(x, y, c, m, lc) {
     if (x < 0 || y < 0 || x >= gw || y >= g.gh) return;
     var i = y * gw + x, nc = base + c;
     if (shut[i] === gen) return;
     if (seen[i] === gen && cost[i] <= nc) return;
     seen[i] = gen; cost[i] = nc; from[i] = cur; how[i] = m;
+    if (lad) lad[i] = lc == null ? -1 : lc;   /* (which ladder it is, for a ladder: pathGo climbs that one) */
     push(i, nc + h(x, y));
   }
   while (hn > 0 && looked < cap) {
@@ -225,7 +227,11 @@ function navFind1(g, sx, sy, goal, tx, ty, cap) {
   }
   if (best < 0) return null;
   var path = [];
-  for (var i = best; i !== start && i >= 0 && path.length < n; i = from[i]) path.push({ x: i % gw, y: (i / gw) | 0, m: how[i] });
+  for (var i = best; i !== start && i >= 0 && path.length < n; i = from[i]) {
+    var st = { x: i % gw, y: (i / gw) | 0, m: how[i] };
+    if (lad && how[i] === NAV_LADDER && lad[i] >= 0) st.lc = lad[i];   /* (the great works' villages: the ladder it goes by) */
+    path.push(st);
+  }
   path.reverse();
   return path;
 }
@@ -308,11 +314,9 @@ function pathGo(g, p, key, tx, ty, goal) {
   /* the route goes up (or down) a ladder from here: on they get, whether or not there is a wall in front of them */
   if (n.m === NAV_LADDER && !p.climb) {
     var fx = Math.floor(p.x), fy = Math.floor(p.y), cx = -1;
-    /* (the ladder the route is for: up, it steps off two beside the ladder's top, so the ladder is two to one side of
-       where it comes out; down, the place it comes out is the ladder. in the great works' villages that one, and not the
-       nearest one, which may be another, one that will not have them: build.js bClimbStart) */
-    if (g.wAny && n.y < fy) for (k = -2; k <= 2; k += 4) { var lc = bLadderMid(g, n.x + k, fy); if (lc < 0) lc = bLadderMid(g, n.x + k, fy - 3); if (lc >= 0 && (cx < 0 || Math.abs(lc + 0.5 - p.x) < Math.abs(cx + 0.5 - p.x))) cx = lc; }
-    if (g.wAny && n.y > fy && bLadderMid(g, n.x, fy + 1) >= 0) cx = bLadderMid(g, n.x, fy + 1);
+    /* (the ladder the route is for, as the search chose it: that one, in the great works' villages, and not the nearest,
+       which may be another, one that will not have them. build.js bClimbStart) */
+    if (n.lc != null) cx = n.lc;
     if (cx < 0 && n.y < fy) cx = bLadderNear(g, fx, fy);
     if (n.y > fy) for (k = -1; k <= 1 && cx < 0; k += 2) cx = bLadderMid(g, fx + k, fy + 1);
     /* (a ladder that will not have them on it, its column in the way of a body: not on any way of theirs, for a while, and
