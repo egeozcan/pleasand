@@ -876,10 +876,12 @@ function pOrganAt(g, x0, gy, G) {
     if (u >= 5 && u <= 7) continue;
     put(u, G - 1, u === 4 || u === 8 ? MAT.FIREBRICK : MAT.BRICK, 3);
   }
-  /* the tank: an iron floor, two iron sides, an iron lid with a valve under each pipe */
+  /* the tank: an iron floor, two iron sides, an iron lid with a valve under each pipe. plate iron, riveted: not a lattice a
+     peasant steps through (a girder is, P_PASS), and into the boiling water. it costs what girder does, in bars */
   var L0 = pOLid(G);
-  for (u = 1; u <= 11; u++) { put(u, G - 2, MAT.GIRDER, 4); put(u, L0, MAT.GIRDER, 9); }
-  for (y = L0 + 1; y <= G - 3; y++) { put(1, y, MAT.GIRDER, 5 + G - 3 - y); put(11, y, MAT.GIRDER, 5 + G - 3 - y); }
+  function iron(u, y, ph) { var e = put(u, y, MAT.METAL, ph); e.res = "iron"; e.cost = B_AMT[MAT.GIRDER]; return e; }
+  for (u = 1; u <= 11; u++) { iron(u, G - 2, 4); iron(u, L0, 9); }
+  for (y = L0 + 1; y <= G - 3; y++) { iron(1, y, 5 + G - 3 - y); iron(11, y, 5 + G - 3 - y); }
   /* the rack: a wall each side of each pipe, as high as the taller of the two, gilded at the tips of the three tallest if
      there is gold. (dressed stone, thin, and tinned: iron, a peasant walks through, as they do the lattice of a lift's
      headframe, and nobody could stand on the rack to build it any higher. as it is, it is a stair, from the ladder) */
@@ -912,16 +914,16 @@ function pOrganDry(g, s) {
   return out;
 }
 function pOValve(g, s, n) { return pOLid(s.G) * g.gw + pOPipeX(s, n); }
-function pOOpen(g, s, n) { var j = pOValve(g, s, n); if (g.m[j] === MAT.GIRDER) { heatVanish(g, j); g.fx.clank++; } }
-/* shut: a girder back in the lid, if there is nothing in the way of it (steam on its way through: next tick) */
+function pOOpen(g, s, n) { var j = pOValve(g, s, n); if (g.m[j] === MAT.METAL) { heatVanish(g, j); g.fx.clank++; } }
+/* shut: the iron of the valve back in the lid, if there is nothing in the way of it (steam on its way through: next tick) */
 function pOShut(g, s, n) {
   var j = pOValve(g, s, n);
-  if (g.m[j] === MAT.GIRDER) return true;
+  if (g.m[j] === MAT.METAL) return true;
   if (g.m[j] !== MAT.EMPTY) return false;
-  sandSet(g, j, MAT.GIRDER); g.aux[j] = 0; heatAccept(g, j); g.fx.clank++;
+  sandSet(g, j, MAT.METAL); g.aux[j] = 0; heatAccept(g, j); g.fx.clank++;
   return true;
 }
-function pOAllShut(g, s) { for (var n = 0; n < P_ON; n++) if (g.m[pOValve(g, s, n)] !== MAT.GIRDER) return false; return true; }
+function pOAllShut(g, s) { for (var n = 0; n < P_ON; n++) if (g.m[pOValve(g, s, n)] !== MAT.METAL) return false; return true; }
 /* a concert, if the organ is up and has the water for one: fired now, played once it boils. for any show that wants
    it (a fireworks show, the theatre's interval, a service: monuments.js may call it). true if it will play */
 function pOrganPlay(g, why) {
@@ -1124,12 +1126,12 @@ function pDrawOrgan(g, s) {
       var f = 0.15 + 0.5 * (L0 - 1 - y) / P_OH[P_ON - 1];
       j = y * g.gw + x;
       if (g.m[j] === MAT.EMPTY) g.px[j] = y === L0 - 3 ? P_OMOUTH : blend32(P_OPIPE_HI, P_OPIPE, f);
-      [-1, 1].forEach(function (d) { var i = j + d; if (g.m[i] === MAT.BRICK || g.m[i] === MAT.GIRDER) g.px[i] = blend32(g.px[i], d < 0 ? P_OPIPE : P_OPIPE_D, 0.85); });
+      [-1, 1].forEach(function (d) { var i = j + d; if (g.m[i] === MAT.BRICK || g.m[i] === MAT.METAL) g.px[i] = blend32(g.px[i], d < 0 ? P_OPIPE : P_OPIPE_D, 0.85); });
     }
   }
   for (y = L0; y <= s.G - 2; y++) for (x = s.x0 + 1; x <= s.x0 + 11; x++) {
     j = y * g.gw + x; c = g.m[j];
-    if (c === MAT.GIRDER) g.px[j] = blend32(g.px[j], (x + y) % 5 ? P_OCOPPER : P_ORIVET, 0.75);
+    if (c === MAT.METAL) g.px[j] = blend32(g.px[j], (x + y) % 5 ? P_OCOPPER : P_ORIVET, 0.75);
   }
   for (n = 0; n < P_ON; n++) if (s.mo[n]) { var x = pOPipeX(s, n), y = L0 - 1 - P_OH[n]; wBack(g, x - 1, y - 1, P_OSTEAM, 0.5); wBack(g, x + 1, y - 1, P_OSTEAM, 0.5); }
   if (hot) for (var u = 0; u < 3; u++) { var j = pOBox(g, s, u); if (g.m[j] === MAT.EMBER) g.gpx[j] = P_OGLOW; }

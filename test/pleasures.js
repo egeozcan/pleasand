@@ -238,6 +238,23 @@ module.exports = function (test, check, sim) {
   }
   function tank(O) { return O.w.P_OTANK - O.w.wBathNeed(O.g, O.s) + O.w.pOrganSteam(O.g, O.s); }
 
+  test("organ: its tank is shut in iron a peasant cannot pass, lid, floor and sides; dropped on it over a pipe in a concert, a visitor stays out of the water", function () {
+    var O = organ(4), w = O.w, g = O.g, s = O.s, M = O.M, x, y, bad = [];
+    for (x = s.px0 - 1; x <= s.px0 + s.bw; x++) for (y = s.L - 1; y <= s.L + s.bh; y++) {
+      var inside = x >= s.px0 && x < s.px0 + s.bw && y >= s.L && y < s.L + s.bh;
+      if (!inside && (w.P_PASS[g.m[y * g.gw + x]] || !w.SOLID[g.m[y * g.gw + x]])) bad.push(x + "," + y + " " + w.MAT_NAME[g.m[y * g.gw + x]]);
+    }
+    check(!bad.length, "the tank's shell is passable or open at " + bad.join(" "));
+    /* (pi's round 26: a concert going, a visitor let go of over the middle pipe) */
+    check(w.pOrganPlay(g, "test"), "(the test wants a concert)");
+    sim.step(w, 1699);
+    var v = JSON.parse(JSON.stringify(g.peasants[0])); v.id = 88;
+    Object.assign(v, { x: w.pOPipeX(s, 2) + 0.5, y: s.G - 37, vx: 0, vy: 0, task: null, state: "walk", life: 1e9, hunger: 0, dir: 1, chuteCD: 0, stun: 0, dead: 0 });
+    g.peasants.push(v);
+    var entered = false;
+    for (var i = 0; i < 400 && !v.dead; i++) { sim.step(w, 1); if (v.y >= s.L && v.y <= s.G - 1 && v.x >= s.px0 && v.x < s.px0 + s.bw) entered = true; }
+    check(!entered && !v.dead && !g.causes.drown, "the visitor " + (entered ? "got into the tank" : "stayed out") + ", " + JSON.stringify(g.causes));
+  });
   test("organ: a fired boiler makes steam that goes out of the open pipe and no other", function () {
     var O = organ(0), w = O.w, g = O.g, s = O.s, M = O.M;
     check(tank(O) === w.P_OTANK, "(the test wants the tank full: " + tank(O) + ")");

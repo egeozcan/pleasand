@@ -418,9 +418,9 @@ function hObsPick(g, p, hungry) {
 }
 
 /* -------------------------------------------------------------------
-   METEORITES: a streak in from the side, a bang where it comes down,
-   and a lump of iron with a nugget of gold in it, too hot to touch for
-   a while. g.hRock = {x, y, vx, vy, tx, ty, down, cells}
+   METEORITES: a streak in from the side, a flash where it comes down,
+   and a lump of iron with a nugget of gold in it, on top of the ground,
+   cold. g.hRock = {x, y, vx, vy, tx, ty, down, cells}
    ------------------------------------------------------------------- */
 /* where one may come down: on the ground, out in the open, nowhere near anybody's house */
 function hRockOk(g, x) {
@@ -446,19 +446,33 @@ function hRockLand(g, x) {
   }
   return { x: x, y: ty - 1 };
 }
-/* is the place one would come to rest a fit one: open ground, nowhere near anybody's house or work (hRockOk), and
-   nobody standing by it */
-function hRockSafe(g, at) {
-  if (!hRockOk(g, at.x) || Math.abs(hGround(g, at.x) - 1 - at.y) > 1) return false;
-  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.state !== "space" && Math.abs(q.x - at.x) < 5 && Math.abs(q.y - at.y) < 11) return false; }
-  return true;
+/* does one aimed at x come down there in the open: on the ground (not short of it on something), nowhere near anybody's
+   house or work (hRockOk) */
+function hRockAim(g, x) {
+  var at = hRockLand(g, x);
+  return hRockOk(g, at.x) && Math.abs(hGround(g, at.x) - 1 - at.y) <= 1;
+}
+/* where it comes to rest, come down at x: on top of the ground there, not in it; and not on anything of value, gold or
+   moon rock, or anybody's house or work, nor on anybody: the nearest column it can be, then, a little way off */
+function hRockRest(g, x) {
+  for (var d = 0; d <= 20; d++) for (var sd = -1; sd <= 1; sd += 2) {
+    if (!d && sd > 0) continue;
+    var c = x + d * sd;
+    if (c < 3 || c > g.gw - 4) continue;
+    var y = hGround(g, c) - 1, ok = y > 1, k;
+    for (var u = -2; u <= 2 && ok; u++) { var under = pCell(g, c + u, y + 1); if (under === MAT.GOLD || under === MAT.MOONROCK || bMarked(g, c + u, y + 1) || bMarked(g, c + u, y)) ok = false; }
+    for (k = 0; k < g.sites.length && ok; k++) { var s = g.sites[k]; if (c >= s.x0 - 3 && c <= s.x1 + 3 && y >= s.y0 - 3 && y <= s.y1 + 3) ok = false; }
+    for (k = 0; k < g.peasants.length && ok; k++) { var q = g.peasants[k]; if (!q.dead && q.state !== "space" && Math.abs(q.x - c) < 4 && Math.abs(q.y - y) < 11) ok = false; }
+    if (ok) return { x: c, y: y };
+  }
+  return null;
 }
 /* a meteorite on its way down, to column x (or anywhere it may, x < 0): a column it would really come down at, on its
    slant, and fit. false if there is nowhere */
 function hMeteorite(g, x) {
   if (x < 0) {
     var ok = [];
-    for (var c = 10; c < g.gw - 10; c++) if (hRockOk(g, c) && hRockSafe(g, hRockLand(g, c))) ok.push(c);
+    for (var c = 10; c < g.gw - 10; c++) if (hRockOk(g, c) && hRockAim(g, c)) ok.push(c);
     if (!ok.length) return false;
     x = ok[irnd(ok.length)];
   }
@@ -475,14 +489,15 @@ function hSkyTick(g) {
   var x = Math.floor(R.x), y = Math.floor(R.y);
   if (y >= 0 && y < g.gh) partAdd(g, PK_GLINT, R.x - R.vx * 2, R.y - R.vy * 2, -R.vx * 0.2, -R.vy * 0.2, 10 + irnd(10), SPARK_HOT[irnd(4)]);
   if (y < 0 || (y < R.ty - 1 && AIRY[pCell(g, x, y + 1)])) return;
-  /* down: a bang (a small one), and the lump where it hit. but not on anybody's house or work, or by anybody, whatever
-     has moved since it was aimed: then it comes down cold, a lump of stone and iron and no bang, and burns nothing */
-  R.x = x; R.y = Math.min(y, R.ty - 1);
-  var safe = hRockSafe(g, { x: x, y: R.y });
-  if (safe) sandBoom(g, R.y * g.gw + x, 3, 1.2);
-  hLump(g, R, !safe);
+  /* down: cold, always, with the glare of it in sparks that are only light. no bang, no fire, nothing hot where anybody
+     could come by it, or fall on it: a lump of iron with a nugget of gold in it, at rest on top of the ground, off
+     anything of value and off anybody (hRockRest). nowhere for it: it broke up on the way down */
+  var at = hRockRest(g, x);
+  R.x = at ? at.x : x; R.y = at ? at.y : Math.min(y, R.ty - 1);
+  if (at) hLump(g, R); else R.cells = [];
+  sparks(g, R.x + 0.5, R.y, 14, 1.0, SPARK_HOT, 12, 0.5, PK_GLINT);
   R.down = true; R.t = g.tick;
-  feed(g, "a falling star came down by " + hWhere(g, x) + ". it is still glowing", "#ffd27a", "meteorite");
+  feed(g, R.cells.length ? "a falling star came down by " + hWhere(g, R.x) + ". cold already: iron, and a glint of gold" : "a falling star broke up over " + hWhere(g, R.x), "#ffd27a", "meteorite");
 }
 /* somewhere a falling star came down by: the nearest of their things */
 function hWhere(g, x) {
@@ -490,9 +505,9 @@ function hWhere(g, x) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k], d = Math.abs(s.cx - x); if (s.done && d < bd && s.kind !== "tunnel" && s.kind !== "quarry") { bd = d; best = s; } }
   return best ? bLabel(best) : "the edge of the valley";
 }
-/* the lump: fourteen cells of iron in a heap, with a cell of gold in the middle of it, all at 900 */
+/* the lump: fourteen cells of iron in a heap, with a cell of gold in the middle of it, cold */
 var H_LUMP = [2, 3, 4, 3, 2];
-function hLump(g, R, cold) {
+function hLump(g, R) {
   var x0 = Math.floor(R.x), k, n, x, y, j;
   R.cells = [];
   for (k = 0; k < 5; k++) {
@@ -504,13 +519,12 @@ function hLump(g, R, cold) {
       j = y * g.gw + x;
       if (!AIRY[g.m[j]] && g.m[j] !== MAT.FIRE) break;
       sandPlace(g, j, k === 2 && n === 1 ? MAT.GOLD : MAT.METAL);
-      g.T[j] = cold ? AMBIENT : 900; g.lat[j] = 0; heatAccept(g, j);
+      g.T[j] = AMBIENT; g.lat[j] = 0; heatAccept(g, j);
       R.cells.push(j);
     }
   }
-  if (!cold) sparks(g, x0 + 0.5, R.y, 20, 1.2, SPARK_HOT, 14, 0.6);
 }
-/* to the meteorite: wait for it to cool, then into the pocket, a lump at a time: iron (as any loose metal is, a fifth
+/* to the meteorite: into the pocket, a lump at a time (it came down cold): iron (as any loose metal is, a fifth
    of a bar a cell) and the gold */
 function hTaskMeteorite(g, p, k) {
   var R = g.hRock;

@@ -85,7 +85,7 @@ module.exports = function (test, check, sim) {
     check(gaze > 0, "nobody stopped to watch");
     check((g.moonLooks || 0) >= 1 && g.hConst && g.hConst.name, "the look named nothing and did not look at the moon");
   });
-  test("observatory: a meteorite lands hot, nowhere near a house, and is dug up as iron and gold", function () {
+  test("observatory: a meteorite lands cold, nowhere near a house, and is dug up as iron and gold", function () {
     var O = observatory(true), w = O.w, g = O.g, s = O.s, M = w.MAT, k;
     settle(g);
     var iron0 = 0, gold0 = 0;
@@ -96,7 +96,7 @@ module.exports = function (test, check, sim) {
     check(R.down, "it never came down");
     var hot = 0, metal = 0, gold = 0;
     R.cells.forEach(function (j) { hot = Math.max(hot, g.T[j]); if (g.m[j] === M.METAL) metal++; if (g.m[j] === M.GOLD) gold++; });
-    check(hot > 600 && metal >= 12 && gold === 1, "the lump: " + metal + " iron, " + gold + " gold, " + Math.round(hot) + "°");
+    check(hot <= 30 && metal >= 12 && gold === 1, "the lump: " + metal + " iron, " + gold + " gold, " + Math.round(hot) + "°");
     g.sites.forEach(function (h) { if (h.kind === "house") check(R.tx < h.x0 - 12 || R.tx > h.x1 + 12, "it came down at " + R.tx + ", by the house at " + h.x0 + "-" + h.x1); });
     /* nothing set alight near a house */
     var lit = 0;
@@ -543,19 +543,51 @@ module.exports = function (test, check, sim) {
     Object.assign(F.obs, { dropT: 30, lookT: 1e9, showerT: 1e9 });
     sim.step(w, 30);
     var R = g.hRock, land = R && w.hRockLand(g, R.tx);
-    check(R && w.hRockSafe(g, land), "aimed at " + (R && R.tx) + ", where it comes down at " + JSON.stringify(land));
+    check(R && w.hRockAim(g, R.tx), "aimed at " + (R && R.tx) + ", where it comes down at " + JSON.stringify(land));
     while (g.tick < 1450) sim.step(w, 1);
     check(g.sites.indexOf(F.house) >= 0 && !g.causes.fire && !p.fire, "the house " + (g.sites.indexOf(F.house) >= 0 ? "stands" : "ruined") + ", " + JSON.stringify(g.causes));
   });
-  test("observatory: a meteorite that would come down on a house after all comes down cold: no bang, no fire, the house and its sleeper unhurt", function () {
+  test("observatory: a meteorite that would come down on a house after all rests off it, on the ground, cold: no bang, no fire, the house and its sleeper unhurt", function () {
     var F = fMeteor(), w = F.w, g = F.g, M = F.M, p = F.p, i;
     w.hMeteorite(g, 118);   /* (pi's column: on its slant, it hits the roof at 98) */
     var R = g.hRock;
     for (i = 0; i < 300 && !R.down; i++) sim.step(w, 1);
     check(R.down, "(the test wants it down)");
-    var hot = R.cells.some(function (j) { return g.T[j] > 100; });
+    var hot = R.cells.some(function (j) { return g.T[j] > 30; }), onHouse = R.x >= F.house.x0 - 3 && R.x <= F.house.x1 + 3 && R.y >= F.house.y0 - 3 && R.y <= F.house.y1 + 3;
     for (i = 0; i < 600; i++) sim.step(w, 1);
-    check(!hot && g.sites.indexOf(F.house) >= 0 && !g.causes.fire && !p.fire, "came down " + (hot ? "hot" : "cold") + " at " + R.x + "," + R.y + ", the house " + (g.sites.indexOf(F.house) >= 0 ? "stands" : "ruined") + ", " + JSON.stringify(g.causes));
+    check(!hot && !onHouse && g.sites.indexOf(F.house) >= 0 && !g.causes.fire && !p.fire, "came down " + (hot ? "hot" : "cold") + " at " + R.x + "," + R.y + ", the house " + (g.sites.indexOf(F.house) >= 0 ? "stands" : "ruined") + ", " + JSON.stringify(g.causes));
+  });
+  /* pi's round 26 terraces: stone, the ground at floor(x) */
+  function fTerrace(seed, floor) {
+    var w = sim.load(seed), g = w.g, M = w.MAT, p = g.peasants[0], x, y;
+    w.sandClear(g); g.peasants = []; g.ducks = [];
+    for (x = 0; x < g.gw; x++) for (y = floor(x); y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    g.arriveT = 1e9; g.ideaT = 1e9; g.helloT = 0; g.know = { observatory: "TEST" }; g.wAny = true;
+    return { w: w, g: g, M: M, p: p };
+  }
+  test("observatory: a meteorite comes to rest on top of the ground, never in it, and gold already lying there is not touched: pi's shelf", function () {
+    var F = fTerrace(39, function (x) { return x <= 112 ? 151 : 173; }), w = F.w, g = F.g, M = F.M, i;
+    var at = w.hRockLand(g, 118), seam = at.y * g.gw + at.x;
+    w.sandPlace(g, seam, M.GOLD);
+    var gold0 = 0; for (i = 0; i < g.m.length; i++) if (g.m[i] === M.GOLD) gold0++;
+    check(w.hMeteorite(g, 118), "(the test wants a meteorite on its way)");
+    var R = g.hRock;
+    for (i = 0; i < 200 && !R.down; i++) w.hSkyTick(g);
+    check(R.down, "(the test wants it down)");
+    var gold = 0; for (i = 0; i < g.m.length; i++) if (g.m[i] === M.GOLD) gold++;
+    var inGround = R.cells.some(function (j) { return j === seam; });
+    check(g.m[seam] === M.GOLD && gold === gold0 + 1 && !inGround, "the gold that was there " + (g.m[seam] === M.GOLD ? "kept" : "gone") + ", gold cells " + gold0 + " -> " + gold + " (the meteorite's one more)");
+    check(R.cells.every(function (j) { return g.T[j] <= 30; }), "it came down hot");
+  });
+  test("observatory: a walker who steps off a ledge onto where a meteorite has just come down is not burnt: it is cold", function () {
+    var F = fTerrace(39, function (x) { return x <= 100 ? 150 : 130; }), w = F.w, g = F.g, p = F.p, i;
+    w.hMeteorite(g, 100);
+    var R = g.hRock, at = w.hRockLand(g, 100);
+    while (R.y < at.y - 12) sim.step(w, 1);
+    Object.assign(p, { x: 101.05, y: 129, vy: 0, vx: 0, falling: false, fallY: 129, dir: -1, task: null, state: "walk", idle: 0, life: 1e9, hunger: 0 });
+    g.peasants = [p];
+    for (i = 0; i < 380 && !p.dead; i++) sim.step(w, 1);
+    check(R.down && !p.fire && !g.causes.fire, "down " + R.down + ", " + (p.fire ? "alight" : "not alight") + ", " + JSON.stringify(g.causes));
   });
   test("observatory, and every other great work the bored go to look at: not while they are backed off from it", function () {
     var w = sim.load(1), g = w.g, p = g.peasants[0], k, n = 0;
