@@ -425,7 +425,7 @@ function dPeck(g, d) {
     if (dTasty(g, x, y) && Math.random() < 0.08) {
       j = y * g.gw + x;
       if (g.m[j] === MAT.WHEAT) iRaided(g, d, x, y);
-      g.m[j] = MAT.EMPTY; heatSync(g, j); d.idle = 20;
+      heatVacate(g, j); d.idle = 20;
       if (Math.random() < 0.4) dSay(g, d, "quack");
       return;
     }

@@ -1169,8 +1169,10 @@ function hRoofFolk(g, s) {
 /* wait (true) for the roof to be clear, before charging or lighting it (key: the site's deadline for this wait). anybody
    up there is sent off it; after 1500 ticks it goes ahead, but only past those who have been up there all that while,
    sent off it and never got down: not past somebody who has only now climbed up, and can still be sent down */
-function hRoofHold(g, s, key) {
-  var folk = hRoofFolk(g, s), seen = s.roofSeen || {}, now = {}, stuck = true;
+function hRoofHold(g, s, key) { return hHold(g, s, key, hRoofFolk(g, s)); }
+/* the same for any place that is to be nobody's: folk, who is in it (and has been sent off it) */
+function hHold(g, s, key, folk) {
+  var seen = s.roofSeen || {}, now = {}, stuck = true;
   if (!folk.length) { s[key] = 0; s.roofSeen = {}; return false; }
   if (!s[key]) s[key] = g.tick + 1500;
   folk.forEach(function (p) { now[p.id] = seen[p.id] || g.tick; if (g.tick - now[p.id] < 1500) stuck = false; });
@@ -1178,6 +1180,12 @@ function hRoofHold(g, s, key) {
   if (g.tick >= s[key] && stuck) { s[key] = 0; return false; }
   return true;
 }
+/* does its draught draw: the chamber shut all round in firebrick, its lining whole (the plug is a firebrick with a hole in
+   it: shut, poured or not). a brick gone and the bellows only blow the fire out of it, and coal fed to it burns away */
+function hDraws(g, s) { return wClosed(g, s.cells); }
+/* may a fire be lit in it now: its lining whole, and nobody up on its roof (sent off it first: hRoofHold, the lighting's
+   wait). every way a fire is first lit in it asks this: the charge, and the first coal stoked into a cold one */
+function hCanFire(g, s) { return hDraws(g, s) && !hRoofHold(g, s, "lightT"); }
 /* is this foundry's roof closed now (warm), wonders.js wRoofs */
 function hShut(g, s) { return wRoofs(g).some(function (r) { return r.site === s.id; }); }
 /* is there fire in its chamber */
@@ -1264,7 +1272,8 @@ function hTaskFound(g, p, k) {
     /* (the coal goes in alight: not with anybody up on the roof, cold as it has been while it was charged. sent off it
        first, and the founder waits on them a while; then lit anyway, and whoever is still up there is sent off it as it
        warms: wonders.js wHeatGuard) */
-    if (hRoofHold(g, s, "lightT")) { s.note = "waiting for the roof to clear, to light it"; return true; }
+    if (!hDraws(g, s)) { s.note = "its lining wants mending before it is lit"; return true; }   /* (bInspect asks for it) */
+    if (!hCanFire(g, s)) { s.note = "waiting for the roof to clear, to light it"; return true; }
     c = hChamber(g, s);
     /* (counted in cells of iron, a fifth of a bar each, whole numbers: never a sum of fractions of bars. what is wanted, what
        they have, and what is fetched from the pockets of whoever else can get here: wCells) */
@@ -1301,8 +1310,8 @@ function hTaskFound(g, p, k) {
     /* (and fed only while the bellows can draw on it: a lining brick gone, the draught is lost, and coal fed to it only
        burns away. let go out, it is mended, bInspect, and then fired again. nor set alight, cold, with somebody up on
        the roof: sent off it first, as for the charge) */
-    var draws = s.phase === 3 || wClosed(g, s.cells), cold = !hFired(g, s);
-    if (k.act % 10 === 0 && draws && !(cold && hRoofHold(g, s, "lightT")) && (s.phase === 2 || hChamber(g, s).met + hChamber(g, s).liq > 0)) {
+    var cold = !hFired(g, s);
+    if (k.act % 10 === 0 && (cold ? hCanFire(g, s) : hDraws(g, s)) && (s.phase === 2 || hChamber(g, s).met + hChamber(g, s).liq > 0)) {
       /* (the ash raked out; and a coal on wherever there is room for one, the bed first, while fewer than nine are burning) */
       var burning = hChamber(g, s).emb;
       for (n = 0; n < s.cells.length; n++) if (g.m[s.cells[n]] === MAT.ASH) hRake(g, p, s.cells[n]);
@@ -1798,8 +1807,27 @@ function hRocketStep(g, s) {
     if (s.count === 3) mHouseOf(g, s).forEach(function (q) { if (Math.random() < 0.4) pSay(g, q, "watchLaunch", true); });
     /* (the hull looked over as it goes: a plate gone since it was last looked at, and it does not) */
     if (s.count === 1 && !hHullWhole(g, s)) { s.done = false; s.repair = true; s.last = g.tick; return; }
+    /* (and not lit with anybody about it on foot: sent off it first, and it waits for them, a while) */
+    if (s.count === 1 && hHold(g, s, "padT", hPadFolk(g, s))) { s.note = "holding: somebody by the pad"; return; }
     if (--s.count === 0) hLiftOff(g, s);
   }
+}
+/* a moon rocket's pad and the air over and about it that its exhaust fills, through the countdown and a while after it
+   has gone (wonders.js wRoofs): fire under it, measured, eight columns across it, and air over 150 drifting out nine past
+   its side, up some forty, gone in 150 ticks. ten either side, sixty up, and 400 ticks */
+var H_PLUME = 400;
+function hPadZone(s) { return { x0: s.x0 - 10, x1: s.x1 + 10, y0: s.R0 - 60, y1: s.R0, site: s.id, pad: true }; }
+/* anybody on foot in it, but the crew: each sent off it, the nearer way */
+function hPadFolk(g, s) {
+  var z = hPadZone(s), out = [], k, p, fx, fy;
+  for (k = 0; k < g.peasants.length; k++) {
+    p = g.peasants[k]; fx = Math.floor(p.x); fy = Math.floor(p.y);
+    if (p.dead || p.aboard || p.state === "space" || p.state === "held" || fx < z.x0 || fx > z.x1 || fy < z.y0 || fy > z.y1) continue;
+    if (s.crew && s.crew.indexOf(p.id) >= 0) continue;
+    out.push(p);
+    if (p.state === "walk" && !(p.task && p.task.roof)) wRoofOff(g, p, z);
+  }
+  return out;
 }
 /* every cell of the rocket itself in place */
 function hHullWhole(g, s) { for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (e.rk && !bOk(g, e)) return false; } return true; }

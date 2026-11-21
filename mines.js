@@ -516,7 +516,7 @@ function mDigUpFields(g, x0, x1, p) {
     if (s.kind !== "farm" || s.x1 < x0 || s.x0 > x1) continue;
     for (var j = 0; j < s.plan.length; j++) {
       var c = g.m[s.plan[j].i];
-      if (c === MAT.SOIL) heatBecome(g, s.plan[j].i, MAT.SAND); else if (c === MAT.CROP || c === MAT.WHEAT) { g.m[s.plan[j].i] = MAT.EMPTY; heatSync(g, s.plan[j].i); }
+      if (c === MAT.SOIL) heatBecome(g, s.plan[j].i, MAT.SAND); else if (c === MAT.CROP || c === MAT.WHEAT) heatVacate(g, s.plan[j].i);
     }
     feed(g, iCap(bLabel(s)) + " is dug up" + (p ? " for " + p : "") + (room ? ". the wheat will go in somewhere else" : ". the other fields will have to do"), "#c8d0dc", "plan" + s.id);
     bRemove(g, k);

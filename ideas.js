@@ -1548,7 +1548,7 @@ function iWeather(g, s, flower) {
   var k = g.sites.indexOf(s), x = Math.round(s.cx - 0.5), j;
   if (k < 0) return;
   bRemove(g, k);
-  for (j = 0; j < s.plan.length; j++) if (g.m[s.plan[j].i] === MAT.WOOD) sandSet(g, s.plan[j].i, MAT.EMPTY);
+  for (j = 0; j < s.plan.length; j++) if (g.m[s.plan[j].i] === MAT.WOOD && !heatTaken(g, s.plan[j].i)) sandSet(g, s.plan[j].i, MAT.EMPTY);
   for (j = 0; j < g.dead.length; j++) if (g.dead[j].site === s.id) g.dead[j].site = -1;
   feed(g, "the cross for " + iName(s.of) + " has weathered away", "#c8d0dc");
   wSpark(g, pOther(g, { x: s.cx, y: s.y1 }, 60), "cathedral");   /* (whoever was at the graveyard when it went: monuments.js) */
@@ -1854,7 +1854,7 @@ function iFestSweep(g) {
   var p = null;
   for (var k = 0; k < g.peasants.length; k++) if (g.peasants[k].id === f.who) p = g.peasants[k];
   if (p && !p.dead && p.task && p.task.kind === "festival" && p.task.y * g.gw + p.task.x === f.j) return;
-  if (g.m[f.j] === MAT.FIREWORK) { g.m[f.j] = MAT.EMPTY; heatSync(g, f.j); }
+  if (g.m[f.j] === MAT.FIREWORK) heatVacate(g, f.j);
   g.fwStage = null;
 }
 /* nowhere near an oil well, nor oil pooled anywhere about, for a show launched from column x, ground G: the sparks that

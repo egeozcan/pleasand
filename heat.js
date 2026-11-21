@@ -483,15 +483,19 @@ function heatStep(g) {
 /* the thing in cell j leaves the world (down a drain), and takes its heat with it: the air that fills the hole is as warm
    as the thing was, and no warmer. (left to the books, the hole would get all of it, melting heat and all: a cell of
    drained water would leave behind air at well over a thousand degrees) */
-/* a cell a peasant has just taken away (eaten, chopped, dug, picked up, drained): what is left is air. in a great works'
-   village, air no hotter than the thing itself was, its heat gone with it (heatVanish): all of a warm leaf's or log's heat
-   crammed into one cell of air is a flame from nothing, and the foundry warms what is about it. a plain village keeps its
-   books as it always has: the air with all the heat the thing had */
-function heatVacate(g, j) {
-  /* (warm, that is: thirty over the air. under that, the air left would be no more than about 140, and is let be) */
-  if (g.wAny && g.T[j] > AMBIENT + 30) { heatVanish(g, j); return; }
-  g.m[j] = MAT.EMPTY; heatSync(g, j);
+/* a cell a peasant (or a great work) has just taken away: eaten, chopped, dug, picked up, drained, cleared. what is left
+   is air. in a great works' village, if all of what it held would make that air a burn (over 150: a warm leaf or log,
+   or a puddle's worth of latent heat in one cell of air, at over a thousand), it is no hotter than the thing itself was:
+   the heat goes with it (heatVanish). otherwise, and in every plain village, the books are kept as they always have
+   been. heatTaken: true if it was taken so; heatVacate: taken, one way or the other */
+function heatTaken(g, j) {
+  if (!g.wAny) return false;
+  var air = AMBIENT + (heatQ(g, j) - heatH0(MAT.EMPTY, 0, g.sh[j])) * HEAT_IC[MAT.EMPTY];
+  if (air <= 150) return false;
+  heatVanish(g, j);
+  return true;
 }
+function heatVacate(g, j) { if (!heatTaken(g, j)) { g.m[j] = MAT.EMPTY; heatSync(g, j); } }
 function heatVanish(g, j) {
   var t = g.T[j];
   g.m[j] = MAT.EMPTY; g.vy[j] = 0; g.aux[j] = 0; g.lat[j] = 0;

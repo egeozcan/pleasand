@@ -1003,7 +1003,7 @@ module.exports = function (test, check, sim) {
     var yc = go();
     check(yc <= s.R0 - 11, "(the test wants a step up onto the cold roof: at " + p.x.toFixed(1) + "," + yc.toFixed(1) + ")");
   });
-  test("a warm leaf eaten, or a warm log chopped, leaves air no hotter than it was: a great works' village; a plain one keeps its books as master does", function () {
+  test("a warm leaf eaten, a warm log chopped, warm water drained: no burn left in the air: a great works' village; a plain one keeps its books as master does", function () {
     [true, false].forEach(function (wonders) {
       var w = sim.load(2), g = w.g, M = w.MAT, j = 140 * g.gw + 100;
       g.wAny = wonders;
@@ -1015,7 +1015,78 @@ module.exports = function (test, check, sim) {
       w.sandSet(g, k, M.WOOD); w.heatAccept(g, k); g.T[k] = 106;
       w.heatVacate(g, k);
       if (wonders) check(g.T[k] <= 106 + 1e-9, "a log at 106 chopped left air at " + Math.round(g.T[k]));
+      /* (and a cell of water at 49 drained: its latent heat alone would make the air a furnace) */
+      var d = 142 * g.gw + 100;
+      w.sandSet(g, d, M.WATER); w.heatAccept(g, d); g.T[d] = 49;
+      w.heatVacate(g, d);
+      if (wonders) check(g.T[d] <= 150, "a cell of water at 49 drained left air at " + Math.round(g.T[d]));
+      else check(g.T[d] > 150, "(a plain village: the books as master keeps them, the drained air at " + Math.round(g.T[d]) + ")");
     });
+  });
+  test("a cell taken away anywhere but the physics: through heatVacate or heatTaken, never left to cram its heat into the air", function () {
+    /* (eaten, chopped, mined, cleared, drained, demolished, taken down: every one asks heat.js heatTaken first. the physics
+       itself (world.js, heat.js), and a plant salt water kills, keep the books as they are) */
+    var fs = require("fs"), path = require("path"), root = path.join(__dirname, ".."), bare = [];
+    fs.readdirSync(root).filter(function (fn) { return /\.js$/.test(fn) && fn !== "world.js" && fn !== "heat.js"; }).forEach(function (fn) {
+      fs.readFileSync(path.join(root, fn), "utf8").split("\n").forEach(function (l, n) {
+        if (/heatTaken\(|heatVacate\(|SALTWATER/.test(l)) return;
+        if (/=\s*MAT\.EMPTY;\s*(g\.aux\[[^\]]+\]\s*=\s*0;\s*)?heatSync\(/.test(l) || /sandSet\(g, [^,]+, MAT\.EMPTY\)/.test(l)) bare.push(fn + ":" + (n + 1));
+      });
+    });
+    check(!bare.length, "a cell taken away, its heat crammed into the air: " + bare.join(", "));
+  });
+  /* a moon rocket fuelled and its crew aboard, about to be counted down, on flat ground at 125 (pi's round 24) */
+  function fPad(seed) {
+    var w = sim.load(seed), g = w.g, M = w.MAT, x, y;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < 158 ? M.SAND : M.STONE);
+    g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.wAny = true; g.know = { moonrocket: "TEST", concrete: "TEST" };
+    var a = g.peasants[0], gy = [];
+    for (x = 0; x < w.H_RW; x++) gy.push(150);
+    var fit = w.hRocketFit(g, 125, gy, 150, 150), s = sim.build(w, w.hRocketAt(g, a, 125, fit.R0, fit.plan));
+    Object.assign(a, { x: s.rx + 0.5, y: s.R0 - 8, state: "space", aboard: s.id, task: null, life: 1e9 });
+    Object.assign(s, { oil: w.H_FUEL, crew: [a.id], boardT: -600, count: 0, countT: 0 });
+    return { w: w, g: g, M: M, s: s, a: a };
+  }
+  test("moon rocket: pi's passer-by, hungry, wandering by the pad through the countdown: sent off it, and not burnt by the launch", function () {
+    var P = fPad(1), w = P.w, g = P.g, M = P.M, s = P.s, b = g.peasants[1], u;
+    g.peasants = [P.a, b];
+    Object.assign(b, { x: 125 + 24.5, y: s.R0 - 1, dir: -1, task: null, idle: 0, hunger: 5200, bored: 0, life: 1e9 });
+    for (u = 14; u < 20; u++) w.sandSet(g, (s.R0 - 1) * g.gw + 125 + u, M.FLOWER);
+    while (g.tick < 1400 && !b.dead) sim.step(w, 1);
+    check(s.gone && !b.dead && !b.fire && !g.causes.fire, "launched " + !!s.gone + ", the passer-by " + (b.dead ? "dead" : "alive") + ", " + JSON.stringify(g.causes));
+  });
+  test("moon rocket: launches with the whole village about the pad, seeds 1 to 5: it goes, and nobody but the crew is burnt by its exhaust", function () {
+    [1, 2, 3, 4, 5].forEach(function (seed) {
+      var P = fPad(seed), w = P.w, g = P.g, s = P.s, burnt = 0;
+      g.peasants.forEach(function (q, k) { if (q === P.a) return; Object.assign(q, { x: 100.5 + k * 7, y: 149, dir: k % 2 ? 1 : -1, task: null, idle: 0, hunger: 3000 + k * 800, bored: 0, life: 1e9 }); });
+      while (g.tick < 2400) { sim.step(w, 1); g.peasants.forEach(function (q) { if (q !== P.a && q.fire) burnt++; }); }
+      check(s.gone && !burnt && !g.causes.fire && !g.causes.lava, "seed " + seed + ": launched " + !!s.gone + ", burning " + burnt + " ticks, " + JSON.stringify(g.causes));
+    });
+  });
+  test("foundry: a lining brick gone before the charge is lit: mended first, and charged whole, and it casts on the same stock", function () {
+    var w = sim.load(2), g = w.g, M = w.MAT, p = g.peasants[0], q = g.peasants[1], x, y;
+    g.peasants = [p, q]; w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < 158 ? M.SAND : M.STONE);
+    g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.wAny = true; g.know = { foundry: "T", concrete: "T", moonrocket: "T" };
+    [[p, 144.5], [q, 214]].forEach(function (c) { Object.assign(c[0], { x: c[1], y: 149, dir: -1, task: null, idle: 0, hunger: 0, bored: 0, life: 1e9, iron: c[0] === p ? 14 : 0, coal: c[0] === p ? 20 : 0 }); });
+    p.firebrick = 1;
+    var gy = []; for (x = 0; x < w.H_FW; x++) gy.push(150);
+    var ff = w.hFoundryFit(g, 150, gy, 150, 150), s = sim.build(w, w.hFoundryAt(g, p, 150, ff.R0, ff.plan));
+    var ry = []; for (x = 0; x < w.H_RW; x++) ry.push(150);
+    var rf = w.hRocketFit(g, 65, ry, 150, 150), r = w.hRocketAt(g, p, 65, rf.R0, rf.plan);
+    r.plan.forEach(function (e) { if (e.res !== "plate" && e.v !== M.EMPTY) w.sandSet(g, e.i, e.v); });
+    var brick = w.hFJ(g, s, 7, 8), breach = 0, repair = 0, first = null;
+    check(g.m[brick] === M.FIREBRICK, "(the test wants a lining brick there)");
+    while (g.tick < 14000 && !s.casts) {
+      if (g.tick % 600 === 0) for (x = 100; x < 140; x++) if (g.m[149 * g.gw + x] === M.EMPTY) w.sandSet(g, 149 * g.gw + x, M.FLOWER);
+      sim.step(w, 1);
+      if (!breach && s.phase === 1 && p.task && p.task.kind === "found" && p.task.act >= 15) { breach = g.tick; w.heatVanish(g, brick); }
+      if (!repair && s.repair) repair = g.tick;
+      if (!first && s.phase === 2) first = { tick: g.tick, closed: w.wClosed(g, s.cells) };
+    }
+    check(breach && repair && first && repair < first.tick && first.closed, "breach " + breach + ", repair " + repair + ", charged " + JSON.stringify(first));
+    check(s.casts === 1, "never cast on the same stock: casts " + (s.casts || 0) + ", coal " + p.coal);
   });
   test("foundry: pi's meal by it: a villager eats the warm flowers just past it while it casts, and does not catch fire", function () {
     var w = sim.load(2), g = w.g, M = w.MAT, x, y, i;

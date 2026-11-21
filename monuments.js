@@ -705,7 +705,7 @@ function mRehang(g, s, p) {
     e = b.plan[k];
     if (e.v === MAT.EMPTY || g.m[e.i] !== e.v) continue;
     if (e.v === MAT.GOLD) gold += B_AMT[MAT.GOLD];
-    sandSet(g, e.i, MAT.EMPTY); heatSync(g, e.i);
+    if (!heatTaken(g, e.i)) { sandSet(g, e.i, MAT.EMPTY); heatSync(g, e.i); }
   }
   for (k = 0; k < g.sites.length; k++) if (g.sites[k] === b) { bRemove(g, k); break; }
   var bx = s.x0 + 8, by = s.F - 23, plan = [bE(g, bx, s.F - 25, MAT.GOLD, 1)];
