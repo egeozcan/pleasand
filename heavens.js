@@ -953,17 +953,21 @@ function hFJ(g, s, u, h) { return (s.R0 - h) * g.gw + s.xf + u; }
 /* what goes at (u, h): a material, EMPTY for something kept clear, or -1 for nothing of ours (the ground as it is) */
 function hFoundryCell(u, h) {
   var FB = MAT.FIREBRICK, BR = MAT.BRICK, E = MAT.EMPTY;
+  /* (the roof floats: a slab of stone over a sealed room of air the whole width, on a firebrick post at each end. the
+     walls under it stop short of it, and nothing hot touches it: the air over it stays cool to stand in) */
+  if (h === 11 && u >= -3 && u <= 15) return BR;
+  if (h === 10) return u === -3 || u === 15 ? FB : (u > -3 && u < 15 ? E : -1);
   /* the jacket: the hot side is shut in, a sealed gap of air (air carries heat worst of all), then firebrick, then
      dressed stone (no more than that: shut in any closer, the coal alone would melt the iron, the bellows unworked); and the plate mould lidded with firebrick two thick, the room over it sealed in under the roof, so
-     nobody stands over it or falls in. measured over whole casts, the air beside it at head height stays under 150 either side
-     (it was 600 to 1000 open). the chimney's mouth is hot, as a chimney's is: its roof is nobody's place (wonders.js
-     wOnRoof) */
+     nobody stands over it or falls in. measured over whole casts, the air at head height anywhere anybody can stand about
+     it, on its roof too, stays under 150 (it was 600 to 1000 open). its roof's slab itself is warm through a cast, too
+     warm to walk on (P_SCALD): hCutOff) */
   if ((u === 11 || u === 12) && h >= 0 && h <= 9) return E;
-  if (u === 13 && h >= 0 && h <= 11) return FB;
-  if ((u === 14 || u === 15) && h >= 0 && h <= 11) return BR;
+  if (u === 13 && h >= 0 && h <= 9) return FB;
+  if ((u === 14 || u === 15) && h >= 0 && h <= 9) return BR;
   /* (and the same on the plates' side, by the mould: a sealed gap, and stone) */
   if (u === -2 && h >= 0 && h <= 10) return E;
-  if ((u === -2 && h === 11) || (u === -3 && h >= 0 && h <= 11)) return BR;
+  if (u === -3 && h >= 0 && h <= 9) return BR;
   if (u >= -1 && u <= 4 && (h === 2 || h === 3)) return FB;
   if (u >= -1 && u <= 3 && h >= 4 && h <= 9) return E;   /* (sealed air over the lid: nobody's, and it carries next to no heat up) */
   if (u >= -1 && u <= 3 && h === 10) return FB;
@@ -973,11 +977,10 @@ function hFoundryCell(u, h) {
   if (u >= 5 && u <= 9 && h >= 0 && h <= 8) return FB;
   if ((u === 4 || u === 10) && h >= 2 && h <= 9) return FB;   /* (a brick casing would run: it gets as hot as the lining, in the end) */
   if (u >= 5 && u <= 9 && h === 9) return FB;
-  if ((u === 6 || u === 8) && h >= 10 && h <= 13) return FB;
-  if (u === 7 && h >= 10 && h <= 13) return E;
-  if ((u === 5 || u === 9) && h >= 11 && h <= 13) return BR;   /* (the chimney's outer walls) */
-  if (((u >= 4 && u <= 5) || (u >= 9 && u <= 15)) && h === 10) return FB;   /* (the roof: firebrick, then stone) */
-  if (((u >= -1 && u <= 5) || (u >= 9 && u <= 15)) && h === 11) return BR;
+  /* (the chimney: a stub on the roof, for the look of it. the chamber is shut all round, and its smoke is drawn) */
+  if ((u === 6 || u === 8) && h >= 12 && h <= 13) return FB;
+  if (u === 7 && h >= 12 && h <= 13) return E;
+  if ((u === 5 || u === 9) && h >= 12 && h <= 13) return BR;   /* (the chimney's outer walls) */
   /* the plate mould, sunk a cell: five long and two deep, right up against the left tap (lava this thick will not run far) */
   if (u >= 0 && u <= 4 && (h === 0 || h === 1)) return E;
   if (u >= -1 && u <= 5 && h === -1) return FB;
@@ -1140,11 +1143,29 @@ function hSpotAt(g, s) {
   return first;   /* (none: where it was meant to be, on its ground) */
 }   /* (the bellows between them and the heat) */
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
-/* who the foundry's roof, closed through a cast, would cut off from all the food they can get to, hungry enough that they
-   could starve before it opens again: a cast keeps it closed 3600 to 7000 ticks, H_CAST with some to spare. by the
-   eating's own rules: food pEdible (no lone flower), reached as the eat task reaches it, three across and ten up or two
-   down from where they stand. nobody who cannot get to food with it open, either: that is not the foundry's doing */
+/* who a cast would cut off from all the food they can get to, hungry enough that they could starve before it is over: its
+   roof is the way across it, and through a cast (3600 to 7000 ticks: H_CAST with some to spare) the roof is hotter than
+   anybody walks on (P_SCALD: paths.js navHazard, as any hot ground is). by the eating's own rules: food pEdible (no lone
+   flower), reached as the eat task reaches it, three across and ten up or two down from where they stand. reach is
+   looked at with the roof as it will be, cooled and then hot: nobody who cannot get to food with it cool is the foundry's
+   doing */
 var H_CAST = 8000, H_CUTWAIT = 6000;
+/* the roof's cells, the slab and the chimney's stub on it: where anybody crossing walks */
+function hRoofCells(g, s) {
+  var out = [], x, y, j;
+  for (y = s.R0 - 13; y <= s.R0 - 11; y++) for (x = s.x0; x <= s.x1; x++) { j = y * g.gw + x; if (g.m[j] !== MAT.EMPTY) out.push(j); }
+  return out;
+}
+/* is its roof too hot to walk on now (P_SCALD) */
+function hRoofHot(g, s) { return hRoofCells(g, s).some(function (j) { return g.T[j] > P_SCALD; }); }
+/* fn(), with its roof taken as at temperature t (a cool one, or one just too hot to walk on): and then as it was */
+function hRoofAs(g, s, t, fn) {
+  var R = hRoofCells(g, s), was = R.map(function (j) { return g.T[j]; }), r;
+  R.forEach(function (j) { g.T[j] = t; });
+  r = fn();
+  R.forEach(function (j, i) { g.T[j] = was[i]; });
+  return r;
+}
 function hCutOff(g, s) {
   var hungry = [], k, p;
   for (k = 0; k < g.peasants.length; k++) {
@@ -1165,51 +1186,20 @@ function hCutOff(g, s) {
     var h = navHere(g, p);
     if (!h || mask[h.y * gw + h.x]) continue;   /* (where they can eat already) */
     var near = fx.reduce(function (a, b) { return Math.abs(b - h.x) < Math.abs(a - h.x) ? b : a; });
-    W_OPEN = s;   /* (with it open, as it will be once it has cooled: not as it is now, still hot from the last) */
-    var can = navFind(g, h.x, h.y, goal, near, h.y);
-    W_OPEN = null;
+    /* (with it cool, as it will be: not as it may be now, still hot from the last) */
+    var can = hRoofAs(g, s, AMBIENT, function () { return navFind(g, h.x, h.y, goal, near, h.y); });
     if (!can) continue;   /* (no food they can get to, roof or none) */
-    W_SHUT = s;   /* (and with it closed, as it will be once it is lit: paths.js navHazard, wonders.js wRoofs) */
-    var shut = !navFind(g, h.x, h.y, goal, near, h.y, NAV_CAP * 3);
-    W_SHUT = null;
-    if (shut) out.push(p);
+    /* (and with it too hot to walk on, as it will be once it is lit) */
+    if (!hRoofAs(g, s, P_SCALD + 1, function () { return navFind(g, h.x, h.y, goal, near, h.y, NAV_CAP * 3); })) out.push(p);
   }
   return out;
-}
-/* anybody (but the founder at it) on the foundry's roof, or over it on the way up, cold as it is: each sent down off it.
-   who they are */
-function hRoofFolk(g, s) {
-  var out = [], r = { x0: s.x0 - 1, x1: s.x1 + 1 }, k, p, fx, fy;
-  for (k = 0; k < g.peasants.length; k++) {
-    p = g.peasants[k]; fx = Math.floor(p.x); fy = Math.floor(p.y);
-    if (p.dead || p.state === "space" || p.state === "held" || fx < r.x0 || fx > r.x1 || fy > s.R0 - 10 || fy < s.R0 - 30 || (p.task && p.task.kind === "found")) continue;
-    out.push(p);
-    if (p.state === "walk" && !(p.task && p.task.roof)) wRoofOff(g, p, r);
-  }
-  return out;
-}
-/* wait (true) for the roof to be clear, before charging or lighting it (key: the site's deadline for this wait). anybody
-   up there is sent off it; after 1500 ticks it goes ahead, but only past those who have been up there all that while,
-   sent off it and never got down: not past somebody who has only now climbed up, and can still be sent down */
-function hRoofHold(g, s, key) { return hHold(g, s, key, hRoofFolk(g, s)); }
-/* the same for any place that is to be nobody's: folk, who is in it (and has been sent off it) */
-function hHold(g, s, key, folk) {
-  var seen = s.roofSeen || {}, now = {}, stuck = true;
-  if (!folk.length) { s[key] = 0; s.roofSeen = {}; return false; }
-  if (!s[key]) s[key] = g.tick + 1500;
-  folk.forEach(function (p) { now[p.id] = seen[p.id] || g.tick; if (g.tick - now[p.id] < 1500) stuck = false; });
-  s.roofSeen = now;
-  if (g.tick >= s[key] && stuck) { s[key] = 0; return false; }
-  return true;
 }
 /* does its draught draw: the chamber shut all round in firebrick, its lining whole (the plug is a firebrick with a hole in
    it: shut, poured or not). a brick gone and the bellows only blow the fire out of it, and coal fed to it burns away */
 function hDraws(g, s) { return wClosed(g, s.cells); }
-/* may a fire be lit in it now: its lining whole, and nobody up on its roof (sent off it first: hRoofHold, the lighting's
-   wait). every way a fire is first lit in it asks this: the charge, and the first coal stoked into a cold one */
-function hCanFire(g, s) { return hDraws(g, s) && !hRoofHold(g, s, "lightT"); }
-/* is this foundry's roof closed now (warm), wonders.js wRoofs */
-function hShut(g, s) { return wRoofs(g).some(function (r) { return r.site === s.id; }); }
+/* may a fire be lit in it now: its lining whole. every way a fire is first lit in it asks this: the charge, and the first
+   coal stoked into a cold one */
+function hCanFire(g, s) { return hDraws(g, s); }
 /* is there fire in its chamber */
 function hFired(g, s) { return s.cells.some(function (j) { var c = g.m[j]; return c === MAT.EMBER || c === MAT.FIRE || c === MAT.LAVA; }); }
 function hRoofWither(g, s) {
@@ -1225,7 +1215,7 @@ function hFoundryStep(g, s) {
   /* (nothing grows on a warm foundry's roof, or up against its faces: a vine up the jacket and across the top is a fuse
      laid to the chimney's mouth, and the stone face on the plates' side is warmer than a leaf can stand. what has crept
      onto it withers, to ash, and falls off) */
-  if (wOnRoof(g, s.x0, s.R0 - 10)) hRoofWither(g, s);
+  hRoofWither(g, s);   /* (always: its faces and roof are warm through every cast, and long after) */
   /* (iron gone cold in a mould between casts, that is no cast of its own: a stray bit of plate put back, say. prised out,
      and into the nearest pocket (or onto the pile), a fifth of a bar a cell, as scrap is: it would otherwise stop the
      mould up for good) */
@@ -1243,16 +1233,13 @@ function hFoundryStep(g, s) {
     s.mould = bell ? (!hMouldFull(g, s, "bell") ? "bell" : "") : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
     /* (and for a bell, not until there is iron enough for one, whole: in the chamber, and in pockets that can get here) */
     if (s.mould === "bell") { var cb = hChamber(g, s); if (s.ironWaitT > g.tick || cb.met + cb.liq + wCellsSure(g, "iron") < H_CHARGE) { s.note = "waiting for iron enough for a bell"; s.mould = ""; } }
-    /* (nor while its roof, closed for the cast, would cut somebody hungry off from all the food they can get to: their own
-       eating takes them across it while it is cold, and then it is charged. a while at most) */
-    /* (the wait counted from when its roof is open again: still hot from the last cast, nobody is getting across it yet) */
-    if (s.mould && hCutOff(g, s).length && !(s.cutT && g.tick >= s.cutT)) { if (!s.cutT && !hShut(g, s)) s.cutT = g.tick + H_CUTWAIT; s.note = "waiting for somebody to come across it to eat"; s.mould = ""; }
-    /* (and not with anybody up on its roof, or on the way up: sent down first, the charging waits for them a while. then
-       on with it anyway, and whoever is still up there is sent off it as it warms: wonders.js wHeatGuard) */
-    if (s.mould && hRoofHold(g, s, "roofT")) { s.note = "waiting for the roof to clear"; s.mould = ""; }
+    /* (nor while a cast, its roof too hot to walk on, would cut somebody hungry off from all the food they can get to:
+       their own eating takes them across it while it is cool, and then it is charged. a while at most, counted from when
+       its roof is cool enough to cross again: still hot from the last cast, nobody is getting across it yet) */
+    if (s.mould && hCutOff(g, s).length && !(s.cutT && g.tick >= s.cutT)) { if (!s.cutT && !hRoofHot(g, s)) s.cutT = g.tick + H_CUTWAIT; s.note = "waiting for somebody to come across it to eat"; s.mould = ""; }
     /* (and not without a founder free to come and do it: charged with nobody to light it, it would only sit there) */
     if (s.mould && !mCrew(g, "found", s.id) && !hFounder(g, s)) { s.note = "nobody free who can get to the bellows"; s.mould = ""; }
-    if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; s.roofT = 0; s.cutT = 0; }
+    if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; s.cutT = 0; }
   }
   if (s.phase === 4 && hMouldHot(g, s) < H_PRISE) s.phase = 5;
   if (s.phase === 0 || s.phase === 4 || mCrew(g, "found", s.id)) return;
@@ -1291,11 +1278,8 @@ function hTaskFound(g, p, k) {
     /* the charge: what iron is still in there from last time counts toward it; the rest in bars, in layers with coal */
     p.pose = (k.act % 20) < 10 ? "hammerA" : "hammerB";
     if (k.act < 60) return true;
-    /* (the coal goes in alight: not with anybody up on the roof, cold as it has been while it was charged. sent off it
-       first, and the founder waits on them a while; then lit anyway, and whoever is still up there is sent off it as it
-       warms: wonders.js wHeatGuard) */
-    if (!hDraws(g, s)) { s.note = "its lining wants mending before it is lit"; return true; }   /* (bInspect asks for it) */
-    if (!hCanFire(g, s)) { s.note = "waiting for the roof to clear, to light it"; return true; }
+    /* (the coal goes in alight: not with its lining broken. bInspect asks for it to be mended) */
+    if (!hCanFire(g, s)) { s.note = "its lining wants mending before it is lit"; return true; }
     c = hChamber(g, s);
     /* (counted in cells of iron, a fifth of a bar each, whole numbers: never a sum of fractions of bars. what is wanted, what
        they have, and what is fetched from the pockets of whoever else can get here: wCells) */
@@ -1322,7 +1306,6 @@ function hTaskFound(g, p, k) {
     g.fx.thud++;
     if (p.sayT <= 0) pSay(g, p, "foundryCharge");
     s.phase = 2; s.meltT = g.tick; s.meltT0 = g.tick; k.act = 0;
-    W_RC.t = -1;   /* (alight: its roof closed from this tick, not the next. wonders.js wRoofs) */
     return true;
   }
   if (s.phase === 2 || s.phase === 3) {
@@ -1344,7 +1327,7 @@ function hTaskFound(g, p, k) {
         var by = g.m[j - 1] === MAT.METAL || g.m[j + 1] === MAT.METAL || g.m[j - g.gw] === MAT.METAL || g.m[j + g.gw] === MAT.METAL;
         if ((pass === 0 && !by) || (pass === 1 && n >= 2)) continue;
         if (!hCoal(g, p, s)) break;
-        sandPlace(g, j, MAT.EMBER); g.aux[j] = 1; heatAccept(g, j); s.coals = (s.coals || 0) + 1; burning++; W_RC.t = -1;
+        sandPlace(g, j, MAT.EMBER); g.aux[j] = 1; heatAccept(g, j); s.coals = (s.coals || 0) + 1; burning++;
         if (s.phase === 2) s.meltT = g.tick;   /* (fire in it: the melt has its while again, from now) */
       }
     }

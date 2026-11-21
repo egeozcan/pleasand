@@ -545,7 +545,7 @@ function bTryWall(g, p, fx, fy) {
     c = pCell(g, wx, y);
     if (WOODY[c] || LEAFY[c] || P_PASS[c]) return false;
   }
-  /* (nor a foundry: nobody builds a way up onto its roof, its chimney's mouth. wonders.js wOnRoof) */
+  /* (nor a foundry: nobody builds a way up its warm jacket, onto its roof. a ladder against it would only catch) */
   if (bSiteAround(g, wx, fy, "foundry", 2)) return false;
   var s = bSiteAround(g, wx, fy, "stairs", 2) || bSiteAround(g, wx, fy, "ladder", 2);
   if (s) return s.done ? false : bJoinHere(g, p, s);

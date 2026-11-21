@@ -408,13 +408,6 @@ function wHeatGuard(g, p) {
      in its mould, firebrick, the exhaust. turned round at the edge of it. paths keep off it already, navHazard: this is
      for the wandering, and whoever's job has just ended on top of it) */
   var fx0 = Math.floor(p.x), fy0 = Math.floor(p.y), d0 = p.dir || 1;
-  /* (on a warm foundry's roof, and not at the foundry's work: off it, the nearer way, before anything else. stepping back
-     from some heat or other and landed up here too: that is no way off it, this is. the job they had waits for them, as it
-     does for any step back) */
-  if (wOnRoof(g, fx0, fy0) && !(k && (k.kind === "found" || k.roof))) {
-    wRoofOff(g, p, wRoofs(g).filter(function (r) { return fx0 >= r.x0 && fx0 <= r.x1; })[0]);
-    return;
-  }
   if (!k || !W_KINDS[k.kind] || W_AWAY[k.kind]) {
     if (wHotWork(g, fx0, fy0, p)) {
       /* (standing in it, or it come up under them, a casting just poured: off it, now, the way with the least heat on it.
@@ -424,7 +417,6 @@ function wHeatGuard(g, p) {
     }
     return;   /* (and a step into it is never taken: peasants.js, where they step) */
   }
-  if (k.roof) return;   /* (on the way off a foundry's roof: straight off it) */
   var fx = Math.floor(p.x), fy = Math.floor(p.y), xs = [fx, fx + (p.dir || 1)], i, dy;
   /* (already stepping back: only a step on into heat turns them again) */
   if (k.backT > g.tick) xs = [fx + (p.dir || 1)];
@@ -440,9 +432,6 @@ function wHeatGuard(g, p) {
    right by) a great work's box */
 function wHotWork(g, x, y, p) {
   if (x < 0 || x >= g.gw || y < 0 || y >= g.gh) return false;
-  /* (on the way off a foundry's roof, and still on it: the nearer way, and no turning back on it for heat) */
-  if (p && p.task && p.task.roof && wOnRoof(g, Math.floor(p.x), Math.floor(p.y))) return false;
-  if (!(p && p.task && p.task.kind === "found") && wOnRoof(g, x, y)) return true;   /* (a warm foundry's roof: nobody's place) */
   /* (underfoot a step up or a step down too: walking onto a casting that stands a cell proud of the ground, or into a
      mould of it running) */
   var hot = false, dy, L = wLim(p);
@@ -452,57 +441,13 @@ function wHotWork(g, x, y, p) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && x >= s.x0 - 12 && x <= s.x1 + 12 && y >= s.y0 - 4 && y <= s.y1 + 6) return true; }
   return false;
 }
-/* THE FOUNDRY'S ROOF is not a place: over its chamber, its chimney's mouth is hot, as a chimney's is. while any of it is
-   warm (over 90) paths do not stand anybody on it (paths.js navHazard) and nothing is planned there (build.js
-   bSiteAround). its sides are cool: the chamber and moulds are jacketed and lidded (heavens.js hFoundryCell).
-   (x, y): a standing cell on top of a foundry that is warm. cached for the tick */
-var W_RC = { g: null, t: -1, T: null, n: -1, sh: null, r: [] };
-var W_SHUT = null;   /* (a foundry taken as warm, whatever it is: how it will be through a cast. heavens.js hCutOff) */
-var W_OPEN = null;   /* (and one taken as cold: how it will be once it has cooled. heavens.js hCutOff) */
-function wRoofs(g) {
-  var r = [], k, s, x, y;
-  if (W_RC.g === g && W_RC.t === g.tick && W_RC.T === g.T && W_RC.n === g.sites.length && W_RC.sh === W_SHUT && W_RC.op === W_OPEN) return W_RC.r;
-  for (k = 0; k < g.sites.length; k++) {
-    s = g.sites[k];
-    if (s.kind !== "foundry" || s === W_OPEN) continue;
-    /* (while anything of it is warm, or alight: the fire in the chamber, a melt, a casting in its mould, the jacket or the
-       roof over 90. never for the phase it is at alone: charged and not lit, or cast and gone cold with the plates still
-       in it, it is cold stone and iron, and closes nothing) */
-    var warm = s === W_SHUT;
-    for (y = Math.max(0, s.R0 - 14); y <= Math.min(g.gh - 1, s.R0 + 4) && !warm; y++)   /* (down to the bell mould's lining) */ for (x = s.x0; x <= s.x1 && !warm; x++) {
-      var j = y * g.gw + x, c = g.m[j];
-      if (g.T[j] > 90 || c === MAT.EMBER || c === MAT.FIRE || c === MAT.LAVA) warm = true;
-    }
-    if (warm) r.push({ x0: s.x0 - 1, x1: s.x1 + 1, y1: s.R0 - 10, site: s.id });
-  }
-  W_RC.g = g; W_RC.t = g.tick; W_RC.T = g.T; W_RC.n = g.sites.length; W_RC.sh = W_SHUT; W_RC.op = W_OPEN; W_RC.r = r;
-  return r;
-}
-function wOnRoof(g, x, y) {
-  var r = wRoofs(g);
-  for (var k = 0; k < r.length; k++) if (x >= r[k].x0 && x <= r[k].x1 && y <= r[k].y1) return true;
-  return false;
-}
-/* off a foundry's roof r ({x0, x1}), the nearer way: past its edge and down. the job they had waits for them */
-function wRoofOff(g, p, r) {
-  var k = p.task, fx = Math.floor(p.x);
-  var kr = { kind: "wcool", t: 0, was: k ? (k.kind === "wcool" ? k.was : k) : null, backT: g.tick + 300, backX: Math.max(1, Math.min(g.gw - 2, fx - r.x0 <= r.x1 - fx ? r.x0 - 3 : r.x1 + 3)), hotX: null, roof: true, brave: true };   /* (brave: off it through what warmth there is) */
-  p.task = kr; p.dir = kr.backX < p.x ? -1 : 1;
-}
 function wStepBack(g, p, k) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), side = 0;
   function heat(x) { var t = 0; for (var dy = 0; dy <= 7; dy += 3) { var y = fy - dy; if (x >= 0 && x < g.gw && y >= 0 && y < g.gh) t += g.T[y * g.gw + x]; } return t; }
   /* (the way out with the least heat on it all the way, not only at the far end: walking out through the hot air is no
      way out of it) */
   function worst(sd) { var m = 0; for (var d = 1; d <= 6; d++) m = Math.max(m, heat(fx + sd * d)); return m; }
-  /* (and never the way over a warm foundry's roof, from as high as it: back is not onto that) */
-  function roofward(sd) {
-    var r = wRoofs(g);
-    for (var q = 0; q < r.length; q++) if (fy <= r[q].y1 + 1) for (var d = 1; d <= 6; d++) if (fx + sd * d >= r[q].x0 && fx + sd * d <= r[q].x1) return true;
-    return false;
-  }
-  var rl = roofward(-1), rr = roofward(1);
-  side = rl !== rr ? (rl ? 1 : -1) : worst(-1) <= worst(1) ? -1 : 1;
+  side = worst(-1) <= worst(1) ? -1 : 1;
   k.backT = g.tick + 120;   /* (and stay back a while: it does not cool in a tick) */
   if (k.hotX == null) { k.hotX = fx; k.hotY = fy; }   /* (where it was too hot: not back into it till it has cooled well down. wTask) */
   k.backX = Math.max(1, Math.min(g.gw - 2, fx + side * 6));
@@ -511,7 +456,7 @@ function wStepBack(g, p, k) {
 function wTask(g, p, k) {
   /* (too hot here: back, the cooler way, and wait. then on with it) */
   if (W_KINDS[k.kind] && !W_AWAY[k.kind] && p.state === "walk") {
-    if (wTooHot(g, p) && !k.roof) wStepBack(g, p, k);
+    if (wTooHot(g, p)) wStepBack(g, p, k);
     if (k.hotX != null && !(k.backT > g.tick)) { if (wHotAt(g, k.hotX, k.hotY, 0.7)) k.backT = g.tick + 60; else k.hotX = null; }
     if (k.backT > g.tick) {
       p.pose = "stand"; p.idle = 0;
@@ -521,7 +466,6 @@ function wTask(g, p, k) {
     }
   }
   if (k.kind === "wcool") {
-    if (k.roof && !wOnRoof(g, Math.floor(p.x), Math.floor(p.y)) && Math.abs(p.x - k.backX - 0.5) <= 2) k.backT = 0;
     if (++k.t > 3000 || !(k.backT > g.tick) && k.hotX == null) { p.task = k.was && k.was.kind !== "wcool" ? k.was : null; return false; }
     return false;
   }
