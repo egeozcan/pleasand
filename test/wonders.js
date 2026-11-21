@@ -93,6 +93,27 @@ module.exports = function (test, check, sim) {
     check(gn.tick === 1528 && f && f.x0 === 150 && hn.hash() === "dc6bb627", "after NEW the first field came at " + gn.tick + ", " + (f && f.x0) + " (master: 1528, 150), hash " + hn.hash());
   });
 
+  test("wonders: a plain village thinks master's ideas, in master's order, with master's dice, and is enlightened when master is", function () {
+    /* (recorded on master: what is thought of, and when, over 12000 ticks) */
+    var h = H.open({ seed: 3 }), g = h.g, seq = [], seen = {}, t, k;
+    for (t = 0; t < 12000; t++) { h.step(1); for (k in g.know) if (!seen[k]) { seen[k] = 1; seq.push(k + "@" + g.tick); } }
+    check(seq.join(" ") === "farm@1320 fish@4116 scarecrow@6740 forest@9718 dig@11616" && h.hash() === "03cf4e61", "seed 3 thought otherwise than master: " + seq.join(" ") + " " + h.hash());
+    var master = h._eval("IDEAS").filter(function (i) { return !i.wonder && !i.fresh; }).map(function (i) { return i.id; });
+    check(master.length === 23, "(master has 23 ideas: " + master.length + ")");
+    /* (the lottery: all of master's but salt and black powder known, both ready. master: salt, and these dice) */
+    var h2 = H.open({ seed: 1 }), g2 = h2.g, p = g2.peasants[0];
+    g2.peasants = [p];
+    master.forEach(function (id) { if (id !== "salt" && id !== "powder") g2.know[id] = p.name; });
+    g2.found.ore = 2; g2.found.salt = 3; g2.found.powder = 1; g2.tick = 10000; p.spark = null; p.sayT = 0; h2.setRng(20);
+    h2._eval("iEureka")(g2, p);
+    check(g2.know.salt && !g2.know.powder && h2.rng() === 3031295976, "the lottery drew otherwise than master: " + (g2.know.salt ? "salt" : "powder") + ", dice " + h2.rng());
+    /* (and the last of master's ideas is enlightenment, as on master) */
+    var h3 = H.open({ seed: 1 }), g3 = h3.g, q = g3.peasants[0];
+    master.forEach(function (id) { if (id !== "salt") g3.know[id] = q.name; });
+    g3.found.ore = 2; g3.found.salt = 3; g3.tick = 10000; q.spark = "salt"; q.sayT = 0; g3.ideaT = 0;
+    h3._eval("iEureka")(g3, q);
+    check(g3.know.salt && g3.got.enlightened && h3.rng() === 3492258051, "the last of master's ideas: enlightened " + !!g3.got.enlightened + ", dice " + h3.rng());
+  });
   test("wonders: a plain village's peasant thrown into space, and one on a rocket pack, come back as on master, die for die", function () {
     /* (recorded on master: where they come down, how fast across, the dice after, the hash) */
     var h = H.open({ seed: 1 }), g = h.g, p = g.peasants[0];

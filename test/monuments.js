@@ -112,7 +112,7 @@ module.exports = function (test, check, sim) {
     check(!!king, "(the test wants a king)");
     w.pDie(g, king, "old");
     var heir = w.pKing(g);
-    check(heir && heir !== king && heir.spark === "pyramid", "the heir has no pyramid in mind (" + (heir && heir.spark) + ")");
+    check(heir && heir !== king && heir.wspark === "pyramid", "the heir has no pyramid in mind (" + (heir && heir.wspark) + ")");
     check(g.lastKing && g.lastKing.name === king.name, "the old king is not remembered for the tomb");
   });
 
@@ -201,7 +201,7 @@ module.exports = function (test, check, sim) {
     check(!w.wIdea("cathedral").ready(g), "(the cathedral was thought of before the cross went)");
     w.iWeather(g, cross, false);
     check(g.dead[g.dead.length - 1].site === -1, "(the cross did not weather)");
-    check(p.spark === "cathedral", "the one at the graveyard did not think of a cathedral (" + p.spark + ")");
+    check(p.wspark === "cathedral", "the one at the graveyard did not think of a cathedral (" + p.wspark + ")");
   });
 
   test("cathedral: planned on level ground under open sky, with a crypt dug under it, and built by its crew", function () {

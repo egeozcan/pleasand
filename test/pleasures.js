@@ -40,7 +40,7 @@ module.exports = function (test, check, sim) {
     check(!w.wIdea("baths").ready(g, p), "the baths were thought of before anybody had swum enough");
     p.task = null; p.swimming = true;
     w.wSwam(g, p);
-    check(p.spark === "baths", "the tenth swim did not put the baths into the swimmer's head");
+    check(p.wspark === "baths", "the tenth swim did not put the baths into the swimmer's head");
     g.know.baths = "TEST";
     check(w.pPlanBaths(g, p), "nowhere for the baths in seed 1");
     var s = g.sites.filter(function (t) { return t.kind === "baths"; })[0];
@@ -138,10 +138,10 @@ module.exports = function (test, check, sim) {
     know(g, ["farm", "dig", "bucket", "masonry", "smelt", "concrete"]);
     g.farmNo = g.farmNo || {}; for (var x = 0; x < g.gw; x++) g.farmNo[x] = 1e12;   /* (every field plot in the valley given up on) */
     check(!g.noField && !w.wIdea("gardens").ready(g, p), "(the test wants the gardens not thought of yet)");
-    p.spark = null;
+    p.wspark = null;
     check(!w.iPlanFarm(g, p, true), "a field was planned with no room for one");
     check(g.noField > 0, "no room for a field was not noticed");
-    check(p.spark === "gardens", "nobody had the gardens put into their head (" + p.spark + ")");
+    check(p.wspark === "gardens", "nobody had the gardens put into their head (" + p.wspark + ")");
     check(g.feed.some(function (f) { return /nowhere for another field/.test(f.text); }), "the valley did not hear there is no room");
   });
 
@@ -365,9 +365,9 @@ module.exports = function (test, check, sim) {
     know(g, ["farm", "dig", "bucket", "scarecrow"]);
     g.raids = 40;
     while (w.pDucksAbout(g) < 4) w.duckSpawn(g, 240, 155, null, false, true);
-    g.peasants[1].shoos = 3; p.shoos = 3; p.spark = null;
+    g.peasants[1].shoos = 3; p.shoos = 3; p.wspark = null;
     w.pShooed(g, p);
-    check(p.spark === "duckpalace", "the duck palace was not put into the head of whoever shooed the most (" + p.spark + ")");
+    check(p.wspark === "duckpalace", "the duck palace was not put into the head of whoever shooed the most (" + p.wspark + ")");
     g.know.duckpalace = "TEST";
     check(w.pPlanPalace(g, p), "nowhere for the duck palace in seed 1");
     var s = sites(g, "duckpalace")[0], over = 0, on = 0;
@@ -486,9 +486,9 @@ module.exports = function (test, check, sim) {
     delete g.know.icepalace;
     g.lsnowmen.push({ id: ++g.sid, x: 150, G: I.G - 5, n: 26, who: p.short, name: "GARY", t0: 0, last: 0, dir: 1, up: true, by: p.id });
     w.L_SNOWMAN.forEach(function (c) { var j = (I.G - 6 - c[0]) * g.gw + 150 + c[1]; w.sandPlace(g, j, I.M.PACKSNOW); g.T[j] = -10; w.heatAccept(g, j); });
-    p.spark = null;
+    p.wspark = null;
     sim.step(w, 30);
-    check(p.spark === "icepalace", "the snowman's builder did not think of an ice palace (" + p.spark + ")");
+    check(p.wspark === "icepalace", "the snowman's builder did not think of an ice palace (" + p.wspark + ")");
     g.know.icepalace = "TEST";
     check(w.pAirAtHouses(g) < 0 && w.pSnowAbout(g) >= w.P_ISNOW, "(the test wants a freeze with snow about: " + w.pAirAtHouses(g) + "°, " + w.pSnowAbout(g) + " snow)");
     check(w.pPlanIce(g, p), "no ice palace planned in a freeze with snow about");

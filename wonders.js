@@ -89,9 +89,9 @@ P_ACHIEVE.moon = ["ONE SMALL STEP", "a peasant stood on the moon. it is mostly d
 
 /* two plain ideas the wonders need */
 IDEAS.push(
-  { id: "concrete", name: "concrete", title: "CONCRETE", sub: "lime, sand and water. it pours like porridge and sets like stone", hint: "a bucket spilt at the furnace",
+  { id: "concrete", fresh: true, name: "concrete", title: "CONCRETE", sub: "lime, sand and water. it pours like porridge and sets like stone", hint: "a bucket spilt at the furnace",
     ready: function (g) { return !!g.know.masonry && !!g.know.smelt && !!g.know.bucket && mSites(g, "furnace", true).length > 0; } },
-  { id: "stained", name: "stained glass", title: "STAINED GLASS", sub: "a pane, and a tint. ruby with gold, green with ore, amber with coal", hint: "glass, and the right rocks",
+  { id: "stained", fresh: true, name: "stained glass", title: "STAINED GLASS", sub: "a pane, and a tint. ruby with gold, green with ore, amber with coal", hint: "glass, and the right rocks",
     ready: function (g) { return !!g.know.glass && (g.found.ore || 0) >= 2; } });
 
 /* -------------------------------------------------------------------
@@ -240,7 +240,8 @@ function wReady(g, s) {
 function wSpark(g, p, id) {
   if (!p || p.dead || g.know[id]) return;
   var I = wIdea(id);
-  if (I && I.ready(g, p)) iSpark(g, p, id);
+  /* (on its own: p.wspark, not p.spark, nor their musing. what they are thinking of for the village is as on master) */
+  if (I && I.ready(g, p)) p.wspark = id;
 }
 
 /* -------------------------------------------------------------------

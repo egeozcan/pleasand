@@ -49,9 +49,9 @@ module.exports = function (test, check, sim) {
     g.know.observatory = undefined; delete g.know.observatory;
     g.looks = 18; p.looks = 30;
     w.hLooked(g, g.peasants[1]);
-    check(!g.peasants.some(function (q) { return q.spark === "observatory"; }), "thought of at 19 looks");
+    check(!g.peasants.some(function (q) { return q.wspark === "observatory"; }), "thought of at 19 looks");
     w.hLooked(g, g.peasants[1]);
-    check(p.spark === "observatory", "the twentieth look did not put it into the head of whoever has looked most (" + p.spark + ")");
+    check(p.wspark === "observatory", "the twentieth look did not put it into the head of whoever has looked most (" + p.wspark + ")");
   });
   test("observatory: it is built on top of the watchtower, a dome with a telescope through a slit, and you can get up to it", function () {
     var O = observatory(false), w = O.w, g = O.g, s = O.s, t = O.t, M = w.MAT;
@@ -164,9 +164,9 @@ module.exports = function (test, check, sim) {
   test("lighthouse: a painted lake of 480 cells puts it into the head of the first one to swim in it", function () {
     var L = lake(), w = L.w, g = L.g, p = g.peasants[0], k;
     p.x = 190.5; p.y = L.G + 8; p.state = "walk";
-    for (k = 0; k < 400 && p.spark !== "lighthouse"; k++) sim.step(w, 1);
+    for (k = 0; k < 400 && p.wspark !== "lighthouse"; k++) sim.step(w, 1);
     check(g.hLake && g.hLake.n >= 200, "the lake was not seen: " + JSON.stringify(g.hLake));
-    check(p.spark === "lighthouse", "the swimmer did not think of a lighthouse (" + p.spark + ", swimming " + p.swimming + ")");
+    check(p.wspark === "lighthouse", "the swimmer did not think of a lighthouse (" + p.wspark + ", swimming " + p.swimming + ")");
   });
   test("lighthouse: a swimmer in a lake thinks of it the same, loaded into a game that had another valley open", function () {
     var L = lake(), w = L.w, g = L.g, p = g.peasants[0];
@@ -181,8 +181,8 @@ module.exports = function (test, check, sim) {
     [[w, g], [w2, g2]].forEach(function (P, n) {
       var q = P[1].peasants[0], k;
       q.x = 190.5; q.y = L.G + 8; q.state = "walk";
-      for (k = 0; k < 400 && q.spark !== "lighthouse"; k++) sim.step(P[0], 1);
-      check(q.spark === "lighthouse", (n ? "loaded into another game, " : "") + "the swimmer did not think of a lighthouse (" + q.spark + ")");
+      for (k = 0; k < 400 && q.wspark !== "lighthouse"; k++) sim.step(P[0], 1);
+      check(q.wspark === "lighthouse", (n ? "loaded into another game, " : "") + "the swimmer did not think of a lighthouse (" + q.wspark + ")");
     });
   });
   function lighthouse(build) {
@@ -297,7 +297,7 @@ module.exports = function (test, check, sim) {
     sim.build(w, sites(g, "furnace")[0]);
     g.iron = 60; g.peasants[3].smelts = 30;
     w.hSmelted(g, g.peasants[1]);
-    check(g.peasants[3].spark === "foundry", "the sixtieth bar did not put it into the head of the one who smelted most (" + g.peasants[3].spark + ")");
+    check(g.peasants[3].wspark === "foundry", "the sixtieth bar did not put it into the head of the one who smelted most (" + g.peasants[3].wspark + ")");
     g.know.foundry = "TEST";
     settle(g);
     check(w.hPlanFoundry(g, g.peasants[0]), "nowhere for a foundry");

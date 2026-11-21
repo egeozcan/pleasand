@@ -258,6 +258,11 @@ function ideasReset(g) {
 /* (plain: not counting the great works, which are ideas too: wonders.js) */
 function iKnown(g, plain) { var n = 0; for (var k in g.know) if (!plain || !wIsWonder(k)) n++; return n; }
 function iPlain() { var n = 0; for (var k = 0; k < IDEAS.length; k++) if (!IDEAS[k].wonder) n++; return n; }
+/* the ideas master has (not a great work's, nor one of the plain ones that came with them: concrete, stained glass) */
+function iFresh(i) { return !!(i.wonder || i.fresh); }
+function iOldN() { var n = 0; for (var k = 0; k < IDEAS.length; k++) if (!iFresh(IDEAS[k])) n++; return n; }
+function iKnownOld(g) { var n = 0; for (var k = 0; k < IDEAS.length; k++) if (!iFresh(IDEAS[k]) && g.know[IDEAS[k].id]) n++; return n; }
+var I_WSPARK = 0.5;   /* the chance, each time they think, that what happened to them for a great work is the idea (side dice) */
 function iHouses(g) {
   var n = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done) n++;
@@ -324,11 +329,20 @@ function iLampNear(g, x, y) {
 /* the light goes on: something they have not thought of yet, that something has put into their heads. food first
    (it is a full stomach doing the thinking); after that, whatever comes */
 function iEureka(g, p) {
-  var idea = null, ready = [], k, old = null;
+  var idea = null, ready = [], k, old = null, fresh = [], wold = null;
   if (g.tick < g.ideaT) return false;   /* still getting used to the last one: hold that thought */
   p.muse = 0;
   if (p.spark && g.know[p.spark]) p.spark = null;   /* (somebody else got there first) */
+  if (p.wspark && g.know[p.wspark]) p.wspark = null;
   for (k = 0; k < IDEAS.length; k++) if (!g.know[IDEAS[k].id] && IDEAS[k].ready(g, p)) {
+    /* (the great works' ideas, and the plain ones that are theirs, concrete and stained glass, are not in the village's
+       own lottery: that is master's, die for die, until one of them is thought of. they come on the side dice, below) */
+    if (iFresh(IDEAS[k])) {
+      fresh.push(IDEAS[k]);
+      if (!g.readyT[IDEAS[k].id]) g.readyT[IDEAS[k].id] = g.tick;
+      if (!wold || g.readyT[IDEAS[k].id] < g.readyT[wold.id]) wold = IDEAS[k];
+      continue;
+    }
     ready.push(IDEAS[k]);
     if (!g.readyT[IDEAS[k].id]) g.readyT[IDEAS[k].id] = g.tick;
     if (IDEAS[k].id === p.spark && g.know.farm) idea = IDEAS[k];   /* what happened to them is what they think about */
@@ -336,12 +350,21 @@ function iEureka(g, p) {
   }
   /* food first (it is a full stomach doing the thinking). after that: what has been on everybody's minds longest,
      mostly, and now and then something out of nowhere */
+  /* a great work's idea, on the side dice: what happened to them (p.wspark: wonders.js wSpark) most likely; with nothing
+     else on their minds, the one that has been about longest, now and then */
+  if (fresh.length) {
+    var ws = null;
+    for (k = 0; k < fresh.length; k++) if (fresh[k].id === p.wspark) ws = fresh[k];
+    if (ws && RNG_SIDE.random() < I_WSPARK) idea = ws;
+    else if (!ready.length && RNG_SIDE.random() < I_WSPARK / 2) idea = wold;
+  }
   if (!idea && ready.length) idea = !g.know.farm ? ready[0] : (Math.random() < 0.65 ? old : pick(ready));
   if (!idea) {
-    /* nothing has happened yet to think about. it was nearly something, though */
-    if (iKnown(g, true) < iPlain() && g.tick > g.blankT && p.sayT <= 0) { g.blankT = g.tick + 3600; pSay(g, p, "blank"); }
+    /* nothing has happened yet to think about. it was nearly something, though (of master's ideas: iOld) */
+    if (iKnownOld(g) < iOldN() && g.tick > g.blankT && p.sayT <= 0) { g.blankT = g.tick + 3600; pSay(g, p, "blank"); }
     return false;
   }
+  if (p.wspark === idea.id) p.wspark = null;
   g.know[idea.id] = p.name;
   if (p.spark === idea.id) p.spark = null;
   /* (some ideas take longer to get used to than others) */
@@ -355,7 +378,7 @@ function iEureka(g, p) {
   g.fx.idea++;
   var q = pOther(g, p, 40);
   if (q && !q.sleep) pSay(g, q, "genius", true);
-  if (!idea.wonder && iKnown(g, true) === iPlain()) achieve(g, "enlightened");
+  if (!iFresh(idea) && iKnownOld(g) === iOldN()) achieve(g, "enlightened");   /* (master's ideas, all of them: as on master) */
   mRing(g, 3);   /* (and if there is a bell, it rings: mines.js) */
   return true;
 }
