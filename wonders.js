@@ -148,6 +148,9 @@ var W_KINDS = (function () {   /* (a constant, filled once) */
 })();
 var W_AWAY = { shovel: 1, mix: 1, pfill: 1, bucket: 1, cbail: 1 };   /* (jobs for a site whose walks go elsewhere: snow, water) */
 var W_NOGO = 1500;   /* (as long as bFail lets a site be, for a walk given up) */
+/* (and for a job that comes round again only now and then, longer than the wait for it to come round: or the backoff is
+   over by the time it does, and the same one is sent again. the astronomer's look, every 2400 to 3600 ticks) */
+var W_NOGO_T = { observe: 8000 };
 function wBackoff(g, p, id, t) { (p.noGo || (p.noGo = {}))[id] = g.tick + (t || W_NOGO); }
 function wNoGo(g, p, id) { return !!(p.noGo && p.noGo[id] > g.tick); }
 /* what of r is on its way to s already, in the pockets of whoever is hauling to it or building it (but p) */
@@ -418,7 +421,7 @@ function wDepositLime(g, p, s) {
    firebrick) */
 function wStoneShort(g, s) {
   var need = bNeed(g, s, "stone") + Math.ceil(Math.max(0, wLimeWant(g, s)) / 2) + Math.ceil(Math.max(0, bNeed(g, s, "firebrick") - wPocketedSure(g, "firebrick")) / 2);
-  return need - bStoneToHand(g);
+  return need - wPocketedSure(g, "stone");   /* (the stone in pockets that can get there: wPocketedSure) */
 }
 function wPocketed(g, r) { var n = 0; for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k][r] || 0; return n; }
 /* the floor of column x, under a gallery whose feet are at row B: as far down as the dug-out air goes */
@@ -517,7 +520,7 @@ function wPlanQuarry(g, p, r) {
 function wGoQuarry(g, p) {
   if (!g.know.mine) return false;
   var W = null, k, q = null, U = wUp(g);
-  for (k = 0; k < U.length; k++) if (wStoneShort(g, U[k]) > 0.5) { W = U[k]; break; }
+  for (k = 0; k < U.length; k++) if (wStoneShort(g, U[k]) > 1e-6) { W = U[k]; break; }   /* (a single brick is half a stone: any shortage at all) */
   if (!W) return false;
   for (k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (!g.peasants[k].dead && t && t.kind === "quarry") return false; }
   if ((p.stone || 0) >= M_POCKET.stone || p.hunger > P_HUNGRY) return false;
@@ -1219,7 +1222,7 @@ function wNote(g, s) {
   if (d && d.readout) { var r = d.readout(g, s); if (r) return r; }
   if (s.done) return "";
   if (s.setting) return "waiting for the concrete to go off";
-  if (wStoneShort(g, s) > 0.5) return (g.wQuarryNo > g.tick ? "waiting for stone (nowhere left to cut it)" : "waiting for stone (somebody is quarrying it)");
+  if (wStoneShort(g, s) > 1e-6) return (g.wQuarryNo > g.tick ? "waiting for stone (nowhere left to cut it)" : "waiting for stone (somebody is quarrying it)");
   var e = bNext(g, s, null);
   if (e && e.v === MAT.CONCRETE && !(s.stock && s.stock.lime >= 1) && wPocketedSure(g, "mortar") < 1) return "waiting for lime from the kiln";
   if (e && e.v === MAT.FIREBRICK && !(s.stock && s.stock.firebrick >= 1)) return "waiting for firebrick from the kiln";

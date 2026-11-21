@@ -2055,7 +2055,7 @@ function pGiveUp(g, p, x) {
     var gs = p.task.site != null ? bSite(g, p.task.site) : null, wk = W_KINDS[p.task.kind];
     /* (not a job whose walk is somewhere else, snow to scoop or water to fetch: that place, not the site, was the trouble) */
     if (W_AWAY[p.task.kind]) {}
-    else if (gs && (gs.wonder || wk)) wBackoff(g, p, gs.id); else if (wk) wBackoff(g, p, p.task.kind);
+    else if (gs && (gs.wonder || wk)) wBackoff(g, p, gs.id, W_NOGO_T[p.task.kind]); else if (wk) wBackoff(g, p, p.task.kind, W_NOGO_T[p.task.kind]);
   }
   if (p.task && p.task.kind === "eat") {
     p.eatCD = p.hunger > P_HUNGRY * 2 ? 300 : 900;

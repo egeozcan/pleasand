@@ -320,7 +320,8 @@ function hPlanObs(g, p) {
    stars foretold if they are due */
 function hTaskObserve(g, p, k) {
   var s = bSite(g, k.site);
-  if (!s || !s.done || s.repair || ++k.t > 3600) return iDone(p, false);
+  if (!s || !s.done || s.repair) return iDone(p, false);
+  if (++k.t > 3600) { wBackoff(g, p, s.id, W_NOGO_T.observe); return iDone(p, false); }   /* (a look that never happened: let be, as a walk given up) */
   if (hGo(g, p, k, "obs" + s.id, s.spot, s.F - 1, 1, 0)) return false;
   k.at = true; p.idle = 0; p.dir = 1; p.pose = "stand"; k.act++;
   if (k.act === 60) {
@@ -372,7 +373,10 @@ function hObsStep(g, s) {
     if (!a || !wIdle(g, a, s)) {
       a = null;
       for (k = 0; k < g.peasants.length; k++) { q = g.peasants[k]; if (wIdle(g, q, s) && Math.abs(q.x - s.cx) < 240 && (!a || q.bored > a.bored)) a = q; }
-      if (a && (!hWho(g, s.astro) || g.tick > s.lookT + 3000)) s.astro = a.id;
+      /* (somebody else is the astronomer now: with none, a long while since a look, or the astronomer unable to get up
+         there, backed off it. not left for the backoff to run out and the same one sent again) */
+      var was = hWho(g, s.astro);
+      if (a && (!was || wNoGo(g, was, s.id) || g.tick > s.lookT + 3000)) s.astro = a.id;
       else a = null;
     }
     if (a) { a.task = { kind: "observe", site: s.id, t: 0, act: 0 }; s.lookT = g.tick + 2400 + irnd(1200); }

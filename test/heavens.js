@@ -502,13 +502,70 @@ module.exports = function (test, check, sim) {
     check(g.m[e.i] === M.FIREBRICK || (s.stock && s.stock.firebrick >= 1), "no firebrick made for it: orders " + JSON.stringify(w.wKilnOrders(g)) + ", carrier stranded " + w.wStranded(g, carrier));
     /* (and nowhere in the great works is what is in pockets counted on, for an order or a want, but the reachable way:
        wPocketedSure. the one bare count left is the readout's "waiting for") */
-    var fs = require("fs"), path = require("path"), bare = [];
-    ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (fn) {
-      fs.readFileSync(path.join(__dirname, "..", fn), "utf8").split("\n").forEach(function (l, n) {
-        if (/\bwPocketed\(g|mGoldToHand\(|mIronToHand\(/.test(l) && !/^function wPocketed|return "waiting for/.test(l.trim())) bare.push(fn + ":" + (n + 1));
+    /* (every file, not only the great works': in those, no bare count of pockets at all; elsewhere, none in a line about a
+       great work, and none of what only a great work wants) */
+    var fs = require("fs"), path = require("path"), bare = [], root = path.join(__dirname, ".."), W = ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"];
+    fs.readdirSync(root).filter(function (fn) { return /\.js$/.test(fn); }).forEach(function (fn) {
+      fs.readFileSync(path.join(root, fn), "utf8").split("\n").forEach(function (l, n) {
+        var t = l.trim();
+        if (/^function wPocketed|return "waiting for/.test(t)) return;
+        var hit = /\bwPocketed\(g/.test(l) ||
+                  (W.indexOf(fn) >= 0 && /mGoldToHand\(|mIronToHand\(|lToHand\(|bStoneToHand\(/.test(l)) ||
+                  (/\.wonder\b/.test(l) && /mGoldToHand\(|mIronToHand\(|lToHand\(/.test(l)) ||
+                  /lToHand\(g, "(stained|firebrick|lime|plate|bell|moonrock|lump|mortar)"/.test(l);
+        if (hit) bare.push(fn + ":" + (n + 1));
       });
     });
     check(!bare.length, "pockets counted on without asking whether they can be got to: " + bare.join(", "));
+  });
+  test("observatory: an astronomer who cannot get up to it is let be till after the next look, and somebody who can looks", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, x, y, i;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    g.arriveT = 1e9; g.helloT = 0; g.wAny = true; g.know = { observatory: "TEST" };
+    var astro = g.peasants[0], local = g.peasants[1];
+    g.peasants = [astro, local];
+    function set(p, px, py) { p.x = px + 0.5; p.y = py; p.task = null; p.idle = 0; p.hunger = 0; p.bored = 0; p.life = 1e9; }
+    set(local, 170, 149); set(astro, 105, 149);
+    check(w.mPlanTower(g, local), "(the test wants a tower)");
+    var tower = sites(g, "tower")[0]; sim.build(w, tower);
+    check(w.hPlanObs(g, local), "(the test wants an observatory)");
+    var s = sites(g, "observatory")[0]; sim.build(w, s);
+    var wr = tower.x0 - 16;
+    for (x = wr - 8; x <= wr; x++) for (y = 45; y < 150; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (a wall: the astronomer beyond it) */
+    set(astro, tower.x0 - 42, 149); set(local, s.spot, s.F - 1);
+    s.astro = astro.id; s.showerT = 1e9;
+    var sent = 0, had = null;
+    for (i = 0; i < 20000; i++) {
+      g.tick++;
+      if (astro.task) w.pTask(g, astro);
+      if (local.task) w.pTask(g, local);
+      if (g.tick % w.W_STRIDE === 0) w.hObsStep(g, s);
+      if (astro.task && astro.task.kind === "observe" && astro.task !== had) sent++;
+      had = astro.task;
+    }
+    check(sent <= 2 && s.looks > 0, "the cut-off astronomer sent " + sent + " times; looks " + (s.looks || 0));
+  });
+  test("cathedral: a pane in the pocket of somebody who cannot get there is not counted on: glass is blown, and the window mended", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, x, y, i;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    g.arriveT = 1e9; g.helloT = 0; g.wAny = true; g.know = { cathedral: "TEST", stained: "TEST", glass: "TEST" }; g.ideaT = 1e9;
+    for (x = 135; x <= 193; x++) for (y = 150; y < 165; y++) w.sandPlace(g, y * g.gw + x, M.SAND);
+    var carrier = g.peasants[0], local = g.peasants[1];
+    g.peasants = [carrier, local];
+    function set(p, px) { p.x = px + 0.5; p.y = 149; p.task = null; p.idle = 0; p.hunger = 0; p.bored = 0; p.life = 1e9; }
+    set(local, 165);
+    check(w.mPlanCathedral(g, local, 165), "(the test wants a cathedral)");
+    var s = sites(g, "cathedral")[0]; sim.build(w, s);
+    var e = s.plan.filter(function (e2) { return e2.v === M.STAINED; }).sort(function (a, b) { return b.i - a.i; })[0];
+    w.heatVanish(g, e.i); w.bInspect(g, s, g.sites.indexOf(s));
+    var f = w.bNew(g, "furnace", local, [], [202, 140, 214, 150], { sx: 200, sy: 149, G: 150, fc: 204, mouth: 1, stock: { coal: 40 } }); sim.build(w, f);
+    for (x = 108; x <= 116; x++) for (y = 45; y < 150; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    set(carrier, 105); carrier.stained = 1;
+    set(local, 200); local.sand = 3; local.coal = 10;
+    for (i = 0; i < 10000 && !w.bOk(g, e); i++) { carrier.hunger = local.hunger = 0; sim.step(w, 1); }
+    check(w.bOk(g, e), "the window was never mended: glass blown " + (g.found.glass || 0));
   });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;

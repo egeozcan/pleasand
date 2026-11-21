@@ -1118,7 +1118,11 @@ function lGlassShort(g, f) {
   var want = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "glasshouse" && !g.sites[k].done) want += Math.max(0, bNeed(g, g.sites[k], "glass"));
   /* (and a great work's windows: its panes, and the panes its coloured glass is made of at the kiln. wonders.js) */
-  for (k = 0; k < g.sites.length; k++) if (g.sites[k].wonder && !g.sites[k].done) want += Math.max(0, bNeed(g, g.sites[k], "glass")) + Math.max(0, bNeed(g, g.sites[k], "stained") - wPocketed(g, "stained"));
+  var ww = 0;
+  for (k = 0; k < g.sites.length; k++) if (g.sites[k].wonder && !g.sites[k].done) ww += Math.max(0, bNeed(g, g.sites[k], "glass")) + Math.max(0, bNeed(g, g.sites[k], "stained") - wPocketedSure(g, "stained"));
+  /* (with a great work wanting panes: only the panes in pockets that can get there count, wPocketedSure. a plain village
+     counts as it always has) */
+  if (ww > 0) return Math.max(0, want + ww - wPocketedSure(g, "glass") - (((f && f.stock) || {}).glass || 0));
   return want > 0 ? Math.max(0, want - lToHand(g, "glass") - (((f && f.stock) || {}).glass || 0)) : 0;
 }
 /* is more glass wanted: for a glasshouse going up, or for a field one could go over, less what is about already */

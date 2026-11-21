@@ -480,6 +480,21 @@ module.exports = function (test, check, sim) {
     var r2 = w.wQuarryPlot(g, 180, p);
     check(r2 && r2.of !== t.id, "the gallery given up on is still the one chosen");
   });
+  test("wonders: a pyramid short of a single brick, half a stone, calls a quarryman, and is mended", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, x, y, i;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = g.gh - 10; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (bare rock: room to quarry, none for a mine) */
+    g.arriveT = 1e9; g.helloT = 0; g.wAny = true; g.know = { pyramid: "TEST", mine: "TEST" }; g.ideaT = 1e9;
+    var p = g.peasants[0]; g.peasants = [p];
+    p.x = 65.5; p.y = g.gh - 11; p.task = null; p.idle = 0; p.hunger = 0; p.life = 1e9;
+    check(w.mPlanPyramid(g, p), "(the test wants a pyramid)");
+    var s = g.sites.filter(function (t) { return t.kind === "pyramid"; })[0]; sim.build(w, s);
+    var e = s.plan.filter(function (e2) { return e2.v === M.BRICK && ((e2.i / g.gw) | 0) === s.G - 1; })[0];
+    w.heatVanish(g, e.i); w.bInspect(g, s, g.sites.indexOf(s));
+    check(w.wStoneShort(g, s) === 0.5, "(the test wants half a stone short: " + w.wStoneShort(g, s) + ")");
+    for (i = 0; i < 12000 && !w.bOk(g, e); i++) { p.hunger = 0; sim.step(w, 1); }
+    check(w.bOk(g, e), "the brick was never put back: " + s.note);
+  });
   test("wonders: dead in a tunnel with a load of concrete, they do not plug it: whoever else is in there can still get out", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y, k;
     flat(w, x0 - 40, 80, G);
