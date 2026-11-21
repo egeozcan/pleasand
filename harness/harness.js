@@ -349,7 +349,10 @@ Harness.prototype.restore = function (s) {
     s = found.snap;
   }
   if (!s || !s.state) throw new Error("restore wants a snapshot or a checkpoint id");
-  snap.apply(s, this.g, this._keep());
+  /* a save's keyframe goes in exactly as loading it would put it in (save.js saveApplyState: what a save does not keep is
+     left be, nobody is touching anything, a save from before the speed selector plays at 1x): one way in, not two */
+  if (s.save) this._eval("saveApplyState")(this.g, snap.clone(s.state, this._keep()), false);
+  else snap.apply(s, this.g, this._keep());
   /* the pathfinder's scratch is not state, but it is marked with generations:
      clear the marks so a restored generation cannot collide with a stale one */
   if (this.g.navSeen) { this.g.navSeen.fill(0); this.g.navShut.fill(0); }
@@ -1241,8 +1244,8 @@ Harness.prototype.load = function (src, opts) {
     self.checkpointList.push({ id: "kf" + i, tick: f.updates != null ? f.updates : -1, snap: {
       version: 1, seed: self.seed, ticks: f.updates != null ? f.updates : self.ticks, sandTick: f.tick, time: f.t,
       rng: f.rng != null ? f.rng : self.loaded.rng.state, clock: self.loaded.clock.t, state: st,
-      /* (what a save leaves out of a keyframe on purpose, kept as it is when it is restored: the rest of g, gone) */
-      omit: self._eval("SAVE_SKIP.concat(SAVE_INPUT, SAVE_POINTER)") } });
+      /* (a save's: restored as a save's keyframe is loaded, by the game's own saveApplyState, defaults and all) */
+      save: true } });
     ids.push({ id: "kf" + i, tick: f.tick, why: f.why });
   });
   return {

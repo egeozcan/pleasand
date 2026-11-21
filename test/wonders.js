@@ -106,6 +106,25 @@ module.exports = function (test, check, sim) {
     a.step(900); b.step(900);
     check(a.hash() === b.hash(), "a village with great works, rewound: " + a.hash() + ", played straight " + b.hash());
   });
+  test("wonders: a save's keyframe restored is the keyframe loaded straight: a legacy save with no speed, and a brush held", function () {
+    /* (a current save, the brush down when it is restored: let go, as a load lets go) */
+    var s = H.open({ seed: 1 }); s.select("STONE"); s.mouse(190, 60); s.step(40); s.checkpoint("before"); s.step(30);
+    var doc = JSON.parse(JSON.stringify(s.saveDoc()));
+    var direct = H.open({ seed: 1 }), rw = H.open({ seed: 1 });
+    direct.load(doc, { keyframe: 0 }); rw.load(doc); rw.mouse(170, 40).down(); rw.restore("kf0");
+    check(!rw.g.down, "restored with the brush still down");
+    direct.step(10); rw.step(10);
+    check(direct.hash() === rw.hash(), "restored " + rw.hash() + ", loaded straight " + direct.hash());
+    /* (a save from before the speed selector: no speed in it, so 1x, either way) */
+    var s2 = H.open({ seed: 1 }); s2.step(40); s2.checkpoint("before"); s2.step(30);
+    var leg = JSON.parse(JSON.stringify(s2.saveDoc())), dec = s2._eval("saveDecode"), enc = s2._eval("saveEncode");
+    leg.state = enc(Object.assign(dec(leg.state), { speed: undefined, speedAcc: undefined }));
+    var k0 = dec(leg.keyframes[0].state); delete k0.speed; delete k0.speedAcc; leg.keyframes[0].state = enc(k0);
+    var d2 = H.open({ seed: 1 }), r2 = H.open({ seed: 1 });
+    d2.load(leg, { keyframe: 0 }); r2.load(leg); r2.restore("kf0");
+    var t0 = r2.g.tick; d2.step(10); r2.step(10);
+    check(r2.g.tick === t0 + 10 && r2.g.speed === d2.g.speed && r2.hash() === d2.hash(), "a legacy keyframe restored: speed " + r2.g.speed + ", ticks " + (r2.g.tick - t0) + " of 10, hash " + (r2.hash() === d2.hash()));
+  });
   test("wonders: a save made with a rocket in the air, its keyframe from before restored, has no rocket: as the keyframe loaded straight", function () {
     var src = H.open({ seed: 1 });
     src.checkpoint("before");

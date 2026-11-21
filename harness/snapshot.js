@@ -98,8 +98,8 @@ function apply(snap, g, keep) {
   /* (and what has been put on g since the snapshot was taken, that was not there then: gone. a rocket in the air, a
      falling star, the salvage: anything a module keeps on g is in the snapshot or, if it was not there yet, not there.
      but scratch (SKIP: buffers, and the counts that go with them) is left as it is, together; and what the snapshot
-     says it leaves out on purpose (snap.omit: for a save's keyframe, what a save does not keep, the hand on the mouse
-     and the rest) is left too. a snapshot that does not say (older ones) drops nothing) */
+     says it leaves out on purpose (snap.omit) is left too. a snapshot that does not say (older ones) drops nothing. a
+     save's keyframe does not come this way: harness.js restore puts it in through the game's own saveApplyState) */
   if (snap.omit) {
     var om = new Set(snap.omit), now = Object.keys(g);
     for (i = 0; i < now.length; i++) { k = now[i]; if (!SKIP.has(k) && !om.has(k) && !Object.prototype.hasOwnProperty.call(snap.state, k)) delete g[k]; }
@@ -107,4 +107,7 @@ function apply(snap, g, keep) {
   return snap;
 }
 
-module.exports = { capture: capture, apply: apply, constantRefs: constantRefs, SKIP: SKIP };
+/* a deep copy of a value, as a snapshot is copied (for a save's keyframe, restored through the game's own loader) */
+function clone(v, keep) { return cloneValue(v, new Map(), keep || new Set()); }
+
+module.exports = { capture: capture, apply: apply, clone: clone, constantRefs: constantRefs, SKIP: SKIP };
