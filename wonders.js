@@ -334,7 +334,7 @@ function wPick(g, p, hungry) {
     if ((p.failSite === s.id && p.failT > g.tick) || wNoGo(g, p, s.id)) continue;
     /* (what it still wants, less what is on its way to it already) */
     if (((p.lime || 0) >= 1 && wLimeWant(g, s) - wInbound(g, s, "lime", p) > 0) || ((p.lump || 0) >= 1 && bNeed(g, s, "mortar") - wInbound(g, s, "mortar", p) > 1e-6) ||
-        W_ONLY.some(function (r) { return (p[r] || 0) >= (r === "bell" ? 1e-6 : 1) && bNeed(g, s, r) - wInbound(g, s, r, p) > 1e-6; })) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
+        W_ONLY.some(function (r) { return (r === "bell" ? wNinths(p[r]) >= 1 : (p[r] || 0) >= 1) && bNeed(g, s, r) - wInbound(g, s, r, p) > 1e-6; })) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
   }
   /* with the makings for the kiln in hand (a pane, for coloured glass; logs, for charcoal, there being no coal): the kiln,
      before the crew */
@@ -689,7 +689,7 @@ function wGoKiln(g, p) {
     var stone = (p.stone || 0) + ((s.stock && s.stock.stone) || 0) + ((f.stock && f.stock.stone) || 0);
     if (o.r !== "stained" && stone < 1) continue;
     if (o.r === "stained" && (p.glass || 0) + ((f.stock && f.stock.glass) || 0) + ((s.stock && s.stock.glass) || 0) < 1) continue;
-    if ((p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1 && !(o.r === "stained" && ((p.ore || 0) >= 1 || (p.gold || 0) >= 0.2))) continue;
+    if ((p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1 && !(o.r === "stained" && ((p.ore || 0) >= 1 || wCells(p.gold) >= 1))) continue;
     p.task = { kind: "kiln", site: f.id, r: o.r, of: o.site, n: 0, want: o.n, t: 0, act: 0 };
     return true;
   }
@@ -734,7 +734,7 @@ function wTaskKiln(g, p, k) {
   /* there: what they brought goes in, and they work the bellows */
   if (p.stone >= 1 && k.r !== "stained" && k.r !== "coal") { st.stone = (st.stone || 0) + Math.floor(p.stone); p.stone -= Math.floor(p.stone); }
   var coal = (st.coal || 0) >= 1 || (p.coal || 0) >= 1;
-  var tint = k.r !== "stained" ? 1 : ((p.gold || 0) >= 0.2 && wRubyWanted(g, s) ? 1 : ((p.ore || 0) + (st.ore || 0) >= 1 || coal ? 1 : 0));
+  var tint = k.r !== "stained" ? 1 : (wCells(p.gold) >= 1 && wRubyWanted(g, s) ? 1 : ((p.ore || 0) + (st.ore || 0) >= 1 || coal ? 1 : 0));
   var have = k.r === "coal" ? (p.logs || 0) >= 2 : k.r === "stained" ? ((p.glass || 0) + (st.glass || 0) >= 1 && tint) : ((st.stone || 0) >= 1 && coal);
   if (!have || k.n >= k.want) {
     if (!k.n && p.sayT <= 0) pSay(g, p, k.r === "stained" ? "noglass" : (coal ? "nostone" : "nocoal"));
@@ -756,7 +756,7 @@ function wTaskKiln(g, p, k) {
   } else if (k.r === "stained") {
     if ((st.glass || 0) >= 1) st.glass--; else p.glass--;
     var tint;
-    if ((p.gold || 0) >= 0.2 && wRubyWanted(g, s)) { p.gold -= 0.2; tint = 0; }
+    if (wCells(p.gold) >= 1 && wRubyWanted(g, s)) { p.gold = (wCells(p.gold) - 1) / 5; tint = 0; }
     else if ((p.ore || 0) + (st.ore || 0) >= 1) { burn("ore"); tint = 1; } else { burn("coal"); tint = 2; }
     p.stained = (p.stained || 0) + 1; k.n++;
     /* (the pane is the colour of what went into it: red for gold, green for ore, amber for coal. the colour goes with
@@ -949,6 +949,29 @@ function wStranded(g, q) {
   for (var id in q.noGo || {}) if (q.noGo[id] > g.tick) { var t = bSite(g, +id); if (t && t.wonder) return true; }
   return false;
 }
+/* STOCK IN WHOLE UNITS: iron (and gold) in a pocket is bars, but goes in a fifth of a bar a cell; a bell in ninths. what
+   the great works count and hand about of these they count in whole units, never as a sum of fractions (ten fifths of a
+   bar is 1.9999999999999998 bars). wCells: a pocket's iron or gold, in cells. wNinths: a bell, in ninths */
+function wCells(v) { return Math.round((v || 0) * 5); }
+function wNinths(v) { return Math.round((v || 0) * 9); }
+/* the iron (or gold) in cells in the pockets of the living who can get there (wPocketedSure, a pocket at a time) */
+function wCellsSure(g, r) {
+  var n = 0;
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q)) n += wCells(q[r]); }
+  return n;
+}
+/* up to n cells of r into p's pocket from the pockets of the living who can get there, a cell at a time: how many came.
+   (for the foundry's charge: a bar and a half in one pocket and half a bar in another are two bars, as whole cells) */
+function wGatherCells(g, p, r, n) {
+  var got = 0;
+  for (var k = 0; k < g.peasants.length && got < n; k++) {
+    var q = g.peasants[k];
+    if (q === p || q.dead || wStranded(g, q)) continue;
+    var c = wCells(q[r]), t = Math.min(c, n - got);
+    if (t > 0) { q[r] = (c - t) / 5; got += t; }
+  }
+  return got;
+}
 /* what of r is in the pockets of the living who are not stranded: to be counted on */
 function wPocketedSure(g, r) {
   var n = 0;
@@ -1005,7 +1028,9 @@ function wTaskSalvage(g, p, k) {
     var n = Math.min(r === "barrel" ? 1 : 8, wSalvageWant(g, r));
     if (r === "barrel" && p.barrel) n = 0;
     if (r === "bell" ? n <= 1e-6 : n < 1) return;
-    sv[r] -= n; p[r] = (p[r] || 0) + n; got += n;
+    if (r === "bell") { sv[r] = (wNinths(sv[r]) - wNinths(n)) / 9; p[r] = (wNinths(p[r]) + wNinths(n)) / 9; }   /* (in ninths: wNinths) */
+    else { sv[r] -= n; p[r] = (p[r] || 0) + n; }
+    got += n;
     if (r === "stained") bTints(sv, p, n);
   });
   if (W_SALVAGE.every(function (r) { return !((sv[r] || 0) > 1e-6); })) g.salvage = null;
@@ -1057,12 +1082,12 @@ function wRegild(g, s) {
   /* (and a gilded cell gone, to be mended, with no gold to mend it with: mended in its stand-in, as wGoldGone does for one
      going up. gold is never waited for) */
   if (s.gilding && s.repair && !s.done && s.plan.some(function (e2) { return e2.gild && e2.v === MAT.GOLD && !bOk(g, e2) && g.m[e2.i] !== MAT.BRICK; })) wGoldGone(g, s);
-  if (s.gilding && s.repair && !s.done && g.tick - s.last > 3000 && wPocketedSure(g, "gold") + ((s.stock && s.stock.gold) || 0) < 0.2) {
+  if (s.gilding && s.repair && !s.done && g.tick - s.last > 3000 && wCellsSure(g, "gold") + wCells(s.stock && s.stock.gold) < 1) {
     for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.gild && e.v === MAT.GOLD && g.m[e.i] === MAT.BRICK) { e.v = MAT.BRICK; n++; } }
     if (!s.plan.some(function (e2) { return !bOk(g, e2) && bFree(g, e2); })) { s.done = true; s.repair = false; s.gilding = false; s.quiet = false; }
     return;
   }
-  if (!s.done || s.repair || wPocketedSure(g, "gold") < 0.4) return;
+  if (!s.done || s.repair || wCellsSure(g, "gold") < 2) return;
   for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.gild && e.v === MAT.BRICK && g.m[e.i] === MAT.BRICK) { e.v = MAT.GOLD; n++; } }
   if (!n) return;
   s.done = false; s.repair = true; s.gilding = true; s.last = g.tick; s.helped = {}; s.quiet = true;

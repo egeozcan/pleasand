@@ -673,6 +673,24 @@ module.exports = function (test, check, sim) {
     check(filled >= 1, "(the test wants the lamp filled)");
     check(!g2.causes.fire && !g2.causes.lava, "a keeper died at the lighthouse: " + JSON.stringify(g2.causes) + ", fuel " + L.s.fuel);
   });
+  test("foundry: iron counted in whole cells: a bar and a half and half a bar make a bell, and ten fifths of a bar are two bars", function () {
+    var F = fflat(6), w = F.w, g = F.g, p = F.p, i;
+    var q = sim.load(6).g.peasants[1];   /* (a second villager, from another copy of the valley) */
+    q.x = 172.5; q.y = 149; q.task = null; q.idle = 0; q.hunger = 0; q.bored = 0; q.born = 0; q.coal = 50;
+    var s = fFoundry(F);
+    fRocketWantingBell(F);
+    p.iron = 1.5; q.iron = 0.5; g.peasants.push(q);
+    for (i = 0; i < 18000 && !s.bells; i++) { p.hunger = q.hunger = 0; sim.step(w, 1); }
+    check(s.bells === 1, "a bar and a half and half a bar made no bell: casts " + s.casts + ", iron " + p.iron + " and " + q.iron);
+    /* (ten cells of cold iron in the plate mould, taken out as scrap: two bars, not 1.9999999999999998, and it casts) */
+    var F2 = fflat(6), w2 = F2.w, g2 = F2.g, p2 = F2.p, s2 = fFoundry(F2);
+    fRocketWantingBell(F2);
+    w2.hMould(g2, s2, "plate").forEach(function (j) { w2.sandPlace(g2, j, F2.M.METAL); });
+    w2.hFoundryStep(g2, s2);
+    check(p2.iron === 2, "ten fifths of a bar came to " + p2.iron);
+    w2.hFoundryStep(g2, s2);
+    check(s2.phase === 1, "two bars' scrap, and no bell begun: phase " + s2.phase + " (" + s2.note + ")");
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });

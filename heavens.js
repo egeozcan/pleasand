@@ -1021,7 +1021,7 @@ function hMouldScrap(g, s) {
     if (g.m[j] !== MAT.METAL || g.T[j] >= H_PRISE) return;
     heatVanish(g, j);
     var q = pOther(g, { x: s.cx, y: s.R0 }, 1e4);
-    if (q) q.iron = (q.iron || 0) + L_TAKE.iron; else { s.stock = s.stock || {}; s.stock.iron = (s.stock.iron || 0) + L_TAKE.iron; }
+    if (q) q.iron = (wCells(q.iron) + 1) / 5; else { s.stock = s.stock || {}; s.stock.iron = (wCells(s.stock.iron) + 1) / 5; }   /* (a cell, a fifth of a bar: in whole cells) */
   });
 }
 /* whatever else has got into a mould (a drop of rain, ice, sand blown in): out, before it is cast into. water shoved out
@@ -1065,7 +1065,7 @@ function hFoundryWant(g, s) {
   if (plate > 0.5) plate -= wSalvageSure(g, "plate");
   if (bell > 1e-6) return "an engine bell";   /* (a bell is cast whole: for a cell of one to mend, too) */
   if (plate > 0.5) return Math.ceil(plate) + " plates";
-  if (!s.casts && wPocketedSure(g, "iron") >= 12) return "a first pour";   /* (to see that it works: once) */
+  if (!s.casts && wCellsSure(g, "iron") >= 60) return "a first pour";   /* (to see that it works: once) */
   return "";
 }
 /* the plug of the tap for a mould, and where the founder stands to work it */
@@ -1087,7 +1087,7 @@ function hFoundryStep(g, s) {
     var bell = hFoundryWant(g, s) === "an engine bell";
     s.mould = bell ? (!hMouldFull(g, s, "bell") ? "bell" : "") : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
     /* (and for a bell, not until there is iron enough for one, whole: in the chamber, and in pockets that can get here) */
-    if (s.mould === "bell") { var cb = hChamber(g, s); if (s.ironWaitT > g.tick || cb.met + cb.liq + Math.floor(wPocketedSure(g, "iron")) * 5 < H_CHARGE) { s.note = "waiting for iron enough for a bell"; s.mould = ""; } }
+    if (s.mould === "bell") { var cb = hChamber(g, s); if (s.ironWaitT > g.tick || cb.met + cb.liq + wCellsSure(g, "iron") < H_CHARGE) { s.note = "waiting for iron enough for a bell"; s.mould = ""; } }
     if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; }
   }
   if (s.phase === 4 && hMouldHot(g, s) < H_PRISE) s.phase = 5;
@@ -1124,14 +1124,16 @@ function hTaskFound(g, p, k) {
     p.pose = (k.act % 20) < 10 ? "hammerA" : "hammerB";
     if (k.act < 60) return true;
     c = hChamber(g, s);
-    var bars = Math.max(0, Math.ceil((H_CHARGE - c.met - c.liq) / 5));
-    if (bars > 0 && (p.iron || 0) < bars) { var chip = iChipIn(g, "iron", bars - Math.floor(p.iron || 0), null, null, p); p.iron = (p.iron || 0) + chip; }
+    /* (counted in cells of iron, a fifth of a bar each, whole numbers: never a sum of fractions of bars. what is wanted, what
+       they have, and what is fetched from the pockets of whoever else can get here: wCells) */
+    var want = Math.max(0, H_CHARGE - c.met - c.liq), have = wCells(p.iron);
+    if (have < want) have += wGatherCells(g, p, "iron", want - have);
+    p.iron = have / 5;
     /* (a bell is cast whole: with not iron enough for one in the chamber and in hand, none of it goes in. it would only
        come out as plates, and the bell still wanted. kept in the pocket, for when there is) */
-    if (s.mould === "bell" && c.met + c.liq + Math.floor(p.iron || 0) * 5 < H_CHARGE) { if (p.sayT <= 0) pSay(g, p, "foundryNoIron"); s.phase = 0; s.ironWaitT = g.tick + 600; return iDone(p, false); }
-    bars = Math.min(bars, Math.floor(p.iron || 0));
-    if (bars <= 0 && c.met + c.liq < 5) { if (p.sayT <= 0) pSay(g, p, "foundryNoIron"); s.phase = 0; return iDone(p, false); }
-    var metal = bars * 5, put = 0;
+    if (s.mould === "bell" && c.met + c.liq + have < H_CHARGE) { if (p.sayT <= 0) pSay(g, p, "foundryNoIron"); s.phase = 0; s.ironWaitT = g.tick + 600; return iDone(p, false); }
+    var metal = Math.min(want, have), put = 0;
+    if (metal <= 0 && c.met + c.liq < 5) { if (p.sayT <= 0) pSay(g, p, "foundryNoIron"); s.phase = 0; return iDone(p, false); }
     for (n = 0; n < s.cells.length; n++) {
       j = s.cells[n];   /* (bottom up) */
       if (g.m[j] === MAT.ASH) hRake(g, p, j);
@@ -1141,8 +1143,8 @@ function hTaskFound(g, p, k) {
       else if (hCoal(g, p, s)) { sandPlace(g, j, MAT.EMBER); g.aux[j] = 1; }
       heatAccept(g, j);
     }
-    /* (what there was no room for in the chamber goes back in their pocket: iron in is the iron that went in) */
-    p.iron -= bars - metal / 5; s.bars = (s.bars || 0) + bars - metal / 5;
+    /* (what there was no room for stays in their pocket: iron in is the iron that went in, cell for cell) */
+    p.iron = (have - put) / 5; s.bars = (s.bars || 0) + put / 5;
     g.fx.thud++;
     if (p.sayT <= 0) pSay(g, p, "foundryCharge");
     s.phase = 2; s.meltT = g.tick; k.act = 0;
@@ -1212,7 +1214,7 @@ function hTaskFound(g, p, k) {
       var scr = 0, not = {};
       hMould(g, s, "plate").concat(cup).forEach(function (q) { not[q] = 1; });
       cup.forEach(function (q) { if (g.m[q] === MAT.METAL) { heatVanish(g, q); scr++; } else if (!AIRY[g.m[q]]) hBail(g, q, not); });
-      p.iron = (p.iron || 0) + scr * L_TAKE.iron;
+      p.iron = (wCells(p.iron) + scr) / 5;   /* (in whole cells: wCells) */
       if (p.sayT <= 0) pSay(g, p, "foundryNoIron");
       return true;   /* (and anything over into the plates' mould, prised out as plates, the strokes after) */
     }
