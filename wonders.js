@@ -538,7 +538,13 @@ function wBenchOk(g, x, F, depth) {
 }
 /* somewhere to quarry: {x0, x1 (the run, either way round), F (the floor it goes down from), depth, of (the gallery, or
    0), shaft (the shaft's columns, to carry the ladder down), S (where the dark of the rock starts)} or null */
+/* (three rows down, if there is anywhere to; with nowhere, two, then one: a worked-out mine under sand still has a floor
+   of rock a row deep about it, and one brick wants half a stone) */
 function wQuarryPlot(g, near, p) {
+  for (var depth = W_BENCH; depth >= 1; depth--) { var r = wQuarryPlotAt(g, near, p, depth); if (r) return r; }
+  return null;
+}
+function wQuarryPlotAt(g, near, p, W_BENCH) {
   var T = mSites(g, "tunnel", true), best = null, k, t, m, x, d, F, n, cols, sc;
   for (k = 0; k < T.length; k++) {
     t = T[k]; m = bSite(g, t.of);

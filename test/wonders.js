@@ -569,6 +569,26 @@ module.exports = function (test, check, sim) {
     for (i = 0; i < 12000 && !w.bOk(g, e); i++) { p.hunger = 0; sim.step(w, 1); }
     check(w.bOk(g, e), "the brick was never put back: " + s.note);
   });
+  test("wonders: a worked-out mine under sand, and a pyramid a brick short: a one-row cut is quarried, and it is mended", function () {
+    var w = sim.load(7), g = w.g, M = w.MAT, x, y, i;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 146; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < 151 ? M.SAND : M.STONE);
+    var p = g.peasants[0]; g.peasants = [p];
+    p.x = 132.5; p.y = 145; p.task = null; p.idle = 0; p.hunger = 0; p.stone = 0; p.life = 1e9;
+    g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.know = { mine: "TEST", pyramid: "TEST" }; g.wAny = true;
+    check(w.mPlanMine(g, p), "(the test wants a mine)");
+    var mine = sim.build(w, g.sites.filter(function (s) { return s.kind === "mine"; })[0]); mine.sunk = true; p.task = null;
+    for (i = 0; i < 100 && !w.mWorkedOut(mine); i++) if (w.mPlanTunnel(g, p)) { sim.build(w, g.sites[g.sites.length - 1]); p.task = null; }
+    check(w.mWorkedOut(mine), "(the test wants the mine worked out)");
+    check(w.mPlanPyramid(g, p), "(the test wants a pyramid)");
+    var py = sim.build(w, g.sites.filter(function (s) { return s.kind === "pyramid"; })[0]); p.task = null;
+    var cell = py.plan.filter(function (e) { return e.v === M.BRICK && ((e.i / g.gw) | 0) === py.G - 1; })[0];
+    w.heatVanish(g, cell.i); w.bInspect(g, py, g.sites.indexOf(py));
+    var plot = w.wQuarryPlot(g, py.cx, p);
+    check(plot && plot.depth >= 1, "nowhere to quarry: " + JSON.stringify(plot));
+    for (i = 0; i < 8000 && !w.bOk(g, cell); i++) { p.hunger = 0; sim.step(w, 1); }
+    check(w.bOk(g, cell), "the brick was never put back: " + py.note);
+  });
   test("wonders: dead in a tunnel with a load of concrete, they do not plug it: whoever else is in there can still get out", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, x, y, k;
     flat(w, x0 - 40, 80, G);
