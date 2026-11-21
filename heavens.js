@@ -1133,16 +1133,16 @@ function hCutOff(g, s) {
     for (dx = -3; dx <= 3; dx++) for (dy = -2; dy <= 10; dy++) { var sx = x + dx, sy = y + dy; if (sx >= 0 && sx < gw && sy >= 0 && sy < gh) mask[sy * gw + sx] = 1; }
   }
   if (!fx.length) return [];
-  var goal = function (x, y) { return mask[y * gw + x] === 1; }, out = [], ph = s.phase;
+  var goal = function (x, y) { return mask[y * gw + x] === 1; }, out = [];
   for (k = 0; k < hungry.length; k++) {
     p = hungry[k];
     var h = navHere(g, p);
     if (!h || mask[h.y * gw + h.x]) continue;   /* (where they can eat already) */
     var near = fx.reduce(function (a, b) { return Math.abs(b - h.x) < Math.abs(a - h.x) ? b : a; });
     if (!navFind(g, h.x, h.y, goal, near, h.y)) continue;   /* (no food they can get to, roof or none) */
-    s.phase = 1;   /* (and with it closed, as it will be: paths.js navHazard, wonders.js wRoofs) */
+    W_SHUT = s;   /* (and with it closed, as it will be once it is lit: paths.js navHazard, wonders.js wRoofs) */
     var shut = !navFind(g, h.x, h.y, goal, near, h.y, NAV_CAP * 3);
-    s.phase = ph;
+    W_SHUT = null;
     if (shut) out.push(p);
   }
   return out;
@@ -1197,19 +1197,25 @@ function hFoundryStep(g, s) {
     /* (and not with anybody up on its roof, or on the way up: sent down first, the charging waits for them a while. then
        on with it anyway, and whoever is still up there is sent off it as it warms: wonders.js wHeatGuard) */
     if (s.mould && hRoofFolk(g, s) && !(s.roofT && g.tick >= s.roofT)) { if (!s.roofT) s.roofT = g.tick + 1500; s.note = "waiting for the roof to clear"; s.mould = ""; }
+    /* (and not without a founder free to come and do it: charged with nobody to light it, it would only sit there) */
+    if (s.mould && !mCrew(g, "found", s.id) && !hFounder(g, s)) { s.note = "nobody free who can get to the bellows"; s.mould = ""; }
     if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; s.roofT = 0; s.cutT = 0; }
   }
   if (s.phase === 4 && hMouldHot(g, s) < H_PRISE) s.phase = 5;
   if (s.phase === 0 || s.phase === 4 || mCrew(g, "found", s.id)) return;
-  /* the founder: whoever it was, if they are about; else whoever has worked the furnace most, of the idle */
+  var q = hFounder(g, s);
+  if (!q) { if (s.phase === 1) s.note = "nobody free who can get to the bellows"; return; }
+  q.task = { kind: "found", site: s.id, t: 0, act: 0, brave: true };
+  s.founder = q.id;
+}
+/* the founder: whoever it was, if they are about; else whoever has worked the furnace most, of the idle */
+function hFounder(g, s) {
   var q = hWho(g, s.founder);
   if (!q || !wIdle(g, q, s) || Math.abs(q.x - s.cx) > 260) {
     q = null;
     for (var k = 0; k < g.peasants.length; k++) { var c = g.peasants[k]; if (wIdle(g, c, s) && Math.abs(c.x - s.cx) < 260 && (!q || (c.smelts || 0) > (q.smelts || 0))) q = c; }
   }
-  if (!q) { if (s.phase === 1) s.note = "nobody free who can get to the bellows"; return; }
-  q.task = { kind: "found", site: s.id, t: 0, act: 0, brave: true };
-  s.founder = q.id;
+  return q;
 }
 /* a coal for the fire: their own, off the foundry's pile, off the furnace's, or off whoever has one */
 function hCoal(g, p, s) {

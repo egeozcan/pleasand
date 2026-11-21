@@ -456,22 +456,25 @@ function wHotWork(g, x, y, p) {
    warm (over 90) paths do not stand anybody on it (paths.js navHazard) and nothing is planned there (build.js
    bSiteAround). its sides are cool: the chamber and moulds are jacketed and lidded (heavens.js hFoundryCell).
    (x, y): a standing cell on top of a foundry that is warm. cached for the tick */
-var W_RC = { g: null, t: -1, T: null, n: -1, ph: "", r: [] };
+var W_RC = { g: null, t: -1, T: null, n: -1, sh: null, r: [] };
+var W_SHUT = null;   /* (a foundry taken as warm, whatever it is: how it will be through a cast. heavens.js hCutOff) */
 function wRoofs(g) {
-  var r = [], k, s, x, y, ph = "";
-  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "foundry") ph += g.sites[k].phase + ",";   /* (charged this tick: warm this tick) */
-  if (W_RC.g === g && W_RC.t === g.tick && W_RC.T === g.T && W_RC.n === g.sites.length && W_RC.ph === ph) return W_RC.r;
+  var r = [], k, s, x, y;
+  if (W_RC.g === g && W_RC.t === g.tick && W_RC.T === g.T && W_RC.n === g.sites.length && W_RC.sh === W_SHUT) return W_RC.r;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     if (s.kind !== "foundry") continue;
-    /* (from the charging on (it waits for its roof to be clear, heavens.js hFoundryStep), through the pour and the
-       setting, or while any of it is warm: time to be off it before it is hot. but charged, and with no coal in it to
-       light, it is a cold heap of iron, and closes nothing) */
-    var warm = s.phase === 1 || s.phase >= 3 || (s.phase === 2 && s.cells && s.cells.some(function (j) { var c = g.m[j]; return c === MAT.COAL || c === MAT.EMBER || c === MAT.FIRE || c === MAT.LAVA || g.T[j] > 100; }));
-    for (x = s.x0; x <= s.x1 && !warm; x++) for (y = s.R0 - 14; y <= s.R0 - 10 && !warm; y++) if (y >= 0 && g.T[y * g.gw + x] > 90) warm = true;
+    /* (while anything of it is warm, or alight: the fire in the chamber, a melt, a casting in its mould, the jacket or the
+       roof over 90. never for the phase it is at alone: charged and not lit, or cast and gone cold with the plates still
+       in it, it is cold stone and iron, and closes nothing) */
+    var warm = s === W_SHUT;
+    for (y = Math.max(0, s.R0 - 14); y <= Math.min(g.gh - 1, s.R0 + 3) && !warm; y++) for (x = s.x0; x <= s.x1 && !warm; x++) {
+      var j = y * g.gw + x, c = g.m[j];
+      if (g.T[j] > 90 || c === MAT.EMBER || c === MAT.FIRE || c === MAT.LAVA) warm = true;
+    }
     if (warm) r.push({ x0: s.x0 - 1, x1: s.x1 + 1, y1: s.R0 - 10 });
   }
-  W_RC.g = g; W_RC.t = g.tick; W_RC.T = g.T; W_RC.n = g.sites.length; W_RC.ph = ph; W_RC.r = r;
+  W_RC.g = g; W_RC.t = g.tick; W_RC.T = g.T; W_RC.n = g.sites.length; W_RC.sh = W_SHUT; W_RC.r = r;
   return r;
 }
 function wOnRoof(g, x, y) {

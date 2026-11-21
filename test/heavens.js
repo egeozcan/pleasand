@@ -602,6 +602,9 @@ module.exports = function (test, check, sim) {
     w.bInspect(g, r, g.sites.indexOf(r));
     return r;
   }
+  /* a foundry made warm, or cold again, by its chamber's heat (wonders.js wRoofs goes by heat, not by phase) */
+  function fWarm(w, s, t) { var g = w.g; s.cells.forEach(function (j) { g.T[j] = t == null ? 600 : t; }); w.eval("W_RC.t = -1"); }
+  function fCold(w, s) { fWarm(w, s, 25); }
   function fFoundry(F, x) {
     var w = F.w, g = F.g, gy = [], i;
     for (i = 0; i < w.H_FW; i++) gy.push(150);
@@ -716,9 +719,15 @@ module.exports = function (test, check, sim) {
     var gy = []; for (i = 0; i < w.H_FW; i++) gy.push(150);
     var fit = w.hFoundryFit(g, 150, gy, 150, 150), s = sim.build(w, w.hFoundryAt(g, op, 150, fit.R0, fit.plan));
     function food() { for (x = 112; x < 140; x++) if (g.m[149 * g.gw + x] === M.EMPTY) w.sandSet(g, 149 * g.gw + x, M.FLOWER); }
-    for (i = 0; i < 19100 && !walker.dead; i++) { if (i % 60 === 0) food(); sim.step(w, 1); }
+    var gaveUp = 0, inTwo = 0, longest = 0, was = s.phase;
+    for (i = 0; i < 19100 && !walker.dead; i++) {
+      if (i % 60 === 0) food();
+      sim.step(w, 1);
+      if (was === 2 && s.phase === 0) gaveUp++;
+      inTwo = s.phase === 2 ? inTwo + 1 : 0; longest = Math.max(longest, inTwo); was = s.phase;
+    }
     check(!walker.dead && !g.causes.starve, "the villager beyond the foundry starved: " + JSON.stringify(g.causes));
-    check(s.phase === 0 || s.phase === 1, "the charge that never caught left it at phase " + s.phase);
+    check(gaveUp >= 1 && longest <= 1500, "the charge that never caught: given up " + gaveUp + " times, at phase 2 for " + longest + " ticks at a stretch");
   });
   /* (pi's valley again, as pi left it: stone floor but for a strip of sand, a house west, and the only food east, past
      where the foundry goes, by the cliff) */
@@ -819,7 +828,7 @@ module.exports = function (test, check, sim) {
     for (i = 0; i < n; i++) {
       g.peasants.forEach(function (q) {
         q.hunger = 0; if (q.fire) burnt++;
-        if (!q.dead && f.phase >= 1 && !(q.task && q.task.kind === "found") && q.x >= f.x0 - 1 && q.x < f.x1 + 2 && q.y <= f.R0 - 10 && q.y >= f.R0 - 30) roof++;
+        if (!q.dead && w.wRoofs(g).length && !(q.task && q.task.kind === "found") && q.x >= f.x0 - 1 && q.x < f.x1 + 2 && q.y <= f.R0 - 10 && q.y >= f.R0 - 30) roof++;
       });
       sim.step(w, 1);
       /* (the air where a body would stand beside it, rows 141 to 149, out to eight columns: air that has been air a while,
@@ -845,15 +854,14 @@ module.exports = function (test, check, sim) {
       check(r.side < 150, "seed " + seed + ": the air at head height beside the foundry reached " + Math.round(r.side) + " (" + r.at + ")");
       roofs.push(seed + ":" + r.roof);
     });
-    console.log("      (anybody but the founder on its roof, ticks through a cast, by seed: " + roofs.join(" ") + ")");
+    console.log("      (anybody but the founder on its roof while it is closed, ticks, by seed: " + roofs.join(" ") + ")");
   });
   test("foundry: nothing grows on a warm roof or up against its faces: a vine there withers to ash, at the warmth it was", function () {
     var F = fflat(1), w = F.w, g = F.g, M = F.M, p = F.p, s, i, x, y;
     p.x = 190.5; s = fFoundry(F);
     var cells = [[s.x0 + 2, s.R0 - 12], [s.x1 - 1, s.R0 - 13], [s.x1 + 1, s.R0 - 3], [s.x0 - 1, s.R0 - 6]];
     cells.forEach(function (c) { var j = c[1] * g.gw + c[0]; w.sandSet(g, j, M.PLANT); g.T[j] = 60; w.heatAccept(g, j); });
-    s.phase = 1;
-    for (i = 0; i < 40; i++) { p.hunger = 0; sim.step(w, 1); }
+    for (i = 0; i < 40; i++) { p.hunger = 0; fWarm(w, s); sim.step(w, 1); }
     var left = cells.filter(function (c) { var v = g.m[c[1] * g.gw + c[0]]; return v === M.PLANT || v === M.FLOWER || v === M.SEED; });
     check(!left.length, "still growing on the warm foundry: " + JSON.stringify(left));
     var hot = 0; for (x = s.x0 - 2; x <= s.x1 + 2; x++) for (y = s.R0 - 18; y < s.R0; y++) if (g.m[y * g.gw + x] === M.ASH) hot = Math.max(hot, g.T[y * g.gw + x]);
@@ -900,15 +908,78 @@ module.exports = function (test, check, sim) {
     var fx = Math.floor(p.x), fy = Math.floor(p.y);
     check(w.pTryJump(g, p, fx, fy), "(the test wants a jump up onto the cold roof)");
     p.jumping = false; p.vy = 0; p.y = s.R0 - 7;
-    s.phase = 1;
+    fWarm(w, s);
     check(!w.pTryJump(g, p, fx, fy), "jumped up onto the warm roof");
     /* (and the bare face, from the ground: the rope) */
-    s.phase = 0; p.x = s.x1 + 1.5; p.y = 149; p.dir = -1;
+    fCold(w, s); p.x = s.x1 + 1.5; p.y = 149; p.dir = -1;
     for (x = s.x1 + 1; x <= s.x1 + 4; x++) for (y = s.R0 - 6; y < 150; y++) { w.sandSet(g, y * g.gw + x, M.EMPTY); w.heatSync(g, y * g.gw + x); }
     fx = Math.floor(p.x); fy = Math.floor(p.y);
     var cold = w.pTryClimb(g, p, fx, fy); p.rope = null;
-    s.phase = 1;
+    fWarm(w, s);
     check(!w.pTryClimb(g, p, fx, fy), "hooked up onto the warm roof" + (cold ? "" : " (cold, it was not hooked either)"));
+  });
+  test("foundry: its roof is closed by heat, never by the phase alone: cold, it is open in every phase; warm anywhere, chamber, mould or roof, it is closed", function () {
+    var F = fflat(1), w = F.w, g = F.g, p = F.p, s, ph, bad = [];
+    p.x = 190.5; s = fFoundry(F);
+    for (ph = 0; ph <= 5; ph++) { s.phase = ph; s.mould = ph ? "plate" : ""; w.eval("W_RC.t = -1"); if (w.wRoofs(g).length || w.wOnRoof(g, s.x0 + 3, s.R0 - 12)) bad.push(ph); }
+    check(!bad.length, "a cold foundry's roof closed at phase " + bad.join(", "));
+    s.phase = 0; s.mould = "";
+    fWarm(w, s, 300);
+    check(w.wOnRoof(g, s.x0 + 3, s.R0 - 12), "a hot chamber, and its roof open");
+    fCold(w, s);
+    var mj = w.hMould(g, s, "plate")[0]; g.T[mj] = 200; w.eval("W_RC.t = -1");
+    check(w.wOnRoof(g, s.x0 + 3, s.R0 - 12), "a hot casting in its mould, and its roof open");
+    g.T[mj] = 25; var rj = (s.R0 - 11) * g.gw + s.x0 + 8; g.T[rj] = 120; w.eval("W_RC.t = -1");
+    check(w.wOnRoof(g, s.x0 + 3, s.R0 - 12), "its roof at 120, and open");
+  });
+  /* (pi's round 22 valley: flat to a cliff at 223, the foundry at 150) */
+  function fValley22(seed) {
+    var w = sim.load(seed || 2), g = w.g, M = w.MAT, x, y;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = x >= 223 ? 96 : 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y >= 150 && y < 158 ? M.SAND : M.STONE);
+    g.arriveT = 1e9; g.ideaT = 1e9; g.helloT = 0; g.wAny = true; g.know = { concrete: "TEST", foundry: "TEST" };
+    g.peasants.forEach(function (p, i) { p.x = 130.5 + 3 * i; p.y = 149; p.task = null; p.idle = 0; p.hunger = 0; p.bored = 0; p.life = 1e9; p.iron = 0; p.coal = 0; });
+    return w;
+  }
+  test("foundry: not charged with nobody free to light it, nor closed while it is cold: the hungry on the far side get to the food, and it casts", function () {
+    var w = fValley22(), g = w.g, M = w.MAT, p = g.peasants[0], q = g.peasants[1], x;
+    g.peasants = [p, q];
+    var gy = []; for (x = 0; x < w.H_FW; x++) gy.push(150);
+    var fit = w.hFoundryFit(g, 150, gy, 150, 150), s = sim.build(w, w.hFoundryAt(g, p, 150, fit.R0, fit.plan));
+    Object.assign(p, { x: 180.5, dir: -1, task: null, iron: 12, coal: 130, hunger: 6000 });
+    Object.assign(q, { x: 185.5, dir: -1, task: null, hunger: 6600 });
+    for (x = 106; x <= 137; x++) w.sandSet(g, 149 * g.gw + x, M.FLOWER);
+    var lit = 0;
+    while (g.tick < 20000 && !(p.dead && q.dead) && !s.casts) {
+      sim.step(w, 1);
+      if (s.phase === 1 && !w.mCrew(g, "found", s.id)) lit++;
+    }
+    check(!g.causes.starve && s.casts >= 1, "casts " + (s.casts || 0) + ", phase " + s.phase + " (" + s.note + "), " + JSON.stringify(g.causes));
+    check(lit < 60, "charged with nobody at it for " + lit + " ticks");
+  });
+  test("foundry: cast and gone cold, plates still in the mould: its roof is open, and the founder gets across it to eat and back to finish", function () {
+    var w = fValley22(), g = w.g, M = w.MAT, p = g.peasants[0], x;
+    g.peasants = [p];
+    var gy = []; for (x = 0; x < w.H_FW; x++) gy.push(150);
+    var fit = w.hFoundryFit(g, 150, gy, 150, 150), s = sim.build(w, w.hFoundryAt(g, p, 150, fit.R0, fit.plan));
+    Object.assign(p, { x: 146.5, dir: 1, task: null, iron: 12, coal: 130, hunger: 2300 });
+    for (x = 181; x <= 213; x++) w.sandSet(g, 149 * g.gw + x, M.FLOWER);
+    var five = false;
+    while (g.tick < 19000 && !p.dead && !(s.casts && s.phase === 0)) { sim.step(w, 1); if (s.phase === 5) five = true; }
+    check(five && !g.causes.starve && s.casts >= 1 && s.phase === 0, "phase 5 reached " + five + ", phase " + s.phase + ", casts " + (s.casts || 0) + ", hunger " + Math.round(p.hunger) + ", " + JSON.stringify(g.causes));
+  });
+  test("foundry: no step up a cell or two onto a warm roof, either; cold, they step up", function () {
+    var F = fflat(1), w = F.w, g = F.g, M = F.M, p = F.p, s, x, y, i;
+    p.x = 190.5; s = fFoundry(F);
+    /* (a block against the hot side, its top two under the roof's: a two-cell step up onto it) */
+    for (x = s.x1 + 1; x <= s.x1 + 4; x++) for (y = s.R0 - 9; y < 150; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    function go() { p.x = s.x1 + 1.5; p.y = s.R0 - 10; p.dir = -1; p.state = "walk"; p.task = null; p.navMove = null; for (i = 0; i < 6; i++) w.pStepX(g, p, 0.3); return p.y; }
+    fWarm(w, s);
+    var yw = go(), xw = p.x;
+    check(!(Math.floor(xw) <= s.x1 && yw <= s.R0 - 11), "stepped up onto the warm roof, to " + xw.toFixed(1) + "," + yw.toFixed(1));
+    fCold(w, s);
+    var yc = go();
+    check(yc <= s.R0 - 11, "(the test wants a step up onto the cold roof: at " + p.x.toFixed(1) + "," + yc.toFixed(1) + ")");
   });
   test("foundry: stepping back from heat beside it, high up, is never back onto its roof", function () {
     var F = fflat(1), w = F.w, g = F.g, M = F.M, p = F.p, s, x, y;
@@ -916,7 +987,7 @@ module.exports = function (test, check, sim) {
     /* (a ledge as high as the roof, east of it, and heat further east: the cooler way would be west, over the roof) */
     for (x = s.x1 + 3; x <= s.x1 + 20; x++) for (y = s.R0 - 10; y < 150; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
     for (x = s.x1 + 6; x <= s.x1 + 12; x++) for (y = s.R0 - 19; y <= s.R0 - 11; y++) { var j = y * g.gw + x; g.T[j] = 400; }
-    s.phase = 1;
+    fWarm(w, s);
     p.x = s.x1 + 4.5; p.y = s.R0 - 11; p.task = null;
     var k = { kind: "wcool", t: 0 };
     w.wStepBack(g, p, k);
@@ -1201,13 +1272,13 @@ module.exports = function (test, check, sim) {
     h.step(20); control.step(20);
     check(!h.g.rocket && h.hash() === control.hash(), "restored, the rocket is still going up: " + !!h.g.rocket);
     /* (what the great works' files keep at the top level, that changes: none of it the world. W_DEFS is filled as they
-       load; H_LBL is scratch for one call; P_OQ is the organ's notes waiting to be heard) */
+       load; H_LBL and W_SHUT are scratch for one call; P_OQ is the organ's notes waiting to be heard) */
     var fs = require("fs"), path = require("path"), root = path.join(__dirname, ".."), found = [];
     ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (f) {
       var re = /^var ([A-Z_0-9]+) = (\[\]|\{\}|null|new )/gm, m, src = fs.readFileSync(path.join(root, f), "utf8");
       while ((m = re.exec(src))) found.push(m[1]);
     });
-    check(found.sort().join() === "H_LBL,P_OQ,W_DEFS", "the great works keep this outside g: " + found.join());
+    check(found.sort().join() === "H_LBL,P_OQ,W_DEFS,W_SHUT", "the great works keep this outside g: " + found.join());
   });
   test("moon rocket: gilded, its gold gone, the gilded nose knocked off: mended in stone, not waiting on gold for ever", function () {
     var R = rocket(false), w = R.w, g = R.g, s = R.s, M = w.MAT, t;

@@ -1533,6 +1533,9 @@ function pStepX(g, p, sp, swim) {
       p.dir = -p.dir; return false;
     }
     fy -= k;
+    /* (a step or two up onto a warm foundry's roof, or into what a great work has made hot: no more than a step along
+       into it. wonders.js wHotWork) */
+    if (k > 0 && g.wAny && wHotWork(g, nfx, fy, p)) { p.dir = -p.dir; return false; }
     if (!pGround(g, nfx, fy)) for (k = 1; k <= 2; k++) if (pGround(g, nfx, fy + k) && pRoom(g, nfx, fy + k)) { fy += k; break; }
     /* (onto the top of a ladder: down it. unless the route says otherwise: it may only be going across the top of it) */
     if (!swim && !p.fire && !pGround(g, nfx, fy) && (!p.navMove || p.navMove === "ladder") && bLadderDown(g, p, nfx, Math.floor(p.y))) return false;
