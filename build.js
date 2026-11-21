@@ -288,7 +288,11 @@ function bSiteAround(g, x, y, kind, pad) {
   pad = pad == null ? 3 : pad;
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
-    if ((!kind || s.kind === kind) && x >= s.x0 - pad && x <= s.x1 + pad && y >= s.y0 - pad && y <= s.y1 + pad) return s;
+    /* (a foundry's ground, hot while it casts, is kept clear about it as far as the heat goes: nobody plans anything there
+       to catch fire. wonders.js W_ZONE_L, W_ZONE_R) */
+    var xl = pad, xr = pad;
+    if (pad > 0 && s.kind === "foundry") { xl = Math.max(pad, W_ZONE_L + 1); xr = Math.max(pad, W_ZONE_R + 1); }
+    if ((!kind || s.kind === kind) && x >= s.x0 - xl && x <= s.x1 + xr && y >= s.y0 - pad && y <= s.y1 + pad) return s;
   }
   return null;
 }

@@ -1076,7 +1076,7 @@ function hPlug(g, s) { return hFJ(g, s, s.mould === "bell" ? 9 : 5, 1); }
 /* (out of the heat that comes off the chamber through the air: over a whole cast, measured, the air at head height falls
    below what even the brave can stand nine columns off its hot side and five off the other. the stations are there,
    with a column to spare either way: H_SPOT) */
-var H_SPOT = [-5, 21];
+var H_SPOT = [-6, 21];   /* (just outside the foundry's ground while it is hot: wonders.js W_ZONE_L, W_ZONE_R) */
 function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? H_SPOT[1] : H_SPOT[0]), y: s.R0 - 1 }; }
 /* (whatever the ground is like out there, give or take a step or two) */
 function hSpotAt(g, s) {

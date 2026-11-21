@@ -381,19 +381,22 @@ function wPick(g, p, hungry) {
 /* too hot where they stand to stay (body or feet, as pHeat measures it: well short of where even somebody used to the
    heat, at work, catches fire). every great works' job: they step back out of it, the cooler way, and wait till it is
    not, before they go on. nobody is cooked at their station, the bellows, the stoke-hole, the lamp */
-var W_TOOHOT = P_IGNITE * 1.3, W_FEETHOT = P_IGNITE;
-function wTooHot(g, p) { return wHotAt(g, Math.floor(p.x), Math.floor(p.y), 1); }
+var W_TOOHOT = P_IGNITE * 1.3, W_FEETHOT = P_IGNITE;   /* (for somebody at a brave job, who catches fire at twice P_IGNITE) */
+var W_TOOHOT_ANY = P_IGNITE * 0.65, W_FEETHOT_ANY = P_IGNITE * 0.65;   /* (for anybody else, who catches fire at P_IGNITE: 150) */
+/* the limits for p: a brave job's, or anybody's. a third short of where they would catch fire, either way */
+function wLim(p) { var b = !!(p && p.task && p.task.brave); return { body: b ? W_TOOHOT : W_TOOHOT_ANY, feet: b ? W_FEETHOT : W_FEETHOT_ANY }; }
+function wTooHot(g, p) { return wHotAt(g, Math.floor(p.x), Math.floor(p.y), 1, p); }
 /* too hot to stand at (x, y), or (f under 1) at that much of too hot: the body there (and a column either side), and
    the ground under it */
-function wHotAt(g, fx, fy, f) {
-  var hi = -1e9, d, dx;
+function wHotAt(g, fx, fy, f, p) {
+  var hi = -1e9, d, dx, L = wLim(p);
   for (dx = -1; dx <= 1; dx++) {
     var x = fx + dx;
     if (x < 0 || x >= g.gw || (f >= 1 && dx)) continue;
     [0, 4, 7].forEach(function (dy) { var y = fy - dy; if (y >= 0 && y < g.gh) hi = Math.max(hi, g.T[y * g.gw + x]); });
   }
   var feet = fy + 1 < g.gh && fx >= 0 && fx < g.gw ? g.T[(fy + 1) * g.gw + fx] : AMBIENT;
-  return hi > W_TOOHOT * f || feet > W_FEETHOT * f;
+  return hi > L.body * f || feet > L.feet * f;
 }
 /* every tick, before the heat is felt (peasants.js pStep, ahead of pHeat): somebody at a great work's job with the whole
    of them, feet to head, in air or on ground too hot to stay in, here or a step on the way they are going, steps back
@@ -404,9 +407,16 @@ function wHeatGuard(g, p) {
   /* (anybody else, about their own business or none: not a step onto what a great work has just made hot, a fresh casting
      in its mould, firebrick, the exhaust. turned round at the edge of it. paths keep off it already, navHazard: this is
      for the wandering, and whoever's job has just ended on top of it) */
+  var fx0 = Math.floor(p.x), fy0 = Math.floor(p.y), d0 = p.dir || 1, zo = wWorker(p) ? null : wZoneOut(g, fx0, fy0);
+  if (zo != null) {
+    /* (in a live foundry's ground, and not its founder, whatever they are about, a great work's job or none: out of it, to
+       its nearest edge, before anything else) */
+    var kz = { kind: "wcool", t: 0, was: k || null, backT: g.tick + 200, backX: Math.max(1, Math.min(g.gw - 2, zo)), hotX: fx0, hotY: fy0, zone: true };
+    p.task = kz; p.dir = kz.backX < p.x ? -1 : 1;
+    return;
+  }
   if (!k || !W_KINDS[k.kind] || W_AWAY[k.kind]) {
-    var fx0 = Math.floor(p.x), fy0 = Math.floor(p.y), d0 = p.dir || 1;
-    if (wHotWork(g, fx0, fy0)) {
+    if (wHotWork(g, fx0, fy0, p)) {
       /* (standing in it, or it come up under them, a casting just poured: off it, now, the way with the least heat on it.
          the job they had waits; they are back for it in a moment) */
       var kc = { kind: "wcool", t: 0, was: k || null };
@@ -420,23 +430,79 @@ function wHeatGuard(g, p) {
   for (i = 0; i < xs.length; i++) {
     var x = xs[i];
     if (x < 0 || x >= g.gw) continue;
-    var hot = fy + 1 < g.gh && g.T[(fy + 1) * g.gw + x] > W_FEETHOT;
-    for (dy = 0; dy <= 8 && !hot; dy++) { var y = fy - dy; if (y >= 0 && y < g.gh && g.T[y * g.gw + x] > W_TOOHOT) hot = true; }
+    var L = wLim(p), hot = fy + 1 < g.gh && g.T[(fy + 1) * g.gw + x] > L.feet;
+    for (dy = 0; dy <= 8 && !hot; dy++) { var y = fy - dy; if (y >= 0 && y < g.gh && g.T[y * g.gw + x] > L.body) hot = true; }
     if (hot) { wStepBack(g, p, k); if (k.hotX == null) { k.hotX = x; k.hotY = fy; } p.dir = k.backX < p.x ? -1 : 1; return; }
   }
 }
 /* a great work's own heat at (x, y), where somebody would stand: too hot underfoot or about the body, and inside (or
    right by) a great work's box */
-function wHotWork(g, x, y) {
+function wHotWork(g, x, y, p) {
   if (x < 0 || x >= g.gw || y < 0 || y >= g.gh) return false;
-  /* (underfoot a step up or a step down too: walking onto a casting that stands a cell proud of the ground) */
-  var hot = false, dy;
-  for (dy = -2; dy <= 1 && !hot; dy++) { var fy = y + 1 + dy; if (fy >= 0 && fy < g.gh && SOLID[g.m[fy * g.gw + x]] && g.T[fy * g.gw + x] > W_FEETHOT) hot = true; }
-  for (dy = 0; dy <= 8 && !hot; dy++) if (y - dy >= 0 && g.T[(y - dy) * g.gw + x] > W_TOOHOT) hot = true;
+  if (!wWorker(p) && wNoEntry(g, x, y)) return true;   /* (a live foundry's ground: nobody's but its founder's) */
+  /* (underfoot a step up or a step down too: walking onto a casting that stands a cell proud of the ground, or into a
+     mould of it running) */
+  var hot = false, dy, L = wLim(p);
+  for (dy = -2; dy <= 1 && !hot; dy++) { var fy = y + 1 + dy; if (fy >= 0 && fy < g.gh && g.m[fy * g.gw + x] !== MAT.EMPTY && g.T[fy * g.gw + x] > L.feet) hot = true; }
+  for (dy = 0; dy <= 8 && !hot; dy++) if (y - dy >= 0 && g.T[(y - dy) * g.gw + x] > L.body) hot = true;
   if (!hot) return false;
+  /* (on the way out of a live foundry's ground: the way out is warm, all of it. a step is refused only if it is hotter
+     than where they are now: anything else is out) */
+  if (p && p.task && p.task.kind === "wcool" && p.task.zone) return wHeatOf(g, x, y) > wHeatOf(g, Math.floor(p.x), Math.floor(p.y)) + 30;
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && x >= s.x0 - 12 && x <= s.x1 + 12 && y >= s.y0 - 4 && y <= s.y1 + 6) return true; }
   return false;
 }
+/* the worst heat a peasant at (x, y) would be in: body, and the ground under them */
+function wHeatOf(g, x, y) {
+  var t = -1e9, dy;
+  if (x < 0 || x >= g.gw) return t;
+  for (dy = -1; dy <= 8; dy++) if (y - dy >= 0 && y - dy < g.gh) t = Math.max(t, g.T[(y - dy) * g.gw + x]);
+  return t;
+}
+/* THE FOUNDRY'S GROUND: while it is hot (heating, pouring, cooling, or anything in it still hot), its box and a margin
+   about it, where the air at head height was measured over whole casts to come to more than 150 degrees (four columns
+   out on the plates' side, ten on the hot side, the moulds under it), is nobody's to be in but the founder's. paths
+   refuse it (paths.js navHazard), no step is taken into it (peasants.js), and anybody else in it is moved out
+   (wHeatGuard). the stations are just outside it (heavens.js H_SPOT). recomputed once a tick */
+var W_ZONE_L = 4, W_ZONE_R = 10, W_ZC = { g: null, t: -1, z: [] };
+function wZones(g) {
+  /* (a cache for the tick: of this world, this tick, and these temperatures. a restored or loaded world has its own) */
+  if (W_ZC.g === g && W_ZC.t === g.tick && W_ZC.T === g.T && W_ZC.n === g.sites.length) return W_ZC.z;
+  var z = [], k, s;
+  for (k = 0; k < g.sites.length; k++) {
+    s = g.sites[k];
+    if (s.kind !== "foundry" || !s.done || !s.cells) continue;
+    var hot = s.phase >= 1, cells = s.cells.concat(hMould(g, s, "plate"), hMould(g, s, "bell"));   /* (from the charging on: time to clear it before it is hot) */
+    for (var i = 0; i < cells.length && !hot; i++) if (g.T[cells[i]] > 150) hot = true;
+    if (hot) z.push({ x0: s.x0 - W_ZONE_L, x1: s.x1 + W_ZONE_R, y0: s.y0 - 6, y1: s.y1 + 2 });
+  }
+  W_ZC.g = g; W_ZC.t = g.tick; W_ZC.T = g.T; W_ZC.n = g.sites.length; W_ZC.z = z;
+  return z;
+}
+/* (and nothing there to catch fire from it: what grows in a live foundry's ground, a bush, a sapling, a fallen log, and
+   is warm, withers to ash where it stands, before the hot air can set it alight and the fire walk out of the ground into
+   the village. what anybody built is not in its ground: build.js bSiteAround keeps plans out of it. every W_STRIDE) */
+function wZoneWither(g) {
+  var z = wZones(g), k, x, y, j, c;
+  for (k = 0; k < z.length; k++) for (x = Math.max(0, z[k].x0); x <= Math.min(g.gw - 1, z[k].x1); x++) for (y = Math.max(0, z[k].y0); y <= Math.min(g.gh - 1, z[k].y1); y++) {
+    j = y * g.gw + x; c = g.m[j];
+    if (!(P_LEAF[c] || c === MAT.SEED || c === MAT.SAPLING || (WOODY[c] && !(g.bmark && g.bmark[j])))) continue;
+    if (g.T[j] > 60) heatBecome(g, j, MAT.ASH);
+  }
+}
+function wNoEntry(g, x, y) {
+  var z = wZones(g);
+  for (var k = 0; k < z.length; k++) if (x >= z[k].x0 && x <= z[k].x1 && y >= z[k].y0 && y <= z[k].y1) return true;
+  return false;
+}
+/* the zone's nearest edge out of it from x, at (x, y): a column outside it, or null if (x, y) is not in one */
+function wZoneOut(g, x, y) {
+  var z = wZones(g);
+  for (var k = 0; k < z.length; k++) if (x >= z[k].x0 && x <= z[k].x1 && y >= z[k].y0 && y <= z[k].y1) return x - z[k].x0 <= z[k].x1 - x ? z[k].x0 - 2 : z[k].x1 + 2;
+  return null;
+}
+/* the foundry's own: its founder, at work (and nobody else, in its ground) */
+function wWorker(p) { return !!(p && p.task && (p.task.kind === "found" || (p.task.kind === "wcool" && p.task.zone))); }   /* (and whoever is on their way out of it: through it, then) */
 function wStepBack(g, p, k) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), side = 0;
   function heat(x) { var t = 0; for (var dy = 0; dy <= 7; dy += 3) { var y = fy - dy; if (x >= 0 && x < g.gw && y >= 0 && y < g.gh) t += g.T[y * g.gw + x]; } return t; }
@@ -461,7 +527,11 @@ function wTask(g, p, k) {
       return false;
     }
   }
-  if (k.kind === "wcool") { if (++k.t > 600 || !(k.backT > g.tick) && k.hotX == null) { p.task = k.was && k.was.kind !== "wcool" ? k.was : null; return false; } return false; }
+  if (k.kind === "wcool") {
+    if (k.zone) { var zo2 = wZoneOut(g, Math.floor(p.x), Math.floor(p.y)); if (zo2 == null) { k.backT = 0; k.hotX = null; } else { k.backT = g.tick + 60; k.backX = Math.max(1, Math.min(g.gw - 2, zo2)); } }
+    if (++k.t > 3000 || !(k.backT > g.tick) && k.hotX == null) { p.task = k.was && k.was.kind !== "wcool" ? k.was : null; return false; }
+    return false;
+  }
   if (k.kind === "haul") return wTaskHaul(g, p, k);
   if (k.kind === "salvage") return wTaskSalvage(g, p, k);
   if (k.kind === "quarry") return wTaskQuarry(g, p, k);
@@ -485,6 +555,8 @@ function wTaskHaul(g, p, k) {
   var s = bSite(g, k.site);
   if (!s || s.done || ++k.t > 4000) return iDone(p, false);
   var f = wFoot(g, s), at = wNear(g, s, 2);
+  /* (to a foundry: on the ground by it, not up on its roof or its chimney, where its heat comes out) */
+  if (s.kind === "foundry") { var near = at; at = function (x, y) { return near(x, y) && y >= s.R0 - 2; }; }
   if (!at(Math.floor(p.x), Math.floor(p.y))) {
     if (iWalk(g, p, k, "haul" + s.id, f.x, f.y, at)) bFail(g, p, s, 1500, "walk");   /* (failSite: let be a while) */
     return false;
@@ -994,11 +1066,13 @@ function wSalvageSpot(g) {
 }
 /* someone who has lately given up getting to a great work (wBackoff, or bFail's failSite): what they carry is not to be
    counted on, for ordering more of it or leaving the salvage be */
-function wStranded(g, q) {
-  if (q.failSite && q.failT > g.tick) { var f = bSite(g, q.failSite); if (f && f.wonder) return true; }
+function wStranded(g, q, r) {
   /* (a great work they could not get to: not the furnace's kiln, nor a job of no site, which says nothing of whether what
-     they carry can get to a great work) */
-  for (var id in q.noGo || {}) if (q.noGo[id] > g.tick) { var t = bSite(g, +id); if (t && t.wonder) return true; }
+     they carry can get to a great work. and with r, one that wants r: kept off a foundry while it casts says nothing of
+     whether the ninth of a bell in their pocket can get to the rocket) */
+  function wants(t) { return t && t.wonder && (!r || (r === "iron" ? t.kind === "foundry" : bNeed(g, t, r) > 1e-6)); }
+  if (q.failSite && q.failT > g.tick && wants(bSite(g, q.failSite))) return true;
+  for (var id in q.noGo || {}) if (q.noGo[id] > g.tick && wants(bSite(g, +id))) return true;
   return false;
 }
 /* STOCK IN WHOLE UNITS: iron and gold are held in bars, as master holds them (floats: a girder costs a Float32 fifth of a
@@ -1014,7 +1088,7 @@ function wNinths(v) { return Math.round((v || 0) * 9); }
 /* the tenths of r in the pockets of the living who can get there; and the cells in them, counted from the pool */
 function wTenthsSure(g, r) {
   var n = 0;
-  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q)) n += wTenths(q[r]); }
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q, r)) n += wTenths(q[r]); }
   return n;
 }
 function wCellsSure(g, r) { return Math.floor(wTenthsSure(g, r) / 2); }
@@ -1023,7 +1097,7 @@ function wGatherTenths(g, p, r, n) {
   var got = 0;
   for (var k = 0; k < g.peasants.length && got < n; k++) {
     var q = g.peasants[k];
-    if (q === p || q.dead || wStranded(g, q)) continue;
+    if (q === p || q.dead || wStranded(g, q, r)) continue;
     var c = wTenths(q[r]), t = Math.min(c, n - got);
     if (t > 0) { q[r] = (c - t) / 10; got += t; }
   }
@@ -1032,7 +1106,7 @@ function wGatherTenths(g, p, r, n) {
 /* what of r is in the pockets of the living who are not stranded: to be counted on */
 function wPocketedSure(g, r) {
   var n = 0;
-  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q)) n += q[r] || 0; }
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q, r)) n += q[r] || 0; }
   return n;
 }
 /* what of r there is in the salvage that can be got at (a spot to fetch it from that the village can walk to) */
@@ -1312,6 +1386,7 @@ function wStep(g) {
   for (var k0 = 0; k0 < W_DEFS.length; k0++) if (W_DEFS[k0].air) W_DEFS[k0].air(g);
   if (g.tick % W_STRIDE) return;
   wDraughtStep(g);
+  wZoneWither(g);
   /* anything here going on at all: a wonder (or one of the two plain ideas they need) thought of, or a wonder site.
      until then, nothing in here rolls a single die */
   var any = false, k, s, p, d;

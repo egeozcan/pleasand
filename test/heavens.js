@@ -372,7 +372,7 @@ module.exports = function (test, check, sim) {
     var n0 = water();
     for (k = 0; k < 12000 && s.phase < 3; k++) sim.step(w, 1);
     check(s.phase === 3, "(the test wants it tapped: phase " + s.phase + ")");
-    check(g.m[bell[0]] === M.WATER || w.WET[g.m[bell[0]]], "the water in the bell mould, not being cast into, was taken out");
+    check(bell.some(function (j) { return w.WET[g.m[j]]; }), "the water in the bell mould, not being cast into, was taken out");   /* (it runs about the cup: anywhere in it) */
     check(water() === n0, "water (and steam) went from " + n0 + " to " + water() + " as it was tapped");
   });
   test("foundry: a bell wanted, and a drop of water in the bell's mould: the drop is shoved out, and it is a bell that is cast", function () {
@@ -430,7 +430,9 @@ module.exports = function (test, check, sim) {
     check(w.wGoSalvage(g, q), "(the test wants somebody sent for it)");
     for (k = 0; k < 8000 && g.m[e.i] !== M.METAL; k++) sim.step(w, 1);
     check(g.m[e.i] === M.METAL, "the bell's cell was never mended from the salvage: " + JSON.stringify(g.salvage));
-    check(g.salvage && Math.abs(g.salvage.bell - 7 / 9) < 1e-6, "the salvage has " + JSON.stringify(g.salvage) + ", not 7/9 of a bell");
+    /* (what is left: 7/9, in the salvage or in a pocket on its way back to it. a ninth went into the cell) */
+    var left = ((g.salvage && g.salvage.bell) || 0) + g.peasants.reduce(function (n, o) { return n + (o.dead ? 0 : (o.bell || 0)); }, 0);
+    check(Math.abs(left - 7 / 9) < 1e-6, "the salvage and pockets have " + left * 9 + " ninths of a bell left, not 7");
     void t;
   });
   test("foundry: a bell's ninths kept at a store over a drop nobody can climb back up are not counted on: a bell is cast", function () {
@@ -681,6 +683,33 @@ module.exports = function (test, check, sim) {
     var at = w.hSpotAt(g, s);
     check(at.x === sp.x + 6 && w.navStand(g, at.x, at.y) === 1, "the station went to " + JSON.stringify(at) + ", not six out at " + (sp.x + 6));
   });
+  test("foundry: its ground is nobody's but the founder's while it is hot: a whole village about it, seeds 1, 2, 3, 7, 11, 8000 ticks, nobody burnt, and the air outside it under 150", function () {
+    /* (pi's two cases among them: seed 2, a passer-by fallen into a plate pour; seed 11, a hot-air pulse before the first) */
+    [[1, 182.5], [2, 182.5], [3, 182.5], [7, 182.5], [11, 170.5]].forEach(function (c) {
+      var seed = c[0], w = sim.load(seed), g = w.g, M = w.MAT, x, y, i;
+      w.sandClear(g);
+      for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < 158 ? M.SAND : M.STONE);
+      g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.wAny = true; g.know = { foundry: "TEST", moonrocket: "TEST", concrete: "TEST" };
+      g.peasants.forEach(function (q, k) {
+        q.x = c[1] + k * 3; q.y = 149; q.task = null; q.idle = 0; q.hunger = 0; q.bored = 0; q.life = 1e9;
+        q.iron = 12; q.coal = 100; q.plate = 0; q.bell = 0; q.boards = 20; q.stone = 10; q.glass = 1; q.gold = 0; q.firebrick = 10;
+      });
+      var p = g.peasants[0], gy = [];
+      for (i = 0; i < w.H_FW; i++) gy.push(150);
+      var ff = w.hFoundryFit(g, 150, gy, 150, 150), f = sim.build(w, w.hFoundryAt(g, p, 150, ff.R0, ff.plan));
+      var ry = []; for (i = 0; i < w.H_RW; i++) ry.push(150);
+      var rf = w.hRocketFit(g, 220, ry, 150, 150), r = w.hRocketAt(g, p, 220, rf.R0, w.wGild(g, rf.plan));
+      r.stock = { mortar: 30 };
+      var burnt = 0, out = 0, zl = f.x0 - 4, zr = f.x1 + 10;   /* (four columns out on the plates' side, ten on the hot side: wonders.js W_ZONE_L, W_ZONE_R) */
+      for (i = 0; i < 8000; i++) {
+        g.peasants.forEach(function (q) { q.hunger = 0; if (q.fire) burnt++; });
+        sim.step(w, 1);
+        for (x = zl - 6; x <= zr + 6; x++) if (x < zl || x > zr) for (y = 140; y < 150; y++) out = Math.max(out, g.T[y * g.gw + x]);
+      }
+      check(f.bells >= 1 && !burnt && !g.causes.fire && !g.causes.lava, "seed " + seed + ": bells " + (f.bells || 0) + ", burning " + burnt + " ticks, " + JSON.stringify(g.causes));
+      check(out < 150, "seed " + seed + ": the air at head height outside the foundry's ground reached " + Math.round(out));
+    });
+  });
   test("foundry: nobody, at work or not, walks onto a fresh casting: a whole village about a foundry casting a bell and plates", function () {
     [1, 7].forEach(function (seed) {
       var w = sim.load(seed), g = w.g, M = w.MAT, x, y, i;
@@ -698,7 +727,7 @@ module.exports = function (test, check, sim) {
       var rf = w.hRocketFit(g, 220, ry, 150, 150), r = w.hRocketAt(g, p, 220, rf.R0, w.wGild(g, rf.plan));
       r.stock = { mortar: 30 };
       var burnt = 0;
-      for (i = 0; i < 6000; i++) { g.peasants.forEach(function (q) { q.hunger = 0; if (q.fire) burnt++; }); sim.step(w, 1); }
+      for (i = 0; i < 8000; i++) { g.peasants.forEach(function (q) { q.hunger = 0; if (q.fire) burnt++; }); sim.step(w, 1); }
       check(f.casts >= 2 && !burnt && !g.causes.fire && !g.causes.lava, "seed " + seed + ": casts " + f.casts + ", burning " + burnt + " ticks, " + JSON.stringify(g.causes));
     });
   });

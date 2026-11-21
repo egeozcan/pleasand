@@ -1638,7 +1638,7 @@ function pWalk(g, p, wading) {
     else if (!wading && pOnIce(g, fx, fy)) pIceStep(g, p, pace);
     /* (never a step into what a great work has made hot, for anybody: the other way, or, hot both ways, stay put till it
        cools. wonders.js wHotWork) */
-    else if (g.wAny && wHotWork(g, fx + p.dir, fy)) { p.dir = -p.dir; if (!wHotWork(g, fx + p.dir, fy)) pStepX(g, p, pace); }
+    else if (g.wAny && wHotWork(g, fx + p.dir, fy, p)) { p.dir = -p.dir; if (!wHotWork(g, fx + p.dir, fy, p)) pStepX(g, p, pace); }
     else pStepX(g, p, pace);
     if (!scared && !p.task) {
       if (Math.random() < 0.003) p.idle = 40 + irnd(160);
