@@ -899,6 +899,27 @@ module.exports = function (test, check, sim) {
     for (i = 0; i < 1700 && s2.phase === 0; i++) { r.x = s2.x0 + 3.5; r.y = s2.R0 - 12; r.task = null; r.state = "walk"; p2.hunger = 0; r.hunger = 0; sim.step(w2, 1); }
     check(s2.phase >= 1 && i >= 1400, "kept on the roof, and charged at " + i + " (phase " + s2.phase + ")");
   });
+  test("foundry: nor is its coal lit with somebody up on its cold roof: sent off first, and lit once they are off; or after 1500 ticks anyway", function () {
+    function lit(F) { return F.s.cells.some(function (j) { var c = F.g.m[j]; return c === F.w.MAT.EMBER || c === F.w.MAT.FIRE; }); }
+    var F = foundry("plate"), w = F.w, g = F.g, s = F.s, i;
+    /* (standing about up there, nothing to do: they would stay) */
+    var q = g.peasants[1]; q.dead = 0; q.hunger = 0; q.x = s.x0 + 3.5; q.y = s.R0 - 12; q.task = null; q.idle = 0; q.dir = 1; q.state = "walk";
+    var off = -1, first = -1;
+    /* (held up there till the founder is well past the charging: not lit) */
+    for (i = 0; i < 600 && !(F.p.task && F.p.task.kind === "found" && F.p.task.act >= 70); i++) { q.x = s.x0 + 3.5; q.y = s.R0 - 12; q.task = null; q.state = "walk"; F.p.hunger = 0; q.hunger = 0; sim.step(w, 1); }
+    check(!lit(F) && F.p.task && F.p.task.kind === "found" && F.p.task.act >= 60, "lit with somebody on the roof (or never got to the lighting: " + JSON.stringify(F.p.task).slice(0, 80) + ")");
+    for (i = 0; i < 1500 && first < 0; i++) {
+      F.p.hunger = 0; q.hunger = 0; sim.step(w, 1);
+      var on = Math.floor(q.x) >= s.x0 - 1 && Math.floor(q.x) <= s.x1 + 1 && q.y <= s.R0 - 10;
+      if (off < 0 && !on) off = i;
+      if (first < 0 && lit(F)) { first = i; check(!on, "the coal lit with somebody on the roof, at " + q.x.toFixed(1) + "," + q.y.toFixed(1)); }
+    }
+    check(first >= 0 && off >= 0 && first >= off, "lit at " + first + ", off the roof at " + off);
+    /* (somebody who will not come down: lit after 1500 ticks anyway) */
+    var F2 = foundry("plate"), g2 = F2.g, s2 = F2.s, r = g2.peasants[1]; r.dead = 0;
+    for (i = 0; i < 2200 && !lit(F2); i++) { r.x = s2.x0 + 3.5; r.y = s2.R0 - 12; r.task = null; r.state = "walk"; r.hunger = 0; F2.p.hunger = 0; sim.step(F2.w, 1); }
+    check(lit(F2) && i >= 1400, "kept on the roof, and lit at " + i + (lit(F2) ? "" : " (never)"));
+  });
   test("foundry: nobody jumps, leaps or hooks up onto a warm roof, from a heap beside it or a wall; cold, they may", function () {
     var F = fflat(1), w = F.w, g = F.g, M = F.M, p = F.p, s, x, y;
     p.x = 190.5; s = fFoundry(F);

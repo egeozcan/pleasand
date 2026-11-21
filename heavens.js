@@ -1238,6 +1238,11 @@ function hTaskFound(g, p, k) {
     /* the charge: what iron is still in there from last time counts toward it; the rest in bars, in layers with coal */
     p.pose = (k.act % 20) < 10 ? "hammerA" : "hammerB";
     if (k.act < 60) return true;
+    /* (the coal goes in alight: not with anybody up on the roof, cold as it has been while it was charged. sent off it
+       first, and the founder waits on them a while; then lit anyway, and whoever is still up there is sent off it as it
+       warms: wonders.js wHeatGuard) */
+    if (hRoofFolk(g, s) && !(s.lightT && g.tick >= s.lightT)) { if (!s.lightT) s.lightT = g.tick + 1500; s.note = "waiting for the roof to clear, to light it"; return true; }
+    s.lightT = 0;
     c = hChamber(g, s);
     /* (counted in cells of iron, a fifth of a bar each, whole numbers: never a sum of fractions of bars. what is wanted, what
        they have, and what is fetched from the pockets of whoever else can get here: wCells) */
