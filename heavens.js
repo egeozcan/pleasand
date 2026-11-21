@@ -434,11 +434,31 @@ function hRockOk(g, x) {
   }
   return true;
 }
-/* a meteorite on its way down, to column x (or anywhere it may, x < 0). false if there is nowhere */
+/* where one flying in at column x would really come down: it comes in on a slant, and may hit something on the way (a
+   roof, a hill) short of x. {x, y}, the cell it would come to rest over, as hSkyTick goes */
+function hRockLand(g, x) {
+  var ty = hGround(g, x), side = x < g.gw / 2 ? 1 : -1, sx = x - side * 70, vx = (x - sx) / 90, vy = (ty + 4) / 90, X = sx, Y = -4;
+  for (var t = 0; t < 400; t++) {
+    X += vx; Y += vy;
+    var cx = Math.floor(X), cy = Math.floor(Y);
+    if (cy < 0) continue;
+    if (cy >= g.gh - 1 || !(cy < ty - 1 && AIRY[pCell(g, cx, cy + 1)])) return { x: cx, y: Math.min(cy, ty - 1) };
+  }
+  return { x: x, y: ty - 1 };
+}
+/* is the place one would come to rest a fit one: open ground, nowhere near anybody's house or work (hRockOk), and
+   nobody standing by it */
+function hRockSafe(g, at) {
+  if (!hRockOk(g, at.x) || Math.abs(hGround(g, at.x) - 1 - at.y) > 1) return false;
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.state !== "space" && Math.abs(q.x - at.x) < 5 && Math.abs(q.y - at.y) < 11) return false; }
+  return true;
+}
+/* a meteorite on its way down, to column x (or anywhere it may, x < 0): a column it would really come down at, on its
+   slant, and fit. false if there is nowhere */
 function hMeteorite(g, x) {
   if (x < 0) {
     var ok = [];
-    for (var c = 10; c < g.gw - 10; c++) if (hRockOk(g, c)) ok.push(c);
+    for (var c = 10; c < g.gw - 10; c++) if (hRockOk(g, c) && hRockSafe(g, hRockLand(g, c))) ok.push(c);
     if (!ok.length) return false;
     x = ok[irnd(ok.length)];
   }
@@ -455,10 +475,12 @@ function hSkyTick(g) {
   var x = Math.floor(R.x), y = Math.floor(R.y);
   if (y >= 0 && y < g.gh) partAdd(g, PK_GLINT, R.x - R.vx * 2, R.y - R.vy * 2, -R.vx * 0.2, -R.vy * 0.2, 10 + irnd(10), SPARK_HOT[irnd(4)]);
   if (y < 0 || (y < R.ty - 1 && AIRY[pCell(g, x, y + 1)])) return;
-  /* down: a bang (a small one), and the lump where it hit */
+  /* down: a bang (a small one), and the lump where it hit. but not on anybody's house or work, or by anybody, whatever
+     has moved since it was aimed: then it comes down cold, a lump of stone and iron and no bang, and burns nothing */
   R.x = x; R.y = Math.min(y, R.ty - 1);
-  sandBoom(g, R.y * g.gw + x, 3, 1.2);
-  hLump(g, R);
+  var safe = hRockSafe(g, { x: x, y: R.y });
+  if (safe) sandBoom(g, R.y * g.gw + x, 3, 1.2);
+  hLump(g, R, !safe);
   R.down = true; R.t = g.tick;
   feed(g, "a falling star came down by " + hWhere(g, x) + ". it is still glowing", "#ffd27a", "meteorite");
 }
@@ -470,7 +492,7 @@ function hWhere(g, x) {
 }
 /* the lump: fourteen cells of iron in a heap, with a cell of gold in the middle of it, all at 900 */
 var H_LUMP = [2, 3, 4, 3, 2];
-function hLump(g, R) {
+function hLump(g, R, cold) {
   var x0 = Math.floor(R.x), k, n, x, y, j;
   R.cells = [];
   for (k = 0; k < 5; k++) {
@@ -482,11 +504,11 @@ function hLump(g, R) {
       j = y * g.gw + x;
       if (!AIRY[g.m[j]] && g.m[j] !== MAT.FIRE) break;
       sandPlace(g, j, k === 2 && n === 1 ? MAT.GOLD : MAT.METAL);
-      g.T[j] = 900; g.lat[j] = 0; heatAccept(g, j);
+      g.T[j] = cold ? AMBIENT : 900; g.lat[j] = 0; heatAccept(g, j);
       R.cells.push(j);
     }
   }
-  sparks(g, x0 + 0.5, R.y, 20, 1.2, SPARK_HOT, 14, 0.6);
+  if (!cold) sparks(g, x0 + 0.5, R.y, 20, 1.2, SPARK_HOT, 14, 0.6);
 }
 /* to the meteorite: wait for it to cool, then into the pocket, a lump at a time: iron (as any loose metal is, a fifth
    of a bar a cell) and the gold */
@@ -1807,27 +1829,8 @@ function hRocketStep(g, s) {
     if (s.count === 3) mHouseOf(g, s).forEach(function (q) { if (Math.random() < 0.4) pSay(g, q, "watchLaunch", true); });
     /* (the hull looked over as it goes: a plate gone since it was last looked at, and it does not) */
     if (s.count === 1 && !hHullWhole(g, s)) { s.done = false; s.repair = true; s.last = g.tick; return; }
-    /* (and not lit with anybody about it on foot: sent off it first, and it waits for them, a while) */
-    if (s.count === 1 && hHold(g, s, "padT", hPadFolk(g, s))) { s.note = "holding: somebody by the pad"; return; }
     if (--s.count === 0) hLiftOff(g, s);
   }
-}
-/* a moon rocket's pad and the air over and about it that its exhaust fills, through the countdown and a while after it
-   has gone (wonders.js wRoofs): fire under it, measured, eight columns across it, and air over 150 drifting out nine past
-   its side, up some forty, gone in 150 ticks. ten either side, sixty up, and 400 ticks */
-var H_PLUME = 400;
-function hPadZone(s) { return { x0: s.x0 - 10, x1: s.x1 + 10, y0: s.R0 - 60, y1: s.R0, site: s.id, pad: true }; }
-/* anybody on foot in it, but the crew: each sent off it, the nearer way */
-function hPadFolk(g, s) {
-  var z = hPadZone(s), out = [], k, p, fx, fy;
-  for (k = 0; k < g.peasants.length; k++) {
-    p = g.peasants[k]; fx = Math.floor(p.x); fy = Math.floor(p.y);
-    if (p.dead || p.aboard || p.state === "space" || p.state === "held" || fx < z.x0 || fx > z.x1 || fy < z.y0 || fy > z.y1) continue;
-    if (s.crew && s.crew.indexOf(p.id) >= 0) continue;
-    out.push(p);
-    if (p.state === "walk" && !(p.task && p.task.roof)) wRoofOff(g, p, z);
-  }
-  return out;
 }
 /* every cell of the rocket itself in place */
 function hHullWhole(g, s) { for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (e.rk && !bOk(g, e)) return false; } return true; }
@@ -1854,7 +1857,7 @@ function hLiftOff(g, s) {
     if (g.bmark) g.bmark[e.i] = 0;
   }
   s.plan = s.plan.filter(function (e) { return !e.rk; });
-  g.rocket = { x: bx + 0.5, y: by, vy: 0, cells: cells, site: s.id, t: 0, fireQ: 0, n: cells.length };
+  g.rocket = { x: bx + 0.5, y: by, vy: 0, cells: cells, site: s.id, t: 0, fireQ: 0, n: cells.length };   /* (fireQ: the burn's heat put into the world, for the books: its smoke's) */
   s.gone = g.tick; s.oil = 0; s.count = 0;
   g.fx.whoosh++; g.fx.boom++;
   g.shake = Math.min(14, g.shake + 6);
@@ -1887,18 +1890,20 @@ function hRocketTick(g) {
   R.t++;
   R.vy = Math.max(R.vy - (R.t < 60 ? 0.004 : 0.02), -2.6);
   R.y += R.vy;
-  /* the exhaust: real fire under it, and smoke, into whatever air is there */
+  /* the exhaust: smoke, and the glare of the burn in sparks (glints: light, not fire). no fire, nor air heated by it, in
+     the open where people stand, on the pad or by a bluff it climbs past: measured, fire in the trench licked up over the
+     pad's top at 600 to 900 for the first thirty ticks */
   var bx = Math.floor(R.x), by = Math.floor(R.y);
   for (var dx = -1; dx <= 1; dx++) for (var dy = 1; dy <= 3; dy++) {
     var x = bx + dx, y = by + dy;
     if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) continue;
     var j = y * g.gw + x;
     if (g.m[j] !== MAT.EMPTY || Math.random() > (dy === 1 ? 0.7 : 0.25)) continue;
-    var v = dy === 3 && Math.random() < 0.5 ? MAT.SMOKE : MAT.FIRE, q0 = heatQ(g, j);
-    sandPlace(g, j, v);
-    R.fireQ += heatQ(g, j) - q0;   /* (the burning oil's heat: kept count of, for the books) */
+    var q0 = heatQ(g, j);
+    sandPlace(g, j, MAT.SMOKE);
+    R.fireQ += heatQ(g, j) - q0;   /* (the smoke's warmth: kept count of, for the books) */
   }
-  if (R.t % 3 === 0) sparks(g, R.x, R.y + 2, 3, 0.8, SPARK_HOT, 10, -0.6, PK_GLINT);
+  sparks(g, R.x, R.y + 2, R.t < 90 ? 6 : 3, 0.8, SPARK_HOT, 10, -0.6, PK_GLINT);
   g.shake = Math.max(g.shake, R.y > 60 ? 4 : 1.5);
   if (R.t % 40 === 0) g.fx.whoosh++;
   /* out of the top of the world */

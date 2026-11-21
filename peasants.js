@@ -645,7 +645,7 @@ function pStep(g, p) {
     if (p.acid < 1 || Math.random() < 0.01) pSay(g, p, "acid", p.acid < 1);
     p.acid += 1;
     if (p.acid > 110) { pDie(g, p, "acid"); return; }
-    if (Math.random() < 0.06) { j = (fy - irnd(5)) * gw + fx; if (j >= 0 && j < m.length && m[j] === MAT.ACID) m[j] = MAT.EMPTY; }
+    if (Math.random() < 0.06) { j = (fy - irnd(5)) * gw + fx; if (j >= 0 && j < m.length && m[j] === MAT.ACID && !heatTaken(g, j)) m[j] = MAT.EMPTY; }
   } else if (p.acid > 0) p.acid = Math.max(0, p.acid - 0.3);
   var liquid = LIQUID[cm] || LIQUID[cf], sub = LIQUID[ch] && ch !== MAT.LAVA;
   if (p.fire && (WET[cm] || WET[cf] || WET[ch] || WET[cb])) {

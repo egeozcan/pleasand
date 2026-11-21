@@ -475,18 +475,12 @@ function wRoofs(g) {
     }
     if (warm) r.push({ x0: s.x0 - 1, x1: s.x1 + 1, y1: s.R0 - 10, site: s.id });
   }
-  /* (and a moon rocket's pad, through the countdown and the lift-off and a while after: the exhaust is fire, and the air
-     it heats drifts ten columns off it either way, measured, up to some forty over it. nobody's but the crew's, aboard) */
-  for (k = 0; k < g.sites.length; k++) {
-    s = g.sites[k];
-    if (s.kind === "moonrocket" && s.R0 != null && (s.count > 0 || (s.gone && g.tick - s.gone < H_PLUME))) r.push(hPadZone(s));
-  }
   W_RC.g = g; W_RC.t = g.tick; W_RC.T = g.T; W_RC.n = g.sites.length; W_RC.sh = W_SHUT; W_RC.op = W_OPEN; W_RC.r = r;
   return r;
 }
 function wOnRoof(g, x, y) {
   var r = wRoofs(g);
-  for (var k = 0; k < r.length; k++) if (x >= r[k].x0 && x <= r[k].x1 && y <= r[k].y1 && !(r[k].y0 > y)) return true;
+  for (var k = 0; k < r.length; k++) if (x >= r[k].x0 && x <= r[k].x1 && y <= r[k].y1) return true;
   return false;
 }
 /* off a foundry's roof r ({x0, x1}), the nearer way: past its edge and down. the job they had waits for them */

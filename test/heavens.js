@@ -318,6 +318,7 @@ module.exports = function (test, check, sim) {
     check(fireb(F) === fb, "the firebrick melted: " + fb + " -> " + fireb(F));
     /* the same, charged, and nobody at the bellows or feeding the fire */
     F = foundry("plate"); w = F.w; g = F.g; s = F.s; s.hold = true;
+    g.arriveT = 1e9;   /* (and nobody new come to the valley to take it up) */
     for (k = 0; k < 4000 && s.phase < 2; k++) sim.step(w, 1);
     F.p.dead = 1;
     hi = 0;
@@ -520,6 +521,41 @@ module.exports = function (test, check, sim) {
       });
     });
     check(!bare.length, "pockets counted on without asking whether they can be got to: " + bare.join(", "));
+  });
+  /* pi's round 25 meteor: a house on a shelf at 90..100, the observatory off to the west, its occupant asleep in it */
+  function fMeteor() {
+    var w = sim.load(39), g = w.g, M = w.MAT, x, y;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = x <= 100 ? 120 : 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var p = g.peasants[0]; g.peasants = [p];
+    g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.wAny = true; g.know = { observatory: "T", masonry: "T" };
+    Object.assign(p, { x: 95.5, y: 119, state: "walk", task: null, idle: 0, life: 1e9, stone: 0, hunger: 0, bored: 0 });
+    check(w.bPlanHouse(g, p), "(the test wants a house)");
+    var house = sim.build(w, g.sites.filter(function (s) { return s.kind === "house"; })[0]);
+    p.x = 40.5;
+    check(w.hPlanObs(g, p), "(the test wants an observatory)");
+    var obs = sim.build(w, g.sites.filter(function (s) { return s.kind === "observatory"; })[0]);
+    Object.assign(p, { x: 95.5, task: null, sleep: 1300, inBed: true, home: house.id });
+    return { w: w, g: g, M: M, p: p, house: house, obs: obs };
+  }
+  test("observatory: a meteorite is aimed where it will really come down, on its slant, and never at a house: pi's shower", function () {
+    var F = fMeteor(), w = F.w, g = F.g, p = F.p;
+    Object.assign(F.obs, { dropT: 30, lookT: 1e9, showerT: 1e9 });
+    sim.step(w, 30);
+    var R = g.hRock, land = R && w.hRockLand(g, R.tx);
+    check(R && w.hRockSafe(g, land), "aimed at " + (R && R.tx) + ", where it comes down at " + JSON.stringify(land));
+    while (g.tick < 1450) sim.step(w, 1);
+    check(g.sites.indexOf(F.house) >= 0 && !g.causes.fire && !p.fire, "the house " + (g.sites.indexOf(F.house) >= 0 ? "stands" : "ruined") + ", " + JSON.stringify(g.causes));
+  });
+  test("observatory: a meteorite that would come down on a house after all comes down cold: no bang, no fire, the house and its sleeper unhurt", function () {
+    var F = fMeteor(), w = F.w, g = F.g, M = F.M, p = F.p, i;
+    w.hMeteorite(g, 118);   /* (pi's column: on its slant, it hits the roof at 98) */
+    var R = g.hRock;
+    for (i = 0; i < 300 && !R.down; i++) sim.step(w, 1);
+    check(R.down, "(the test wants it down)");
+    var hot = R.cells.some(function (j) { return g.T[j] > 100; });
+    for (i = 0; i < 600; i++) sim.step(w, 1);
+    check(!hot && g.sites.indexOf(F.house) >= 0 && !g.causes.fire && !p.fire, "came down " + (hot ? "hot" : "cold") + " at " + R.x + "," + R.y + ", the house " + (g.sites.indexOf(F.house) >= 0 ? "stands" : "ruined") + ", " + JSON.stringify(g.causes));
   });
   test("observatory, and every other great work the bored go to look at: not while they are backed off from it", function () {
     var w = sim.load(1), g = w.g, p = g.peasants[0], k, n = 0;
@@ -1030,7 +1066,10 @@ module.exports = function (test, check, sim) {
     fs.readdirSync(root).filter(function (fn) { return /\.js$/.test(fn) && fn !== "world.js" && fn !== "heat.js"; }).forEach(function (fn) {
       fs.readFileSync(path.join(root, fn), "utf8").split("\n").forEach(function (l, n) {
         if (/heatTaken\(|heatVacate\(|SALTWATER/.test(l)) return;
-        if (/=\s*MAT\.EMPTY;\s*(g\.aux\[[^\]]+\]\s*=\s*0;\s*)?heatSync\(/.test(l) || /sandSet\(g, [^,]+, MAT\.EMPTY\)/.test(l)) bare.push(fn + ":" + (n + 1));
+        /* (a cell emptied and set to the air's own temperature on the spot is no burn) */
+        if (/\bT\[[^\]]+\]\s*=\s*AMBIENT/.test(l)) return;
+        if (/=\s*MAT\.EMPTY;\s*(g\.aux\[[^\]]+\]\s*=\s*0;\s*)?heatSync\(/.test(l) || /sandSet\(g, [^,]+, MAT\.EMPTY\)/.test(l) ||
+            /\bm\[[^\]]+\]\s*=\s*MAT\.EMPTY\b/.test(l)) bare.push(fn + ":" + (n + 1));
       });
     });
     check(!bare.length, "a cell taken away, its heat crammed into the air: " + bare.join(", "));
@@ -1048,13 +1087,44 @@ module.exports = function (test, check, sim) {
     Object.assign(s, { oil: w.H_FUEL, crew: [a.id], boardT: -600, count: 0, countT: 0 });
     return { w: w, g: g, M: M, s: s, a: a };
   }
-  test("moon rocket: pi's passer-by, hungry, wandering by the pad through the countdown: sent off it, and not burnt by the launch", function () {
+  test("moon rocket: pi's passer-by, hungry, wandering by the pad through the countdown: not burnt by the launch", function () {
     var P = fPad(1), w = P.w, g = P.g, M = P.M, s = P.s, b = g.peasants[1], u;
     g.peasants = [P.a, b];
     Object.assign(b, { x: 125 + 24.5, y: s.R0 - 1, dir: -1, task: null, idle: 0, hunger: 5200, bored: 0, life: 1e9 });
     for (u = 14; u < 20; u++) w.sandSet(g, (s.R0 - 1) * g.gw + 125 + u, M.FLOWER);
     while (g.tick < 1400 && !b.dead) sim.step(w, 1);
     check(s.gone && !b.dead && !b.fire && !g.causes.fire, "launched " + !!s.gone + ", the passer-by " + (b.dead ? "dead" : "alive") + ", " + JSON.stringify(g.causes));
+  });
+  /* pi's round 25 valley: flat, or a bluff from 140 with its top at 85, the rocket at 125 */
+  function fPad25(cliff, x, hunger) {
+    var w = sim.load(1), g = w.g, M = w.MAT, X, y;
+    w.sandClear(g);
+    for (X = 0; X < g.gw; X++) { var floor = cliff && X >= 140 ? 85 : 150; for (y = floor; y < g.gh; y++) w.sandPlace(g, y * g.gw + X, y < floor + 8 ? M.SAND : M.STONE); }
+    g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.wAny = true; g.know = { moonrocket: "TEST", concrete: "TEST" };
+    var crew = g.peasants[0], p = g.peasants[1]; g.peasants = [crew, p];
+    var gy = []; for (X = 0; X < w.H_RW; X++) gy.push(150);
+    var fit = w.hRocketFit(g, 125, gy, 150, 150), s = sim.build(w, w.hRocketAt(g, crew, 125, fit.R0, fit.plan));
+    Object.assign(crew, { x: s.rx + 0.5, y: s.R0 - 8, state: "space", aboard: s.id, task: null, life: 1e9 });
+    Object.assign(s, { oil: w.H_FUEL, crew: [crew.id], boardT: -600, count: 0, countT: 0 });
+    Object.assign(p, { x: x, y: 149, dir: -1, state: "walk", task: null, idle: 0, hunger: hunger, bored: 0, life: 1e9 });
+    return { w: w, g: g, M: M, s: s, p: p };
+  }
+  test("moon rocket: through its countdown nobody is kept off the ground about it: a starving villager gets to the food by the pad, and eats", function () {
+    var P = fPad25(false, 155.5, 17400), w = P.w, g = P.g, M = P.M, p = P.p, x, bite = -1;
+    for (x = 139; x <= 144; x++) w.sandSet(g, 149 * g.gw + x, M.FLOWER);
+    while (g.tick < 1600 && !p.dead) { var h0 = p.hunger; sim.step(w, 1); if (bite < 0 && h0 - p.hunger > 600) bite = g.tick; }
+    check(!p.dead && bite >= 0 && P.s.gone, "ate at " + bite + ", launched " + P.s.gone + ", " + JSON.stringify(g.causes));
+  });
+  test("moon rocket: its exhaust is smoke and glare: no air about the pad over 150 as it goes, flat or by a bluff, and the passer-by on the bluff is not burnt", function () {
+    [false, true].forEach(function (cliff) {
+      var P = fPad25(cliff, 139.5, 0), w = P.w, g = P.g, s = P.s, p = P.p, hot = 0, at = "", x, y;
+      while (g.tick < 1350 && !p.dead) {
+        sim.step(w, 1);
+        if (s.gone) for (x = s.x0 - 30; x <= s.x1 + 30; x++) for (y = 20; y <= s.R0; y++) { var j = y * g.gw + x; if (w.AIRY[g.m[j]] && g.T[j] > hot) { hot = g.T[j]; at = x + "," + y; } }
+      }
+      check(s.gone && !p.dead && !g.causes.fire, (cliff ? "by the bluff: " : "flat: ") + "launched " + s.gone + ", the passer-by " + (p.dead ? "dead" : "alive") + ", " + JSON.stringify(g.causes));
+      check(hot < 150, (cliff ? "by the bluff: " : "flat: ") + "the air about the pad reached " + Math.round(hot) + " at " + at);
+    });
   });
   test("moon rocket: launches with the whole village about the pad, seeds 1 to 5: it goes, and nobody but the crew is burnt by its exhaust", function () {
     [1, 2, 3, 4, 5].forEach(function (seed) {
