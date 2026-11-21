@@ -586,7 +586,9 @@ function peasantsStep(g) {
   wStep(g);   /* (the great works: wonders.js) */
   lTick(g);   /* (snowballs in the air, and fuses burning: leftovers.js) */
   exploreNote(g);
-  for (k = L.length - 1; k >= 0; k--) if (L[k].dead) L.splice(k, 1);
+  /* (however they went, died or left the valley by air: what they carried for the great works, kept. wonders.js. pDie has
+     done it already for the dead; this is for everybody else, the one way out of the list) */
+  for (k = L.length - 1; k >= 0; k--) if (L[k].dead) { wDropAll(g, L[k]); L.splice(k, 1); }
   if (g.hadPeasants && !L.length && !g.emptyNoted) { g.emptyNoted = true; banner(g, "THE VILLAGE IS EMPTY", "press V and click for more. you monster"); }
   if (L.length) g.emptyNoted = false;
   /* ghosts drift up and away */
@@ -617,7 +619,10 @@ function pStep(g, p) {
     if (--p.spaceT <= 0) {
       /* (back from the moon: over the pad they went up from. heavens.js) */
       var sx = p.spaceX; p.spaceX = null;
-      p.state = "fly"; p.x = sx != null ? sx : 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = Math.random() - 0.5; p.vy = sx != null ? -0.8 : 1.5;
+      /* (from the moon, straight down onto it, kept in the world: no drift sideways to carry them off the edge of it from a
+         pad at the edge. the dice rolled all the same) */
+      var vr = Math.random() - 0.5;
+      p.state = "fly"; p.x = sx != null ? Math.max(6, Math.min(g.gw - 7, sx)) : 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = sx != null ? 0 : vr; p.vy = sx != null ? -0.8 : 1.5;
       p.fromSpace = 240; p.flyT = sx != null ? 13 : 0;   /* (and slowly enough, at first, for the cord) */
       feed(g, p.name + (sx != null ? " is back from the moon" : " is back from space"), "#9ad0ff");
       pSay(g, p, "space", true);

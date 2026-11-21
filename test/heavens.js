@@ -732,6 +732,30 @@ module.exports = function (test, check, sim) {
     for (t = 0; t < 8000 && !w.bOk(g, e); t++) sim.step(w, 1);
     check(w.bOk(g, e), "the cell was never mended in its stand-in: " + s.note);
   });
+  test("moon rocket: back from the moon to a pad at the edge of the world, they come down on it, and the moon rock is never lost", function () {
+    var w = sim.load(18), g = w.g, M = w.MAT, x, y, k, i;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var p = g.peasants[0];
+    g.peasants = [p]; g.arriveT = 1e9; g.know = { moonrocket: "TEST" }; g.wAny = true;
+    for (x = 6; x < 34; x++) for (y = 150; y < 158; y++) w.sandPlace(g, y * g.gw + x, M.SAND);
+    var gy = []; for (i = 0; i < w.H_RW; i++) gy.push(150);
+    var fit = w.hRocketFit(g, 8, gy, 150, 150), r = w.hRocketAt(g, p, 8, fit.R0, fit.plan);
+    sim.build(w, r);
+    g.tick = 1; r.crew = [p.id]; p.state = "space"; p.aboard = r.id; p.dir = -1; p.task = null; p.life = 1e9;
+    w.hLiftOff(g, r); p.spaceT = 1;   /* (the last tick of the trip) */
+    for (k = 0; k < 700 && !p.dead && !(p.state === "walk" && !p.fromSpace); k++) sim.step(w, 1);
+    sim.step(w, 1);
+    check(p.x >= 0 && p.x < g.gw, "came down off the edge of the world, at " + p.x.toFixed(1));
+    var kept = (p.dead ? 0 : (p.moonrock || 0)) + ((g.salvage && g.salvage.moonrock) || 0);
+    for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.MOONROCK) kept++;
+    check(kept === 2, "the moon rock: " + kept + " of 2 kept (dead " + !!p.dead + ")");
+    /* (and anybody gone out of the list, however they went: what they carried for the great works, in the salvage) */
+    var q = { x: 3.5, y: 140, dead: 1, moonrock: 1, firebrick: 2 }; g.peasants.push(q);
+    var before = ((g.salvage && g.salvage.moonrock) || 0);
+    sim.step(w, 1);
+    check(g.peasants.indexOf(q) < 0 && g.salvage && g.salvage.moonrock === before + 1 && g.salvage.firebrick >= 2, "gone from the list, and what they had is not kept: " + JSON.stringify(g.salvage));
+  });
   test("moon rocket: fuelled, its crew get in, it counts down, and it goes: out of the grid, heat and all, and a flag on the moon", function () {
     var R = rocket(true), w = R.w, g = R.g, s = R.s, M = w.MAT, k;
     s.oil = 12;
