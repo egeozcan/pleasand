@@ -795,6 +795,7 @@ function iFarmSpot(g, xa, xb, p, rough) {
 }
 function iFarmPlot(g, x0, fy, loose) {
   var x1 = x0 + I_FARM_W - 1, gy = [], dig = [], lo = 1e9, hi = -1, x, y, c, k, G;
+  if (g.wAny && wFarSide(g, x0, x1)) return null;   /* (not across a foundry's ground from the village: wonders.js) */
   /* (loose: lumpier ground will do, a field following the lie of the land, when there is no flat ground left at all) */
   var step = loose ? 2 : 1, lump = loose ? 4 : 2;
   if (x0 < 4 || x1 > g.gw - 5) return null;

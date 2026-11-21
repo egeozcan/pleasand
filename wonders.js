@@ -486,20 +486,66 @@ function wZones(g) {
   W_ZC.g = g; W_ZC.t = g.tick; W_ZC.T = g.T; W_ZC.n = g.sites.length; W_ZC.hyp = W_HYP; W_ZC.z = z;
   return z;
 }
-/* would closing foundry s's ground cut anybody (but its founder) off from home, who can get there with it open? */
+/* THE VILLAGE'S SIDE of a foundry's ground: the village middle, and what it lives on. wMid: the footing at the middle of
+   the houses (hHome's, but only that: not every house, one may be across the foundry). wFoodAt: food a peasant at (x, y)
+   could eat (P_FOOD beside or under them: a field, a bush, a flower) */
+function wFoodAt(g, x, y) {
+  for (var dx = -1; dx <= 1; dx++) for (var dy = -3; dy <= 1; dy++) if (P_FOOD[pCell(g, x + dx, y + dy)]) return true;
+  return false;
+}
+function wMid(g) { var h = hHome(g); return { x: h.x, y: h.y, at: function (x, y) { return Math.abs(x - h.x) <= 3 && Math.abs(y - h.y) <= 4; } }; }
+/* would closing foundry s's ground cut anybody (but its founder) off from the village middle, or from food, who can get
+   to it with it open? (all: the list of them) */
 function wStrands(g, s, all) {
-  var home = hHome(g), k, q, cut = false, who = [];
+  var mid = wMid(g), k, q, cut = false, who = [];
+  function food(x, y) { return wFoodAt(g, x, y); }
   for (k = 0; k < g.peasants.length && (all || !cut); k++) {
     q = g.peasants[k];
     if (q.dead || q.state !== "walk" || q.id === s.founder) continue;
-    var x = Math.floor(q.x), y = Math.floor(q.y);
-    if (home.at(x, y) || !navFind(g, x, y, home.at, home.x, home.y, H_REACH * 2)) continue;   /* (home already, or no way home anyhow) */
-    W_HYP = s;
-    var shut = !navFind(g, x, y, home.at, home.x, home.y, H_REACH * 2);
-    W_HYP = null;
+    var x = Math.floor(q.x), y = Math.floor(q.y), shut = false;
+    [[mid.at, mid.x, mid.y], [food, null, null]].forEach(function (t) {
+      if (shut || t[0](x, y) || !navFind(g, x, y, t[0], t[1], t[2], H_REACH * 2)) return;   /* (there already, or no way anyhow) */
+      W_HYP = s;
+      if (!navFind(g, x, y, t[0], t[1], t[2], H_REACH * 2)) shut = true;
+      W_HYP = null;
+    });
     if (shut) { cut = true; who.push(q); }
   }
   return all ? who : cut;
+}
+/* the columns xa..xb (a house, a field, being planned): across a foundry's ground from the village middle, or in it */
+function wFarSide(g, xa, xb) {
+  var mx = null;
+  for (var k = 0; k < g.sites.length; k++) {
+    var s = g.sites[k];
+    if (s.kind !== "foundry") continue;
+    if (mx == null) mx = wMid(g).x;
+    var z = wZoneOf(s);
+    if (xb >= z.x0 && xa <= z.x1) return true;
+    if ((mx < z.x0 && xa > z.x1) || (mx > z.x1 && xb < z.x0)) return true;
+  }
+  return false;
+}
+/* THE PLOT RULE: a foundry at x0 (its ground, at its widest) does not stand between any of the village's houses, fields,
+   furnace, well, pond, the water they fish, and the village middle and the rest: everything is to one side of it. so it
+   stands at the end of the village, never across it (hPlanFoundry) */
+function wFoundryApart(g, x0) {
+  var zl = x0 - W_ZONE_L, zr = x0 + H_FW - 1 + W_ZONE_R, xs = [wMid(g).x], k, s, left = 0, right = 0;
+  for (k = 0; k < g.sites.length; k++) {
+    s = g.sites[k];
+    if (["house", "farm", "furnace", "well", "pond", "lamp"].indexOf(s.kind) >= 0) { if (s.x1 >= zl && s.x0 <= zr) return false; xs.push(s.cx); }
+  }
+  /* (and the nearest open water to the middle, that they fish and fill buckets at) */
+  var mx = xs[0], wx = null;
+  for (var d = 0; d < g.gw && wx == null; d++) for (var sd = -1; sd <= 1 && wx == null; sd += 2) {
+    var x = mx + sd * d;
+    if (x < 0 || x >= g.gw) continue;
+    var G = mGround(g, x);
+    if (G > 0 && G < g.gh && WET[g.m[G * g.gw + x]]) wx = x;
+  }
+  if (wx != null) xs.push(wx);
+  for (k = 0; k < xs.length; k++) { if (xs[k] < zl) left++; else if (xs[k] > zr) right++; else return false; }
+  return !left || !right;
 }
 /* foundry s wants firing, and its ground would cut these off from home: they are called over, home, first (a "wcross":
    wTask). it waits for them a while (W_HOLD); somebody who will not come in that long waits out the one cast on the far
@@ -507,7 +553,8 @@ function wStrands(g, s, all) {
 var W_HOLD = 3000;
 function wCallOver(g, s, who) {
   if (!s.holdT) s.holdT = g.tick;
-  if (g.tick - s.holdT > W_HOLD) { s.holdT = 0; return false; }
+  /* (and not given up on while one of them is hungry: they are fed first. between casts it is open, so this ends) */
+  if (g.tick - s.holdT > W_HOLD && !who.some(function (q) { return q.hunger > P_HUNGRY; })) { s.holdT = 0; return false; }
   var home = hHome(g);
   who.forEach(function (q) { if (!(q.task && (q.task.kind === "wcross" || q.task.kind === "eat" || q.task.kind === "sleep"))) q.task = { kind: "wcross", t: 0, act: 0, x: home.x, y: home.y }; });
   return true;
@@ -567,9 +614,9 @@ function wTask(g, p, k) {
     }
   }
   if (k.kind === "wcross") {
-    var hm = hHome(g);
-    if (hm.at(Math.floor(p.x), Math.floor(p.y)) || ++k.t > W_HOLD) return iDone(p, true);
-    if (iWalk(g, p, k, "wcross", hm.x, hm.y, hm.at)) return iDone(p, false);
+    var mid = wMid(g);
+    if (mid.at(Math.floor(p.x), Math.floor(p.y)) || ++k.t > W_HOLD) return iDone(p, true);
+    if (iWalk(g, p, k, "wcross", mid.x, mid.y, mid.at)) return iDone(p, false);
     return false;
   }
   if (k.kind === "wcool") {

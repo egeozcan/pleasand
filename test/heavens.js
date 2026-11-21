@@ -290,7 +290,7 @@ module.exports = function (test, check, sim) {
     return n;
   }
   function fireb(F) { var n = 0; F.s.plan.forEach(function (e) { if (e.v === F.w.MAT.FIREBRICK && F.g.m[e.i] === F.w.MAT.FIREBRICK) n++; }); return n; }
-  test("foundry: the forge, concrete and sixty bars put it into the head of whoever has worked the furnace most", function () {
+  test("foundry: the forge, concrete and sixty bars put it into the head of whoever has worked the furnace most; planned at the end of the village", function () {
     var w = sim.load(1), g = w.g;
     know(g, ["farm", "dig", "mine", "masonry", "smelt", "forge", "concrete"]);
     check(w.mPlanFurnace(g, g.peasants[0]), "(the test wants a furnace)");
@@ -302,7 +302,8 @@ module.exports = function (test, check, sim) {
     settle(g);
     check(w.hPlanFoundry(g, g.peasants[0]), "nowhere for a foundry");
     var s = sites(g, "foundry")[0], f = sites(g, "furnace")[0];
-    check(Math.abs(s.cx - f.cx) < 60, "the foundry is " + Math.round(Math.abs(s.cx - f.cx)) + " columns from the furnace");
+    /* (at the end of the village, not across it: everything of the village's to one side of its ground) */
+    check(w.wFoundryApart(g, s.x0), "the foundry stands across the village, at " + s.x0);
   });
   test("foundry: a closed chamber of lit coal with the bellows worked is mostly running and over 1500 within 2500 ticks; unworked it never passes 760", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, k, best = 0, hi = 0, fb = fireb(F);
@@ -626,6 +627,8 @@ module.exports = function (test, check, sim) {
     function run(cliff) {
       var F = fflat(1), w = F.w, g = F.g, p = F.p, M = F.M, x, y, i, x0 = g.gw / 2 - w.H_FW / 2;
       for (x = 0; x < g.gw; x++) if (x < x0 || x >= x0 + w.H_FW) for (y = 150; y < 158; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+      g.sites.length = 0;   /* (the village to the left: a house at 40) */
+      w.bNew(g, "house", p, [w.bE(g, 40, 150, M.STONE, 0)], [35, 136, 45, 149], { F: 149, door: 35 }).done = true;
       p.x = 60.5;
       check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
       sim.build(w, sites(g, "furnace")[0]); p.task = null;
@@ -695,6 +698,51 @@ module.exports = function (test, check, sim) {
     g.peasants.forEach(function (p, i) { p.x = 130.5 + i * 3; p.y = 149; p.task = null; p.idle = 0; p.hunger = 0; p.bored = 0; p.life = 1e9; p.iron = 0; p.coal = 0; });
     return w;
   }
+  test("foundry: not fired while it would cut a hungry villager, housed beyond it, off from food: they are called over and fed", function () {
+    /* (pi's valley: a cliff at 203, the foundry at 150, food west of it, and a house east of it, built there before the
+       foundry's rules could keep it out) */
+    var w = fBasin(2), g = w.g, M = w.MAT, i, x;
+    for (x = 184; x < 203; x++) for (y = 96; y < 150; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);   /* (pi's cliff is at 203) */
+    var y;
+    var p = g.peasants[0], q = g.peasants[1];
+    g.peasants = [p, q];
+    p.x = 174.5; p.iron = 12; p.coal = 100;
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+    sim.build(w, g.sites[g.sites.length - 1]);
+    p.x = 145.5;
+    var gy = []; for (i = 0; i < w.H_FW; i++) gy.push(150);
+    var fit = w.hFoundryFit(g, 150, gy, 150, 150), s = sim.build(w, w.hFoundryAt(g, p, 150, fit.R0, fit.plan));
+    var h = w.bNew(g, "house", q, [w.bE(g, 190, 150, M.STONE, 0)], [186, 136, 196, 149], { F: 149, door: 186 }); h.done = true; q.home = h.id;
+    q.x = 191.5; q.y = 149; q.hunger = 15700; q.dir = 1; q.task = null;
+    function food() { for (x = 112; x < 140; x++) if (g.m[149 * g.gw + x] === M.EMPTY) w.sandSet(g, 149 * g.gw + x, M.FLOWER); }
+    food();
+    check(w.wStrands(g, s, true).some(function (o) { return o.id === q.id; }), "the villager beyond it is not counted as cut off from food");
+    for (i = 0; i < 4500 && !q.dead; i++) { if (i % 60 === 0) food(); sim.step(w, 1); }
+    check(!q.dead && !g.causes.starve, "the villager beyond the foundry starved: hunger " + q.hunger + ", " + JSON.stringify(g.causes));
+  });
+  test("foundry: planned at the end of the village, never across it: a plot between the houses is turned down, one beyond them all is taken", function () {
+    var w = fBasin(1), g = w.g, M = w.MAT, i;
+    g.sites.length = 0;
+    w.bNew(g, "house", g.peasants[0], [w.bE(g, 95, 150, M.STONE, 0)], [90, 136, 100, 149], { F: 149, door: 90 }).done = true;
+    w.bNew(g, "house", g.peasants[1], [w.bE(g, 215, 150, M.STONE, 0)], [210, 136, 220, 149], { F: 149, door: 210 }).done = true;
+    check(!w.wFoundryApart(g, 150), "a foundry between the two houses was let be planned");
+    check(w.wFoundryApart(g, 40), "a foundry beyond both houses was turned down");
+    /* (and nothing new across a foundry's ground from the village: a house or a field) */
+    var gy = []; for (i = 0; i < w.H_FW; i++) gy.push(150);
+    var fit = w.hFoundryFit(g, 40, gy, 150, 150); w.hFoundryAt(g, g.peasants[0], 40, fit.R0, fit.plan);
+    check(w.wFarSide(g, 10, 20) && !w.wFarSide(g, 120, 130), "the far side of the foundry from the village is not kept clear");
+    check(!w.bPlot(g, 10, 149), "a house planned across the foundry's ground from the village");
+  });
+  test("foundry: a first pour given up for want of coal, the iron left in it counts: coal alone and it is fired again", function () {
+    var F = fflat(1), w = F.w, g = F.g, p = F.p, s = fFoundry(F), i, charged = false;
+    p.iron = 12; p.coal = 0; s.casts = 0;
+    for (i = 0; i < 9000 && !(charged && s.phase === 0); i++) { p.hunger = 0; sim.step(w, 1); if (s.phase === 2) charged = true; }
+    check(charged && s.phase === 0 && w.hChamber(g, s).met > 0 && w.wCellsSure(g, "iron") < 60, "(the test wants a first pour given up, the pockets under twelve bars: phase " + s.phase + ", " + w.wCellsSure(g, "iron") + " cells)");
+    check(w.hFoundryWant(g, s) === "a first pour", "with the chamber's iron, it does not want its first pour: " + JSON.stringify(w.hFoundryWant(g, s)));
+    p.coal = 80;
+    for (i = 0; i < 6000 && !(s.phase >= 2 && w.hChamber(g, s).emb > 0); i++) { p.hunger = 0; sim.step(w, 1); }
+    check(s.phase >= 2 && w.hChamber(g, s).emb > 0, "coal brought, and it is not fired again: phase " + s.phase);
+  });
   test("foundry: a charge that never catches (no coal) closes nothing, and gives up back to idle; the villager beyond it is not cut off", function () {
     var w = fBasin(2), g = w.g, M = w.MAT, i, x;
     var op = g.peasants[0], walker = g.peasants[1];

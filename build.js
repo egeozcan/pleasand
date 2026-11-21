@@ -494,6 +494,7 @@ function bGround(g, x, fy) {
 function bPlot(g, x0, fy) {
   var gw = g.gw, x1 = x0 + 10, gy = [], x, y, c, k, F = 1e9;
   if (x0 < 4 || x1 > gw - 5) return null;
+  if (g.wAny && wFarSide(g, x0, x1)) return null;   /* (not across a foundry's ground from the village: wonders.js) */
   for (x = x0; x <= x1; x++) {
     y = bGround(g, x, fy);
     if (y < 0) return null;

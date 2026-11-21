@@ -963,7 +963,14 @@ function hPlanFoundry(g, p) {
   /* (and only where the founder can stand to work both moulds' bellows, and get there from home: not one of them in the
      cliff next to it) */
   var r = wPlot(g, { w: H_FW, sky: 16, rough: 12, near: f ? f.cx : wMiddle(g), pad: 2,
-                     fit: function (g2, x0, gy, hi, lo) { var t = hFoundryFit(g2, x0, gy, hi, lo); return t && hFoundryStations(g2, x0, t.R0) ? t : null; } });
+                     fit: function (g2, x0, gy, hi, lo) {
+                       var t = hFoundryFit(g2, x0, gy, hi, lo);
+                       if (!t || !hFoundryStations(g2, x0, t.R0)) return null;
+                       /* (at the end of the village first, its ground cutting nothing off: wFoundryApart. with no such
+                          plot, across it, as ever: its ground is then kept from cutting anybody off by wStrands) */
+                       if (wFoundryApart(g2, x0)) t.score += 1000;
+                       return t;
+                     } });
   if (!r) return false;
   var s = hFoundryAt(g, p, r.x0, r.r.R0, wCleared(g, r, r.r.plan));
   feed(g, p.name + " is building a foundry by the furnace", "#ffd94a", "plan" + s.id);
@@ -1066,7 +1073,7 @@ function hFoundryWant(g, s) {
   if (plate > 0.5) plate -= wSalvageSure(g, "plate");
   if (bell > 1e-6) return "an engine bell";   /* (a bell is cast whole: for a cell of one to mend, too) */
   if (plate > 0.5) return Math.ceil(plate) + " plates";
-  if (!s.casts && wCellsSure(g, "iron") >= 60) return "a first pour";   /* (to see that it works: once) */
+  if (!s.casts && wCellsSure(g, "iron") + (s.cells ? hChamber(g, s).met + hChamber(g, s).liq : 0) >= 60) return "a first pour";   /* (to see that it works: once. what is in the chamber from a pour given up counts) */
   return "";
 }
 /* the plug of the tap for a mould, and where the founder stands to work it */
@@ -1098,7 +1105,14 @@ function hFoundryStep(g, s) {
      and into the nearest pocket (or onto the pile), a fifth of a bar a cell, as scrap is: it would otherwise stop the
      mould up for good) */
   if (s.phase === 0) hMouldScrap(g, s);
-  if (s.phase === 0 && hFoundryWant(g, s)) {
+  /* (charged, and nobody at it, and cold: given up, whoever's shift it was and however it ended. idle again, the iron
+     left in the chamber for the next charge, and its ground open) */
+  if (s.phase === 2) {
+    var ch = hChamber(g, s);
+    /* (or nobody has been able to get a fire going in it a good while: no coal burning in it, cold, since the charge) */
+    if (ch.hi < W_ZONE_ON && (!mCrew(g, "found", s.id) || (!ch.emb && g.tick - (s.meltT || 0) > 1200))) { s.phase = 0; s.mould = ""; s.idleT = g.tick + 1500; }
+  }
+  if (s.phase === 0 && !(s.idleT > g.tick) && hFoundryWant(g, s)) {   /* (a while after one was given up, before the next) */
     /* (a bell wanted is cast as a bell, when the bell's mould is free of the last one: never plates instead) */
     var bell = hFoundryWant(g, s) === "an engine bell";
     s.mould = bell ? (!hMouldFull(g, s, "bell") ? "bell" : "") : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
@@ -1213,7 +1227,7 @@ function hTaskFound(g, p, k) {
         /* (not before they have had a go at stoking it. given up: back to idle, the iron left in the chamber, where the next
            charge counts it (phase 1); and its ground opens again as it cools. wonders.js wZones) */
         if (p.sayT <= 0) pSay(g, p, "nocoal");
-        s.phase = 0; s.mould = "";
+        s.phase = 0; s.mould = ""; s.idleT = g.tick + 1500;
         return iDone(p, false);
       }
       return true;
