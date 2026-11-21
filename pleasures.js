@@ -890,7 +890,7 @@ function pOrganAt(g, x0, gy, G) {
     for (y = L0 - 1; y >= L0 - h; y--) put(u, y, y === L0 - h && u >= 7 ? MAT.GOLD : MAT.BRICK, 10 + L0 - 1 - y, 0.1);
   }
   /* the ladder, up the left of it to the first pipe's top */
-  for (y = G - 1; y >= L0 - P_OH[0] - 1; y--) put(0, y, MAT.LADDER, 10 + G - 1 - y);
+  for (y = G - 1; y >= L0 - P_OH[0] - 1; y--) put(0, y, MAT.LADDER, 10 + G - 1 - y).a = 1;   /* (one wide: its middle is itself, aux 1) */
   /* (sky over all of it, and no tree or roof to stop the steam on its way up) */
   for (u = 0; u < P_OW; u++) for (y = L0 - P_OH[P_ON - 1] - 2; y >= Math.max(0, G - 60); y -= 3) { c = pCell(g, x0 + u, y); if (!AIRY[c]) return null; }
   for (n = 0; n < plan.length; n++) if (plan[n].v === MAT.GOLD) plan[n].cost = null;
@@ -914,6 +914,23 @@ function pOrganDry(g, s) {
   return out;
 }
 function pOValve(g, s, n) { return pOLid(s.G) * g.gw + pOPipeX(s, n); }
+/* THE GRATES: each pipe's valve, and the top of each pipe, are grates. steam goes up through them, open or shut, as it
+   goes through air; a peasant does not, walking, standing or falling (peasants.js pSolid, pFoot, pBody, pStiff). nobody
+   drops down a pipe, or through an open valve into the boiling tank. cached for the tick: P_GRATE is scratch */
+var P_GRATE = { g: null, t: -1, n: -1, j: null };
+function pGrate(g, j) {
+  if (P_GRATE.g !== g || P_GRATE.t !== g.tick || P_GRATE.n !== g.sites.length) {
+    var J = null;
+    for (var k = 0; k < g.sites.length; k++) {
+      var s = g.sites[k];
+      if (s.kind !== "organ" || !s.done) continue;
+      J = J || {};
+      for (var n = 0; n < P_ON; n++) { J[pOValve(g, s, n)] = 1; J[(pOLid(s.G) - P_OH[n]) * g.gw + pOPipeX(s, n)] = 1; }
+    }
+    P_GRATE.g = g; P_GRATE.t = g.tick; P_GRATE.n = g.sites.length; P_GRATE.j = J;
+  }
+  return !!(P_GRATE.j && P_GRATE.j[j]);
+}
 function pOOpen(g, s, n) { var j = pOValve(g, s, n); if (g.m[j] === MAT.METAL) { heatVanish(g, j); g.fx.clank++; } }
 /* shut: the iron of the valve back in the lid, if there is nothing in the way of it (steam on its way through: next tick) */
 function pOShut(g, s, n) {

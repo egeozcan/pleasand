@@ -736,14 +736,14 @@ function bTaskBuild(g, p, k) {
       if (lc >= 0 && (bLadderGoes(g, lc, fy) || bLadderOurs(g, s, lc) || bLadderReaches(g, lc, fy, y))) {
         /* (up it and down again, over and over, and no nearer: that is no way up) */
         if ((k.climbs = (k.climbs || 0) + 1) > 12) { bFail(g, p, s, 1500, "walk"); return false; }
-        bClimbStart(g, p, lc, -1); return true;
+        if (bClimbStart(g, p, lc, -1)) return true;
       }
     }
     /* the work is down a shaft, beside the ladder they are standing on top of (an upper level of a mine, worked from the
        ladder: mines.js): down it they go */
     if (y > fy + B_REACH_DOWN && Math.abs(dx) <= B_REACH_X + 2) {
       for (var ld = -1, lx2 = fx - 2; lx2 <= fx + 2 && ld < 0; lx2++) ld = bLadderMid(g, lx2, fy + 1);
-      if (ld >= 0) { bClimbStart(g, p, ld, 1); return true; }
+      if (ld >= 0 && bClimbStart(g, p, ld, 1)) return true;
     }
     /* (and the way to the top of that shaft, the lip of rock beside the ladder, when there is nowhere nearer to stand) */
     var shaft = s.kind === "tunnel" && s.lv ? bSite(g, s.of) : null;
@@ -1333,25 +1333,29 @@ function bLadderReaches(g, cx, fy, wy) {
   return wy >= top - B_REACH_UP && wy <= top + B_REACH_DOWN;
 }
 function bClimbStart(g, p, cx, dir) {
+  /* (never onto a ladder whose column is solid where their body would be: snapped into a wall, and buried. a ladder's
+     cells say where its middle is; one that says wrong puts them in the wall beside it. the great works' villages:
+     a plain village climbs as it always has) */
+  if (g.wAny) for (var d = 0; d <= 8; d++) if (pBody(g, cx, Math.floor(p.y) - d)) return false;
   p.climb = { x: cx, dir: dir, t: 0, y0: p.y, stuck: 0 };
   p.x = cx + 0.5; p.jumping = false; p.falling = false; p.idle = 0;
   /* a ladder with a lift on it: into the cage, if nobody else is in it (mines.js) */
   var L = mLiftAt(g, cx, Math.floor(p.y));
-  if (L && !mLiftBusy(g, L, p)) { p.climb.lift = L.id; return; }
+  if (L && !mLiftBusy(g, L, p)) { p.climb.lift = L.id; return true; }
   if (p.sayT <= 0 && Math.random() < 0.2) pSay(g, p, "climb");
+  return true;
 }
 /* at the foot of a wall: if there is a ladder up it (that goes somewhere), up they go */
 function bLadderUp(g, p, fx, fy) {
   var cx = bLadderNear(g, fx, fy);
   if (cx < 0 || !bLadderGoes(g, cx, fy)) return false;
-  bClimbStart(g, p, cx, -1);
-  return true;
+  return bClimbStart(g, p, cx, -1);
 }
 /* at the top of one, walking off the edge onto it: down they go */
 function bLadderDown(g, p, nfx, fy) {
   for (var y = fy + 1; y <= fy + 2; y++) {
     var cx = bLadderMid(g, nfx, y);
-    if (cx >= 0) { bClimbStart(g, p, cx, 1); return true; }
+    if (cx >= 0 && bClimbStart(g, p, cx, 1)) return true;
   }
   return false;
 }

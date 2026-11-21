@@ -255,6 +255,46 @@ module.exports = function (test, check, sim) {
     for (var i = 0; i < 400 && !v.dead; i++) { sim.step(w, 1); if (v.y >= s.L && v.y <= s.G - 1 && v.x >= s.px0 && v.x < s.px0 + s.bw) entered = true; }
     check(!entered && !v.dead && !g.causes.drown, "the visitor " + (entered ? "got into the tank" : "stayed out") + ", " + JSON.stringify(g.causes));
   });
+  test("organ: its ladder's middle is its own column: a passer-by and a concert's crew climb it and nobody is put in the iron beside it", function () {
+    var O = organ(3), w = O.w, g = O.g, s = O.s, M = O.M, i;
+    check(w.bLadderMid(g, s.x0, s.G - 2) === s.x0, "the ladder says its middle is at " + w.bLadderMid(g, s.x0, s.G - 2) + ", not its own column " + s.x0);
+    check(w.pOrganPlay(g, "test"), "(the test wants a concert)");
+    for (i = 0; i < 5200; i++) sim.step(w, 1);
+    check(!g.causes.buried && s.notes > 0, "notes " + s.notes + ", " + JSON.stringify(g.causes));
+    /* (pi's passer-by, by the foot of it, walking at it) */
+    var O2 = organ(1), w2 = O2.w, g2 = O2.g, s2 = O2.s, p = g2.peasants.filter(function (q) { return !q.dead; })[0];
+    g2.arriveT = g2.ideaT = 1e9; g2.helloT = 0;
+    Object.assign(p, { x: s2.x0 - 1.5, y: s2.G - 2, dir: 1, task: null, hunger: 0, idle: 0, state: "walk", life: 1e9 });
+    var buried = false;
+    for (i = 0; i < 400 && !p.dead; i++) { sim.step(w2, 1); if (p.buried > 0) buried = true; }
+    check(!buried && !p.dead, "the passer-by was put in the iron: " + JSON.stringify(g2.causes));
+  });
+  test("organ: dropped over a pipe while its valve is open, a visitor stands on the grate at its top: never down the pipe, nor through the valve into the tank", function () {
+    var O = organ(4), w = O.w, g = O.g, s = O.s, i, n, open = -1;
+    check(w.pOrganPlay(g, "test"), "(the test wants a concert)");
+    for (i = 0; i < 4000 && open < 0; i++) { sim.step(w, 1); for (n = 0; n < w.P_ON; n++) if (g.m[w.pOValve(g, s, n)] === O.M.EMPTY) open = n; }
+    check(open >= 0, "(the test wants a valve open)");
+    var v = JSON.parse(JSON.stringify(g.peasants[0])); v.id = 89;
+    Object.assign(v, { x: w.pOPipeX(s, open) + 0.5, y: w.pOLid(s.G) - w.P_OH[open] - 12, vx: 0, vy: 0, task: null, state: "walk", life: 1e9, hunger: 0, dir: 1, dead: 0 });
+    g.peasants.push(v);
+    var deep = false;
+    for (i = 0; i < 400 && !v.dead; i++) { sim.step(w, 1); if (Math.abs(v.x - w.pOPipeX(s, open) - 0.5) < 0.6 && v.y > w.pOLid(s.G) - w.P_OH[open]) deep = true; }
+    check(!deep && !v.dead && !g.causes.drown, "the visitor " + (deep ? "went down the pipe" : "stayed out") + ", " + JSON.stringify(g.causes));
+    /* (and one picked up and let go of right over the open pipe, as a player does, falling free: held up on the grate,
+       not let fall down the pipe and through the valve into the tank) */
+    var O2 = organ(4), w2 = O2.w, g2 = O2.g, s2 = O2.s, o2 = -1;
+    check(w2.pOrganPlay(g2, "test"), "(the test wants a concert)");
+    for (i = 0; i < 4000 && o2 < 0; i++) { sim.step(w2, 1); for (n = 0; n < w2.P_ON; n++) if (g2.m[w2.pOValve(g2, s2, n)] === O2.M.EMPTY) o2 = n; }
+    var d = JSON.parse(JSON.stringify(g2.peasants[0])); d.id = 90;
+    Object.assign(d, { x: s2.x0 - 5, y: s2.G - 1, task: null, state: "walk", life: 1e9, hunger: 0, dir: 1, chuteCD: 0, stun: 0, dead: 0 });
+    g2.peasants.push(d);
+    var gx = w2.pOPipeX(s2, o2) + 0.5, gy = w2.pOLid(s2.G) - 2;
+    g2.mx = w2.PANEL + w2.CELL * gx; g2.my = w2.PLAY_Y + w2.CELL * (gy - 8); g2.samp = []; g2.cvx = g2.cvy = 0;
+    w2.peasantGrab(g2, d); w2.peasantThrow(g2, d); g2.held = null;
+    var inTank = false;
+    for (i = 0; i < 200 && !d.dead; i++) { sim.step(w2, 1); if (d.y >= s2.L && d.y <= s2.G - 1 && d.x >= s2.px0 && d.x < s2.px0 + s2.bw) inTank = true; }
+    check(!inTank && !d.dead, "let go of over the open pipe, fell through the valve into the tank: " + JSON.stringify(g2.causes));
+  });
   test("organ: a fired boiler makes steam that goes out of the open pipe and no other", function () {
     var O = organ(0), w = O.w, g = O.g, s = O.s, M = O.M;
     check(tank(O) === w.P_OTANK, "(the test wants the tank full: " + tank(O) + ")");

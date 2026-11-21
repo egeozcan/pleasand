@@ -221,7 +221,10 @@ function pCell(g, x, y) {
   if (y >= g.gh) return MAT.STONE;   /* the bottom of the world is a floor */
   return g.m[y * g.gw + x];
 }
-function pSolid(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c]; }
+function pSolid(g, x, y) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
+/* an empty cell that is a grate to a peasant, though not to steam: an organ's valves and pipe tops (pleasures.js pGrate).
+   only where there are great works */
+function pGr(g, x, y) { return g.wAny && x >= 0 && x < g.gw && y >= 0 && y < g.gh && pGrate(g, y * g.gw + x); }
 /* what a peasant pushes through, on its own two feet: leaves and flowers (P_LEAF, which nothing stops for, not even a
    peasant flying through the air), and wood and saplings (P_SOFT: a tree trunk, a log, a wooden wall somebody drew).
    it can stand on top of any of it, but not in the middle of it: a soft thing holds them up only with their feet out
@@ -237,13 +240,13 @@ var P_THIN = new Uint8Array(NMAT); P_THIN[MAT.PLANK] = 1;
 /* is there something to stand on, under feet at row y: in this column (pFoot), or one either side (pGround) */
 function pFoot(g, x, y) {
   var c = pCell(g, x, y + 1);
-  return SOLID[c] === 1 && !P_PASS[c] && !(P_SOFT[c] && (P_SINK || P_SOFT[pCell(g, x, y)])) && !(P_SINK && P_THIN[c]);
+  return (SOLID[c] === 1 && !P_PASS[c] && !(P_SOFT[c] && (P_SINK || P_SOFT[pCell(g, x, y)])) && !(P_SINK && P_THIN[c])) || (c === MAT.EMPTY && pGr(g, x, y + 1));
 }
 function pGround(g, x, y) { return pFoot(g, x, y) || pFoot(g, x - 1, y) || pFoot(g, x + 1, y); }
 /* could a peasant with its feet here stand up straight (pBody: is this cell in the way of a walking one). pStiff: in the
    way of one that is not walking but flying, which goes through leaves but not through a tree */
-function pBody(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c] && !P_SOFT[c]; }
-function pStiff(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !P_PASS[c] && !P_LEAF[c]; }
+function pBody(g, x, y) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c] && !P_SOFT[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
+function pStiff(g, x, y) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c] && !P_LEAF[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
 function pStiffAt(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pStiff(g, fx, fy) || pStiff(g, fx, fy - 4) || pStiff(g, fx, fy - 7); }
 /* the next step along, into column x from feet at row y: how far up it is (0 to 3; 4 or more is a wall). the first
    height with room for them, and with their feet clear of anything soft, or held up in it: walking into a bush, they go

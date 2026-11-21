@@ -461,6 +461,7 @@ function hRockRest(g, x) {
     if (c < 3 || c > g.gw - 4) continue;
     var y = hGround(g, c) - 1, ok = y > 1, k;
     for (var u = -2; u <= 2 && ok; u++) { var under = pCell(g, c + u, y + 1); if (under === MAT.GOLD || under === MAT.MOONROCK || bMarked(g, c + u, y + 1) || bMarked(g, c + u, y)) ok = false; }
+    if (ok && !hLumpFits(g, c, y)) ok = false;   /* (and room for the whole of it, gold and all) */
     for (k = 0; k < g.sites.length && ok; k++) { var s = g.sites[k]; if (c >= s.x0 - 3 && c <= s.x1 + 3 && y >= s.y0 - 3 && y <= s.y1 + 3) ok = false; }
     for (k = 0; k < g.peasants.length && ok; k++) { var q = g.peasants[k]; if (!q.dead && q.state !== "space" && Math.abs(q.x - c) < 4 && Math.abs(q.y - y) < 11) ok = false; }
     if (ok) return { x: c, y: y };
@@ -497,7 +498,8 @@ function hSkyTick(g) {
   if (at) hLump(g, R); else R.cells = [];
   sparks(g, R.x + 0.5, R.y, 14, 1.0, SPARK_HOT, 12, 0.5, PK_GLINT);
   R.down = true; R.t = g.tick;
-  feed(g, R.cells.length ? "a falling star came down by " + hWhere(g, R.x) + ". cold already: iron, and a glint of gold" : "a falling star broke up over " + hWhere(g, R.x), "#ffd27a", "meteorite");
+  var hasGold = R.cells.some(function (j) { return g.m[j] === MAT.GOLD; });
+  feed(g, R.cells.length ? "a falling star came down by " + hWhere(g, R.x) + ". cold already: iron" + (hasGold ? ", and a glint of gold" : "") : "a falling star broke up over " + hWhere(g, R.x), "#ffd27a", "meteorite");
 }
 /* somewhere a falling star came down by: the nearest of their things */
 function hWhere(g, x) {
@@ -505,8 +507,20 @@ function hWhere(g, x) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k], d = Math.abs(s.cx - x); if (s.done && d < bd && s.kind !== "tunnel" && s.kind !== "quarry") { bd = d; best = s; } }
   return best ? bLabel(best) : "the edge of the valley";
 }
-/* the lump: fourteen cells of iron in a heap, with a cell of gold in the middle of it, cold */
+/* the lump: thirteen cells of iron in a heap, with a cell of gold in the middle of it, cold */
 var H_LUMP = [2, 3, 4, 3, 2];
+/* is there room for the whole lump, resting at (x, y): each of its columns on ground not more than a step off, and
+   nothing in the way of it but air, or a plant (which is cleared: hLump) */
+function hLumpFits(g, x, y) {
+  for (var k = 0; k < 5; k++) {
+    var cx = x + k - 2;
+    if (cx < 1 || cx >= g.gw - 1) return false;
+    var gy = mGroundNear(g, cx, false, y) - 1;
+    if (gy < 1 || Math.abs(gy - y) > 2) return false;
+    for (var n = 0; n < H_LUMP[k]; n++) { var c = pCell(g, cx, gy - n); if (!(AIRY[c] || LEAFY[c]) || bMarked(g, cx, gy - n)) return false; }
+  }
+  return true;
+}
 function hLump(g, R) {
   var x0 = Math.floor(R.x), k, n, x, y, j;
   R.cells = [];
@@ -517,6 +531,7 @@ function hLump(g, R) {
     if (y < 1) continue;
     for (n = 0; n < H_LUMP[k] && y > 0; n++, y--) {
       j = y * g.gw + x;
+      if (LEAFY[g.m[j]]) heatVacate(g, j);   /* (a flower in the way: crushed under it) */
       if (!AIRY[g.m[j]] && g.m[j] !== MAT.FIRE) break;
       sandPlace(g, j, k === 2 && n === 1 ? MAT.GOLD : MAT.METAL);
       g.T[j] = AMBIENT; g.lat[j] = 0; heatAccept(g, j);

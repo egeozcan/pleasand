@@ -579,6 +579,32 @@ module.exports = function (test, check, sim) {
     check(g.m[seam] === M.GOLD && gold === gold0 + 1 && !inGround, "the gold that was there " + (g.m[seam] === M.GOLD ? "kept" : "gone") + ", gold cells " + gold0 + " -> " + gold + " (the meteorite's one more)");
     check(R.cells.every(function (j) { return g.T[j] <= 30; }), "it came down hot");
   });
+  test("a ladder that says its middle is in the wall beside it is not climbed into the wall: nobody is put in a solid cell", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0], x = 120, y;
+    g.wAny = true;
+    for (y = 130; y < 150; y++) { w.sandPlace(g, y * g.gw + x, M.LADDER); g.aux[y * g.gw + x] = 0; w.sandPlace(g, y * g.gw + x + 1, M.STONE); }
+    for (y = 150; y < 158; y++) { w.sandPlace(g, y * g.gw + x, M.STONE); w.sandPlace(g, y * g.gw + x - 1, M.STONE); }
+    check(w.bLadderMid(g, x, 140) === x + 1, "(the test wants a ladder that says its middle is in the stone)");
+    Object.assign(p, { x: x - 0.5, y: 149, task: null, climb: null, state: "walk" });
+    check(!w.bClimbStart(g, p, x + 1, -1) && !p.climb, "climbed into the stone");
+    check(w.bClimbStart(g, p, x, -1) && p.climb, "(and the ladder itself is climbed)");
+  });
+  test("observatory: a meteorite with a flower where it comes to rest crushes the flower and is all there, thirteen iron and the gold, and says so: pi's sand", function () {
+    var w = sim.load(39), g = w.g, M = w.MAT, x, y;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y === 150 ? M.SAND : M.STONE);
+    w.sandPlace(g, 149 * g.gw + 99, M.FLOWER);
+    g.arriveT = 1e9; g.ideaT = 1e9; g.helloT = 0; g.wAny = true; g.know = { observatory: "TEST" }; g.ducks = [];
+    g.peasants.forEach(function (p, k) { Object.assign(p, { x: 200 + k * 3, y: 149, dir: 1, idle: 800, task: null }); });
+    check(w.hPlanObs(g, g.peasants[0]), "(the test wants an observatory)");
+    sim.build(w, g.sites.filter(function (s) { return s.kind === "observatory"; })[0]);
+    check(w.hMeteorite(g, 100), "(the test wants a meteorite on its way)");
+    var R = g.hRock;
+    for (var i = 0; i < 200 && !R.down; i++) sim.step(w, 1);
+    var iron = R.cells.filter(function (j) { return g.m[j] === M.METAL; }).length, gold = R.cells.filter(function (j) { return g.m[j] === M.GOLD; }).length;
+    var news = (g.feed.filter(function (e) { return e.key === "meteorite"; })[0] || {}).text || "";
+    check(iron === 13 && gold === 1 && /glint of gold/.test(news), "the lump: " + iron + " iron, " + gold + " gold; the news: " + news);
+  });
   test("observatory: a walker who steps off a ledge onto where a meteorite has just come down is not burnt: it is cold", function () {
     var F = fTerrace(39, function (x) { return x <= 100 ? 150 : 130; }), w = F.w, g = F.g, p = F.p, i;
     w.hMeteorite(g, 100);
