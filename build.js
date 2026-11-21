@@ -288,11 +288,10 @@ function bSiteAround(g, x, y, kind, pad) {
   pad = pad == null ? 3 : pad;
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
-    /* (a foundry's ground, hot while it casts, is kept clear about it as far as the heat goes: nobody plans anything there
-       to catch fire. wonders.js W_ZONE_L, W_ZONE_R) */
-    var xl = pad, xr = pad;
-    if (pad > 0 && s.kind === "foundry") { xl = Math.max(pad, W_ZONE_L + 1); xr = Math.max(pad, W_ZONE_R + 1); }
-    if ((!kind || s.kind === kind) && x >= s.x0 - xl && x <= s.x1 + xr && y >= s.y0 - pad && y <= s.y1 + pad) return s;
+    /* (a foundry's roof and chimney, too, as high as it goes: nobody plans a stair, a ladder or anything onto them. its
+       sides are cool) */
+    var yt = pad > 0 && s.kind === "foundry" ? s.y0 - 16 : s.y0 - pad;
+    if ((!kind || s.kind === kind) && x >= s.x0 - pad && x <= s.x1 + pad && y >= yt && y <= s.y1 + pad) return s;
   }
   return null;
 }
@@ -494,7 +493,6 @@ function bGround(g, x, fy) {
 function bPlot(g, x0, fy) {
   var gw = g.gw, x1 = x0 + 10, gy = [], x, y, c, k, F = 1e9;
   if (x0 < 4 || x1 > gw - 5) return null;
-  if (g.wAny && wFarSide(g, x0, x1)) return null;   /* (not across a foundry's ground from the village: wonders.js) */
   for (x = x0; x <= x1; x++) {
     y = bGround(g, x, fy);
     if (y < 0) return null;
@@ -510,9 +508,7 @@ function bPlot(g, x0, fy) {
   /* nobody else's site, nothing hot or wet nearby */
   for (k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
-    /* (a foundry's: the ground about it it closes while it casts as well, planned or built. wonders.js W_ZONE_L, W_ZONE_R) */
-    var sx0 = s.kind === "foundry" ? s.x0 - W_ZONE_L : s.x0, sx1 = s.kind === "foundry" ? s.x1 + W_ZONE_R : s.x1;
-    if (x1 + 4 >= sx0 && x0 - 4 <= sx1 && F + 10 >= s.y0 && F - 24 <= s.y1) return null;
+    if (x1 + 4 >= s.x0 && x0 - 4 <= s.x1 && F + 10 >= s.y0 && F - 24 <= s.y1) return null;
   }
   for (y = F - 16; y <= F + 2; y++) for (x = x0 - 3; x <= x1 + 3; x++) {
     c = pCell(g, x, y);
@@ -549,6 +545,8 @@ function bTryWall(g, p, fx, fy) {
     c = pCell(g, wx, y);
     if (WOODY[c] || LEAFY[c] || P_PASS[c]) return false;
   }
+  /* (nor a foundry: nobody builds a way up onto its roof, its chimney's mouth. wonders.js wOnRoof) */
+  if (bSiteAround(g, wx, fy, "foundry", 2)) return false;
   var s = bSiteAround(g, wx, fy, "stairs", 2) || bSiteAround(g, wx, fy, "ladder", 2);
   if (s) return s.done ? false : bJoinHere(g, p, s);
   if (bOpenCount(g) >= B_OPEN || p.planCD || Math.random() > (bWood(p) >= 1 ? 1 : 0.4)) return false;

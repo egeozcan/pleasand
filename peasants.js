@@ -897,7 +897,7 @@ function pTryJump(g, p, fx, fy) {
     if (pBody(g, fx, fy - k - 8)) return false;
     if (pRoom(g, nfx, fy - k)) break;
   }
-  if (k > P_JUMP) return false;
+  if (k > P_JUMP || (g.wAny && wHotWork(g, nfx, fy - k, p))) return false;   /* (not up onto a warm foundry's roof: wonders.js) */
   pLeap(p, Math.sqrt(2 * P_GRAV * (k + 2)), p.dir * 0.3);
   if (p.sayT <= 0 && Math.random() < 0.15) pSay(g, p, "jump");
   return true;
@@ -924,6 +924,8 @@ function pTryLeap(g, p, fx, fy) {
     if (pBody(g, x, fy - 9) || pBody(g, x, fy - 12)) return false;          /* something in the way */
     for (dy = -3; dy <= 3; dy++) {
       if (pGround(g, x, fy + dy) && pRoom(g, x, fy + dy)) {
+        /* (not a leap onto what a great work has made hot, or a warm foundry's roof, either: wonders.js wHotWork) */
+        if (g.wAny && wHotWork(g, x, fy + dy, p)) return false;
         /* time in the air for a jump that comes down dy lower, then just enough speed to get there */
         var vy = 1.0, t = (vy + Math.sqrt(vy * vy + 2 * P_GRAV * dy)) / P_GRAV;
         pLeap(p, vy, dir * clamp((d + 0.5) / t, 0.15, 0.7));
@@ -993,6 +995,7 @@ function pTryClimb(g, p, fx, fy) {
   for (j = 9; j <= k + 9; j++) if (pBody(g, fx, fy - j)) return false;
   var top = fy - k + 1;   /* the top solid cell of the wall */
   if (!pSolid(g, nfx, top) || pCell(g, nfx, top) === MAT.INERT) return false;
+  if (g.wAny && wHotWork(g, nfx, fy - k, p)) return false;   /* (not up onto a warm foundry's roof, or what is hot: wonders.js) */
   pRopeThrow(g, p, "climb", dir > 0 ? nfx : nfx + 1, top, nfx, top, fy - k);
   if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "rope", true);
   return true;
@@ -1016,7 +1019,7 @@ function pHookGeom(g, x, y, s) {
 function pTryHook(g, p, fx, fy, s) {
   if (p.cold > 400 || p.fire || p.ropeCD) return false;
   var r = pHookGeom(g, fx, fy, s), cx = fx + s;
-  if (!r) return false;
+  if (!r || (g.wAny && wHotWork(g, cx, r.stand, p))) return false;
   p.dir = s;
   pRopeThrow(g, p, "climb", s > 0 ? cx : cx + 1, r.top, cx, r.top, r.stand);
   if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "rope", true);
@@ -1029,7 +1032,7 @@ function pTryUp(g, p, fx, fy, ty) {
   if (p.cold > 400 || h < 1) return false;
   p.hold = true; p.dir = p.dir || 1;
   if (h <= P_JUMP) { pLeap(p, Math.sqrt(2 * P_GRAV * (h + 2)), 0); return true; }
-  if (p.fire || p.ropeCD || h > P_ROPE) return false;
+  if (p.fire || p.ropeCD || h > P_ROPE || (g.wAny && wHotWork(g, fx, ty, p))) return false;
   pRopeThrow(g, p, "climb", fx + 0.5, ty + 1, fx, ty + 1, ty);
   p.rope.up = true;
   if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "rope", true);

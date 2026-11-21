@@ -54,9 +54,9 @@ function navLethalNear(g, x, y, r) {
 function navHazard(g, x, y) {
   return navBad(pCell(g, x, y + 1)) || navBad(pCell(g, x, y)) || navBad(pCell(g, x, y - 4)) || navBad(pCell(g, x, y - 7)) ||
          (!NAV_HOTOK && (pHotAt(g, x, y + 1) || pHotAt(g, x, y - 3))) ||   /* (where a burning peasant starts from may be hot: NAV_HOTOK) */
-         (g.wAny && !NAV_WORKER && wNoEntry(g, x, y));   /* (a live foundry's ground, but for its founder: wonders.js) */
+         (g.wAny && !NAV_ROOFOK && wOnRoof(g, x, y));   /* (a warm foundry's roof, its chimney's mouth: nobody's place. wonders.js) */
 }
-var NAV_WORKER = false;   /* (finding the way for a foundry's founder, at work: its ground is theirs. pathGo) */
+var NAV_ROOFOK = false;   /* (finding the way off one, for whoever is on it: pathGo) */
 
 /* every way on from (x, y), as add(x, y, cost, move) */
 function navEdges(g, x, y, add) {
@@ -249,15 +249,13 @@ function pathGo(g, p, key, tx, ty, goal) {
   var nv = p.nav, k;
   if (nv && nv.key === key && nv.none > g.tick) return -1;
   /* something nasty has turned up on the next few steps (a fire somebody just lit): look again */
-  NAV_WORKER = !!(g.wAny && wWorker(p));
   if (nv && nv.key === key && nv.path.length) for (k = nv.i; k < nv.i + 4 && k < nv.path.length; k++) if (navHazard(g, nv.path[k].x, nv.path[k].y)) { nv.t = -1e9; break; }
-  NAV_WORKER = false;
   if (!nv || nv.key !== key || g.tick - nv.t > NAV_REPLAN || nv.off > 30 || nv.i >= nv.path.length) {
-    NAV_HOTOK = !!p.fire || !!(g.wAny && p.task && p.task.kind === "wcool" && p.task.zone);   /* (burning: where they stand may be hot. the way on from there keeps out of the heat. and out of a live foundry's ground, the same) */
-    NAV_WORKER = !!(g.wAny && wWorker(p));   /* (reset below, once the way is found) */
+    NAV_HOTOK = !!p.fire;   /* (burning: where they stand may be hot. the way on from there keeps out of the heat) */
+    NAV_ROOFOK = !!(p.task && p.task.roof); if (NAV_ROOFOK) NAV_HOTOK = true;
     var here = navHere(g, p);
     NAV_HOTOK = false;
-    if (here && goal(here.x, here.y)) { NAV_WORKER = false; p.nav = { key: key, path: [], i: 0, t: g.tick, off: 0 }; return 0; }
+    if (here && goal(here.x, here.y)) { NAV_ROOFOK = false; p.nav = { key: key, path: [], i: 0, t: g.tick, off: 0 }; return 0; }
     /* (a rope they cannot use yet, after a fall off one: no routes that need it, until they can) */
     /* (burning, too: no rope, no hook, no leap. pTryHook, pTryLeap) */
     NAV_NOROPE = p.ropeCD > 0 || !!p.fire; NAV_NOLEAP = !!p.fire;
@@ -265,7 +263,7 @@ function pathGo(g, p, key, tx, ty, goal) {
     NAV_NOROPE = NAV_NOLEAP = false;
     /* (no way without one: the way with one, then, and they wait at the foot of it until they can) */
     if (!path && here && p.ropeCD > 0 && !p.fire) path = navFind(g, here.x, here.y, goal, tx, ty);
-    NAV_WORKER = false;
+    NAV_ROOFOK = false;
     if (!path) { p.nav = { key: key, none: g.tick + 120, path: [], i: 0, t: g.tick, off: 0 }; return -1; }
     nv = p.nav = { key: key, path: path, i: 0, t: g.tick, off: 0 };
   }

@@ -867,7 +867,8 @@ function hDrawLight(g, s) {
    round that), the moulds sunk in the ground either side of it under a
    brick cover, a cell down and across from each tap
    ------------------------------------------------------------------- */
-var H_FW = 12;              /* the foundry, across (and its founder stands a column or two out, either side) */
+var H_U0 = -3, H_U1 = 15;    /* the foundry's columns, u, from its outer jacket on the plates' side to that on the hot side */
+var H_FW = H_U1 - H_U0 + 1; /* the foundry, across (and its founder stands a few columns out, either side) */
 var H_CHARGE = 10;          /* cells of iron to a charge: two bars */
 var H_RUN = 0.7;            /* "mostly running": tapped when this much of it is liquid */
 var H_POURED = 1500;        /* ticks to let it run out, the bellows still going, before the plug goes back in */
@@ -930,14 +931,31 @@ function hFJ(g, s, u, h) { return (s.R0 - h) * g.gw + s.xf + u; }
 /* what goes at (u, h): a material, EMPTY for something kept clear, or -1 for nothing of ours (the ground as it is) */
 function hFoundryCell(u, h) {
   var FB = MAT.FIREBRICK, BR = MAT.BRICK, E = MAT.EMPTY;
+  /* the jacket: the hot side is shut in, a sealed gap of air (air carries heat worst of all), then firebrick, then
+     dressed stone (no more than that: shut in any closer, the coal alone would melt the iron, the bellows unworked); and the plate mould lidded with firebrick two thick, the room over it sealed in under the roof, so
+     nobody stands over it or falls in. measured over whole casts, the air beside it at head height stays under 150 either side
+     (it was 600 to 1000 open). the chimney's mouth is hot, as a chimney's is: its roof is nobody's place (wonders.js
+     wOnRoof) */
+  if ((u === 11 || u === 12) && h >= 0 && h <= 9) return E;
+  if (u === 13 && h >= 0 && h <= 11) return FB;
+  if ((u === 14 || u === 15) && h >= 0 && h <= 11) return BR;
+  /* (and the same on the plates' side, by the mould: a sealed gap, and stone) */
+  if (u === -2 && h >= 0 && h <= 10) return E;
+  if ((u === -2 && h === 11) || (u === -3 && h >= 0 && h <= 11)) return BR;
+  if (u >= -1 && u <= 4 && (h === 2 || h === 3)) return FB;
+  if (u >= -1 && u <= 3 && h >= 4 && h <= 9) return E;   /* (sealed air over the lid: nobody's, and it carries next to no heat up) */
+  if (u >= -1 && u <= 3 && h === 10) return FB;
   /* the chamber, its lining (a plug each side at the foot, the door at the top), the casing, and a short chimney */
   /* (its floor is a V, high in the middle: what runs, runs to one tap or the other, and lies in a hot corner by it) */
   if (u >= 6 && u <= 8 && h >= 1 && h <= 7 && !(u === 7 && h === 1)) return E;
   if (u >= 5 && u <= 9 && h >= 0 && h <= 8) return FB;
   if ((u === 4 || u === 10) && h >= 2 && h <= 9) return FB;   /* (a brick casing would run: it gets as hot as the lining, in the end) */
   if (u >= 5 && u <= 9 && h === 9) return FB;
-  if ((u === 6 || u === 8) && h >= 10 && h <= 13) return BR;
+  if ((u === 6 || u === 8) && h >= 10 && h <= 13) return FB;
   if (u === 7 && h >= 10 && h <= 13) return E;
+  if ((u === 5 || u === 9) && h >= 11 && h <= 13) return BR;   /* (the chimney's outer walls) */
+  if (((u >= 4 && u <= 5) || (u >= 9 && u <= 15)) && h === 10) return FB;   /* (the roof: firebrick, then stone) */
+  if (((u >= -1 && u <= 5) || (u >= 9 && u <= 15)) && h === 11) return BR;
   /* the plate mould, sunk a cell: five long and two deep, right up against the left tap (lava this thick will not run far) */
   if (u >= 0 && u <= 4 && (h === 0 || h === 1)) return E;
   if (u >= -1 && u <= 5 && h === -1) return FB;
@@ -953,7 +971,7 @@ function hFoundryCell(u, h) {
    moulds sunk under its floor, the high ground dug off and the low made up. {plan, R0, score} or null */
 function hFoundryFit(g, x0, gy, hi, lo) {
   var r = hBestLevel(g, x0, gy, hi, lo, function (R0) {
-    return hLevel(g, x0, gy, -1, 10, R0, -4, 13, hFoundryCell, function (u, h) { return h <= -1 ? 1 : (h === 0 ? 2 : 10 + h); },
+    return hLevel(g, x0, gy, H_U0, H_U1, R0, -4, 13, hFoundryCell, function (u, h) { return h <= -1 ? 1 : (h === 0 ? 2 : 10 + h); },
                   { dress: function (e, u, h) { if (h <= -1) e.rd = 6; } });
   });
   return r ? { plan: r.plan, R0: r.R0, score: 30 - r.work * 0.2 } : null;
@@ -966,9 +984,6 @@ function hPlanFoundry(g, p) {
                      fit: function (g2, x0, gy, hi, lo) {
                        var t = hFoundryFit(g2, x0, gy, hi, lo);
                        if (!t || !hFoundryStations(g2, x0, t.R0)) return null;
-                       /* (at the end of the village first, its ground cutting nothing off: wFoundryApart. with no such
-                          plot, across it, as ever: its ground is then kept from cutting anybody off by wStrands) */
-                       if (wFoundryApart(g2, x0)) t.score += 1000;
                        return t;
                      } });
   if (!r) return false;
@@ -981,7 +996,7 @@ function hPlanFoundry(g, p) {
 /* can the founder work a foundry at x0 (its row R0): both stations (hSpot, either mould's bellows), standing, and a way
    from home to each (heavens.js hHome, bounded) */
 function hFoundryStations(g, x0, R0) {
-  var home = hHome(g), xs = [x0 + 1 + H_SPOT[0], x0 + 1 + H_SPOT[1]];
+  var home = hHome(g), xs = [x0 - H_U0 + H_SPOT[0], x0 - H_U0 + H_SPOT[1]];
   for (var k = 0; k < xs.length; k++) {
     var sx = xs[k], G = mGroundNear(g, sx, false, R0 - 1), sy = G > 0 && Math.abs(G - 1 - (R0 - 1)) <= 4 ? G - 1 : R0 - 1;
     if (sx < 1 || sx > g.gw - 2 || navStand(g, sx, sy) !== 1) return false;
@@ -991,7 +1006,7 @@ function hFoundryStations(g, x0, R0) {
   return true;
 }
 function hFoundryAt(g, p, x0, R0, plan) {
-  var s = bNew(g, "foundry", p, plan, [x0, R0 - 13, x0 + H_FW - 1, R0 + 3], { wonder: true, xf: x0 + 1, R0: R0, phase: 0, founder: p ? p.id : 0, casts: 0 });
+  var s = bNew(g, "foundry", p, plan, [x0, R0 - 13, x0 + H_FW - 1, R0 + 3], { wonder: true, xf: x0 - H_U0, R0: R0, phase: 0, founder: p ? p.id : 0, casts: 0 });
   var cells = [];
   for (var h = 1; h <= 7; h++) for (var u = 6; u <= 8; u++) if (h > 1 || u !== 7) cells.push(hFJ(g, s, u, h));
   s.cells = cells;
@@ -1083,7 +1098,7 @@ function hPlug(g, s) { return hFJ(g, s, s.mould === "bell" ? 9 : 5, 1); }
 /* (out of the heat that comes off the chamber through the air: over a whole cast, measured, the air at head height falls
    below what even the brave can stand nine columns off its hot side and five off the other. the stations are there,
    with a column to spare either way: H_SPOT) */
-var H_SPOT = [-6, 21];   /* (just outside the foundry's ground while it is hot: wonders.js W_ZONE_L, W_ZONE_R) */
+var H_SPOT = [-6, 21];
 function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? H_SPOT[1] : H_SPOT[0]), y: s.R0 - 1 }; }
 /* (whatever the ground is like out there, give or take a step or two) */
 function hSpotAt(g, s) {
@@ -1099,8 +1114,33 @@ function hSpotAt(g, s) {
   return first;   /* (none: where it was meant to be, on its ground) */
 }   /* (the bellows between them and the heat) */
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
+/* anybody (but the founder at it) on the foundry's roof, or over it on the way up, cold as it is: each sent down off it.
+   how many */
+function hRoofFolk(g, s) {
+  var n = 0, r = { x0: s.x0 - 1, x1: s.x1 + 1 };
+  for (var k = 0; k < g.peasants.length; k++) {
+    var p = g.peasants[k], fx = Math.floor(p.x), fy = Math.floor(p.y);
+    if (p.dead || p.state === "space" || p.state === "held" || fx < r.x0 || fx > r.x1 || fy > s.R0 - 10 || fy < s.R0 - 30 || (p.task && (p.task.kind === "found" || p.task.roof))) continue;
+    n++;
+    if (p.state === "walk") wRoofOff(g, p, r);
+  }
+  for (k = 0; k < g.peasants.length; k++) { p = g.peasants[k]; if (!p.dead && p.task && p.task.roof && Math.floor(p.x) >= r.x0 && Math.floor(p.x) <= r.x1 && Math.floor(p.y) <= s.R0 - 10) n++; }
+  return n;
+}
+function hRoofWither(g, s) {
+  for (var y = Math.max(0, s.R0 - 16); y < s.R0; y++) for (var x = Math.max(0, s.x0 - 1); x <= Math.min(g.gw - 1, s.x1 + 1); x++) {
+    if (y > s.R0 - 10 && x >= s.x0 && x <= s.x1) continue;   /* (the roof, and the face either side: not the inside) */
+    var j = y * g.gw + x, v = g.m[j];
+    /* (at the warmth it was: not the leaf's heat crammed into a pinch of ash) */
+    if (v === MAT.PLANT || v === MAT.FLOWER || v === MAT.SEED) { g.m[j] = MAT.ASH; g.aux[j] = 0; g.lat[j] = 0; heatAccept(g, j); }
+  }
+}
 function hFoundryStep(g, s) {
   if (!s.done || s.repair) return;
+  /* (nothing grows on a warm foundry's roof, or up against its faces: a vine up the jacket and across the top is a fuse
+     laid to the chimney's mouth, and the stone face on the plates' side is warmer than a leaf can stand. what has crept
+     onto it withers, to ash, and falls off) */
+  if (wOnRoof(g, s.x0, s.R0 - 10)) hRoofWither(g, s);
   /* (iron gone cold in a mould between casts, that is no cast of its own: a stray bit of plate put back, say. prised out,
      and into the nearest pocket (or onto the pile), a fifth of a bar a cell, as scrap is: it would otherwise stop the
      mould up for good) */
@@ -1110,7 +1150,7 @@ function hFoundryStep(g, s) {
   if (s.phase === 2) {
     var ch = hChamber(g, s);
     /* (or nobody has been able to get a fire going in it a good while: no coal burning in it, cold, since the charge) */
-    if (ch.hi < W_ZONE_ON && (!mCrew(g, "found", s.id) || (!ch.emb && g.tick - (s.meltT || 0) > 1200))) { s.phase = 0; s.mould = ""; s.idleT = g.tick + 1500; }
+    if (ch.hi < 100 && (!mCrew(g, "found", s.id) || (!ch.emb && g.tick - (s.meltT || 0) > 1200))) { s.phase = 0; s.mould = ""; s.idleT = g.tick + 1500; }
   }
   if (s.phase === 0 && !(s.idleT > g.tick) && hFoundryWant(g, s)) {   /* (a while after one was given up, before the next) */
     /* (a bell wanted is cast as a bell, when the bell's mould is free of the last one: never plates instead) */
@@ -1118,9 +1158,10 @@ function hFoundryStep(g, s) {
     s.mould = bell ? (!hMouldFull(g, s, "bell") ? "bell" : "") : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
     /* (and for a bell, not until there is iron enough for one, whole: in the chamber, and in pockets that can get here) */
     if (s.mould === "bell") { var cb = hChamber(g, s); if (s.ironWaitT > g.tick || cb.met + cb.liq + wCellsSure(g, "iron") < H_CHARGE) { s.note = "waiting for iron enough for a bell"; s.mould = ""; } }
-    /* (and not if its ground, closed while it is hot, would cut somebody off from home: until they are over) */
-    if (s.mould) { var cut = wStrands(g, s, true); if (cut.length && wCallOver(g, s, cut)) { s.note = "waiting for everybody to be across before it is fired"; s.mould = ""; } else s.holdT = 0; }
-    if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; }
+    /* (and not with anybody up on its roof, or on the way up: sent down first, the charging waits for them a while. then
+       on with it anyway, and whoever is still up there is sent off it as it warms: wonders.js wHeatGuard) */
+    if (s.mould && hRoofFolk(g, s) && !(s.roofT && g.tick >= s.roofT)) { if (!s.roofT) s.roofT = g.tick + 1500; s.note = "waiting for the roof to clear"; s.mould = ""; }
+    if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; s.roofT = 0; }
   }
   if (s.phase === 4 && hMouldHot(g, s) < H_PRISE) s.phase = 5;
   if (s.phase === 0 || s.phase === 4 || mCrew(g, "found", s.id)) return;
@@ -1225,7 +1266,7 @@ function hTaskFound(g, p, k) {
         if (s.casts === 1) feed(g, p.name + " tapped the foundry. the iron runs like water", "#ffd27a", "found" + s.id);
       } else if (g.tick - s.meltT > 6000 && k.act > 10) {
         /* (not before they have had a go at stoking it. given up: back to idle, the iron left in the chamber, where the next
-           charge counts it (phase 1); and its ground opens again as it cools. wonders.js wZones) */
+           charge counts it (phase 1)) */
         if (p.sayT <= 0) pSay(g, p, "nocoal");
         s.phase = 0; s.mould = ""; s.idleT = g.tick + 1500;
         return iDone(p, false);
