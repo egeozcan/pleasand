@@ -137,6 +137,18 @@ module.exports = function (test, check, sim) {
     var plain = fromSave(false, 6), drawn = fromSave(true, 6);
     check(plain === drawn, "the same save thought otherwise with frames drawn: " + plain + " / " + drawn);
   });
+  test("wonders: a plain village's iron is master's, bit for bit: tools worn, a cell salvaged, girders paid for", function () {
+    /* (recorded on master) */
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0], q = g.peasants[1], n;
+    p.iron = 2; q.iron = 0;
+    [p, q].forEach(function (a) { a.wear = w.eval("M_WEAR") - 1; a.tools = 1; w.mWear(g, a); });
+    w.sandPlace(g, 140 * g.gw + 165, M.METAL); w.lTake(g, q, 165, 140, false);
+    for (n = 0; n < 5; n++) w.bPay(g, p, { stock: {} }, w.bE(g, 165, 140 + n, M.GIRDER, 0));
+    w.bPay(g, q, { stock: {} }, w.bE(g, 165, 145, M.GIRDER, 0));
+    sim.step(w, 2000);
+    var got = JSON.stringify([p.iron, q.iron, g.peasants.map(function (o) { return Math.round(o.x * 100); })]);
+    check(got === JSON.stringify([1.4999999850988388, 0.4999999970197677, [22922, 16358, 11698, 22506, 12205, 24173, 24054, 11706]]), "otherwise than master: " + got);
+  });
   test("wonders: a plain village's peasant thrown into space, and one on a rocket pack, come back as on master, die for die", function () {
     /* (recorded on master: where they come down, how fast across, the dice after, the hash) */
     var h = H.open({ seed: 1 }), g = h.g, p = g.peasants[0];

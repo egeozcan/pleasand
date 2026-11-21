@@ -712,6 +712,27 @@ module.exports = function (test, check, sim) {
     w2.hFoundryStep(g2, s2);
     check(s2.phase === 1, "two bars' scrap, and no bell begun: phase " + s2.phase + " (" + s2.note + ")");
   });
+  test("foundry: iron counted in tenths of a bar, pooled: after tools wear and girders are paid for, a bar and a half and half a bar are a bell's worth", function () {
+    var F = fflat(6), w = F.w, g = F.g, p = F.p, M = F.M, i;
+    var q = sim.load(6).g.peasants[1];
+    q.x = 172.5; q.y = 149; q.task = null; q.idle = 0; q.hunger = 0; q.bored = 0; q.born = 0; q.iron = 0; q.coal = 50;
+    g.peasants.push(q);
+    var s = fFoundry(F); fRocketWantingBell(F);
+    /* (two bars: worn tools give half a bar back each, a cell salvaged, six girders paid for, master's way, in floats) */
+    p.iron = 2;
+    [p, q].forEach(function (a) { a.wear = w.eval("M_WEAR") - 1; a.tools = 1; w.mWear(g, a); });
+    w.sandPlace(g, 140 * g.gw + 165, M.METAL); w.lTake(g, q, 165, 140, false);
+    for (i = 0; i < 5; i++) w.bPay(g, p, { stock: {} }, w.bE(g, 165, 140 + i, M.GIRDER, 0));
+    w.bPay(g, q, { stock: {} }, w.bE(g, 165, 145, M.GIRDER, 0));
+    check(p.iron !== 1.5 && Math.abs(p.iron - 1.5) < 1e-6, "(the test wants master's float arithmetic: " + p.iron + ")");
+    check(w.wCellsSure(g, "iron") === 10, "a bar and a half and half a bar counted as " + w.wCellsSure(g, "iron") + " cells");
+    for (i = 0; i < 2000 && s.phase < 2; i++) { p.hunger = q.hunger = 0; sim.step(w, 1); }
+    check(s.phase >= 2, "a bell's worth, and no charge: phase " + s.phase);
+    /* (and exactly: 1.5 and 0.5 are ten cells, not eleven) */
+    var F2 = fflat(6), g2 = F2.g, q2 = sim.load(6).g.peasants[1];
+    F2.p.iron = 1.5; q2.iron = 0.5; q2.dead = 0; g2.peasants.push(q2);
+    check(F2.w.wCellsSure(g2, "iron") === 10, "1.5 and 0.5 bars counted as " + F2.w.wCellsSure(g2, "iron") + " cells");
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });

@@ -1022,7 +1022,7 @@ function hMouldScrap(g, s) {
     if (g.m[j] !== MAT.METAL || g.T[j] >= H_PRISE) return;
     heatVanish(g, j);
     var q = pOther(g, { x: s.cx, y: s.R0 }, 1e4);
-    if (q) q.iron = (wCells(q.iron) + 1) / 5; else { s.stock = s.stock || {}; s.stock.iron = (wCells(s.stock.iron) + 1) / 5; }   /* (a cell, a fifth of a bar: in whole cells) */
+    if (q) q.iron = (wTenths(q.iron) + 2) / 10; else { s.stock = s.stock || {}; s.stock.iron = (wTenths(s.stock.iron) + 2) / 10; }   /* (a cell, a fifth of a bar: in whole cells) */
   });
 }
 /* whatever else has got into a mould (a drop of rain, ice, sand blown in): out, before it is cast into. water shoved out
@@ -1140,9 +1140,10 @@ function hTaskFound(g, p, k) {
     c = hChamber(g, s);
     /* (counted in cells of iron, a fifth of a bar each, whole numbers: never a sum of fractions of bars. what is wanted, what
        they have, and what is fetched from the pockets of whoever else can get here: wCells) */
-    var want = Math.max(0, H_CHARGE - c.met - c.liq), have = wCells(p.iron);
-    if (have < want) have += wGatherCells(g, p, "iron", want - have);
-    p.iron = have / 5;
+    var want = Math.max(0, H_CHARGE - c.met - c.liq), tenths = wTenths(p.iron);
+    if (tenths < want * 2) tenths += wGatherTenths(g, p, "iron", want * 2 - tenths);
+    p.iron = tenths / 10;
+    var have = Math.floor(tenths / 2);
     /* (a bell is cast whole: with not iron enough for one in the chamber and in hand, none of it goes in. it would only
        come out as plates, and the bell still wanted. kept in the pocket, for when there is) */
     if (s.mould === "bell" && c.met + c.liq + have < H_CHARGE) { if (p.sayT <= 0) pSay(g, p, "foundryNoIron"); s.phase = 0; s.ironWaitT = g.tick + 600; return iDone(p, false); }
@@ -1158,7 +1159,7 @@ function hTaskFound(g, p, k) {
       heatAccept(g, j);
     }
     /* (what there was no room for stays in their pocket: iron in is the iron that went in, cell for cell) */
-    p.iron = (have - put) / 5; s.bars = (s.bars || 0) + put / 5;
+    p.iron = (tenths - put * 2) / 10; s.bars = (s.bars || 0) + put / 5;
     g.fx.thud++;
     if (p.sayT <= 0) pSay(g, p, "foundryCharge");
     s.phase = 2; s.meltT = g.tick; s.meltT0 = g.tick; k.act = 0;
@@ -1233,7 +1234,7 @@ function hTaskFound(g, p, k) {
       var scr = 0, not = {};
       hMould(g, s, "plate").concat(cup).forEach(function (q) { not[q] = 1; });
       cup.forEach(function (q) { if (g.m[q] === MAT.METAL) { heatVanish(g, q); scr++; } else if (!AIRY[g.m[q]]) hBail(g, q, not); });
-      p.iron = (wCells(p.iron) + scr) / 5;   /* (in whole cells: wCells) */
+      p.iron = (wTenths(p.iron) + scr * 2) / 10;   /* (in tenths: wTenths) */
       if (p.sayT <= 0) pSay(g, p, "foundryNoIron");
       return true;   /* (and anything over into the plates' mould, prised out as plates, the strokes after) */
     }

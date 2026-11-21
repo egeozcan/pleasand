@@ -776,7 +776,7 @@ function wTaskKiln(g, p, k) {
   } else if (k.r === "stained") {
     if ((st.glass || 0) >= 1) st.glass--; else p.glass--;
     var tint;
-    if (wCells(p.gold) >= 1 && wRubyWanted(g, s)) { p.gold = (wCells(p.gold) - 1) / 5; tint = 0; }
+    if (wCells(p.gold) >= 1 && wRubyWanted(g, s)) { p.gold = (wTenths(p.gold) - 2) / 10; tint = 0; }
     else if ((p.ore || 0) + (st.ore || 0) >= 1) { burn("ore"); tint = 1; } else { burn("coal"); tint = 2; }
     p.stained = (p.stained || 0) + 1; k.n++;
     /* (the pane is the colour of what went into it: red for gold, green for ore, amber for coal. the colour goes with
@@ -969,26 +969,31 @@ function wStranded(g, q) {
   for (var id in q.noGo || {}) if (q.noGo[id] > g.tick) { var t = bSite(g, +id); if (t && t.wonder) return true; }
   return false;
 }
-/* STOCK IN WHOLE UNITS: iron (and gold) in a pocket is bars, but goes in a fifth of a bar a cell; a bell in ninths. what
-   the great works count and hand about of these they count in whole units, never as a sum of fractions (ten fifths of a
-   bar is 1.9999999999999998 bars). wCells: a pocket's iron or gold, in cells. wNinths: a bell, in ninths */
-function wCells(v) { return Math.round((v || 0) * 5); }
+/* STOCK IN WHOLE UNITS: iron and gold are held in bars, as master holds them (floats: a girder costs a Float32 fifth of a
+   bar, worn-out tools give back half a bar), so that a plain village's sums are master's to the last bit. but every amount
+   there ever is of them is a whole number of TENTHS of a bar (a cell is two, a girder two, a refund five, a bar ten), and
+   the great works count and hand them about in tenths, converted losslessly at the edge (wTenths: the nearest tenth,
+   floats being off by a hundred-millionth at worst), never as a sum of fractions of bars. a cell is then counted out of the
+   pooled tenths (wCells of a sum, not a sum of wCells: a bar and a half and half a bar are ten cells, not nine or eleven).
+   a bell is in ninths (wNinths) */
+function wTenths(v) { return Math.round((v || 0) * 10); }
+function wCells(v) { return Math.floor(wTenths(v) / 2); }
 function wNinths(v) { return Math.round((v || 0) * 9); }
-/* the iron (or gold) in cells in the pockets of the living who can get there (wPocketedSure, a pocket at a time) */
-function wCellsSure(g, r) {
+/* the tenths of r in the pockets of the living who can get there; and the cells in them, counted from the pool */
+function wTenthsSure(g, r) {
   var n = 0;
-  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q)) n += wCells(q[r]); }
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q)) n += wTenths(q[r]); }
   return n;
 }
-/* up to n cells of r into p's pocket from the pockets of the living who can get there, a cell at a time: how many came.
-   (for the foundry's charge: a bar and a half in one pocket and half a bar in another are two bars, as whole cells) */
-function wGatherCells(g, p, r, n) {
+function wCellsSure(g, r) { return Math.floor(wTenthsSure(g, r) / 2); }
+/* up to n tenths of r into p's pocket from the pockets of the living who can get there: how many came (tenths, exactly) */
+function wGatherTenths(g, p, r, n) {
   var got = 0;
   for (var k = 0; k < g.peasants.length && got < n; k++) {
     var q = g.peasants[k];
     if (q === p || q.dead || wStranded(g, q)) continue;
-    var c = wCells(q[r]), t = Math.min(c, n - got);
-    if (t > 0) { q[r] = (c - t) / 5; got += t; }
+    var c = wTenths(q[r]), t = Math.min(c, n - got);
+    if (t > 0) { q[r] = (c - t) / 10; got += t; }
   }
   return got;
 }
@@ -1102,7 +1107,7 @@ function wRegild(g, s) {
   /* (and a gilded cell gone, to be mended, with no gold to mend it with: mended in its stand-in, as wGoldGone does for one
      going up. gold is never waited for) */
   if (s.gilding && s.repair && !s.done && s.plan.some(function (e2) { return e2.gild && e2.v === MAT.GOLD && !bOk(g, e2) && g.m[e2.i] !== MAT.BRICK; })) wGoldGone(g, s);
-  if (s.gilding && s.repair && !s.done && g.tick - s.last > 3000 && wCellsSure(g, "gold") + wCells(s.stock && s.stock.gold) < 1) {
+  if (s.gilding && s.repair && !s.done && g.tick - s.last > 3000 && Math.floor((wTenthsSure(g, "gold") + wTenths(s.stock && s.stock.gold)) / 2) < 1) {
     for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.gild && e.v === MAT.GOLD && g.m[e.i] === MAT.BRICK) { e.v = MAT.BRICK; n++; } }
     if (!s.plan.some(function (e2) { return !bOk(g, e2) && bFree(g, e2); })) { s.done = true; s.repair = false; s.gilding = false; s.quiet = false; }
     return;
