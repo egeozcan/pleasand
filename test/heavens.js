@@ -567,6 +567,43 @@ module.exports = function (test, check, sim) {
     for (i = 0; i < 10000 && !w.bOk(g, e); i++) { carrier.hunger = local.hunger = 0; sim.step(w, 1); }
     check(w.bOk(g, e), "the window was never mended: glass blown " + (g.found.glass || 0));
   });
+  /* (a flat valley, sand over stone, one villager, the foundry's ideas: for the foundry's own cases) */
+  function fflat(seed) {
+    var w = sim.load(seed), g = w.g, M = w.MAT, x, y;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < 158 ? M.SAND : M.STONE);
+    g.arriveT = 1e9; g.helloT = 0; g.ideaT = 1e9; g.wAny = true; g.know = { foundry: "TEST", moonrocket: "TEST", concrete: "TEST" };
+    var p = g.peasants[0]; g.peasants = [p];
+    p.x = 168.5; p.y = 149; p.task = null; p.idle = 0; p.hunger = 0; p.bored = 0; p.born = 0; p.iron = 0; p.coal = 100;
+    return { w: w, g: g, p: p, M: M };
+  }
+  function fRocketWantingBell(F, x) {
+    var w = F.w, g = F.g, gy = [], i;
+    for (i = 0; i < w.H_RW; i++) gy.push(150);
+    var fit = w.hRocketFit(g, x || 220, gy, 150, 150), r = w.hRocketAt(g, F.p, x || 220, fit.R0, fit.plan);
+    sim.build(w, r);
+    r.plan.filter(function (e) { return e.res === "bell"; }).forEach(function (e) { w.heatVanish(g, e.i); });
+    w.bInspect(g, r, g.sites.indexOf(r));
+    return r;
+  }
+  function fFoundry(F, x) {
+    var w = F.w, g = F.g, gy = [], i;
+    for (i = 0; i < w.H_FW; i++) gy.push(150);
+    var fit = w.hFoundryFit(g, x || 150, gy, 150, 150), s = w.hFoundryAt(g, F.p, x || 150, fit.R0, fit.plan);
+    sim.build(w, s);
+    return s;
+  }
+  test("foundry: a bell wanted and one bar to hand: nothing is cast till there is a bell's worth, and then a bell, iron and all", function () {
+    var F = fflat(6), w = F.w, g = F.g, p = F.p, s = fFoundry(F), i;
+    fRocketWantingBell(F);
+    check(w.hFoundryWant(g, s) === "an engine bell", "(the test wants a bell wanted)");
+    p.iron = 1;
+    for (i = 0; i < 3000; i++) { p.hunger = 0; sim.step(w, 1); }
+    check(!s.casts && p.iron === 1 && !(p.plate > 0), "one bar went in for a bell: " + s.casts + " casts, " + p.iron + " bars left, " + (p.plate || 0) + " plates");
+    p.iron += 1;
+    for (i = 0; i < 12000 && !(p.bell >= 1); i++) { p.hunger = 0; sim.step(w, 1); }
+    check(p.bell >= 1, "two bars, and no bell: " + s.casts + " casts, phase " + s.phase + ", plates " + (p.plate || 0));
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });

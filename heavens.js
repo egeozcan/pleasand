@@ -1071,6 +1071,8 @@ function hFoundryStep(g, s) {
     /* (a bell wanted is cast as a bell, when the bell's mould is free of the last one: never plates instead) */
     var bell = hFoundryWant(g, s) === "an engine bell";
     s.mould = bell ? (!hMouldFull(g, s, "bell") ? "bell" : "") : (!hMouldFull(g, s, "plate") ? "plate" : (!hMouldFull(g, s, "bell") ? "bell" : ""));
+    /* (and for a bell, not until there is iron enough for one, whole: in the chamber, and in pockets that can get here) */
+    if (s.mould === "bell") { var cb = hChamber(g, s); if (s.ironWaitT > g.tick || cb.met + cb.liq + Math.floor(wPocketedSure(g, "iron")) * 5 < H_CHARGE) { s.note = "waiting for iron enough for a bell"; s.mould = ""; } }
     if (s.mould) { hMouldSweep(g, s, s.mould); s.phase = 1; }
   }
   if (s.phase === 4 && hMouldHot(g, s) < H_PRISE) s.phase = 5;
@@ -1109,6 +1111,9 @@ function hTaskFound(g, p, k) {
     c = hChamber(g, s);
     var bars = Math.max(0, Math.ceil((H_CHARGE - c.met - c.liq) / 5));
     if (bars > 0 && (p.iron || 0) < bars) { var chip = iChipIn(g, "iron", bars - Math.floor(p.iron || 0), null, null, p); p.iron = (p.iron || 0) + chip; }
+    /* (a bell is cast whole: with not iron enough for one in the chamber and in hand, none of it goes in. it would only
+       come out as plates, and the bell still wanted. kept in the pocket, for when there is) */
+    if (s.mould === "bell" && c.met + c.liq + Math.floor(p.iron || 0) * 5 < H_CHARGE) { if (p.sayT <= 0) pSay(g, p, "foundryNoIron"); s.phase = 0; s.ironWaitT = g.tick + 600; return iDone(p, false); }
     bars = Math.min(bars, Math.floor(p.iron || 0));
     if (bars <= 0 && c.met + c.liq < 5) { if (p.sayT <= 0) pSay(g, p, "foundryNoIron"); s.phase = 0; return iDone(p, false); }
     var metal = bars * 5, put = 0;
@@ -1170,6 +1175,9 @@ function hTaskFound(g, p, k) {
        left melts; then the plug stopped up again. (iron this thick, out of a hole this small, would set in the hole: the
        stream is the hole's business, and is drawn) */
     if (k.act % 60 === 0 && p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "poured");
+    /* (sand slid in from the ground about it, or fused to glass by the heat, while it ran: lifted out before each cell is
+       poured, or the cup is not whole and it is no bell) */
+    if (k.act % 5 === 0) hMouldSweep(g, s, s.mould);
     if (k.act % 5 === 0 && hPourCell(g, s, p)) s.pourLast = g.tick;
     /* (all out; or nothing has run for a while, and what is left in there is not going to: it waits for the next charge) */
     if (c.liq + c.met === 0 || g.tick - s.pourT > H_POURED || (!c.liq && g.tick - Math.max(s.pourT, s.pourLast || 0) > 900)) {
@@ -1183,6 +1191,16 @@ function hTaskFound(g, p, k) {
     p.pose = (k.act % 16) < 8 ? "chopA" : "chopB";
     if (k.act % 16 !== 8) return true;
     var M = hMould(g, s, "plate").concat(hMould(g, s, "bell")), cup = s.mould === "bell" ? hMould(g, s, "bell") : [];
+    /* (a bell wanted, and the cup not whole: a cell short, or something blown into it and fused there. not prised out as
+       plates, the bell still wanted: broken up for scrap, iron and all, to be melted again, and what got in lifted out) */
+    if (cup.length && hFoundryWant(g, s) === "an engine bell" && cup.some(function (q) { return g.m[q] === MAT.METAL; }) && !cup.every(function (q) { return g.m[q] === MAT.METAL; })) {
+      var scr = 0, not = {};
+      hMould(g, s, "plate").concat(cup).forEach(function (q) { not[q] = 1; });
+      cup.forEach(function (q) { if (g.m[q] === MAT.METAL) { heatVanish(g, q); scr++; } else if (!AIRY[g.m[q]]) hBail(g, q, not); });
+      p.iron = (p.iron || 0) + scr * L_TAKE.iron;
+      if (p.sayT <= 0) pSay(g, p, "foundryNoIron");
+      return true;   /* (and anything over into the plates' mould, prised out as plates, the strokes after) */
+    }
     if (cup.length && cup.every(function (q) { return g.m[q] === MAT.METAL; }) && hFoundryWant(g, s) === "an engine bell") {
       cup.forEach(function (q) { heatVanish(g, q); });
       p.bell = (p.bell || 0) + 1; s.bells = (s.bells || 0) + 1;
