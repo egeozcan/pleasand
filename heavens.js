@@ -56,11 +56,11 @@ function hHash(a, b) { var h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul
 /* the ground at x: the first solid row (trees seen through) */
 function hGround(g, x) { return mGround(g, x, true); }
 /* a peasant who is idle, and nearest (x), but for those in but */
-function hIdlest(g, x, R, but, ok) {
+function hIdlest(g, x, R, but, ok, s) {
   var best = null, bd = R || 1e9;
   for (var k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
-    if (!wIdle(g, q) || (but && but[q.id]) || (ok && !ok(q))) continue;
+    if (!wIdle(g, q, s) || (but && but[q.id]) || (ok && !ok(q))) continue;
     var d = Math.abs(q.x - x);
     if (d < bd) { bd = d; best = q; }
   }
@@ -369,9 +369,9 @@ function hObsStep(g, s) {
   if (g.tick >= (s.lookT || 0) && !mCrew(g, "observe", s.id)) {
     /* the astronomer, if they are about and free; else the boredest of the idle, who is the astronomer now */
     var a = hWho(g, s.astro);
-    if (!a || !wIdle(g, a)) {
+    if (!a || !wIdle(g, a, s)) {
       a = null;
-      for (k = 0; k < g.peasants.length; k++) { q = g.peasants[k]; if (wIdle(g, q) && Math.abs(q.x - s.cx) < 240 && (!a || q.bored > a.bored)) a = q; }
+      for (k = 0; k < g.peasants.length; k++) { q = g.peasants[k]; if (wIdle(g, q, s) && Math.abs(q.x - s.cx) < 240 && (!a || q.bored > a.bored)) a = q; }
       if (a && (!hWho(g, s.astro) || g.tick > s.lookT + 3000)) s.astro = a.id;
       else a = null;
     }
@@ -393,7 +393,7 @@ function hObsStep(g, s) {
   /* a meteorite down, and nobody gone to it: the nearest idle */
   var R = g.hRock;
   if (R && R.down && !R.taken && !g.peasants.some(function (q) { return !q.dead && q.task && q.task.kind === "meteorite"; })) {
-    var who = hIdlest(g, R.x, 260);
+    var who = hIdlest(g, R.x, 260, null, function (c) { return !wNoGo(g, c, "meteorite"); });
     if (who) who.task = { kind: "meteorite", t: 0, act: 0, brave: true };
   }
 }
@@ -798,7 +798,7 @@ function hLightStep(g, s) {
   }
   if (s.fuel < H_LOW && !(s.noOil > g.tick) && !mCrew(g, "keep", s.id)) {
     var q = hWho(g, s.keeper);
-    if (!q || !wIdle(g, q) || !oTankFor(g, q, 1) || wNoGo(g, q, s.id)) q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1) && !wNoGo(g, c, s.id); });
+    if (!q || !wIdle(g, q, s) || !oTankFor(g, q, 1)) q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1); }, s);
     if (q) { q.task = { kind: "keep", site: s.id, t: 0, act: 0 }; s.keeper = q.id; }
   }
 }
@@ -1073,9 +1073,9 @@ function hFoundryStep(g, s) {
   if (s.phase === 0 || s.phase === 4 || mCrew(g, "found", s.id)) return;
   /* the founder: whoever it was, if they are about; else whoever has worked the furnace most, of the idle */
   var q = hWho(g, s.founder);
-  if (!q || !wIdle(g, q) || Math.abs(q.x - s.cx) > 260) {
+  if (!q || !wIdle(g, q, s) || Math.abs(q.x - s.cx) > 260) {
     q = null;
-    for (var k = 0; k < g.peasants.length; k++) { var c = g.peasants[k]; if (wIdle(g, c) && Math.abs(c.x - s.cx) < 260 && (!q || (c.smelts || 0) > (q.smelts || 0))) q = c; }
+    for (var k = 0; k < g.peasants.length; k++) { var c = g.peasants[k]; if (wIdle(g, c, s) && Math.abs(c.x - s.cx) < 260 && (!q || (c.smelts || 0) > (q.smelts || 0))) q = c; }
   }
   if (!q) return;
   q.task = { kind: "found", site: s.id, t: 0, act: 0, brave: true };
@@ -1567,7 +1567,7 @@ function hRocketStep(g, s) {
   if (s.repair) return;
   if ((s.oil || 0) < H_FUEL) {
     if (!(s.noOil > g.tick) && mCrew(g, "fuel", s.id) < 2 && hOilRoom(g, s, null)) {
-      q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1) && !wNoGo(g, c, s.id); });
+      q = hIdlest(g, s.cx, 260, null, function (c) { return !!oTankFor(g, c, 1); }, s);
       if (q) q.task = { kind: "fuel", site: s.id, t: 0, act: 0 };
     }
     return;

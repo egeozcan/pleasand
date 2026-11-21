@@ -138,6 +138,15 @@ function wReset(g) {
 }
 /* DESTINATIONS: a great work (or the salvage, the moon rock's spot) somebody could not get to, or gave up on, is let be
    by them a while, and the next one tried (peasants.js pGiveUp; the tasks' own timeouts). id: a site's, or a task's kind */
+/* the great works' own jobs: given up on, let be (the site, or with none, the job). the kiln at the furnace, a mixer at
+   the water, too: the furnace is no great work, but the job is theirs. (not "skate": master skates on frozen ponds) */
+var W_KINDS = (function () {   /* (a constant, filled once) */
+  var o = {};
+  ["haul", "salvage", "quarry", "mix", "kiln", "moonrock", "gantry", "meteorite", "observe", "found", "keep", "fuel", "board",
+   "stoke", "bathe", "screw", "pfill", "organ", "shovel", "cbail", "act", "preach", "audience"].forEach(function (k) { o[k] = 1; });
+  return o;
+})();
+var W_AWAY = { shovel: 1, mix: 1, pfill: 1, bucket: 1, cbail: 1 };   /* (jobs for a site whose walks go elsewhere: snow, water) */
 var W_NOGO = 1500;   /* (as long as bFail lets a site be, for a walk given up) */
 function wBackoff(g, p, id, t) { (p.noGo || (p.noGo = {}))[id] = g.tick + (t || W_NOGO); }
 function wNoGo(g, p, id) { return !!(p.noGo && p.noGo[id] > g.tick); }
@@ -611,7 +620,7 @@ function wKilnOrders(g) {
 var W_CHAR = 4;     /* coals of charcoal burnt at a time, when there is no coal (two logs to a coal) */
 function wGoKiln(g, p) {
   var f = mSites(g, "furnace", true)[0], k;
-  if (!f || f.repair || Math.abs(f.cx - p.x) > 260) return false;
+  if (!f || f.repair || Math.abs(f.cx - p.x) > 260 || wNoGo(g, p, f.id)) return false;
   /* (one at the bellows; two, with a long order in: forty firebricks for a foundry, say) */
   var at = 0, big = 0;
   for (k = 0; k < g.kiln.length; k++) big += g.kiln[k].r === "coal" ? 0 : g.kiln[k].n;
@@ -1116,9 +1125,14 @@ function wLitGlass(g, x, y) {
 P_BODY.sit = pParse([".sse.", ".sss.", "scccs", ".cppf"], 3);
 P_BODY.fling = pParse([".sse..", ".sss..", ".ccccs", ".cCc..", ".p.p..", "f...f."], 3);
 /* idle enough to come: doing nothing, or only something for fun */
-function wIdle(g, p) {
+/* free for a job (with s: a job at site s, and not somebody who has lately given up getting there: wBackoff. not bFail's
+   failSite, which is set for a cell that could not be done, as much as for a site that could not be got to). EVERY job a great work hands somebody goes through here, with its site: the cast, the crypt's bailer, the
+   preacher, the astronomer, the founder, the keeper, the fueller, the crew, the stoker, the gardens' turner and filler,
+   the organist, the ice palace's hands, an audience. so nobody is sent, time after time, where they cannot get */
+function wIdle(g, p, s) {
   return !p.dead && p.state === "walk" && !p.sleep && !p.fire && p.panic <= 0 && p.hunger < P_HUNGRY && p.cold < 60 &&
-         !p.climb && !p.rope && !p.swimming && (!p.task || I_FUN[p.task.kind]);
+         !p.climb && !p.rope && !p.swimming && (!p.task || I_FUN[p.task.kind]) &&
+         !(s && wNoGo(g, p, s.id));
 }
 /* a gathering at site s: up to cap of the idle within R of (x), each to a seat ({x, y}: where their feet go) if there
    are seats, else to stand about in front, until until. kind names it, for their mood. how many came */
@@ -1127,7 +1141,7 @@ function wGather(g, s, o) {
   for (k = 0; k < g.peasants.length; k++) if (g.peasants[k].task && g.peasants[k].task.kind === "audience" && g.peasants[k].task.site === s.id) { n++; if (g.peasants[k].task.seat >= 0) used[g.peasants[k].task.seat] = 1; }
   for (k = 0; k < g.peasants.length && n < (o.cap || 99); k++) {
     q = g.peasants[k];
-    if ((o.but && o.but[q.id]) || !wIdle(g, q) || Math.abs(q.x - s.cx) > (o.R || 200)) continue;
+    if ((o.but && o.but[q.id]) || !wIdle(g, q, s) || Math.abs(q.x - s.cx) > (o.R || 200)) continue;
     var seat = -1;
     for (var j = 0; j < seats.length; j++) if (!used[j]) { seat = j; used[j] = 1; break; }
     var at = seat >= 0 ? seats[seat] : { x: Math.round(o.x + (q.id % 7) - 3), y: o.y };

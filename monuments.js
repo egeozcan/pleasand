@@ -236,7 +236,7 @@ function mStartPlay(g, s) {
   var T = (g.tales || []).filter(function (t) { return !t.staged; });
   if (!T.length) { s.playT = g.tick + 2000; return; }
   /* the director: the boredest of the idle. the best tale nobody has staged: not a death, three times in four */
-  var idle = g.peasants.filter(function (q) { return wIdle(g, q) && Math.abs(q.x - s.cx) < 220; });
+  var idle = g.peasants.filter(function (q) { return wIdle(g, q, s) && Math.abs(q.x - s.cx) < 220; });
   if (idle.length < 2) { s.playT = g.tick + 600; return; }
   idle.sort(function (a, b) { return (b.bored || 0) - (a.bored || 0); });
   /* (a trip to space, a fire, a bolt from the blue: those are the good ones. a new idea makes a dull play) */
@@ -762,7 +762,7 @@ function mCathStep(g, s) {
     var best = null, bd = 1e9;
     for (k = 0; k < g.peasants.length; k++) {
       q = g.peasants[k];
-      if (!wIdle(g, q) || q.pail || Math.abs(q.x - s.cx) > 240) continue;
+      if (!wIdle(g, q, s) || q.pail || Math.abs(q.x - s.cx) > 240) continue;
       var d = Math.abs(q.x - s.cx);
       if (d < bd) { bd = d; best = q; }
     }
@@ -799,7 +799,7 @@ function mServiceStep(g, s) {
   var S = s.serv, k;
   if (!S) {
     if (g.tick < (s.servT || 0) || g.blaze.length) return;
-    var idle = g.peasants.filter(function (q) { return wIdle(g, q) && Math.abs(q.x - s.cx) < 240; });
+    var idle = g.peasants.filter(function (q) { return wIdle(g, q, s) && Math.abs(q.x - s.cx) < 240; });
     if (idle.length < 2) { s.servT = g.tick + 900; return; }
     var names = mNamesOf(g, s);
     if (!names.length) { s.servT = g.tick + 3000; return; }

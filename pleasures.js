@@ -255,7 +255,7 @@ function pBathsStep(g, s) {
     var best = null, bd = 1e9;
     for (k = 0; k < g.peasants.length; k++) {
       q = g.peasants[k];
-      if (!wIdle(g, q) || Math.abs(q.x - s.cx) > 240) continue;
+      if (!wIdle(g, q, s) || Math.abs(q.x - s.cx) > 240) continue;
       var d = Math.abs(q.x - s.cx) - ((q.coal || 0) >= 1 ? 40 : 0) - (q.id === s.stoker ? 30 : 0);
       if (d < bd) { bd = d; best = q; }
     }
@@ -313,7 +313,7 @@ function pCallFill(g, s, dry) {
   var best = null, bd = 1e9;
   for (var k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
-    if (!wIdle(g, q) || q.pail || Math.abs(q.x - s.cx) > 220) continue;
+    if (!wIdle(g, q, s) || q.pail || Math.abs(q.x - s.cx) > 220) continue;
     if (Math.abs(q.x - s.cx) < bd) { bd = Math.abs(q.x - s.cx); best = q; }
   }
   if (best) pGoFill(g, best, s);
@@ -653,7 +653,7 @@ function pGardensStep(g, s) {
   var best = null, bd = 1e9, k, q;
   for (k = 0; k < g.peasants.length; k++) {
     q = g.peasants[k];
-    if (!wIdle(g, q) || Math.abs(q.x - s.cx) > 220) continue;
+    if (!wIdle(g, q, s) || Math.abs(q.x - s.cx) > 220) continue;
     var dd = Math.abs(q.x - s.cx) - (q.id === s.turner ? 40 : 0);
     if (dd < bd) { bd = dd; best = q; }
   }
@@ -969,7 +969,7 @@ function pOrganStep(g, s) {
     var best = null, bd = 1e9;
     for (k = 0; k < g.peasants.length; k++) {
       q = g.peasants[k];
-      if (!wIdle(g, q) || Math.abs(q.x - s.cx) > 240) continue;
+      if (!wIdle(g, q, s) || Math.abs(q.x - s.cx) > 240) continue;
       var d = Math.abs(q.x - s.cx) - ((q.coal || 0) >= 1 ? 40 : 0) - (q.id === s.organist ? 60 : 0);
       if (d < bd) { bd = d; best = q; }
     }
@@ -1540,7 +1540,7 @@ function pIcePick(g, p, hungry) {
     }
     return false;
   }
-  if (Math.abs(s.cx - p.x) > 200) return false;
+  if (Math.abs(s.cx - p.x) > 200 || wNoGo(g, p, s.id)) return false;
   if ((p.snow || 0) >= 1 || (bUseful(g, p, s) && !(p.failSite === s.id && p.failT > g.tick))) { bJoin(g, p, s); return true; }
   if (pIceShort(g, s) <= 0) return false;
   p.task = { kind: "shovel", site: s.id, t: 0, act: 0 };
@@ -1598,7 +1598,7 @@ function pIcePalaceStep(g, s) {
     /* (all hands: anybody about with nothing that matters to do is called over, before the thaw) */
     if (warm < 0) for (k = 0; k < g.peasants.length; k++) {
       var h = g.peasants[k];
-      if (!wIdle(g, h) || h.hunger > P_HUNGRY || h.cold > 80 || Math.abs(h.x - s.cx) > 160 || (h.task && h.task.kind === "skate")) continue;
+      if (!wIdle(g, h, s) || h.hunger > P_HUNGRY || h.cold > 80 || Math.abs(h.x - s.cx) > 160 || (h.task && h.task.kind === "skate")) continue;
       if (pIcePick(g, h, false) && h.sayT <= 0 && Math.random() < 0.1) pSay(g, h, "planIce");
     }
     if (warm > 2 && g.tick - s.t0 > 3000 && pIceLeft(g, s) < (s.cells >> 2)) {

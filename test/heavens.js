@@ -451,6 +451,35 @@ module.exports = function (test, check, sim) {
     w.hFoundryStep(g, fo);
     check(fo.phase === 1, "no cast begun: phase " + fo.phase);
   });
+  test("foundry: a founder who cannot get to it is let be, and somebody who can casts instead; and every job a great work hands out asks after backoff", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, x, y, i;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var chosen = g.peasants[0], local = g.peasants[1];
+    g.peasants.forEach(function (o) { if (o !== chosen && o !== local) o.dead = 1; });
+    g.know.foundry = "TEST"; g.know.moonrocket = "TEST";
+    for (x = 135; x <= 181; x++) for (y = 150; y < 158; y++) w.sandPlace(g, y * g.gw + x, M.SAND);
+    var gy = []; for (i = 0; i < w.H_FW; i++) gy.push(150);
+    var fit = w.hFoundryFit(g, 155, gy, 150, 150), s = w.hFoundryAt(g, chosen, 155, fit.R0, fit.plan);
+    sim.build(w, s); s.casts = 1; s.founder = chosen.id;
+    var e = w.bE(g, 221, 148, M.METAL, 0, 1 / 9); e.res = "bell"; w.bNew(g, "moonrocket", local, [e], [221, 148, 222, 149], { wonder: true });
+    for (x = 108; x <= 116; x++) for (y = 45; y < 150; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (a wall: the founder on the far side) */
+    chosen.x = 75.5; chosen.y = 149; chosen.task = null; chosen.smelts = 9;
+    local.x = 172.5; local.y = 149; local.task = null; local.iron = 12; local.coal = 120;
+    var sent = [0, 0];
+    for (i = 0; i < 8000 && s.phase <= 1; i++) {
+      chosen.hunger = local.hunger = 0; sim.step(w, 1);
+      [chosen, local].forEach(function (q, k) { if (q.task && q.task.kind === "found" && q.task.t <= 1) sent[k]++; });
+    }
+    check(s.phase > 1 && sent[1] > 0 && sent[0] <= 3, "the cast never began: phase " + s.phase + ", the cut-off founder sent " + sent[0] + " times, the other " + sent[1]);
+    /* (and every job handed out by the great works' files asks wIdle with its site: but stargazing and a word about the moon,
+       which take nobody anywhere) */
+    var fs = require("fs"), path = require("path"), bare = [];
+    ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (f) {
+      fs.readFileSync(path.join(__dirname, "..", f), "utf8").split("\n").forEach(function (l, n) { if (/wIdle\(g, [a-z]+\)/.test(l) && !/stargaze|"moon"/.test(l)) bare.push(f + ":" + (n + 1)); });
+    });
+    check(!bare.length, "jobs handed out without asking after backoff: " + bare.join(", "));
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });

@@ -2046,7 +2046,12 @@ function pStuck(p, k, d) {
 function pGiveUp(g, p, x) {
   /* (a great work they could not get to, or the salvage, or the moon rock's spot: let be a while, and the next one tried.
      wonders.js wBackoff) */
-  if (p.task) { var gs = p.task.site != null ? bSite(g, p.task.site) : null; if (gs && gs.wonder) wBackoff(g, p, gs.id); else if (p.task.kind === "salvage" || p.task.kind === "moonrock") wBackoff(g, p, p.task.kind); }
+  if (p.task && typeof W_KINDS !== "undefined" && typeof W_AWAY !== "undefined") {
+    var gs = p.task.site != null ? bSite(g, p.task.site) : null, wk = W_KINDS[p.task.kind];
+    /* (not a job whose walk is somewhere else, snow to scoop or water to fetch: that place, not the site, was the trouble) */
+    if (W_AWAY[p.task.kind]) {}
+    else if (gs && (gs.wonder || wk)) wBackoff(g, p, gs.id); else if (wk) wBackoff(g, p, p.task.kind);
+  }
   if (p.task && p.task.kind === "eat") {
     p.eatCD = p.hunger > P_HUNGRY * 2 ? 300 : 900;
     /* (a field they could not get to is let be a while: there may be another they can. pFieldFood) */
