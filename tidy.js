@@ -986,7 +986,7 @@ function tTaskWeed(g, p, k) {
   p.pose = (k.act % 12) < 6 ? "chopA" : "chopB";
   if (k.act % 12 !== 6) return true;
   var j = k.y * g.gw + k.x;
-  g.m[j] = MAT.EMPTY; g.aux[j] = 0; heatSync(g, j);
+  g.aux[j] = 0; heatVacate(g, j);
   pChips(g, k.x + 0.5, k.y + 0.5, 3, [SAND_PAL[MAT.PLANT][0], SAND_PAL[MAT.PLANT][160]]);
   g.fx.thud++;
   if (++k.n === 1 && p.sayT <= 0 && (k.mine || Math.random() < 0.6)) pSay(g, p, "tidyWeed", !!k.mine);

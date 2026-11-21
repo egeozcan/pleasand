@@ -458,23 +458,24 @@ function wHotWork(g, x, y, p) {
    (x, y): a standing cell on top of a foundry that is warm. cached for the tick */
 var W_RC = { g: null, t: -1, T: null, n: -1, sh: null, r: [] };
 var W_SHUT = null;   /* (a foundry taken as warm, whatever it is: how it will be through a cast. heavens.js hCutOff) */
+var W_OPEN = null;   /* (and one taken as cold: how it will be once it has cooled. heavens.js hCutOff) */
 function wRoofs(g) {
   var r = [], k, s, x, y;
-  if (W_RC.g === g && W_RC.t === g.tick && W_RC.T === g.T && W_RC.n === g.sites.length && W_RC.sh === W_SHUT) return W_RC.r;
+  if (W_RC.g === g && W_RC.t === g.tick && W_RC.T === g.T && W_RC.n === g.sites.length && W_RC.sh === W_SHUT && W_RC.op === W_OPEN) return W_RC.r;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind !== "foundry") continue;
+    if (s.kind !== "foundry" || s === W_OPEN) continue;
     /* (while anything of it is warm, or alight: the fire in the chamber, a melt, a casting in its mould, the jacket or the
        roof over 90. never for the phase it is at alone: charged and not lit, or cast and gone cold with the plates still
        in it, it is cold stone and iron, and closes nothing) */
     var warm = s === W_SHUT;
-    for (y = Math.max(0, s.R0 - 14); y <= Math.min(g.gh - 1, s.R0 + 3) && !warm; y++) for (x = s.x0; x <= s.x1 && !warm; x++) {
+    for (y = Math.max(0, s.R0 - 14); y <= Math.min(g.gh - 1, s.R0 + 4) && !warm; y++)   /* (down to the bell mould's lining) */ for (x = s.x0; x <= s.x1 && !warm; x++) {
       var j = y * g.gw + x, c = g.m[j];
       if (g.T[j] > 90 || c === MAT.EMBER || c === MAT.FIRE || c === MAT.LAVA) warm = true;
     }
-    if (warm) r.push({ x0: s.x0 - 1, x1: s.x1 + 1, y1: s.R0 - 10 });
+    if (warm) r.push({ x0: s.x0 - 1, x1: s.x1 + 1, y1: s.R0 - 10, site: s.id });
   }
-  W_RC.g = g; W_RC.t = g.tick; W_RC.T = g.T; W_RC.n = g.sites.length; W_RC.sh = W_SHUT; W_RC.r = r;
+  W_RC.g = g; W_RC.t = g.tick; W_RC.T = g.T; W_RC.n = g.sites.length; W_RC.sh = W_SHUT; W_RC.op = W_OPEN; W_RC.r = r;
   return r;
 }
 function wOnRoof(g, x, y) {

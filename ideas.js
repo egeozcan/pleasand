@@ -1892,7 +1892,7 @@ function iTaskFestival(g, p, k) {
   var ph = k.act++ % 120;
   /* (oil spilled about since it was set up: the show is off. checked before every rocket, and the finale) */
   if ((ph === 10 || ph === 70 || (k.shot >= k.n && ph === 30)) && !iFestSafe(g, k.x, k.y + 1)) {
-    if (g.m[j] === MAT.FIREWORK) { g.m[j] = MAT.EMPTY; heatSync(g, j); }   /* (the rocket taken down again, unlit) */
+    if (g.m[j] === MAT.FIREWORK) heatVacate(g, j);   /* (the rocket taken down again, unlit) */
     g.fwStage = null;
     return iDone(p, false);
   }

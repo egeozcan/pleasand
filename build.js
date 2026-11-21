@@ -849,12 +849,12 @@ function bDig(g, s, e, p) {
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, out = x + 0.5 < s.cx ? -1 : 1, c = g.m[e.i];
   /* a log in the way (off a tree somebody felled, or fallen into a hole that should be empty): chopped out of it, and kept */
   if (c === MAT.WOOD) {
-    g.m[e.i] = MAT.EMPTY; heatSync(g, e.i); p.logs = (p.logs || 0) + 1; s.last = g.tick; g.fx.thud++;
+    heatVacate(g, e.i); p.logs = (p.logs || 0) + 1; s.last = g.tick; g.fx.thud++;
     pChips(g, x + 0.5, y + 0.5, 4, [SAND_PAL[MAT.WOOD][40], SAND_PAL[MAT.WOOD][200]]);
     return;
   }
   /* a puddle down a mine: a bucketful, carried up and tipped on the spoil heap */
-  if (e.drain && LIQUID[c]) { if (!mSpoil(g, s, e.i)) { g.m[e.i] = MAT.EMPTY; heatSync(g, e.i); } s.last = g.tick; g.fx.splash++; return; }
+  if (e.drain && LIQUID[c]) { if (!mSpoil(g, s, e.i)) heatVacate(g, e.i); s.last = g.tick; g.fx.splash++; return; }
   if (!B_DIG[c]) return;
   g.dug++;   /* (a village that has done enough of this thinks of landscaping: ideas.js) */
   if (g.dug >= I_DUG && !g.dugSpark) { g.dugSpark = 1; iSpark(g, p, "dig"); }
@@ -870,7 +870,7 @@ function bDig(g, s, e, p) {
   /* greenery is just cleared. sand goes up and out over their shoulder (or the other, if that way is blocked), high
      enough to clear the sides of a hole as steep as sand stands, and far enough to land well outside it. with no way
      to throw it, it is trodden down instead */
-  if (P_LEAF[c] || c === MAT.SEED || !bToss(g, e.i, out)) { g.m[e.i] = MAT.EMPTY; g.aux[e.i] = 0; heatSync(g, e.i); }
+  if (P_LEAF[c] || c === MAT.SEED || !bToss(g, e.i, out)) { g.aux[e.i] = 0; heatVacate(g, e.i); }
   s.last = g.tick;
   g.fx.thud++;
   if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "dig");

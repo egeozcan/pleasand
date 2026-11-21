@@ -191,7 +191,7 @@ var M_CHIPS = {
 function mMine(g, s, e, p) {
   var j = e.i, r = M_YIELD[g.m[j]], x = j % g.gw, y = (j / g.gw) | 0;
   if (!r) return;
-  g.m[j] = MAT.EMPTY; g.aux[j] = 0; heatSync(g, j);
+  g.aux[j] = 0; heatVacate(g, j);
   s.last = g.tick;
   g.found[r] = (g.found[r] || 0) + 1;
   if ((p[r] || 0) < M_POCKET[r]) {

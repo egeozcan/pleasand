@@ -192,7 +192,7 @@ function oSpill(g, s, up) {
 function oLabel(s) { return "the oil well"; }
 /* one barrel up out of the reservoir, and into their pockets, the tank or the count: j is the oil cell (oFindOil) */
 function oTake(g, s, j, p) {
-  g.m[j] = MAT.EMPTY; g.aux[j] = 0; heatSync(g, j);
+  g.aux[j] = 0; heatVacate(g, j);
   s.barrels++; g.barrels++;
   if (g.barrels === 1) {
     feed(g, (p ? p.name : "the village") + " brought up the first barrel of oil", "#d8c090", "oil");

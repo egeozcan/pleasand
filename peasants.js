@@ -2126,7 +2126,7 @@ function pTask(g, p) {
     if (k.act % cb === (cb >> 1)) {
       mWear(g, p);
       if (pBuilt(g, k.x, k.y)) { p.task = null; return true; }   /* on second thoughts, somebody lives in that */
-      g.m[j] = MAT.EMPTY; heatSync(g, j); g.fx.thud++;   /* (the air keeps the heat the wood had) */
+      heatVacate(g, j); g.fx.thud++;   /* (the air keeps the heat the wood had, in a plain village: heat.js heatVacate) */
       pChips(g, k.x + 0.5, k.y + 0.5, 5, [SAND_PAL[MAT.WOOD][40], SAND_PAL[MAT.WOOD][200]]);
       p.logs = (p.logs || 0) + 1; p.bored = Math.max(0, p.bored - 300); k.n++;
       if (k.n === 1 && (p.sayT <= 0 || Math.random() < 0.3)) pSay(g, p, "chop");
@@ -2142,7 +2142,7 @@ function pTask(g, p) {
     p.pose = (k.act >> 3) & 1 ? "eatB" : null;
     if (k.act % 30 === 0) {
       if (!pEdible(g, k.x, k.y)) { p.task = null; return true; }
-      c = g.m[j]; g.m[j] = MAT.EMPTY; heatSync(g, j);
+      c = g.m[j]; heatVacate(g, j);
       pChips(g, k.x + 0.5, k.y + 0.5, 3, [SAND_PAL[MAT.PLANT][0], SAND_PAL[MAT.PLANT][100]]);
       p.hunger = Math.max(0, p.hunger - (c === MAT.FLOWER ? 1000 : (c === MAT.WHEAT ? 900 : 700)) - lSeason(g, p)); p.bored = Math.max(0, p.bored - 100); k.n++;
       if (c === MAT.WHEAT) achieve(g, "harvest");
