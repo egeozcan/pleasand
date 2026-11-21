@@ -447,9 +447,9 @@ great work wants iron, new tools wait. What they build:
   hangs over the valley, faintly, for a while. Every so often they say there
   will be falling stars tonight, and there are, and anybody with nothing
   better to do stands and watches. One shower in three, one of them comes
-  down: a lump of iron with a nugget of gold in the middle of it, glowing,
-  never anywhere near anybody's house. Somebody goes and stands by it until it
-  is cool enough to pick up
+  down: a lump of iron with a nugget of gold in the middle of it, cold by the
+  time it lands, on open ground and never anywhere near anybody's house or
+  anybody. Somebody goes and picks it up
 - **The lighthouse**: comes of oil, glass, masonry, and a lake: a real one, a
   hundred and fifty cells of water at the least, which no valley has unless
   you give it one. It occurs to the first one to swim in it. A red and white
@@ -479,7 +479,8 @@ great work wants iron, new tools wait. What they build:
   the well. Then a crew of up to three (whoever has flown most on a rocket
   pack, the astronomer, and whoever has had the most ideas) climb the gantry
   and get in, the valley comes to watch from a safe way off, and there is a
-  countdown. It goes up on a column of real fire, out of the top of the world,
+  countdown. It goes up on a roaring column of smoke and glare, out of the top
+  of the world,
   and a little while later there is a flag on the moon. The crew come back the
   way anybody comes back from space (over the pad, this time; the parachutes
   mostly open), with moon rock in their pockets, which they set out by the
@@ -579,7 +580,7 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - COOL the steam organ in the middle of a tune
 - Throw a duck at the duck palace
 - Freeze the village with snow lying about. Then HEAT it
-- Watch the sky once the observatory is up. Then go and stand a peasant where the falling star is coming down
+- Watch the sky once the observatory is up. Then stand a peasant where the falling star is coming down, and watch it come down somewhere else
 - Give them a lake (a big one), and some oil. Then strike the lantern with lightning while there is oil up there
 - Knock a hole in the foundry's mould while it pours. Or pour water on it
 - Set fire to something near the moon rocket once it is fuelled. Stand well back
