@@ -640,7 +640,7 @@ function mCathFit(g, x0, gy, hi, lo) {
   return best;
 }
 function mCathAt(g, x0, gy, F) {
-  var plan = [], work = 0, ruby = mGoldToHand(g) >= 0.2, u, x, y, h, r, c, v, e, k, t;
+  var plan = [], work = 0, ruby = wPocketedSure(g, "gold") >= 0.2, u, x, y, h, r, c, v, e, k, t;
   /* (the crypt goes down ten under the floor: nothing of anybody's down there, and nothing wet, hot or bang about it) */
   for (k = 0; k < g.sites.length; k++) { t = g.sites[k]; if (x0 + 17 >= t.x0 && x0 - 1 <= t.x1 && F + 12 >= t.y0 && F <= t.y1) return null; }
   for (u = -1; u <= 17; u++) for (y = F; y <= F + 12; y++) {

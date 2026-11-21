@@ -1046,7 +1046,7 @@ function hFoundryWant(g, s) {
   if (plate > 0.5) plate -= wSalvageSure(g, "plate");
   if (bell > 1e-6) return "an engine bell";   /* (a bell is cast whole: for a cell of one to mend, too) */
   if (plate > 0.5) return Math.ceil(plate) + " plates";
-  if (!s.casts && mIronToHand(g) >= 12) return "a first pour";   /* (to see that it works: once) */
+  if (!s.casts && wPocketedSure(g, "iron") >= 12) return "a first pour";   /* (to see that it works: once) */
   return "";
 }
 /* the plug of the tap for a mould, and where the founder stands to work it */

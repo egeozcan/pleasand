@@ -480,6 +480,36 @@ module.exports = function (test, check, sim) {
     });
     check(!bare.length, "jobs handed out without asking after backoff: " + bare.join(", "));
   });
+  test("foundry: a firebrick in the pocket of somebody who cannot get there is not counted on: the kiln makes another", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, x, y, i;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var carrier = g.peasants[0], local = g.peasants[1];
+    g.peasants.forEach(function (o) { if (o !== carrier && o !== local) o.dead = 1; });
+    g.know.concrete = "TEST"; g.know.foundry = "TEST";
+    for (x = 145; x <= 185; x++) for (y = 150; y < 158; y++) w.sandPlace(g, y * g.gw + x, M.SAND);
+    var gy = []; for (i = 0; i < w.H_FW; i++) gy.push(150);
+    var fit = w.hFoundryFit(g, 162, gy, 150, 150), s = w.hFoundryAt(g, local, 162, fit.R0, fit.plan);
+    sim.build(w, s); s.casts = 1;
+    var e = s.plan.filter(function (e2) { return e2.v === M.FIREBRICK && e2.i % g.gw === s.xf + 10 && ((e2.i / g.gw) | 0) === s.R0 - 2; })[0];
+    w.heatVanish(g, e.i); w.bInspect(g, s, g.sites.indexOf(s));
+    check(s.repair, "(the test wants a firebrick to mend)");
+    var f = w.bNew(g, "furnace", local, [], [202, 140, 214, 150], { sx: 200, sy: 149, G: 150, fc: 204, mouth: 1 }); sim.build(w, f);
+    for (x = 108; x <= 116; x++) for (y = 45; y < 150; y++) w.sandPlace(g, y * g.gw + x, M.STONE);   /* (a wall: the carrier on the far side) */
+    carrier.x = 75.5; carrier.y = 149; carrier.task = null; carrier.firebrick = 1;
+    local.x = 200.5; local.y = 149; local.task = null; local.stone = 2; local.coal = 4;
+    for (i = 0; i < 8000 && !(g.m[e.i] === M.FIREBRICK || (s.stock && s.stock.firebrick >= 1)); i++) { carrier.hunger = local.hunger = 0; sim.step(w, 1); }
+    check(g.m[e.i] === M.FIREBRICK || (s.stock && s.stock.firebrick >= 1), "no firebrick made for it: orders " + JSON.stringify(w.wKilnOrders(g)) + ", carrier stranded " + w.wStranded(g, carrier));
+    /* (and nowhere in the great works is what is in pockets counted on, for an order or a want, but the reachable way:
+       wPocketedSure. the one bare count left is the readout's "waiting for") */
+    var fs = require("fs"), path = require("path"), bare = [];
+    ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (fn) {
+      fs.readFileSync(path.join(__dirname, "..", fn), "utf8").split("\n").forEach(function (l, n) {
+        if (/\bwPocketed\(g|mGoldToHand\(|mIronToHand\(/.test(l) && !/^function wPocketed|return "waiting for/.test(l.trim())) bare.push(fn + ":" + (n + 1));
+      });
+    });
+    check(!bare.length, "pockets counted on without asking whether they can be got to: " + bare.join(", "));
+  });
   test("foundry: INERT in a mould stays exactly where it was put: never lifted out, swept or cast over", function () {
     var F = foundry("plate"), w = F.w, g = F.g, s = F.s, M = w.MAT;
     w.wDef({ id: "bellwant3" });

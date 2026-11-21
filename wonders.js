@@ -417,7 +417,7 @@ function wDepositLime(g, p, s) {
 /* stone a wonder still wants that is neither on its pile nor in anybody's pocket (and the kiln's, for its lime and
    firebrick) */
 function wStoneShort(g, s) {
-  var need = bNeed(g, s, "stone") + Math.ceil(Math.max(0, wLimeWant(g, s)) / 2) + Math.ceil(Math.max(0, bNeed(g, s, "firebrick") - wPocketed(g, "firebrick")) / 2);
+  var need = bNeed(g, s, "stone") + Math.ceil(Math.max(0, wLimeWant(g, s)) / 2) + Math.ceil(Math.max(0, bNeed(g, s, "firebrick") - wPocketedSure(g, "firebrick")) / 2);
   return need - bStoneToHand(g);
 }
 function wPocketed(g, r) { var n = 0; for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k][r] || 0; return n; }
@@ -595,21 +595,21 @@ function wBenched(g, q) {
 var W_KILN = 150;   /* ticks at the bellows for a batch */
 /* lime a wonder still wants for its wet concrete, over what is on its pile and in its mixers' pockets */
 function wLimeWant(g, s) {
-  var n = Math.ceil(Math.max(0, bNeed(g, s, "mortar") - wPocketed(g, "mortar")) / W_PAIL);
+  var n = Math.ceil(Math.max(0, bNeed(g, s, "mortar") - wPocketedSure(g, "mortar")) / W_PAIL);
   return n - ((s.stock && s.stock.lime) || 0);
 }
 function wKilnOrders(g) {
   var out = [], k, s, n, U = wUp(g);
   for (k = 0; k < U.length; k++) {
     s = U[k];
-    if ((n = Math.max(0, bNeed(g, s, "firebrick") - wPocketed(g, "firebrick"))) > 0) out.push({ r: "firebrick", n: n, site: s.id });
-    if ((n = wLimeWant(g, s) - wPocketed(g, "lime")) > 0) out.push({ r: "lime", n: n, site: s.id });
-    if ((n = Math.max(0, bNeed(g, s, "stained") - wPocketed(g, "stained"))) > 0) out.push({ r: "stained", n: n, site: s.id });
+    if ((n = Math.max(0, bNeed(g, s, "firebrick") - wPocketedSure(g, "firebrick"))) > 0) out.push({ r: "firebrick", n: n, site: s.id });
+    if ((n = wLimeWant(g, s) - wPocketedSure(g, "lime")) > 0) out.push({ r: "lime", n: n, site: s.id });
+    if ((n = Math.max(0, bNeed(g, s, "stained") - wPocketedSure(g, "stained"))) > 0) out.push({ r: "stained", n: n, site: s.id });
   }
   /* and no coal in the valley to fire any of it with, nor to smelt a wonder's iron: charcoal, out of logs, onto the
      furnace's pile. last, so that a coal that does turn up goes on the order it was wanted for */
   var f = mSites(g, "furnace", true)[0];
-  if (f && U.length && wPocketed(g, "coal") + ((f.stock && f.stock.coal) || 0) < W_CHAR) {
+  if (f && U.length && wPocketedSure(g, "coal") + ((f.stock && f.stock.coal) || 0) < W_CHAR) {
     for (k = 0; k < U.length; k++) {
       s = U[k];
       if (bNeed(g, s, "firebrick") > 0 || wLimeWant(g, s) > 0 || bNeed(g, s, "stained") > 0 || bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01) { out.push({ r: "coal", n: W_CHAR, site: s.id }); break; }
@@ -891,7 +891,9 @@ function wSalvageSpot(g) {
    counted on, for ordering more of it or leaving the salvage be */
 function wStranded(g, q) {
   if (q.failSite && q.failT > g.tick) { var f = bSite(g, q.failSite); if (f && f.wonder) return true; }
-  for (var id in q.noGo || {}) if (q.noGo[id] > g.tick) return true;
+  /* (a great work they could not get to: not the furnace's kiln, nor a job of no site, which says nothing of whether what
+     they carry can get to a great work) */
+  for (var id in q.noGo || {}) if (q.noGo[id] > g.tick) { var t = bSite(g, +id); if (t && t.wonder) return true; }
   return false;
 }
 /* what of r is in the pockets of the living who are not stranded: to be counted on */
@@ -970,7 +972,7 @@ function wIronHeld(g) {
 }
 /* gold in a plan is gilding: with no gold about (in pockets, or on piles), a stone stand-in, gilded later */
 function wGild(g, plan) {
-  var gold = mGoldToHand(g), k, e;
+  var gold = wPocketedSure(g, "gold"), k, e;
   for (k = 0; k < g.sites.length; k++) gold += (g.sites[k].stock && g.sites[k].stock.gold) || 0;
   for (k = 0; k < plan.length; k++) {
     e = plan[k];
@@ -989,7 +991,7 @@ function wGoldGone(g, s) {
   for (var k = 0; k < s.plan.length; k++) {
     var e = s.plan[k];
     if (e.v !== MAT.GOLD || !e.gild || bOk(g, e)) continue;
-    if (gold < 0) { gold = mGoldToHand(g) + ((s.stock && s.stock.gold) || 0); }
+    if (gold < 0) { gold = wPocketedSure(g, "gold") + ((s.stock && s.stock.gold) || 0); }
     if (gold >= B_AMT[MAT.GOLD] - 1e-6) { gold -= B_AMT[MAT.GOLD]; continue; }
     e.v = e.alt || MAT.BRICK; if (e.v === MAT.PLANK) e.paint = true;
   }
@@ -1002,12 +1004,12 @@ function wRegild(g, s) {
   /* (and a gilded cell gone, to be mended, with no gold to mend it with: mended in its stand-in, as wGoldGone does for one
      going up. gold is never waited for) */
   if (s.gilding && s.repair && !s.done && s.plan.some(function (e2) { return e2.gild && e2.v === MAT.GOLD && !bOk(g, e2) && g.m[e2.i] !== MAT.BRICK; })) wGoldGone(g, s);
-  if (s.gilding && s.repair && !s.done && g.tick - s.last > 3000 && mGoldToHand(g) + ((s.stock && s.stock.gold) || 0) < 0.2) {
+  if (s.gilding && s.repair && !s.done && g.tick - s.last > 3000 && wPocketedSure(g, "gold") + ((s.stock && s.stock.gold) || 0) < 0.2) {
     for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.gild && e.v === MAT.GOLD && g.m[e.i] === MAT.BRICK) { e.v = MAT.BRICK; n++; } }
     if (!s.plan.some(function (e2) { return !bOk(g, e2) && bFree(g, e2); })) { s.done = true; s.repair = false; s.gilding = false; s.quiet = false; }
     return;
   }
-  if (!s.done || s.repair || mGoldToHand(g) < 0.4) return;
+  if (!s.done || s.repair || wPocketedSure(g, "gold") < 0.4) return;
   for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.gild && e.v === MAT.BRICK && g.m[e.i] === MAT.BRICK) { e.v = MAT.GOLD; n++; } }
   if (!n) return;
   s.done = false; s.repair = true; s.gilding = true; s.last = g.tick; s.helped = {}; s.quiet = true;
@@ -1219,7 +1221,7 @@ function wNote(g, s) {
   if (s.setting) return "waiting for the concrete to go off";
   if (wStoneShort(g, s) > 0.5) return (g.wQuarryNo > g.tick ? "waiting for stone (nowhere left to cut it)" : "waiting for stone (somebody is quarrying it)");
   var e = bNext(g, s, null);
-  if (e && e.v === MAT.CONCRETE && !(s.stock && s.stock.lime >= 1) && wPocketed(g, "mortar") < 1) return "waiting for lime from the kiln";
+  if (e && e.v === MAT.CONCRETE && !(s.stock && s.stock.lime >= 1) && wPocketedSure(g, "mortar") < 1) return "waiting for lime from the kiln";
   if (e && e.v === MAT.FIREBRICK && !(s.stock && s.stock.firebrick >= 1)) return "waiting for firebrick from the kiln";
   var pr = e && bPrice(e);
   if (pr && !bCanPay(g, null, s, e) && wPocketed(g, pr.r === "wood" ? "boards" : pr.r) + (pr.r === "wood" ? wPocketed(g, "logs") * B_BOARDS : 0) < pr.n) return "waiting for " + pr.r;
