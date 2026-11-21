@@ -367,6 +367,10 @@ function iEureka(g, p) {
   }
   if (p.wspark === idea.id) p.wspark = null;
   g.know[idea.id] = p.name;
+  /* (one of the great works' ideas: the village has great works in it from now, this tick, not from the next time
+     wonders.js wStep looks. what g.wAny gates, the sounds on the side dice among it, changes with the idea, not a frame
+     or a stride later) */
+  if (iFresh(idea)) g.wAny = true;
   if (p.spark === idea.id) p.spark = null;
   /* (some ideas take longer to get used to than others) */
   g.ideaT = g.tick + Math.round(I_GAP * (0.7 + 0.6 * Math.random()));

@@ -149,6 +149,24 @@ module.exports = function (test, check, sim) {
     var got = JSON.stringify([p.iron, q.iron, g.peasants.map(function (o) { return Math.round(o.x * 100); })]);
     check(got === JSON.stringify([1.4999999850988388, 0.4999999970197677, [22922, 16358, 11698, 22506, 12205, 24173, 24054, 11706]]), "otherwise than master: " + got);
   });
+  test("wonders: the moment a great work's idea is thought of, the village has great works: a sound flushed either side of the next tick rolls the same", function () {
+    function run(late) {
+      var h = H.open({ seed: 1 }), g = h.g, p = g.peasants[0];
+      h.step(29);
+      h._eval("IDEAS").forEach(function (i) { if (!h._eval("iFresh")(i)) g.know[i.id] = p.name; });
+      g.ideaT = 0; g.found.ore = 2; h._eval("wSpark")(g, p, "stained"); g.wRngS = 1;
+      check(h._eval("iEureka")(g, p) && g.know.stained, "(the test wants stained glass thought of)");
+      check(g.wAny, "thought of, and the village does not yet count as one with great works in it");
+      g.t = 1; g.quiet = false; g.fx.hammer = 1;
+      if (!late) h._eval("sandSounds")(g);
+      h.step(1);
+      if (late) h._eval("sandSounds")(g);
+      h.step(120);
+      return h.rng() + " " + h.hash();
+    }
+    var a = run(false), b = run(true);
+    check(a === b, "a sound flushed before the tick, or after it, rolled otherwise: " + a + " / " + b);
+  });
   test("wonders: a plain village's peasant thrown into space, and one on a rocket pack, come back as on master, die for die", function () {
     /* (recorded on master: where they come down, how fast across, the dice after, the hash) */
     var h = H.open({ seed: 1 }), g = h.g, p = g.peasants[0];
