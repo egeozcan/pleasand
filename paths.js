@@ -306,7 +306,8 @@ function pathGo(g, p, key, tx, ty, goal) {
   if (n.m === NAV_LADDER && !p.climb) {
     var fx = Math.floor(p.x), fy = Math.floor(p.y), cx = n.y < fy ? bLadderNear(g, fx, fy) : -1;
     if (n.y > fy) for (k = -1; k <= 1 && cx < 0; k += 2) cx = bLadderMid(g, fx + k, fy + 1);
-    if (cx >= 0 && Math.abs(cx + 0.5 - p.x) < 2.5) bClimbStart(g, p, cx, n.y < fy ? -1 : 1);
+    /* (a ladder that will not have them on it, its column in the way of a body: no way, for a while. build.js bClimbStart) */
+    if (cx >= 0 && Math.abs(cx + 0.5 - p.x) < 2.5 && !bClimbStart(g, p, cx, n.y < fy ? -1 : 1)) { nv.none = g.tick + 300; nv.path = []; return -1; }
   }
   return P.length - nv.i;
 }

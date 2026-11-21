@@ -549,6 +549,14 @@ function wBenchOk(g, x, F, depth) {
    0), shaft (the shaft's columns, to carry the ladder down), S (where the dark of the rock starts)} or null */
 /* (three rows down, if there is anywhere to; with nowhere, two, then one: a worked-out mine under sand still has a floor
    of rock a row deep about it, and one brick wants half a stone) */
+/* a gallery with water standing in it (as mines.js mFlooded counts it: more than four wet cells of its plan), looked at
+   and nothing more: no flood written on it, no news. this is asked while a plain village is only being watched for
+   whether a pyramid could be thought of, and must leave it as it is */
+function wWet(g, s) {
+  var n = 0, seen = {};
+  for (var k = 0; k < s.plan.length; k++) { var i = s.plan[k].i; if (LIQUID[g.m[i]] && !seen[i]) { seen[i] = 1; if (++n > 4) return true; } }
+  return false;
+}
 function wQuarryPlot(g, near, p) {
   for (var depth = W_BENCH; depth >= 1; depth--) { var r = wQuarryPlotAt(g, near, p, depth); if (r) return r; }
   return null;
@@ -557,7 +565,7 @@ function wQuarryPlotAt(g, near, p, W_BENCH) {
   var T = mSites(g, "tunnel", true), best = null, k, t, m, x, d, F, n, cols, sc;
   for (k = 0; k < T.length; k++) {
     t = T[k]; m = bSite(g, t.of);
-    if (!m || m.flood === 2 || t.flood || mFlooded(g, t)) continue;
+    if (!m || m.flood === 2 || t.flood || wWet(g, t)) continue;
     d = t.dir; cols = [];
     var start = Math.min(t.xa, t.xb) === t.xa && d > 0 ? t.xa : (d > 0 ? Math.min(t.xa, t.xb) : Math.max(t.xa, t.xb));
     F = wFloorAt(g, start, t.B);

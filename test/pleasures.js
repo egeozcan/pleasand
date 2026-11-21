@@ -295,6 +295,31 @@ module.exports = function (test, check, sim) {
     for (i = 0; i < 200 && !d.dead; i++) { sim.step(w2, 1); if (d.y >= s2.L && d.y <= s2.G - 1 && d.x >= s2.px0 && d.x < s2.px0 + s2.bw) inTank = true; }
     check(!inTank && !d.dead, "let go of over the open pipe, fell through the valve into the tank: " + JSON.stringify(g2.causes));
   });
+  /* a visitor picked up and let go of, still, with the hand at (x, my): as a player does (pi's round 28) */
+  function fRelease(w, g, s, x, my) {
+    var v = JSON.parse(JSON.stringify(g.peasants.filter(function (q) { return !q.dead; })[0])); v.id = 77;
+    Object.assign(v, { x: s.x0 - 5, y: s.G - 1, task: null, state: "walk", life: 1e9, hunger: 0, dir: 1, chuteCD: 0, stun: 0, dead: 0 });
+    g.peasants.push(v);
+    g.mx = w.PANEL + w.CELL * x; g.my = w.PLAY_Y + w.CELL * my; g.samp = []; g.cvx = g.cvy = 0;
+    w.peasantGrab(g, v); w.sandRelease(g);
+    return v;
+  }
+  test("organ: let go of down a pipe, or in its tank, at any pipe, a visitor is put out of it at once, on the ground beside it", function () {
+    var n, i, bad = [];
+    for (n = 0; n < 5; n++) [3, -1].forEach(function (dy) {
+      var O = organ(4), w = O.w, g = O.g, s = O.s;
+      g.peasants.forEach(function (q) { q.coal = 0; });   /* (no coal: nobody fires it to come and get them) */
+      var x = w.pOPipeX(s, n) + 0.5, rim = w.pOLid(s.G) - w.P_OH[n], v = fRelease(w, g, s, x, rim + dy), out = -1;
+      for (i = 0; i < 30 && !v.dead; i++) {
+        sim.step(w, 1);
+        var inside = false;
+        for (var d = 0; d <= 8; d++) if (w.pOInside(g, s, Math.floor(v.x), Math.floor(v.y) - d)) inside = true;
+        if (out < 0 && !inside) out = i;
+      }
+      if (out < 0 || out > 2 || v.dead) bad.push("pipe " + n + " " + (dy > 0 ? "inside it" : "over its rim") + ": out at " + out + (v.dead ? ", dead" : ""));
+    });
+    check(!bad.length, bad.join("; "));
+  });
   test("organ: a fired boiler makes steam that goes out of the open pipe and no other", function () {
     var O = organ(0), w = O.w, g = O.g, s = O.s, M = O.M;
     check(tank(O) === w.P_OTANK, "(the test wants the tank full: " + tank(O) + ")");

@@ -589,6 +589,17 @@ module.exports = function (test, check, sim) {
     check(!w.bClimbStart(g, p, x + 1, -1) && !p.climb, "climbed into the stone");
     check(w.bClimbStart(g, p, x, -1) && p.climb, "(and the ladder itself is climbed)");
   });
+  test("a route up a ladder that will not have them on it is given up for a while, not tried every tick", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0], x = 120, y;
+    g.wAny = true;
+    for (y = 130; y < 150; y++) { w.sandPlace(g, y * g.gw + x, M.LADDER); g.aux[y * g.gw + x] = 0; w.sandPlace(g, y * g.gw + x + 1, M.STONE); }
+    for (y = 150; y < 158; y++) { w.sandPlace(g, y * g.gw + x, M.STONE); w.sandPlace(g, y * g.gw + x - 1, M.STONE); }
+    Object.assign(p, { x: x + 0.5, y: 149, task: null, climb: null, state: "walk" });
+    var goal = function (X, Y) { return X === x && Y === 131; };
+    p.nav = { key: "up", path: [{ x: x, y: 140, m: w.NAV_LADDER }, { x: x, y: 131, m: w.NAV_LADDER }], i: 0, t: g.tick, off: 0 };
+    var first = w.pathGo(g, p, "up", x, 131, goal), again = w.pathGo(g, p, "up", x, 131, goal);
+    check(!p.climb && first < 0 && again < 0 && p.nav.none > g.tick, "a refused ladder kept on the route: " + first + ", " + again + ", climbing " + !!p.climb);
+  });
   test("observatory: a meteorite with a flower where it comes to rest crushes the flower and is all there, thirteen iron and the gold, and says so: pi's sand", function () {
     var w = sim.load(39), g = w.g, M = w.MAT, x, y;
     w.sandClear(g);

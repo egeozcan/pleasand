@@ -925,4 +925,43 @@ module.exports = function (test, check, sim) {
     for (var k = 0; k < 40; k++) w.wTale(g, "ice", q);
     check(g.tales.length === w.W_TALES, g.tales.length + " tales kept");
   });
+  /* pi's round 28: a plain village (masonry and mines, no great work thought of). the king (or the thinker) drowns at tick
+     599. with a gallery standing in water and one tick on (pi's own), or the village as it is and 2400 ticks on. with
+     the great works' code in the game, or out of it (as master: no wStep) */
+  function fPlainKing(stub, thinker, gallery) {
+    var H = require("../harness"), h = H.open({ seed: 1 }), g = h.g, code = function (n) { return h._eval(n); }, M = code("MAT");
+    if (stub) h._eval("wStep = function () {}");
+    var king = g.peasants[0], heir = g.peasants[1], gal = null;
+    g.arriveT = g.ideaT = 1e9;
+    if (gallery) {
+      code("sandClear")(g);
+      g.know = { masonry: "TEST", mine: "TEST" };
+      var mine = code("bNew")(g, "mine", null, [], [120, 135, 122, 162], { done: true, mine: true, col: 122, B: 159 });
+      var plan = []; for (var k = 0; k < 5; k++) plan.push(code("bE")(g, 124 + k, 158, M.EMPTY, 0));
+      gal = code("bNew")(g, "tunnel", null, plan, [124, 150, 128, 159], { done: true, mine: true, of: mine.id, dir: 1, xa: 124, xb: 128, B: 158, S: 148 });
+      var place = function (x, y, v) { code("sandPlace")(g, y * g.gw + x, v); };
+      for (var x = 123; x <= 129; x++) place(x, 159, M.STONE);
+      place(123, 158, M.STONE); place(129, 158, M.STONE);
+      for (x = 124; x <= 128; x++) place(x, 158, M.WATER);
+      for (x = 60; x < 90; x++) place(x, 150, M.STONE);
+      g.peasants.push(king, heir);
+      Object.assign(king, { x: 70.5, y: 149, hat: code("P_HATS")[6] });
+      Object.assign(heir, { x: 72.5, y: 149, idle: 300 });
+    } else { g.know.masonry = "TEST"; g.know.mine = "TEST"; if (!thinker) Object.assign(king, { hat: code("P_HATS")[6] }); }
+    if (gallery) g.tick = 599; else h.run(599 - g.tick);   /* (pi's: the clock set, the one tick run) */
+    if (thinker) g.thinkerDied = 1;
+    code("pDie")(g, king, "drown");
+    h.run(gallery ? 1 : 2400);
+    return { plain: !g.wAny, flood: gal ? gal.flood || 0 : 0, news: g.feed.map(function (e) { return e.text; }).join("|"), hash: h.hash(), rng: h.rng() };
+  }
+  test("a plain village where the king (or the thinker) dies: the great works' looks at whether a pyramid could be thought of change nothing, no flood, no news, the same dice", function () {
+    [[false, true], [false, false], [true, false]].forEach(function (c) {
+      var a = fPlainKing(false, c[0], c[1]), b = fPlainKing(true, c[0], c[1]), what = (c[0] ? "the thinker" : "the king") + (c[1] ? ", a wet gallery: " : ", 2400 ticks: ");
+      check(a.plain && b.plain, what + "(the test wants it plain)");
+      check(a.flood === 0, what + "the gallery was marked flooded by a look");
+      check(a.news === b.news, what + "news differs from a village with no great works: " + a.news.slice(-200));
+      check(a.hash === b.hash && JSON.stringify(a.rng) === JSON.stringify(b.rng), what + "the village played out differently with the great works' code in it");
+    });
+  });
+
 };
