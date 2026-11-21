@@ -148,7 +148,7 @@ have been checked, and the work comes in two phases.
 - The header gets `WONDERS 3/12` beside IDEAS. Its hover shows what is built, what is going up, and what might give
   them the rest.
 
-**The great work.** A village has at most **one wonder going up**.
+**The great work.** A village has at most **two great works going up at once** (`W_GREAT = 2`; the ice palace is exempt).
 - **Its crew is capped at `max(2, floor(alive / 3))`**: 2 in a village of 8.
 - A wonder does **not** count against `B_OPEN`, so graves, the bell and repairs are never blocked by it.
 - In `iPick` it comes after food, fields, fire, the dead and the bell, and before the mine.
