@@ -580,6 +580,18 @@ module.exports = function (test, check, sim) {
     sim.step(w, 30);
     check(!q.dead && g.m[Math.floor(q.y) * g.gw + Math.floor(q.x)] !== M.WATER, "not alive in the water after 30 ticks at " + q.x.toFixed(1) + "," + q.y.toFixed(1));
   });
+  test("wonders: the kiln's orders count what is in pockets once over all the works, not once for each", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0];
+    g.wAny = true;
+    function site(id, x) { var plan = []; for (var k = 0; k < 3; k++) plan.push({ i: 60 * g.gw + x + k, v: M.FIREBRICK }); return { id: id, kind: "probe", wonder: true, plan: plan, stock: {} }; }
+    g.sites.push(site(9001, 100), site(9002, 200));
+    g.peasants.forEach(function (q) { q.firebrick = 0; });
+    p.firebrick = 3;
+    check(w.wPocketedSure(g, "firebrick") === 3, "(the test wants three firebricks in hand)");
+    var o = w.wKilnOrders(g).filter(function (o) { return o.r === "firebrick"; });
+    var n = o.reduce(function (a, o) { return a + o.n; }, 0);
+    check(n === 3, "six firebricks wanted and three in hand, but " + n + " ordered: " + JSON.stringify(o));
+  });
   test("wonders: the salvage by a great work as tall as the world is fetched from footing beside it, in the world", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, y, k;
     flat(w, x0 - 40, 80, G);

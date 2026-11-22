@@ -760,11 +760,15 @@ function wLimeWant(g, s) {
 }
 function wKilnOrders(g) {
   var out = [], k, s, n, U = wUp(g);
+  /* (what is in pockets is counted once over all the works, the first ones first, not once for each: three firebricks
+     in hand are not three for every foundry) */
+  var hand = { firebrick: wPocketedSure(g, "firebrick"), lime: wPocketedSure(g, "lime"), stained: wPocketedSure(g, "stained") };
+  function short(r, want) { var t = Math.min(hand[r], Math.max(0, want)); hand[r] -= t; return want - t; }
   for (k = 0; k < U.length; k++) {
     s = U[k];
-    if ((n = Math.max(0, bNeed(g, s, "firebrick") - wPocketedSure(g, "firebrick"))) > 0) out.push({ r: "firebrick", n: n, site: s.id });
-    if ((n = wLimeWant(g, s) - wPocketedSure(g, "lime")) > 0) out.push({ r: "lime", n: n, site: s.id });
-    if ((n = Math.max(0, bNeed(g, s, "stained") - wPocketedSure(g, "stained"))) > 0) out.push({ r: "stained", n: n, site: s.id });
+    if ((n = short("firebrick", bNeed(g, s, "firebrick"))) > 0) out.push({ r: "firebrick", n: n, site: s.id });
+    if ((n = short("lime", wLimeWant(g, s))) > 0) out.push({ r: "lime", n: n, site: s.id });
+    if ((n = short("stained", bNeed(g, s, "stained"))) > 0) out.push({ r: "stained", n: n, site: s.id });
   }
   /* and no coal in the valley to fire any of it with, nor to smelt a wonder's iron: charcoal, out of logs, onto the
      furnace's pile. last, so that a coal that does turn up goes on the order it was wanted for */
