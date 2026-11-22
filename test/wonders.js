@@ -592,6 +592,20 @@ module.exports = function (test, check, sim) {
     var n = o.reduce(function (a, o) { return a + o.n; }, 0);
     check(n === 3, "six firebricks wanted and three in hand, but " + n + " ordered: " + JSON.stringify(o));
   });
+  test("wonders: the lime two works want counts the wet concrete in pockets once over both, not once for each", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, p = g.peasants[0];
+    g.wAny = true;
+    function site(id, x) { var plan = []; for (var k = 0; k < 10; k++) plan.push({ i: 60 * g.gw + x + k, v: M.CONCRETE }); return { id: id, kind: "probe", wonder: true, plan: plan, stock: {} }; }
+    var a = site(9001, 100), b = site(9002, 200);
+    g.sites.push(a, b);
+    g.peasants.forEach(function (q) { q.mortar = 0; q.lime = 0; });
+    p.mortar = 10;
+    check(w.wPocketedSure(g, "mortar") === 10, "(the test wants ten cells of wet concrete in hand)");
+    var n = w.wLimeWant(g, a) + w.wLimeWant(g, b);
+    check(n === 2, "twenty cells of concrete wanted and ten in hand (two pails' worth short), but lime for " + n + " wanted");
+    var o = w.wKilnOrders(g).filter(function (o) { return o.r === "lime"; }).reduce(function (t, o) { return t + o.n; }, 0);
+    check(o === 2, "lime for " + o + " pails ordered, not two");
+  });
   test("wonders: the salvage by a great work as tall as the world is fetched from footing beside it, in the world", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, y, k;
     flat(w, x0 - 40, 80, G);

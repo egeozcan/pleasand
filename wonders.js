@@ -525,7 +525,7 @@ function wDepositLime(g, p, s) {
 /* stone a wonder still wants that is neither on its pile nor in anybody's pocket (and the kiln's, for its lime and
    firebrick) */
 function wStoneShort(g, s) {
-  var need = bNeed(g, s, "stone") + Math.ceil(Math.max(0, wLimeWant(g, s)) / 2) + Math.ceil(Math.max(0, bNeed(g, s, "firebrick") - wPocketedSure(g, "firebrick")) / 2);
+  var need = bNeed(g, s, "stone") + Math.ceil(Math.max(0, wLimeWant(g, s)) / 2) + Math.ceil(Math.max(0, bNeed(g, s, "firebrick") - wHandFor(g, s, "firebrick")) / 2);
   return need - wPocketedSure(g, "stone");   /* (the stone in pockets that can get there: wPocketedSure) */
 }
 function wPocketed(g, r) { var n = 0; for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k][r] || 0; return n; }
@@ -753,9 +753,16 @@ function wBenched(g, q) {
    for amber)
    ------------------------------------------------------------------- */
 var W_KILN = 150;   /* ticks at the bellows for a batch */
-/* lime a wonder still wants for its wet concrete, over what is on its pile and in its mixers' pockets */
+/* what of r in pockets is left for s, once the great works before it (wUp's order, as the kiln's orders go) have had
+   theirs: in hand counted once over all of them, not once for each */
+function wHandFor(g, s, r) {
+  var hand = wPocketedSure(g, r), U = wUp(g);
+  for (var k = 0; k < U.length && hand > 0 && U[k] !== s; k++) hand -= Math.min(hand, Math.max(0, bNeed(g, U[k], r)));
+  return hand;
+}
+/* lime a wonder still wants for its wet concrete, over what is on its pile and its share of what is in mixers' pockets */
 function wLimeWant(g, s) {
-  var n = Math.ceil(Math.max(0, bNeed(g, s, "mortar") - wPocketedSure(g, "mortar")) / W_PAIL);
+  var n = Math.ceil(Math.max(0, bNeed(g, s, "mortar") - wHandFor(g, s, "mortar")) / W_PAIL);
   return n - ((s.stock && s.stock.lime) || 0);
 }
 function wKilnOrders(g) {
