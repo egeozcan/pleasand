@@ -76,6 +76,7 @@ function stateOf(h, opts) {
     paused: !!g.paused,
     speed: h._eval("SPEEDS")[g.speed],
     grid: { w: g.gw, h: g.gh },
+    view: { camX: round(g.camX || 0, 1), range: g.vrange ? [g.vrange.x0, g.vrange.x1] : null },
     counts: {
       peasants: pe.length, alive: alive, dead: dead,
       ducks: du.length, sites: sites.length,
@@ -273,7 +274,8 @@ function map(h, opts) {
   var order = Object.keys(legend).filter(function (c) { return c !== "." && c !== "0" && c !== " "; });
   order.sort(function (a, b) { return legend[a] - legend[b]; });
 
-  var head = "seed " + h.seed + " · tick " + g.tick + " · " + w + "x" + ht + " cells at " + x0 + "," + y0 + (scale > 1 ? " · 1:" + scale : "");
+  var head = "seed " + h.seed + " · tick " + g.tick + " · " + w + "x" + ht + " cells at " + x0 + "," + y0 + (scale > 1 ? " · 1:" + scale : "") +
+    " · valley " + gw + " wide, view from " + Math.round(g.camX || 0) + (g.vrange ? ", range " + g.vrange.x0 + ".." + g.vrange.x1 : "");
   var out = [head];
   for (i = 0; i < rows.length; i++) {
     var lab = String(y0 + i * scale);
@@ -298,6 +300,7 @@ function describe(h, opts) {
   opts = opts || {};
   var s = stateOf(h, { hash: true }), out = [];
   out.push("PLEASAND  seed " + s.seed + " · tick " + s.tick + " (sand " + s.sandTick + ") · " + s.time + "s" + (s.paused ? " · paused" : ""));
+  out.push("valley   " + s.grid.w + " wide · view from column " + s.view.camX + (s.view.range ? " · village's range " + s.view.range[0] + ".." + s.view.range[1] : ""));
   out.push("people   " + s.counts.alive + " alive, " + s.counts.dead + " dead, " + s.counts.ducks + " ducks");
   out.push("sites    " + s.counts.sites + " (" + s.counts.sitesDone + " done) · particles " + s.counts.particles + " · ghosts " + s.counts.ghosts);
   out.push("ideas    " + (s.ideas.length ? s.ideas.join(", ") : "none"));

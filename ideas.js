@@ -377,7 +377,7 @@ function iEureka(g, p) {
   p.bulb = I_BULB; p.idle = 90; p.bored = 0;
   pSay(g, p, "idea_" + idea.id, true);
   /* (a great work is news of another kind: wonders.js) */
-  feed(g, p.name + (idea.wonder ? " thought of " : " invented ") + idea.name, idea.wonder ? "#ffd94a" : "#ffe08a");
+  feed(g, p.name + (idea.wonder ? " thought of " : " invented ") + idea.name, idea.wonder ? "#ffd94a" : "#ffe08a", null, p);
   banner(g, idea.wonder ? "A WONDER: " + idea.title : idea.title, pTitle(p.short) + "'s idea: " + idea.sub);
   wTale(g, "idea", p, idea.name);
   g.fx.idea++;
@@ -784,7 +784,7 @@ function iFarmNo(g, a, b, t) { if (!g.farmNo) g.farmNo = {}; for (var x = a - I_
 /* somewhere in the whole valley for a field, not over columns xa .. xb (and a little either side): the plot, or null */
 function iFarmSpot(g, xa, xb, p, rough) {
   var best = null, x0, G, r, pass;
-  for (pass = rough ? 1 : 0; pass < 2 && !best; pass++) for (x0 = 4; x0 < g.gw - I_FARM_W - 4; x0++) {
+  for (pass = rough ? 1 : 0; pass < 2 && !best; pass++) for (x0 = rLo(g, 4); x0 < rHi(g, I_FARM_W + 4); x0++) {   /* (in the village's range: world.js) */
     if (xa >= 0 && x0 + I_FARM_W + 3 >= xa && x0 - 3 <= xb) continue;
     if ((g.farmNo && g.farmNo[x0] > g.tick) || (p && p.farmNo && p.farmNo[x0] > g.tick)) continue;
     G = mGround(g, x0 + (I_FARM_W >> 1));

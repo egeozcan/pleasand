@@ -62,10 +62,10 @@ function stubCtx(canvas) {
 
 function stubCanvas() {
   var cv = {
-    width: 640, height: 400, style: {},
+    width: 640, height: 410, style: {},
     addEventListener: noop, removeEventListener: noop,
     setPointerCapture: noop, releasePointerCapture: noop,
-    getBoundingClientRect: function () { return { left: 0, top: 0, right: 640, bottom: 400, width: 640, height: 400 }; },
+    getBoundingClientRect: function () { return { left: 0, top: 0, right: 640, bottom: 410, width: 640, height: 410 }; },
     toDataURL: function () { return ""; }
   };
   cv.getContext = function () { return stubCtx(cv); };
@@ -124,8 +124,11 @@ function loadGame(opts) {
     addEventListener: function (type, fn) { if (type === "DOMContentLoaded") readyFn = fn; },
     removeEventListener: noop
   };
+  /* (the valley's width: by default the one screen the harness, its scenarios and the tests were all made with.
+     opts.gw: another, such as the browser's four screens, 1088) */
   var win = {
-    devicePixelRatio: 1, innerWidth: 640, innerHeight: 400,
+    PLEASAND_GW: opts.gw || 272,
+    devicePixelRatio: 1, innerWidth: 640, innerHeight: 410,
     addEventListener: noop, removeEventListener: noop, requestAnimationFrame: noop
   };
 

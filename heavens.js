@@ -342,7 +342,10 @@ function hTaskObserve(g, p, k) {
 function hName(g, p) {
   var S = g.stars || [], k, a, best;
   if (S.length < 5) return;
-  var c = S[irnd(S.length)], cx = c.i % g.gw, cy = (c.i / g.gw) | 0, pts = [c.i], used = {};
+  /* (in a wide valley, a star over the observatory's own stretch of sky to start from: one somebody could see. world.js) */
+  var C = S;
+  if (g.gw > VIEW_GW) { var near = S.filter(function (st) { return Math.abs(st.i % g.gw - p.x) < VIEW_GW / 2 - 24; }); if (near.length >= 5) C = near; }
+  var c = C[irnd(C.length)], cx = c.i % g.gw, cy = (c.i / g.gw) | 0, pts = [c.i], used = {};
   used[c.i] = 1;
   for (var n = 0; n < 4; n++) {
     var lx = pts[pts.length - 1] % g.gw, ly = (pts[pts.length - 1] / g.gw) | 0;
@@ -437,7 +440,7 @@ function hRockOk(g, x) {
 /* where one flying in at column x would really come down: it comes in on a slant, and may hit something on the way (a
    roof, a hill) short of x. {x, y}, the cell it would come to rest over, as hSkyTick goes */
 function hRockLand(g, x) {
-  var ty = hGround(g, x), side = x < g.gw / 2 ? 1 : -1, sx = x - side * 70, vx = (x - sx) / 90, vy = (ty + 4) / 90, X = sx, Y = -4;
+  var ty = hGround(g, x), side = x < rMid(g) ? 1 : -1, sx = x - side * 70, vx = (x - sx) / 90, vy = (ty + 4) / 90, X = sx, Y = -4;
   for (var t = 0; t < 400; t++) {
     X += vx; Y += vy;
     var cx = Math.floor(X), cy = Math.floor(Y);
@@ -449,8 +452,8 @@ function hRockLand(g, x) {
 /* does one aimed at x come down there in the open: on the ground (not short of it on something), nowhere near anybody's
    house or work (hRockOk) */
 function hRockAim(g, x) {
-  var at = hRockLand(g, x);
-  return hRockOk(g, at.x) && Math.abs(hGround(g, at.x) - 1 - at.y) <= 1;
+  var at = hRockLand(g, x), vr = vRange(g);
+  return hRockOk(g, at.x) && Math.abs(hGround(g, at.x) - 1 - at.y) <= 1 && (g.gw <= VIEW_GW || (at.x >= vr.x0 && at.x <= vr.x1));   /* (and in a wide valley, in the range where it lands) */
 }
 /* where it comes to rest, come down at x: on top of the ground there, not in it; and not on anything of value, gold or
    moon rock, or anybody's house or work, nor on anybody: the nearest column it can be, then, a little way off */
@@ -458,7 +461,7 @@ function hRockRest(g, x) {
   for (var d = 0; d <= 20; d++) for (var sd = -1; sd <= 1; sd += 2) {
     if (!d && sd > 0) continue;
     var c = x + d * sd;
-    if (c < 3 || c > g.gw - 4) continue;
+    if (c < vRange(g).x0 + 3 || c > vRange(g).x1 - 3) continue;   /* (in the village's range: world.js) */
     var y = hGround(g, c) - 1, ok = y > 1, k;
     for (var u = -2; u <= 2 && ok; u++) { var under = pCell(g, c + u, y + 1); if (under === MAT.GOLD || under === MAT.MOONROCK || bMarked(g, c + u, y + 1) || bMarked(g, c + u, y)) ok = false; }
     if (ok && !hLumpFits(g, c, y)) ok = false;   /* (and room for the whole of it, gold and all) */
@@ -473,11 +476,11 @@ function hRockRest(g, x) {
 function hMeteorite(g, x) {
   if (x < 0) {
     var ok = [];
-    for (var c = 10; c < g.gw - 10; c++) if (hRockOk(g, c) && hRockAim(g, c)) ok.push(c);
+    for (var c = rLo(g, 10); c < rHi(g, 10); c++) if (hRockOk(g, c) && hRockAim(g, c)) ok.push(c);   /* (in the village's range: world.js) */
     if (!ok.length) return false;
     x = ok[irnd(ok.length)];
   }
-  var ty = hGround(g, x), side = x < g.gw / 2 ? 1 : -1, sx = x - side * 70;
+  var ty = hGround(g, x), side = x < rMid(g) ? 1 : -1, sx = x - side * 70;
   g.hRock = { x: sx, y: -4, tx: x, ty: ty, vx: (x - sx) / 90, vy: (ty + 4) / 90, down: false, cells: [] };
   g.fx.whoosh++;
   return true;
@@ -499,7 +502,7 @@ function hSkyTick(g) {
   sparks(g, R.x + 0.5, R.y, 14, 1.0, SPARK_HOT, 12, 0.5, PK_GLINT);
   R.down = true; R.t = g.tick;
   var hasGold = R.cells.some(function (j) { return g.m[j] === MAT.GOLD; });
-  feed(g, R.cells.length ? "a falling star came down by " + hWhere(g, R.x) + ". cold already: iron" + (hasGold ? ", and a glint of gold" : "") : "a falling star broke up over " + hWhere(g, R.x), "#ffd27a", "meteorite");
+  feed(g, R.cells.length ? "a falling star came down by " + hWhere(g, R.x) + ". cold already: iron" + (hasGold ? ", and a glint of gold" : "") : "a falling star broke up over " + hWhere(g, R.x), "#ffd27a", "meteorite", R.x);
 }
 /* somewhere a falling star came down by: the nearest of their things */
 function hWhere(g, x) {
@@ -580,7 +583,7 @@ function hDrawSky(g) {
     var t = g.tick - S.t0;
     for (k = 0; k < 4; k++) {
       var slot = ((t + k * 23) / 40) | 0, f = ((t + k * 23) % 40) / 40, h = hHash(S.seed + slot, k);
-      var x0 = 20 + h * (g.gw - 40), y0 = 6 + hHash(slot, S.seed + k) * 50, dir = h < 0.5 ? 1 : -1;
+      var x0 = rLo(g, 20) + h * (rSpan(g) - 40), y0 = 6 + hHash(slot, S.seed + k) * 50, dir = h < 0.5 ? 1 : -1;
       var hx = x0 + dir * f * 40, hy = y0 + f * 18;
       for (var n = 0; n < 8; n++) hSkyPut(g, Math.round(hx - dir * n * 1.4), Math.round(hy - n * 0.6), n < 2 ? H_STREAK : H_STREAK2, 1 - n / 9);
       hot++;
@@ -678,8 +681,9 @@ function hBodyAtLeast(g, j, n) {
   }
   return c >= n;
 }
-function hLakeScan(g) {
-  var n = g.m.length, gw = g.gw, m = g.m, k, j, st = [], id = 0, best = null;
+/* (all: an array to put every water in the range in, as well, for a wide valley's lighthouse) */
+function hLakeScan(g, all) {
+  var n = g.m.length, gw = g.gw, m = g.m, k, j, st = [], id = 0, best = null, vr = vRange(g), lake;
   if (!H_LBL || H_LBL.length !== n) H_LBL = new Int32Array(n);
   H_LBL.fill(0);
   for (k = 0; k < n; k++) {
@@ -696,7 +700,10 @@ function hLakeScan(g) {
       if (j >= gw && !H_LBL[j - gw] && WET[m[j - gw]]) { H_LBL[j - gw] = id; st.push(j - gw); }
       if (j + gw < n && !H_LBL[j + gw] && WET[m[j + gw]]) { H_LBL[j + gw] = id; st.push(j + gw); }
     }
-    if (!best || c > best.n) best = { n: c, x0: x0, x1: x1, top: top, id: id };
+    if (x1 < vr.x0 || x0 > vr.x1) continue;   /* (the biggest water the village's range has any of: world.js) */
+    lake = { n: c, x0: x0, x1: x1, top: top, id: id };
+    if (all) all.push(lake);
+    if (!best || c > best.n) best = lake;
   }
   g.hLake = best;
   return best;
@@ -708,7 +715,8 @@ function hLightTick(g) {
   if (g.know.oil && g.know.glass && g.know.masonry && !g.know.lighthouse) {
     /* (looked at now and then; and whenever somebody is in the water and it has not been looked at lately) */
     var swim = g.peasants.some(function (q) { return !q.dead && q.swimming; });
-    if (!g.hLake || g.tick - (g.hLakeT || 0) >= (swim ? 300 : 1200)) { hLakeScan(g); g.hLakeT = g.tick; }
+    /* (in a wide valley, no lake in the range is an answer too, kept till the next look: world.js) */
+    if ((!g.hLake && (g.gw <= VIEW_GW || g.hLakeT == null)) || g.tick - (g.hLakeT || 0) >= (swim ? 300 : 1200)) { hLakeScan(g); g.hLakeT = g.tick; }
     /* (whether the water they are in is a lake is looked at in the water as it is now: nothing kept off g, so a village
        loaded into a game that had another one open thinks what it would have thought) */
     if (swim) for (var k = 0; k < g.peasants.length; k++) {
@@ -721,15 +729,22 @@ function hLightTick(g) {
 }
 /* the lighthouse's plot: seven wide, on the bank of the biggest water, its door on the land side */
 function hPlanLight(g, p) {
-  var L = hLakeScan(g);
-  if (!L || L.n < H_LAKE) return false;
-  var r = wPlot(g, { w: 7, sky: 34, rough: 8, near: (L.x0 + L.x1) / 2, pad: 2, fit: function (g, x0, gy, hi, lo) {
-    var side = x0 + 3 < (L.x0 + L.x1) / 2 ? 1 : -1, d = side > 0 ? L.x0 - (x0 + 6) : x0 - L.x1;
-    if (d < 3 || d > 14 || Math.abs(lo - L.top) > 10) return null;
-    var pl = hLightPlan(g, x0, gy, side);
-    return pl ? { plan: pl.plan, Fr: pl.Fr, side: side, score: 40 - d * 2 - (lo - hi) } : null;
-  } });
-  if (!r || wSeals(g, r.r.plan, r.x0 - 1, r.x0 + 7)) return false;
+  var all = [], L0 = hLakeScan(g, all), r = null, k;
+  if (!L0 || L0.n < H_LAKE) return false;
+  /* (the biggest water; in a wide valley, if there is nowhere on its banks, the next biggest, and so on: looked for only
+     along each one's banks) */
+  var Ls = g.gw > VIEW_GW ? all.filter(function (q) { return q.n >= H_LAKE; }).sort(function (a, b) { return b.n - a.n; }) : [L0];
+  for (k = 0; k < Ls.length && !r; k++) {
+    var L = Ls[k];
+    r = wPlot(g, { w: 7, sky: 34, rough: 8, near: (L.x0 + L.x1) / 2, pad: 2, lo: g.gw > VIEW_GW ? L.x0 - 21 : null, hi: g.gw > VIEW_GW ? L.x1 + 22 : null, fit: function (g, x0, gy, hi, lo) {
+      var side = x0 + 3 < (L.x0 + L.x1) / 2 ? 1 : -1, d = side > 0 ? L.x0 - (x0 + 6) : x0 - L.x1;
+      if (d < 3 || d > 14 || Math.abs(lo - L.top) > 10) return null;
+      var pl = hLightPlan(g, x0, gy, side);
+      return pl ? { plan: pl.plan, Fr: pl.Fr, side: side, score: 40 - d * 2 - (lo - hi) } : null;
+    } });
+    if (r && wSeals(g, r.r.plan, r.x0 - 1, r.x0 + 7)) r = null;
+  }
+  if (!r) return false;
   var F = r.r.Fr, G1 = F - 16;
   var s = bNew(g, "lighthouse", p, wGild(g, wCleared(g, r, r.r.plan)), [r.x0 - 1, G1 - 16, r.x0 + 7, F],
                { wonder: true, Fr: F, G1: G1, side: r.r.side, fuel: 0, keeper: p.id, spot: r.x0 + 4, lx: r.x0 + 3, ly: G1 - 12 });
@@ -1692,7 +1707,7 @@ function hHeld(g, p) {
 var H_REACH = 2500;
 function hRelease(g, p) {
   var C = [], x, y, k, px = p.x, py = p.y;
-  for (x = 1; x < g.gw - 1; x++) for (y = 9; y < g.gh; y++) {
+  for (x = rLo(g, 1); x < rHi(g, 1); x++) for (y = 9; y < g.gh; y++) {
     if (!SOLID[pCell(g, x, y + 1)] || !AIRY[g.m[y * g.gw + x]]) continue;
     if (navStand(g, x, y) !== 1 || LIQUID[pCell(g, x, y)] || LIQUID[pCell(g, x, y - 4)] || navLethalNear(g, x, y, 3)) continue;
     for (k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (x >= t.x0 && x <= t.x1 && y >= t.y0 && y <= t.y1) break; }
@@ -1833,8 +1848,8 @@ function hRocketStep(g, s) {
   if (!s.crew.length) return;
   if (!s.count && aboard === s.crew.length) {
     s.count = 10; s.countT = g.tick;
-    wGather(g, s, { cap: 99, x: s.x0 < g.gw / 2 ? s.x1 + 28 : s.x0 - 28, y: hGround(g, s.x0 < g.gw / 2 ? s.x1 + 28 : s.x0 - 28) - 1, until: g.tick + 1400,
-                    kind: "launch", face: s.x0 < g.gw / 2 ? -1 : 1, R: 260 });
+    wGather(g, s, { cap: 99, x: s.x0 < rMid(g) ? s.x1 + 28 : s.x0 - 28, y: hGround(g, s.x0 < rMid(g) ? s.x1 + 28 : s.x0 - 28) - 1, until: g.tick + 1400,
+                    kind: "launch", face: s.x0 < rMid(g) ? -1 : 1, R: 260 });
   }
   if (s.count > 0 && g.tick - s.countT >= 60 * (11 - s.count)) {
     feed(g, s.count === 10 ? "THE MOON ROCKET: 10" : String(s.count), "#ffd94a", "count" + s.id);

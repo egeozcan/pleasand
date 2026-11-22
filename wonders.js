@@ -623,12 +623,12 @@ function wQuarryPlotAt(g, near, p, W_BENCH) {
   /* no gallery to bench: the floor of a cave, or bare rock under open air. level, a run of it, and out of the way of the
      village (nowhere near anybody's house, nor anybody's site). the best few, that p can walk to */
   var C = [];
-  for (x = 8; x < g.gw - 8; x++) {
+  for (x = rLo(g, 8); x < rHi(g, 8); x++) {
     var L = mFloors(g, x);
     for (n = 0; n < L.length; n++) {
       F = L[n];
       if (!ROCK[pCell(g, x, F + 1)] || !pRoom(g, x, F) || wByHouse(g, x, F) || (g.wQuarryFar && g.wQuarryFar[x + ":" + F] > g.tick)) continue;
-      for (cols = [], d = x; cols.length < W_BENCH_W && d < g.gw - 6; d++) {
+      for (cols = [], d = x; cols.length < W_BENCH_W && d < rHi(g, 6); d++) {   /* (in the range: world.js) */
         if (mGroundNear(g, d, false, F) !== F + 1 || !pRoom(g, d, F) || !wBenchOk(g, d, F, W_BENCH) || wByHouse(g, d, F)) break;
         cols.push(d);
       }
@@ -1491,7 +1491,9 @@ function wPartOfIt(g, s, f) { var d = wOf(s.kind); return !!(d && d.partOfIt && 
    ------------------------------------------------------------------- */
 function wPlot(g, o) {
   var best = null, W = o.w, pad = o.pad == null ? 3 : o.pad, sky = o.sky || 12, x0, x, y, k, c, gy, hi, lo, ok, r, sc;
-  for (x0 = 6 + pad; x0 + W - 1 < g.gw - 6 - pad; x0++) {
+  /* (in the village's range: world.js. o.lo, o.hi: only plots starting at or after lo, and ending before hi) */
+  var xa = Math.max(rLo(g, 6 + pad), o.lo == null ? -1e9 : o.lo), xb = Math.min(rHi(g, 6 + pad), o.hi == null ? 1e9 : o.hi);
+  for (x0 = xa; x0 + W - 1 < xb; x0++) {
     gy = []; hi = 1e9; lo = -1; ok = true;
     for (x = x0; x < x0 + W && ok; x++) {
       y = o.floor != null ? mGroundNear(g, x, true, o.floor) : mGround(g, x, true);   /* (o.floor: the floor about level with that row, under a shelf, say: monuments.js) */
@@ -1517,7 +1519,7 @@ function wPlot(g, o) {
       clear.push([x, y]);
     }
     if (!ok || !(r = o.fit(g, x0, gy, hi, lo))) continue;
-    sc = r.score - clear.length * 0.1 - (o.edge ? Math.min(x0, g.gw - x0 - W) * 0.15 : Math.abs(x0 + W / 2 - (o.near || g.gw / 2)) * 0.1);
+    sc = r.score - clear.length * 0.1 - (o.edge ? Math.min(x0 - vRange(g).x0, vRange(g).x1 + 1 - x0 - W) * 0.15 : Math.abs(x0 + W / 2 - (o.near || rMid(g))) * 0.1);
     if (!best || sc > best.score) best = { x0: x0, gy: gy, hi: hi, lo: lo, score: sc, r: r, clear: clear };
   }
   return best;
@@ -1576,7 +1578,7 @@ function wCleared(g, r, plan) {
 function wMiddle(g) {
   var n = 0, x = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house") { n++; x += g.sites[k].cx; }
-  return n ? x / n : g.gw / 2;
+  return n ? x / n : rMid(g);
 }
 
 /* -------------------------------------------------------------------

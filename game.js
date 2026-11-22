@@ -8,7 +8,7 @@
 "use strict";
 
 var UI_FONT = '"Menlo", "Consolas", "DejaVu Sans Mono", "Courier New", monospace';
-var GW = Math.floor((VW - PANEL) / CELL), GH = Math.floor((VH - PLAY_Y - BAR_H) / CELL);
+/* (the field's size is in world.js: VIEW_GW columns on screen, GH rows, a valley g.gw wide) */
 var ROW0 = PLAY_Y + 2, ROWH = 10, FUN_N = 7, FUN_GAP = 4;
 var SIZE_Y = 351, BTN_Y = 363, BTN2_Y = 375, BTN3_Y = 387;   /* (the picker runs down to 350) */
 /* how fast time goes: sand ticks per frame, slowest first. SPEED_1 is normal */
@@ -65,6 +65,18 @@ var TIPS = [
   "tip: COOL a field and the wheat stops growing. a village that makes glass knows what to do about that",
   "tip: coal, salt and ash, ground fine, go bang. the peasants will work that out. eventually"
 ];
+/* and, in a valley wider than the screen, one of these in place of every fourth of those. (a list of their own: g.tip
+   counts round TIPS as it always has, and the village's heap, tidy.js, shares the name) */
+var VALLEY_TIPS = [
+  "tip: the valley is four screens wide. swipe sideways, Shift-wheel or \u2190/\u2192 to look along it",
+  "tip: the strip under the field is the whole valley. drag it",
+  "tip: G takes you back to the village"
+];
+function tipLine(g) {
+  if (camMax(g) <= 0) return TIPS[g.tip];
+  var k = g.tipW || 0;   /* (a wide valley: its own count, g.tipW; one of the valley's every fourth, starting with one) */
+  return k % 4 === 0 ? VALLEY_TIPS[(k >> 2) % VALLEY_TIPS.length] : TIPS[(k - (k >> 2) - 1) % TIPS.length];
+}
 
 /* -------------------------------------------------------------------
    1. SMALL DRAWING HELPERS
@@ -127,18 +139,14 @@ var MUSH_PAL = (function () {
 /* -------------------------------------------------------------------
    2. SETTING UP
    ------------------------------------------------------------------- */
+/* the width a new valley is: four screens, unless the page (or a test) asks for another */
+function gameBootW() {
+  var w = typeof window !== "undefined" && window && window.PLEASAND_GW ? Math.round(window.PLEASAND_GW) : WORLD_GW;
+  return Math.max(VIEW_GW, w || WORLD_GW);
+}
 function gameInit(g) {
-  g.cell = CELL; g.gw = GW; g.gh = GH;
-  var n = GW * GH, i, x, y;
-  g.m = new Uint8Array(n);
-  g.stamp = new Uint32Array(n);
-  g.aux = new Uint8Array(n);
-  g.sh = new Uint8Array(n);
-  g.vy = new Uint8Array(n);
-  g.zmark = new Uint8Array(n); g.zlist = new Int32Array(n + 8); g.zn = 0; g.zt = 0;
-  g.pmark = new Uint32Array(n); g.pstack = new Int32Array(n); g.pgen = 0; g.pressList = new Int32Array(PRESS_TRIES); g.pressN = 0;
-  partInit(g);
-  heatInit(g);
+  g.bootW = gameBootW();
+  gameGrid(g, g.bootW);
   g.tick = 0; g.parity = 0;
   g.fx = { boom: 0, bigboom: 0, hiss: 0, whoosh: 0, bloom: 0, burst: 0, whistle: 0, thunder: 0, zap: 0,
            pop: 0, thud: 0, splat: 0, die: 0, ghost: 0, whee: 0, fanfare: 0, splash: 0, quack: 0, peep: 0, squeak: 0,
@@ -150,25 +158,53 @@ function gameInit(g) {
   g.sites = []; g.sid = 0;
   g.held = null; g.cx = 0; g.cy = 0; g.pcx = 0; g.pcy = 0; g.cvx = 0; g.cvy = 0; g.toolT = 0;
   g.intro = 0; g.tip = irnd(TIPS.length);
-
-  /* the picture is drawn into a small canvas at grid size, then stretched */
-  g.vc = document.createElement("canvas"); g.vc.width = GW; g.vc.height = GH;
+  gamePicture(g);
+  gameSky(g);
+  g.sel = FUN_N; g.size = 5; g.paused = 0; g.speed = SPEED_1; g.speedAcc = 0; g.lx = null; g.ax = null;
+  camReset(g);
+  sandLandscape(g);
+  camHome(g, true);
+  g.camJ = g.camI;   /* (where a new valley opens is no move of the hand's: nothing to journal) */
+}
+/* the grid, and the scratch that goes with it, for a valley w wide */
+function gameGrid(g, w) {
+  g.cell = CELL; g.gw = w; g.gh = GH;
+  var n = w * GH;
+  g.m = new Uint8Array(n);
+  g.stamp = new Uint32Array(n);
+  g.aux = new Uint8Array(n);
+  g.sh = new Uint8Array(n);
+  g.vy = new Uint8Array(n);
+  g.zmark = new Uint8Array(n); g.zlist = new Int32Array(n + 8); g.zn = 0; g.zt = 0;
+  g.pmark = new Uint32Array(n); g.pstack = new Int32Array(n); g.pgen = 0; g.pressList = new Int32Array(PRESS_TRIES); g.pressN = 0;
+  partInit(g);
+  heatInit(g);
+}
+/* the picture is drawn into a canvas at grid size, then the part of it in view is stretched onto the screen */
+function gamePicture(g) {
+  var w = g.gw;
+  g.vc = document.createElement("canvas"); g.vc.width = w; g.vc.height = GH;
   g.vctx = g.vc.getContext("2d");
-  g.img = g.vctx.createImageData(GW, GH);
+  g.img = g.vctx.createImageData(w, GH);
   g.px = new Uint32Array(g.img.data.buffer);
-  /* and the glow: hot cells only, shrunk twice (which blurs them), then laid over the top */
-  g.gc = document.createElement("canvas"); g.gc.width = GW; g.gc.height = GH;
+  /* and the glow: hot cells only, shrunk twice (which blurs them), then laid over the top. (the small two are one
+     screen's worth: they are made from the part of it in view) */
+  g.gc = document.createElement("canvas"); g.gc.width = w; g.gc.height = GH;
   g.gctx = g.gc.getContext("2d");
-  g.gimg = g.gctx.createImageData(GW, GH);
+  g.gimg = g.gctx.createImageData(w, GH);
   g.gpx = new Uint32Array(g.gimg.data.buffer);
-  g.gc2 = document.createElement("canvas"); g.gc2.width = Math.ceil(GW / 2); g.gc2.height = Math.ceil(GH / 2);
-  g.gc4 = document.createElement("canvas"); g.gc4.width = Math.ceil(GW / 4); g.gc4.height = Math.ceil(GH / 4);
+  g.gc2 = document.createElement("canvas"); g.gc2.width = Math.ceil(VIEW_GW / 2); g.gc2.height = Math.ceil(GH / 2);
+  g.gc4 = document.createElement("canvas"); g.gc4.width = Math.ceil(VIEW_GW / 4); g.gc4.height = Math.ceil(GH / 4);
   g.gc2x = g.gc2.getContext("2d"); g.gc4x = g.gc4.getContext("2d");
-  g.dep = new Uint8Array(GW);
+  g.dep = new Uint8Array(w);
   g.haze = new Int8Array(GH);
-  g.wave = new Uint8Array(GW);
-
-  /* the sky: a dusk gradient, two rows of far hills, a moon, and stars that twinkle */
+  g.wave = new Uint8Array(w);
+  g.stripC = null;
+}
+/* the sky: a dusk gradient, two rows of far hills, a moon, and stars that twinkle. (the moon is in the middle screen,
+   where it always was in a valley one screen wide) */
+function gameSky(g) {
+  var GW = g.gw, n = GW * GH, i, x, y, V0 = (GW - VIEW_GW) >> 1;
   g.bg = new Uint32Array(n);
   var top = hexRGB("#0a1026"), mid = hexRGB("#1c1d3c"), bot = hexRGB("#3a2a48");
   var far = [], near = [], ph = Math.random() * 10;
@@ -176,7 +212,7 @@ function gameInit(g) {
     far[x] = GH * 0.48 + Math.sin(x * 0.03 + ph) * 12 + Math.sin(x * 0.011 + ph * 3) * 18;
     near[x] = GH * 0.62 + Math.sin(x * 0.05 + ph * 2) * 9 + Math.sin(x * 0.017 + ph) * 12;
   }
-  var mx = Math.round(GW * (0.65 + Math.random() * 0.25)), my = 26, mr = 9;
+  var mx = V0 + Math.round(VIEW_GW * (0.65 + Math.random() * 0.25)), my = 26, mr = 9;
   SKY_MOON = { x: mx, y: my, r: mr };   /* (where it is, for the flag on it: heavens.js) */
   for (y = 0; y < GH; y++) {
     var t = y / (GH - 1), col = t < 0.6 ? [lerp(top[0], mid[0], t / 0.6), lerp(top[1], mid[1], t / 0.6), lerp(top[2], mid[2], t / 0.6)]
@@ -196,7 +232,7 @@ function gameInit(g) {
     }
   }
   g.stars = [];
-  for (var s = 0; s < 150; s++) {
+  for (var s = 0, ns = 150 * GW / VIEW_GW; s < ns; s++) {
     x = irnd(GW); y = irnd(Math.floor(GH * 0.55));
     i = y * GW + x;
     if (y > far[x] - 1 || Math.abs(x - mx) < mr + 2 && Math.abs(y - my) < mr + 2) continue;
@@ -204,9 +240,182 @@ function gameInit(g) {
     g.bg[i] = rgb32([200 + irnd(55), 210 + irnd(45), 255], b);
     if (Math.random() < 0.3) g.stars.push({ i: i, b: b, p: Math.random() * 6.28, s: 1 + Math.random() * 3 });
   }
-
-  g.sel = FUN_N; g.size = 5; g.paused = 0; g.speed = SPEED_1; g.speedAcc = 0; g.lx = null; g.ax = null;
+}
+/* a valley of another width, in place: for a save that is, or a NEW one that is to be. the brush, the speed and the
+   rest of the panel stay as they are; the sky is painted with the side dice, so the village's dice do not move */
+/* (the stars are read by the observatory, heavens.js, so the sky of a valley made another width is rolled on dice of its
+   own, seeded from the width and the tick: the same on a replay, and never the village's dice or the picture's) */
+function gameSkyOwn(g) {
+  var keep = Math.random, own = rngMake((g.gw * 40503 + 0x51de) >>> 0);   /* (by the width alone: one sky a width) */
+  Math.random = own.random;
+  try { gameSky(g); } finally { Math.random = keep; }
+}
+function gameResize(g, w) {
+  w = Math.max(VIEW_GW, Math.round(w));
+  gameGrid(g, w);
+  gamePicture(g);
+  gameSkyOwn(g);
+  /* (scratch the other modules make for themselves, at the old size: made again at the new one when next wanted) */
+  ["navSeen", "navShut", "navCost", "navFrom", "navHow", "navLad", "navHeapI", "navHeapF", "bmark", "dmask", "mcave", "lboost",
+   "lboostY", "tGround", "seenAt"].forEach(function (k) { delete g[k]; });
+  g.vrange = { x0: 0, x1: w - 1 };
+  camClamp(g);
+  return g;
+}
+/* NEW: a valley the width a new one is (it may have been another, loaded from a save) */
+function gameNew(g) {
+  /* (in a wide valley, whatever stroke or line the hand had going belongs to the old one: it ends, and the press with it) */
+  if (camMax(g) > 0 || g.gw !== (g.bootW || gameBootW())) { g.lx = null; g.ax = null; if (g.down) g.eaten = 1; }
+  if (g.gw !== (g.bootW || gameBootW())) gameResize(g, g.bootW || gameBootW());
   sandLandscape(g);
+  camHome(g, true);
+  g.camJ = g.camI;
+}
+
+/* -------------------------------------------------------------------
+   2b. LOOKING ALONG THE VALLEY: the camera
+
+   the valley is wider than the screen. g.camX is the column at the left
+   edge of the view (a float: it glides), g.camT where it is gliding to,
+   and g.camI the whole column the picture is drawn from this frame. the
+   camera is not the village's: it never rolls its dice, and it only moves
+   when you move it.
+   ------------------------------------------------------------------- */
+var CAM_EASE = 0.35, CAM_EDGE = 12, CAM_DWELL = 12, CAM_KEYPAN = [2, 10], CAM_NOTCH = 24;
+function camMax(g) { return Math.max(0, g.gw - VIEW_GW); }
+function camClamp(g) {
+  var M = camMax(g);
+  g.camX = clamp(g.camX || 0, 0, M); g.camT = clamp(g.camT == null ? g.camX : g.camT, 0, M);
+  g.camI = Math.round(g.camX);
+}
+function camReset(g) {
+  g.camX = g.camT = 0; g.camI = 0; g.camJ = 0;
+  g.whlAxis = null; g.whlT = 0; g.edgeT = 0; g.edgeSide = 0; g.stripDrag = null; g.arrowT = 0;
+}
+/* where the village is: the middle of its houses, else of its living peasants, else of the valley. null if nobody */
+function camVillageX(g) {
+  var n = 0, x = 0, k;
+  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house") { n++; x += (g.sites[k].x0 + g.sites[k].x1) / 2; }
+  if (!n) for (k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead && g.peasants[k].state !== "space") { n++; x += g.peasants[k].x; }
+  return n ? x / n : null;
+}
+/* centre the view on column x: gliding, or (now) at once */
+function camGo(g, x, now) {
+  g.camT = clamp(x - VIEW_GW / 2, 0, camMax(g));
+  if (now) { g.camX = g.camT; g.camI = Math.round(g.camX); }
+}
+function camHome(g, now) {
+  var x = camVillageX(g);
+  camGo(g, x == null ? g.gw / 2 : x, now);
+  return x != null;
+}
+/* the camera into the journal, once it has come to rest (a glide snapping, a drag or a swipe ending), and before
+   anything else is journalled: one entry a move, not sixty */
+function camJournal(g) {
+  if (g.camI === g.camJ) return;
+  g.camJ = g.camI;
+  /* (u: the harness's count of updates, sixty a second, paused or not, that it is to be put back after) */
+  saveInput(g, "cam", { x: g.camI, u: Math.round(g.t * 60) - (CAM_IN_UPDATE ? 1 : 0) });
+}
+/* a pan by d cells, straight away (a swipe, a drag): the picture stays under your fingers */
+function camPan(g, d) {
+  g.camX = g.camT = clamp(g.camX + d, 0, camMax(g));   /* (from where the view is, not where a glide was going) */
+  /* (camI, what is drawn and what a click lands on, follows at the next update: the two never disagree) */
+}
+/* is the hand doing something a drag can carry along past the edge of the view? */
+function camDragging(g) {
+  if (!g.down || g.stripDrag || g.eaten) return false;
+  /* (something actually going on in the field: a stroke under way, a ruled line, somebody held. a press on the picker,
+     or an eyedrop, is not) */
+  return !!(g.held || g.heldDuck || g.ax != null || g.lx != null);
+}
+/* which side of the field the hand is carrying the view to, and how hard: past the left or right side (corners too), or
+   in the edge of the field beside it, within the field's rows. dragged up into the header, or down into the bar, it is
+   neither. {side: -1, 0 or 1, depth: 0 .. 1} */
+function camEdge(g) {
+  var inRows = g.my >= PLAY_Y && g.my < PLAY_B, lx = g.mx - PANEL, rx = VW - g.mx;
+  if (!inRows && g.mx >= 0 && g.mx < VW && g.my >= 0 && g.my < VH) return { side: 0, depth: 0 };   /* (the header, the strip, the bar: on the canvas, not past a side of it) */
+  if (lx < 0 || (lx < CAM_EDGE && inRows)) return { side: -1, depth: clamp((CAM_EDGE - lx) / CAM_EDGE, 0, 1) };
+  if (rx <= 0 || (rx < CAM_EDGE && inRows)) return { side: 1, depth: clamp((CAM_EDGE - rx) / CAM_EDGE, 0, 1) };
+  return { side: 0, depth: 0 };
+}
+/* (the camera journal's rows say which update they belong before: one made in an update, before the world moves, goes
+   before it; one made by the hand between updates, after the last) */
+var CAM_IN_UPDATE = false;
+/* once an update, at sixty a second whatever the speed, paused or not */
+function camStep(g) {
+  var M = camMax(g), before = g.camI;
+  if (M <= 0) { g.camX = g.camT = 0; g.camI = 0; return; }
+  /* the arrow keys: held, faster the longer they are held (with Shift, they page instead: gameKey) */
+  var dir = (g.keys.arrowright ? 1 : 0) - (g.keys.arrowleft ? 1 : 0);
+  if (dir && !g.keys.shift) {
+    g.arrowT = Math.min(30, (g.arrowT || 0) + 1);
+    g.camT = clamp(g.camX + dir * lerp(CAM_KEYPAN[0], CAM_KEYPAN[1], g.arrowT / 30), 0, M);   /* (from where the view is) */
+    g.camX = g.camT;
+  } else { if (g.arrowT) g.arrowEnd = 1; g.arrowT = 0; }
+  /* edge pan: dragging something (a stroke, a ruled line, somebody held) into the edge of the view carries the view
+     along. after a moment in the edge, or at once if it came in moving that way */
+  var side = 0, depth = 0;
+  if (camDragging(g)) { var ed = camEdge(g); side = ed.side; depth = ed.depth; }
+  if (!side) { g.edgeT = 0; g.edgeSide = 0; }
+  else {
+    if (side !== g.edgeSide) { g.edgeSide = side; g.edgeT = 0; if ((g.svx || 0) * side > 1.5) g.edgeT = CAM_DWELL; }
+    if (++g.edgeT >= CAM_DWELL) {
+      g.camT = clamp(g.camX + side * lerp(1, 8, depth), 0, M);
+      g.camX = g.camT;
+    }
+  }
+  /* and the glide */
+  if (Math.abs(g.camT - g.camX) < 0.05) {
+    if (g.camX !== g.camT) { g.camX = g.camT; g.camI = Math.round(g.camX); camJournal(g); }
+  } else g.camX += (g.camT - g.camX) * CAM_EASE;
+  g.camI = Math.round(g.camX);
+  if (g.arrowEnd) { g.arrowEnd = 0; camJournal(g); }   /* (the arrows let go: the view as this update has it) */
+  /* (a pan by hand, journalled when the hand lets go: see the wheel and the strip) */
+  if (g.camI !== before && !g.stripDrag && !g.whlAxis && !side && !dir && g.camX === g.camT) camJournal(g);
+}
+/* after a load: the view the save had (clamped to this valley), or the village if it had none; and the village's range,
+   if the save is from before there was one */
+function camLoaded(g) {
+  var had = typeof g.camX === "number";
+  if (!had) { g.camX = g.camT = 0; }
+  camClamp(g);
+  if (!had) camHome(g, true);
+  if (!g.vrange || !(g.vrange.x0 >= 0) || !(g.vrange.x1 < g.gw) || g.vrange.x1 < g.vrange.x0) vRangeSet(g);
+  g.camJ = g.camI; g.stripN = 0;
+  g.whlAxis = null; g.edgeT = 0; g.edgeSide = 0; g.stripDrag = null; g.arrowT = 0; g.eaten = 0;
+}
+/* a step of a page or a notch: on from where a glide the same way is going, or from where the view is if it was going
+   the other way (End, then Shift-Left, goes left) */
+function camNudge(g, d) {
+  var base = (g.camT - g.camX) * d > 0 ? g.camT : g.camX;
+  g.camT = clamp(base + d, 0, camMax(g));
+}
+/* the wheel. a gesture is a run of events with gaps under 150ms; its axis is whichever its first real movement was
+   along. sideways pans (a trackpad swipe, Shift and the wheel), up and down is the brush size, as it always was */
+function camWheelGesture(g, dx, dy, mode, shift, now, scale) {
+  /* (a valley one screen wide has nothing to look along: the wheel is what it always was, the brush, on any deltaY) */
+  if (camMax(g) <= 0) return dy ? (dy > 0 ? 1 : -1) : 0;
+  camWheelEnd(g, now);   /* (the last gesture, if it is over: journalled before this one starts) */
+  var px = mode === 1 ? 16 : (mode === 2 ? 400 : 1);
+  dx *= px; dy *= px;
+  if (shift && !dx) { dx = dy; dy = 0; }
+  if (!g.whlAxis || now - g.whlT > 150) {
+    if (!dx && !dy) return null;
+    g.whlAxis = Math.abs(dx) > Math.abs(dy) || shift ? "x" : "y";
+  }
+  g.whlT = now;
+  if (g.whlAxis === "y") return dy ? (dy > 0 ? 1 : -1) : 0;
+  if (!dx) return 0;
+  /* (a trackpad, or a wheel that counts in lines or pages: as far as it says, in the canvas's pixels. Shift and a
+     notched wheel: a notch at a time, gliding) */
+  if (!shift) { camPan(g, clamp(dx * scale / CELL, -VIEW_GW, VIEW_GW)); return 0; }
+  camNudge(g, (dx > 0 ? 1 : -1) * CAM_NOTCH);
+  return 0;
+}
+/* the end of a wheel gesture: 150ms with nothing (looked at once an update) */
+function camWheelEnd(g, now) {
+  if (g.whlAxis && now - g.whlT > 150) { g.whlAxis = null; if (g.camX === g.camT) camJournal(g); }   /* (a glide journals itself when it gets there) */
 }
 
 /* -------------------------------------------------------------------
@@ -226,7 +435,7 @@ function sandDab(g, cx, cy, v, solid) {
 }
 function sandStroke(g, ax, ay, bx, by, v, solid) {
   var dx = bx - ax, dy = by - ay;
-  var n = Math.min(300, Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / Math.max(1, g.size * 0.5))));
+  var n = Math.min(Math.max(300, g.gw + g.gh), Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / Math.max(1, g.size * 0.5))));
   for (var s = 0; s <= n; s++) sandDab(g, ax + dx * s / n, ay + dy * s / n, v, solid);
 }
 function curPick(g) { return PICK[g.sel]; }
@@ -270,13 +479,20 @@ function cellReadout(g, j) {
   return s;
 }
 function sandBrush(g) { return g.btn === 2 ? MAT.EMPTY : curPick(g).m; }   /* right button always erases */
-function sandCell(g) { return { x: clamp(g.cx, 0, g.gw - 1), y: clamp(g.cy, 0, g.gh - 1) }; }
-function inPlay(g) { return g.mx >= PANEL && g.mx < VW && g.my >= PLAY_Y && g.my < PLAY_Y + GH * CELL; }
+/* (the cell under the cursor is one in view: past the edge of it, while a stroke is carried along, the edge's) */
+function sandCell(g) { var c = g.camI || 0; return { x: clamp(g.cx, c, Math.min(g.gw, c + VIEW_GW) - 1), y: clamp(g.cy, 0, g.gh - 1) }; }
+function inPlay(g) { return g.mx >= PANEL && g.mx < VW && g.my >= PLAY_Y && g.my < PLAY_B; }
 function painting(g) { var p = curPick(g); return g.btn === 2 || (!p.tool && p.m !== MAT.NUKE); }
 
 function sandPaint(g) {
-  if (!g.down || g.btn === 1 || g.keys.alt || g.ax != null || !painting(g)) { g.lx = null; return; }
-  if (!inPlay(g)) { g.lx = null; return; }
+  if (!g.down || g.btn === 1 || g.keys.alt || g.ax != null || !painting(g) || g.stripDrag || g.eaten) { g.lx = null; return; }
+  /* (a stroke already going may be dragged past the side of the field: it goes on at the edge, and the view along) */
+  if (!inPlay(g)) {
+    /* (only out past the left or the right side, where the view is carried along, corners included: dragged up into the
+       header or down into the bar, a stroke ends, as it always has) */
+    if (!(camMax(g) > 0 && g.lx != null && camEdge(g).side)) { g.lx = null; return; }
+    /* (out past the top or the bottom as well: it goes on along that edge of the field, the cell clamped into it) */
+  }
   var p = sandCell(g);
   if (g.keys.shift) { g.ax = p.x; g.ay = p.y; g.av = sandBrush(g); g.lx = null; return; }   /* start a ruled line */
   if (g.lx == null) { g.lx = p.x; g.ly = p.y; }
@@ -284,6 +500,12 @@ function sandPaint(g) {
   g.lx = p.x; g.ly = p.y;
 }
 function sandRelease(g) {
+  if (g.stripDrag) stripMove(g, true);   /* (where the hand let go is where the view is, even between updates) */
+  /* (in a wide valley the view may have moved since the last update: the cell under the hand is worked out afresh, and
+     the stroke is over, so a quick press elsewhere does not carry it on. one screen wide, as it always was) */
+  if (camMax(g) > 0) { g.cx = (g.mx - PANEL) / CELL + (g.camI || 0); g.cy = (g.my - PLAY_Y) / CELL; g.lx = null; }
+  g.stripDrag = null; g.eaten = 0;
+  camJournal(g);
   saveInput(g, "up", { x: saveR(g.cx), y: saveR(g.cy), pick: curPick(g).name, held: g.held ? g.held.name : undefined });
   if (g.held) peasantThrow(g, g.held);
   if (g.heldDuck) duckThrow(g, g.heldDuck);
@@ -294,7 +516,7 @@ function sandRelease(g) {
 }
 /* held-down tools repeat: peasants keep coming, lightning keeps striking */
 function toolHold(g) {
-  if (!g.down || g.btn !== 0 || !inPlay(g) || g.keys.alt) return;
+  if (!g.down || g.btn !== 0 || !inPlay(g) || g.keys.alt || g.stripDrag || g.eaten) return;
   var t = curPick(g).tool;
   if (!t || g.held || g.heldDuck) return;
   if (--g.toolT > 0) return;
@@ -336,6 +558,7 @@ function panelAt(x, y, L) {
   if (y >= L.BTN_Y && y < L.BTN_Y + 12) return x < 48 ? "pause" : "clear";
   if (y >= L.BTN2_Y && y < L.BTN2_Y + 12) return x < 14 ? "slower" : (x >= 36 && x < 48 ? "faster" : (x >= 48 ? "new" : ""));
   if (y >= L.BTN3_Y && y < L.BTN3_Y + 12) return x < 48 ? "thermal" : "hush";
+  if (y >= 400) return "";   /* (under the buttons, below where the panel used to end: nothing) */
   return "tip";
 }
 /* and what it does. "sel:<NAME>": that brush, by name */
@@ -348,21 +571,31 @@ function panelDo(g, a) {
   else if (a === "clear") sandClear(g);
   else if (a === "slower") gameSpeed(g, -1);
   else if (a === "faster") gameSpeed(g, 1);
-  else if (a === "new") sandLandscape(g);
+  else if (a === "new") gameNew(g);
   else if (a === "thermal") g.thermal = !g.thermal;
   else if (a === "hush") g.hush = !g.hush;
-  else if (a === "tip") g.tip = (g.tip + 1) % TIPS.length;
+  else if (a === "tip") { if (camMax(g) <= 0) g.tip = (g.tip + 1) % TIPS.length; else g.tipW = (g.tipW || 0) + 1; }   /* (a wide valley counts its own, clear of the village's heap: tidy.js shares g.tip) */
 }
 
 /* -------------------------------------------------------------------
    4. THE TICK
    ------------------------------------------------------------------- */
 function gameUpdate(g, dt) {
+  CAM_IN_UPDATE = true;
+  try { gameUpdate1(g, dt); } finally { CAM_IN_UPDATE = false; }
+}
+function gameUpdate1(g, dt) {
   g.t += dt;
   g.intro += dt;
-  /* where the cursor is, in cells, and how fast it is going (for throwing) */
-  g.cx = (g.mx - PANEL) / CELL; g.cy = (g.my - PLAY_Y) / CELL;
-  var cv2 = cursorVel(g); g.cvx = cv2[0]; g.cvy = cv2[1];
+  /* where the view is (it glides, and the arrows and a drag at the edge move it), then where the cursor is, in the
+     world's cells, and how fast it is going across the screen (for throwing: a flick is a flick, wherever the view is) */
+  var cv2 = cursorVel(g);
+  g.svx = cv2[0];
+  stripMove(g);
+  camStep(g);
+  camWheelEnd(g, typeof performance !== "undefined" ? performance.now() : 0);
+  g.cx = (g.mx - PANEL) / CELL + g.camI; g.cy = (g.my - PLAY_Y) / CELL;
+  g.cvx = cv2[0]; g.cvy = cv2[1];
   g.pcx = g.cx; g.pcy = g.cy;
   sandPaint(g);
   toolHold(g);
@@ -434,25 +667,33 @@ function sandSounds0(g) {
 /* -------------------------------------------------------------------
    5. DRAWING THE WORLD
    ------------------------------------------------------------------- */
-function drawWorld(g) {
+/* (only the columns in view, and a couple either side, are worked out a cell at a time. all: the whole valley) */
+function drawCols(g, all) {
+  if (all) return [0, g.gw];
+  var c = g.camI || 0;
+  return [Math.max(0, c - 2), Math.min(g.gw, c + VIEW_GW + 2)];
+}
+function drawWorld(g, all) {
   var m = g.m, sh = g.sh, px = g.px, gp = g.gpx, gw = g.gw, gh = g.gh, dep = g.dep, bg = g.bg, wave = g.wave;
   var x, y, i, v, row, d, hot = 0, W = MAT.WATER, t = g.t, k, T = g.T, tc, f, a;
-  gp.fill(0);
-  if (g.thermal) return drawThermal(g);
+  var C = drawCols(g, all), X0 = C[0], X1 = C[1];
+  if (X0 === 0 && X1 === gw) gp.fill(0);
+  else for (y = 0; y < gh; y++) gp.fill(0, y * gw + X0, y * gw + X1);
+  if (g.thermal) return drawThermal(g, X0, X1);
   /* stars twinkle */
   for (k = 0; k < g.stars.length; k++) {
     var st = g.stars[k], b = st.b * (0.55 + 0.45 * Math.sin(t * st.s + st.p));
     bg[st.i] = rgb32([225, 232, 255], b);
   }
   /* where the light catches the waves this frame */
-  for (x = 0; x < gw; x++) wave[x] = (Math.sin(x * 0.37 + t * 2.6) + Math.sin(x * 0.13 - t * 1.7)) > 1.25 ? 1 : 0;
+  for (x = X0; x < X1; x++) wave[x] = (Math.sin(x * 0.37 + t * 2.6) + Math.sin(x * 0.13 - t * 1.7)) > 1.25 ? 1 : 0;
   /* heat haze: each row of hot air is nudged a pixel one way or the other, and it wobbles */
   var haze = g.haze;
   for (y = 0; y < gh; y++) haze[y] = Math.sin(y * 0.9 + t * 9) > 0 ? 1 : -1;
   var flick = (t * 8) | 0;
   for (y = 0; y < gh; y++) {
     row = y * gw;
-    for (x = 0; x < gw; x++) {
+    for (x = X0; x < X1; x++) {
       i = row + x; v = m[i]; tc = T[i];
       if (v === MAT.EMPTY) {
         /* hot air shimmers and glows a little; cold air has a blue chill to it */
@@ -583,8 +824,13 @@ function drawWorld(g) {
   /* electrified water, for a moment */
   if (g.zt > 0) {
     var zc = [hex32("#ffffff"), hex32("#a0e0ff"), hex32("#60b0ff")];
-    for (k = 0; k < g.zn; k++) { i = g.zlist[k]; if (m[i] === W || m[i] === MAT.ACID) { px[i] = gp[i] = zc[irnd(3)]; } }
-    hot++;
+    var zl = 0;
+    for (k = 0; k < g.zn; k++) {
+      i = g.zlist[k]; x = i % gw;
+      if (x < X0 || x >= X1) continue;   /* (out of view along the valley) */
+      if (m[i] === W || m[i] === MAT.ACID) { px[i] = gp[i] = zc[irnd(3)]; zl++; }
+    }
+    if (zl) hot++;
   }
   /* particles */
   for (k = 0; k < g.np; k++) {
@@ -626,9 +872,10 @@ function lavaCol(t, a, flick) {
 }
 /* thermal vision: every cell the colour of its temperature, with a hint of what it is,
    so you can still make out the shape of things */
-function drawThermal(g) {
-  var m = g.m, px = g.px, T = g.T, sh = g.sh, n = m.length, i, v, k, x, y;
-  for (i = 0; i < n; i++) {
+function drawThermal(g, X0, X1) {
+  var m = g.m, px = g.px, T = g.T, sh = g.sh, i, v, k, x, y, gw = g.gw;
+  if (X0 == null) { X0 = 0; X1 = gw; }
+  for (y = 0; y < g.gh; y++) for (i = y * gw + X0; i < y * gw + X1; i++) {
     v = m[i];
     px[i] = v === MAT.EMPTY ? thermCol(T[i]) : blend32(thermCol(T[i]), SAND_PAL[v][sh[i]], 0.16);
   }
@@ -643,10 +890,12 @@ function drawThermal(g) {
 }
 
 function gameDraw(g, c) {
-  var gw = g.gw, gh = g.gh, PW = gw * CELL, PH = gh * CELL;
+  var PW = VIEW_GW * CELL, PH = PLAY_H, cam = g.camI = clamp(g.camI || 0, 0, camMax(g));
   rct(c, 0, 0, VW, VH, "#05070c");
   var hot = drawWorld(g);
-  g.vctx.putImageData(g.img, 0, 0);
+  /* (only the part in view goes up to the canvas, and only that part is stretched onto the screen) */
+  var C = drawCols(g), cw = C[1] - C[0];
+  g.vctx.putImageData(g.img, 0, 0, C[0], 0, cw, GH);
 
   /* the shaking part */
   var sx = 0, sy = 0;
@@ -655,13 +904,13 @@ function gameDraw(g, c) {
   c.beginPath(); c.rect(PANEL, PLAY_Y, PW, PH); c.clip();
   c.translate(sx, sy);
   c.imageSmoothingEnabled = false;
-  c.drawImage(g.vc, PANEL, PLAY_Y, PW, PH);
+  c.drawImage(g.vc, cam, 0, VIEW_GW, GH, PANEL, PLAY_Y, PW, PH);
   c.imageSmoothingEnabled = true;
   if (hot || g.np) {
-    g.gctx.putImageData(g.gimg, 0, 0);
+    g.gctx.putImageData(g.gimg, 0, 0, C[0], 0, cw, GH);
     var c2 = g.gc2x, c4 = g.gc4x;
     c2.clearRect(0, 0, g.gc2.width, g.gc2.height);
-    c2.drawImage(g.gc, 0, 0, g.gc2.width, g.gc2.height);
+    c2.drawImage(g.gc, cam, 0, VIEW_GW, GH, 0, 0, g.gc2.width, g.gc2.height);
     c4.clearRect(0, 0, g.gc4.width, g.gc4.height);
     c4.drawImage(g.gc2, 0, 0, g.gc4.width, g.gc4.height);
     c.globalCompositeOperation = "lighter";
@@ -682,8 +931,10 @@ function gameDraw(g, c) {
     c.fillStyle = "rgba(255,250,235," + Math.min(1, g.flash).toFixed(3) + ")";
     c.fillRect(PANEL, PLAY_Y, PW, PH);
   }
+  drawEdgeMarks(g, c);
   drawCursor(g, c);
   drawPanel(g, c);
+  drawStrip(g, c);
   drawOverlays(g, c);
 }
 
@@ -701,8 +952,15 @@ function ageBangs(g) {
   for (k = g.bolts.length - 1; k >= 0; k--) { g.bolts[k].t *= 0.92; if (g.bolts[k].t <= 0.02) g.bolts.splice(k, 1); }
   if (g.zt > 0) { g.zt -= 0.035; if (g.zt <= 0) g.zn = 0; }
 }
-function scrX(x) { return PANEL + (x + 0.5) * CELL; }
+/* a world column, on the screen: the one conversion everything drawn over the field goes through */
+function scrX(x) { return PANEL + (x - (g && g.camI || 0) + 0.5) * CELL; }
 function scrY(y) { return PLAY_Y + y * CELL; }
+/* is any of a bolt, its forks included, near enough the view to be seen (a margin for its glow, and the shake) */
+function boltSeen(b, lo, hi) {
+  var L = [b.pts].concat(b.forks), q, k;
+  for (q = 0; q < L.length; q++) for (k = 0; k < L[q].length; k++) { var sx = scrX(L[q][k][0]); if (sx > lo && sx < hi) return true; }
+  return false;
+}
 function boltLine(c, L) {
   c.beginPath(); c.moveTo(scrX(L[0][0]), scrY(L[0][1]));
   for (var q = 1; q < L.length; q++) c.lineTo(scrX(L[q][0]), scrY(L[q][1]));
@@ -713,7 +971,8 @@ function drawBangs(g, c) {
   var k, j;
   c.save();
   c.globalCompositeOperation = "lighter";
-  if (g.fwGlow) {
+  var vx0 = PANEL - 12, vx1 = VW + 12;   /* (anything wholly out of view along the valley is not drawn) */
+  if (g.fwGlow && scrX(g.fwGlow.x) + 90 > PANEL - 8 && scrX(g.fwGlow.x) - 90 < VW + 8) {
     var f = g.fwGlow, cx = scrX(f.x), cy = scrY(f.y), r = 90;
     var gr = c.createRadialGradient(cx, cy, 0, cx, cy, r);
     var col = "rgba(" + (f.c & 255) + "," + ((f.c >> 8) & 255) + "," + ((f.c >> 16) & 255) + ",";
@@ -722,6 +981,7 @@ function drawBangs(g, c) {
   }
   for (k = 0; k < g.rings.length; k++) {
     var rg = g.rings[k], a = 1 - rg.t / 22;
+    if (scrX(rg.x) + rg.r * CELL < PANEL || scrX(rg.x) - rg.r * CELL > VW) continue;
     c.strokeStyle = "rgba(255,230,190," + (a * 0.5).toFixed(3) + ")";
     c.lineWidth = 2.5 * a + 0.5;
     c.beginPath(); c.arc(scrX(rg.x), scrY(rg.y), rg.r * CELL, 0, 6.2832); c.stroke();
@@ -729,6 +989,7 @@ function drawBangs(g, c) {
   c.lineJoin = "round";
   for (k = 0; k < g.bolts.length; k++) {
     var b = g.bolts[k], ba = b.t * (Math.random() < 0.2 ? 0.25 : 1);
+    if (!boltSeen(b, vx0, vx1)) continue;
     for (var pass = 0; pass < 2; pass++) {
       c.strokeStyle = pass ? "rgba(255,255,255," + ba.toFixed(3) + ")" : "rgba(120,160,255," + (ba * 0.5).toFixed(3) + ")";
       c.lineWidth = pass ? 1.4 : 6;
@@ -741,19 +1002,22 @@ function drawBangs(g, c) {
 }
 
 function drawCursor(g, c) {
-  if (!inPlay(g)) return;
+  /* (a ruled line is drawn even with the pointer out past the side of the field, while the view is carried along) */
+  if (!inPlay(g) && g.ax == null) return;
   var pk = curPick(g), cx = g.mx, cy = g.my;
   c.save();
   c.lineWidth = 1;
   if (g.ax != null) {
+    c.beginPath(); c.rect(PANEL, PLAY_Y, VIEW_GW * CELL, PLAY_H); c.clip();
     var p = sandCell(g);
     c.strokeStyle = g.av === MAT.EMPTY ? "#ffffff" : SAND_SHADES[g.av][0];
     c.lineWidth = (g.size * 2 + 1) * CELL; c.lineCap = "round"; c.globalAlpha = 0.35;
     c.beginPath();
-    c.moveTo(PANEL + (g.ax + 0.5) * CELL, PLAY_Y + (g.ay + 0.5) * CELL);
-    c.lineTo(PANEL + (p.x + 0.5) * CELL, PLAY_Y + (p.y + 0.5) * CELL);
+    c.moveTo(scrX(g.ax), PLAY_Y + (g.ay + 0.5) * CELL);
+    c.lineTo(scrX(p.x), PLAY_Y + (p.y + 0.5) * CELL);
     c.stroke();
     c.globalAlpha = 1; c.lineWidth = 1;
+    if (!inPlay(g)) { c.restore(); return; }
   }
   var hh = g.held && !g.held.dead ? g.held : (g.heldDuck && !g.heldDuck.dead ? g.heldDuck : null);
   if (hh && g.down) {
@@ -774,7 +1038,7 @@ function drawCursor(g, c) {
   if (pk.tool === "peasant") {
     var h = (g.held && !g.held.dead) ? g.held : peasantAt(g, g.cx, g.cy, 2);
     if (h) {
-      var bx = PANEL + (h.x - 3) * CELL, by = PLAY_Y + (h.y - 10) * CELL;
+      var bx = scrX(h.x) - 3.5 * CELL, by = PLAY_Y + (h.y - 10) * CELL;
       c.strokeStyle = "#ffd94a";
       c.beginPath();
       c.moveTo(bx, by + 4); c.lineTo(bx, by); c.lineTo(bx + 4, by);
@@ -790,7 +1054,7 @@ function drawCursor(g, c) {
     var dk = (g.heldDuck && !g.heldDuck.dead) ? g.heldDuck : duckAt(g, g.cx, g.cy, 2);
     c.strokeStyle = "#ffd94a";
     if (dk) {
-      var dx0 = PANEL + (dk.x - 3) * CELL, dy0 = PLAY_Y + (dk.y - 5) * CELL;
+      var dx0 = scrX(dk.x) - 3.5 * CELL, dy0 = PLAY_Y + (dk.y - 5) * CELL;
       c.beginPath();
       c.moveTo(dx0, dy0 + 3); c.lineTo(dx0, dy0); c.lineTo(dx0 + 3, dy0);
       c.moveTo(dx0 + 14 - 3, dy0); c.lineTo(dx0 + 14, dy0); c.lineTo(dx0 + 14, dy0 + 3);
@@ -925,10 +1189,14 @@ function drawPanel(g, c) {
     g.hdrHit.push({ key: lb.toLowerCase(), x0: x0 - 3, x1: fx + 3 });
     fx = x0 - 10;
   });
-  if (typeof cv !== "undefined" && cv && cv.style) { var want = hot ? "pointer" : "crosshair"; if (cv.style.cursor !== want) cv.style.cursor = want; }
+  var handle = camMax(g) > 0 && g.mx >= PANEL && g.my >= MAP_Y;
+  if (typeof cv !== "undefined" && cv && cv.style) {
+    var want = g.stripDrag ? "grabbing" : (hot || feedTabAt(g, g.mx, g.my) ? "pointer" : (handle ? "grab" : "crosshair"));
+    if (cv.style.cursor !== want) cv.style.cursor = want;
+  }
 
   /* description bar */
-  var info = hov >= 0 ? PICK[hov] : curPick(g), by = VH - BAR_H;
+  var info = hov >= 0 ? PICK[hov] : curPick(g), by = BAR_Y;
   rct(c, PANEL, by, VW - PANEL, BAR_H, "#0a0d16");
   rct(c, PANEL, by, VW - PANEL, 1, "#26344e");
   var hp = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null, line;
@@ -936,10 +1204,12 @@ function drawPanel(g, c) {
   if (hp) line = hp.name + "  " + pMood(g, hp);
   else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd);
   else if (g.my < PLAY_Y && g.mx >= PANEL) line = iSummary(g);   /* over the header: what the village knows */
-  else if (g.mx < PANEL && hov < 0) line = TIPS[g.tip];
+  else if (g.mx < PANEL && hov < 0) line = tipLine(g);
+  else if (g.camNote > g.t) line = "G  nobody lives here. this is the middle of the valley";
+  else if (g.mx >= PANEL && ((g.my >= MAP_Y && g.my < BAR_Y) || g.stripDrag)) line = "THE VALLEY  drag to look along it. swipe sideways, Shift-wheel or \u2190/\u2192. G goes home";
   else line = info.name + "  " + info.desc;
-  /* what is under the cursor, and how hot it is, on the right */
-  var rd = inPlay(g) && !hp && !hd ? cellReadout(g, cellAt(g)) : "";
+  /* what is under the cursor, and how hot it is, on the right (over the strip: what is along there) */
+  var rd = inPlay(g) && !hp && !hd ? cellReadout(g, cellAt(g)) : (g.mx >= PANEL && g.my >= MAP_Y && g.my < BAR_Y ? stripReadout(g, stripCol(g, g.mx)) : "");
   c.font = "7px " + UI_FONT;
   var rw = rd ? c.measureText(rd).width + 12 : 0, room = VW - PANEL - 10 - rw;
   if (c.measureText(line).width > room) {
@@ -1199,14 +1469,30 @@ function drawStatPop(g, c) {
 
 function drawOverlays(g, c) {
   var cx = PANEL + (VW - PANEL) / 2, k;
-  /* the news, top right */
+  /* the news, top right. a line about somewhere out of view has an arrow on it: click it to go there */
   c.font = "bold 7px " + UI_FONT;
+  g.feedHit = [];
   for (k = 0; k < g.feed.length; k++) {
     var f = g.feed[k], a = Math.min(1, (7 - f.t) / 0.8, f.t * 6), yy = PLAY_Y + 5 + k * 10;
-    var w = c.measureText(f.text).width + 8;
+    var side = feedSide(g, f), ft = f.text, w = c.measureText(ft).width + 8;
+    /* (a line with an arrow keeps room for it in the field: a long one is cut short) */
+    if (side && w > VW - PANEL - 24) {
+      while (ft.length > 8 && c.measureText(ft + "...").width + 8 > VW - PANEL - 24) ft = ft.slice(0, -1);
+      ft += "..."; w = c.measureText(ft).width + 8;
+    }
     c.globalAlpha = Math.max(0, a);
     rct(c, VW - 4 - w, yy, w, 9, "rgba(6,8,14,0.7)");
-    txt(c, f.text, VW - 8, yy + 7, 7, f.col, "right", true);
+    txt(c, ft, VW - 8, yy + 7, 7, f.col, "right", true);
+    if (side && a > 0.2) {
+      var tx = VW - 4 - w - 10, over = g.mx >= tx && g.mx < tx + 9 && g.my >= yy && g.my < yy + 9;
+      rct(c, tx, yy, 9, 9, over ? "#26385a" : "rgba(6,8,14,0.7)");
+      box(c, tx, yy, 9, 9, over ? "#8aa6d8" : "#3a4e72");
+      c.fillStyle = f.col; c.beginPath();
+      if (side < 0) { c.moveTo(tx + 6, yy + 2); c.lineTo(tx + 2.5, yy + 4.5); c.lineTo(tx + 6, yy + 7); }
+      else { c.moveTo(tx + 3, yy + 2); c.lineTo(tx + 6.5, yy + 4.5); c.lineTo(tx + 3, yy + 7); }
+      c.closePath(); c.fill();
+      g.feedHit.push({ x0: tx, y0: yy, f: f });
+    }
   }
   c.globalAlpha = 1;
   /* a milestone */
@@ -1234,22 +1520,22 @@ function drawOverlays(g, c) {
   if (g.thermal) drawThermalKey(c);
   drawStatPop(g, c);
   if (g.paused) {
-    rct(c, cx - 50, VH / 2 - 14, 100, 28, "rgba(0,0,0,0.75)");
-    txt(c, "PAUSED", cx, VH / 2 + 1, 12, "#ffd94a", "center", true);
-    txt(c, ". = ONE STEP", cx, VH / 2 + 10, 7, "#c8d0dc", "center");
+    rct(c, cx - 50, PLAY_Y + PLAY_H / 2 - 14, 100, 28, "rgba(0,0,0,0.75)");
+    txt(c, "PAUSED", cx, PLAY_Y + PLAY_H / 2 + 1, 12, "#ffd94a", "center", true);
+    txt(c, ". = ONE STEP", cx, PLAY_Y + PLAY_H / 2 + 10, 7, "#c8d0dc", "center");
   } else if (g.speed !== SPEED_1) {
     txt(c, (g.speed < SPEED_1 ? "SLOW " : "FAST ") + SPEED_NAMES[g.speed], PANEL + 6, PLAY_Y + 12, 8, "#ffd94a", "left", true);
   }
   if (g.debug) {
     var dbg = (g.fps | 0) + " fps  " + g.ms.toFixed(1) + " ms  particles " + g.np;
-    txt(c, dbg, PANEL + 6, VH - BAR_H - 4, 7, "#7aff7a", "left", true);
+    txt(c, dbg, PANEL + 6, PLAY_B - 4, 7, "#7aff7a", "left", true);
   }
 }
 
 /* the colour key for thermal vision: the same stops the palette is built on, evenly spaced */
 var THERM_KEY = [-100, -40, 0, 20, 37, 100, 300, 700, 1200, 2000];
 function drawThermalKey(c) {
-  var x0 = PANEL + 6, y0 = VH - BAR_H - 16, w = 180, n = THERM_KEY.length - 1, k, px;
+  var x0 = PANEL + 6, y0 = PLAY_B - 16, w = 180, n = THERM_KEY.length - 1, k, px;
   rct(c, x0 - 3, y0 - 3, w + 6, 17, "rgba(6,8,14,0.75)");
   for (px = 0; px < w; px++) {
     var f = px / w * n, s = Math.floor(f), t = lerp(THERM_KEY[s], THERM_KEY[Math.min(n, s + 1)], f - s), col = thermCol(t);
@@ -1266,6 +1552,7 @@ function drawThermalKey(c) {
    ------------------------------------------------------------------- */
 /* (act: what a click on the side panel is to do, instead of what is at (x, y) there: harness.js, replaying) */
 function gameTap(g, x, y, act) {
+  camJournal(g);
   saveInput(g, "tap", { x: saveR(x), y: saveR(y), cell: x >= PANEL && y >= PLAY_Y ? [Math.round(g.cx), Math.round(g.cy)] : null, btn: g.btn, pick: curPick(g).name });
   g.intro = Math.max(g.intro, 4.5);
   /* the counts along the top open (and close) their popups. a click anywhere else closes it; a click on it is eaten */
@@ -1283,9 +1570,19 @@ function gameTap(g, x, y, act) {
     g.pop = null;
     if (pr && x >= pr.x && x < pr.x + pr.w && y >= pr.y && y < pr.y + pr.h) return;
   }
+  /* the strip under the field, and the bar under that: the handle you look along the valley by */
+  if (x >= PANEL && y >= MAP_Y) { if (g.btn === 0) stripPress(g, x); return; }
+  /* a news line's arrow: there */
+  if (x >= PANEL && g.btn === 0 && feedTabAt(g, x, y)) { var ft = feedTabAt(g, x, y); camGo(g, feedX(g, ft)); g.eaten = 1; return; }   /* (and the press is used up: nothing paints till it is let go) */
   if (x >= PANEL) {
     if (!inPlay(g)) return;
     if (g.btn === 1 || g.keys.alt) { sandEyedrop(g); return; }
+    /* (in a wide valley the stroke, painting or erasing, is anchored at the press itself: a hand that is out past the edge
+       before the next update still has a stroke to carry the view along with) */
+    if (camMax(g) > 0 && (g.btn === 0 || g.btn === 2) && painting(g)) {
+      var pc = sandCell(g);
+      if (g.keys.shift) { g.ax = pc.x; g.ay = pc.y; g.av = sandBrush(g); g.lx = null; } else { g.lx = pc.x; g.ly = pc.y; }
+    }
     if (g.btn !== 0) return;
     var pk = curPick(g);
     if (pk.tool === "peasant") {
@@ -1308,13 +1605,169 @@ function gameTap(g, x, y, act) {
   }
   panelDo(g, act != null ? act : panelAt(x, y));
 }
+/* where a news line happened, now: somebody it was about, where they are now (if they are still about); else where it was */
+function feedX(g, f) {
+  var k;
+  if (f.pid != null) for (k = 0; k < g.peasants.length; k++) if (g.peasants[k].id === f.pid && !g.peasants[k].dead && g.peasants[k].state !== "space") return g.peasants[k].x;
+  if (f.did != null) for (k = 0; k < g.ducks.length; k++) if (g.ducks[k].id === f.did && !g.ducks[k].dead) return g.ducks[k].x;
+  return f.x;
+}
+/* which side of the view a news line's place is: -1, 1, or 0 (in view, or nowhere) */
+function feedSide(g, f) {
+  if (camMax(g) <= 0) return 0;
+  var x = feedX(g, f);
+  if (x == null) return 0;
+  return x < g.camI ? -1 : (x >= g.camI + VIEW_GW ? 1 : 0);
+}
+/* the news line whose arrow is at (x, y), as drawn last frame */
+function feedTabAt(g, x, y) {
+  var H = g.feedHit || [];
+  for (var k = 0; k < H.length; k++) if (x >= H[k].x0 && x < H[k].x0 + 9 && y >= H[k].y0 && y < H[k].y0 + 9)
+    return g.feed.indexOf(H[k].f) >= 0 && feedX(g, H[k].f) != null ? H[k].f : null;   /* (the very line, still up, still somewhere) */
+  return null;
+}
+/* the strip's picture of the land: rebuilt every fifteen frames (or when there is none) */
+var STRIP_COL = [];
+/* (the strip's ten rows are not even: the high sky, where little is, gets two, and the land and the air just over it the
+   other eight, so the shape of the valley reads at a glance. stripRow: the strip row a world row is in) */
+var STRIP_ROWS = [0, 40, 80, 96, 112, 126, 140, 152, 164, 175, GH];
+function stripRow(y) { for (var b = 0; b < MAP_H - 1 && y >= STRIP_ROWS[b + 1]; b++); return b; }
+for (var sv = 0; sv < NMAT; sv++) STRIP_COL[sv] = SAND_SHADES[sv] ? hex32(SAND_SHADES[sv][0], 1.15) : hex32("#909090");
+function stripLand(g) {
+  var W = STRIP_W, gw = g.gw, m = g.m, u, b, k, r, v;
+  if (!g.stripC || g.stripC.width !== W) {
+    g.stripC = document.createElement("canvas"); g.stripC.width = W; g.stripC.height = MAP_H;
+    g.stripX = g.stripC.getContext("2d"); g.stripI = g.stripX.createImageData(W, MAP_H); g.stripP = new Uint32Array(g.stripI.data.buffer);
+    g.stripN = 0;
+  }
+  if (g.stripN-- > 0) return;
+  g.stripN = 14;
+  var P = g.stripP, cnt = [0, 0, 0], val = [0, 0, 0];
+  for (b = 0; b < MAP_H; b++) {
+    var y0 = STRIP_ROWS[b], y1 = STRIP_ROWS[b + 1], mid = (y0 + y1) >> 1;
+    var ys = [y0 + ((y1 - y0) >> 2), mid, y0 + (((y1 - y0) * 3) >> 2)];
+    for (u = 0; u < W; u++) {
+      var x = Math.min(gw - 1, Math.floor(u * gw / W)), best = -1, bn = 0, n = 0;
+      for (k = 0; k < 3; k++) {
+        v = m[ys[k] * gw + x];
+        if (v === MAT.EMPTY || AIRY[v]) continue;
+        for (r = 0; r < n && val[r] !== v; r++);
+        if (r === n) { val[n] = v; cnt[n] = 0; n++; }
+        if (++cnt[r] > bn) { bn = cnt[r]; best = val[r]; }
+      }
+      P[b * W + u] = best < 0 ? g.bg[mid * gw + x] : STRIP_COL[best];
+    }
+  }
+  g.stripX.putImageData(g.stripI, 0, 0);
+}
+/* the whole valley, squeezed, under the field: the land, where you are looking, who is where */
+function drawStrip(g, c) {
+  var W = STRIP_W, gw = g.gw, k, x, y;
+  stripLand(g);
+  rct(c, PANEL, MAP_Y, W, MAP_H, "#000000");
+  var bx = stripBox(g), wide = camMax(g) > 0;
+  c.imageSmoothingEnabled = false;
+  c.globalAlpha = wide ? 0.6 : 1;
+  c.drawImage(g.stripC, PANEL, MAP_Y);
+  c.globalAlpha = 1;
+  if (wide) {
+    var sx0 = Math.max(0, Math.floor(bx.x0 - PANEL)), sw = Math.min(W - sx0, Math.ceil(bx.w));
+    c.drawImage(g.stripC, sx0, 0, sw, MAP_H, PANEL + sx0, MAP_Y, sw, MAP_H);
+  }
+  c.imageSmoothingEnabled = true;
+  /* who is where */
+  var blink = ((g.t * 6) | 0) & 1;
+  for (k = 0; k < g.ducks.length; k++) {
+    var d = g.ducks[k];
+    if (d.dead) continue;
+    rct(c, Math.floor(PANEL + d.x * W / gw), MAP_Y + stripRow(d.y), 1, 1, "#f4f4f4");
+  }
+  for (k = 0; k < g.peasants.length; k++) {
+    var p = g.peasants[k];
+    if (p.dead || p.state === "space") continue;
+    rct(c, Math.floor(PANEL + p.x * W / gw), MAP_Y + stripRow(p.y - 4), 1, 1, p.fire && blink ? "#ff7a3a" : "#ffd94a");
+  }
+  /* the news, where it happened */
+  for (k = 0; k < g.feed.length; k++) {
+    var f = g.feed[k], fx = feedX(g, f);
+    if (fx == null || !blink) continue;
+    rct(c, Math.floor(PANEL + fx * W / gw), MAP_Y, 1, 3, f.col);
+  }
+  /* and the view */
+  var hot = g.stripDrag || (g.mx >= PANEL && g.my >= MAP_Y && g.my < BAR_Y);
+  box(c, Math.round(bx.x0), MAP_Y, Math.max(3, Math.round(bx.w)), MAP_H, hot && wide ? "#8aa6d8" : "#3a4e72");
+  rct(c, PANEL, MAP_Y, W, 1, "#26344e");
+}
+/* what is along the valley at column x, for the bar: somebody, something of theirs, a lake, or nothing much */
+function stripReadout(g, x) {
+  var k, best = null, bd = 4.5;
+  for (k = 0; k < g.peasants.length; k++) {
+    var p = g.peasants[k];
+    if (p.dead || p.state === "space") continue;
+    if (Math.abs(p.x - x) < bd) { bd = Math.abs(p.x - x); best = p; }
+  }
+  if (best) return best.name;
+  for (k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.done && s.x0 != null && x >= s.x0 - 1 && x <= s.x1 + 1) return bLabel(s); }
+  var xi = clamp(Math.floor(x), 0, g.gw - 1), y;
+  for (y = 0; y < g.gh && AIRY[g.m[y * g.gw + xi]]; y++);
+  if (y < g.gh) { var v = g.m[y * g.gw + xi]; if (v === MAT.WATER) return "a lake"; if (v === MAT.SALTWATER) return "salt water"; if (v === MAT.LAVA) return "lava"; }
+  return "";
+}
+/* somebody out of view: a little arrow at that edge of the field, at their height */
+function drawEdgeMarks(g, c) {
+  if (camMax(g) <= 0 || g.down) return;
+  var L = null, R = null, ld = 1e9, rd = 1e9, k;
+  for (k = 0; k < g.peasants.length; k++) {
+    var p = g.peasants[k];
+    if (p.dead || p.state === "space") continue;
+    if (p.x < g.camI && g.camI - p.x < ld) { ld = g.camI - p.x; L = p; }
+    else if (p.x >= g.camI + VIEW_GW && p.x - g.camI - VIEW_GW < rd) { rd = p.x - g.camI - VIEW_GW; R = p; }
+  }
+  c.save();
+  c.globalAlpha = 0.6;
+  [[L, -1], [R, 1]].forEach(function (e) {
+    if (!e[0]) return;
+    var y = clamp(PLAY_Y + (e[0].y - 4) * CELL, PLAY_Y + 3, PLAY_B - 8), x = e[1] < 0 ? PANEL + 2 : VW - 5;
+    c.beginPath();
+    if (e[1] < 0) { c.moveTo(x + 3, y); c.lineTo(x, y + 2.5); c.lineTo(x + 3, y + 5); }
+    else { c.moveTo(x, y); c.lineTo(x + 3, y + 2.5); c.lineTo(x, y + 5); }
+    c.closePath();
+    c.strokeStyle = "#05070c"; c.lineWidth = 2; c.stroke();
+    c.fillStyle = "#ffd94a"; c.fill();
+  });
+  c.restore();
+}
+/* the strip: strip pixel u (0 .. 543) is world column u * gw / 544 */
+var STRIP_W = VW - PANEL;
+function stripCol(g, x) { return (x - PANEL) * g.gw / STRIP_W; }
+function stripBox(g) { return { x0: PANEL + g.camX * STRIP_W / g.gw, w: VIEW_GW * STRIP_W / g.gw }; }
+function stripPress(g, x) {
+  if (camMax(g) <= 0) return;
+  var b = stripBox(g), off;
+  if (x >= b.x0 && x < b.x0 + b.w) off = x - b.x0;   /* (the box, taken hold of where you took it) */
+  else { camGo(g, stripCol(g, x), true); off = x - stripBox(g).x0; }   /* (somewhere else: there, at once. held where the box is now, ends and all) */
+  g.stripDrag = { off: off };
+}
+function stripMove(g, last) {
+  if (!g.stripDrag) return;
+  if (!g.down && !last) { g.stripDrag = null; camJournal(g); return; }
+  g.camX = g.camT = clamp((g.mx - PANEL - g.stripDrag.off) * g.gw / STRIP_W, 0, camMax(g));
+  g.camI = Math.round(g.camX);
+}
 function gameSpeed(g, d) { g.speed = clamp(g.speed + d, 0, SPEEDS.length - 1); g.speedAcc = 0; }
+/* a wheel event, either way: sideways looks along the valley, up and down is what it always was (camWheelGesture) */
+function gameWheelXY(g, dx, dy, mode, shift, now, scale) {
+  var d = camWheelGesture(g, dx || 0, dy || 0, mode || 0, !!shift, now, scale || 1);
+  if (d) gameWheel(g, d);
+}
 function gameWheel(g, d) {
+  camJournal(g);
   saveInput(g, "wheel", { d: d });
   if (g.mx < PANEL) { var n = PICK.length; g.sel = (g.sel + n + d) % n; }   /* over the list: scroll the list */
   else g.size = clamp(g.size - d, 1, SAND_MAXSIZE);
 }
 function gameKey(g, k) {
+  camJournal(g);
   saveInput(g, "key", { k: k });
   var n = PICK.length, i;
   for (i = 0; i < n; i++) if (PICK[i].key && PICK[i].key.toLowerCase() === k) { g.sel = i; return; }
@@ -1327,7 +1780,13 @@ function gameKey(g, k) {
   else if (k === "a") gameSpeed(g, 1);
   else if (k === "c") sandClear(g);
   else if (k === ".") { if (g.paused) { sandStep(g); partStep(g); peasantsStep(g); ducksStep(g); } }
-  else if (k === "r") sandLandscape(g);
+  else if (k === "r") gameNew(g);
+  /* looking along the valley: Shift and an arrow is a screen at a time (held, they glide: camStep), Home and End the
+     ends of it, G the village */
+  else if ((k === "arrowleft" || k === "arrowright") && g.keys.shift) { camJournal(g); camNudge(g, (k === "arrowleft" ? -1 : 1) * (VIEW_GW - 32)); }
+  else if (k === "home") g.camT = 0;
+  else if (k === "end") g.camT = camMax(g);
+  else if (k === "g") { if (!camHome(g, false)) g.camNote = g.t + 2; }
   else if (k === "`") g.debug = !g.debug;
   else if (k === "t") g.thermal = !g.thermal;
   else if (k === "b") g.hush = !g.hush;   /* speech bubbles off (and on again) */
@@ -1339,7 +1798,7 @@ function gameKey(g, k) {
 var cv, ctx, vig, g, last = 0, acc = 0;
 
 function newGame() {
-  return { t: 0, mx: VW / 2, my: VH / 2, down: 0, btn: 0, keys: {}, frame: 0, fps: 60, ms: 0, debug: false,
+  return { t: 0, mx: VW / 2, my: PLAY_Y + PLAY_H / 2, down: 0, btn: 0, keys: {}, frame: 0, fps: 60, ms: 0, debug: false,
            ptr: null, samp: [], score: 0 };
 }
 
@@ -1407,10 +1866,11 @@ function initInput() {
     }
     if (e.metaKey || e.ctrlKey) return;
     var k = e.key.toLowerCase();
-    if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].indexOf(k) >= 0) e.preventDefault();
+    if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright", "home", "end"].indexOf(k) >= 0) e.preventDefault();
     g.keys.shift = e.shiftKey ? 1 : 0;
     g.keys.alt = e.altKey ? 1 : 0;
-    if (g.keys[k]) return;
+    /* (held keys do not repeat, but Shift-←/→ pages on, a screen at a time, for as long as it is held) */
+    if (g.keys[k] && !(e.shiftKey && (k === "arrowleft" || k === "arrowright"))) return;
     g.keys[k] = 1;
     actx();
     if (k === "m") { MUTED = !MUTED; return; }
@@ -1433,7 +1893,7 @@ function initInput() {
     g.ptr = e.pointerId;
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     toGame(e.clientX, e.clientY);
-    g.cx = g.pcx = (g.mx - PANEL) / CELL; g.cy = g.pcy = (g.my - PLAY_Y) / CELL;
+    g.cx = g.pcx = (g.mx - PANEL) / CELL + (g.camI || 0); g.cy = g.pcy = (g.my - PLAY_Y) / CELL;
     g.samp.length = 0; cursorSample(g);
     g.keys.shift = e.shiftKey ? 1 : 0;
     g.keys.alt = e.altKey ? 1 : 0;
@@ -1460,15 +1920,18 @@ function initInput() {
   });
   cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   cv.addEventListener("wheel", function (e) {
-    if (!e.deltaY) return;
+    if (!e.deltaY && !e.deltaX) return;
     e.preventDefault();
-    gameWheel(g, e.deltaY > 0 ? 1 : -1);
+    var r = cv.getBoundingClientRect();
+    gameWheelXY(g, e.deltaX, e.deltaY, e.deltaMode, e.shiftKey, performance.now(), r.width ? VW / r.width : 1);
   }, { passive: false });
 }
 
 /* where the cursor has been lately, so a throw uses the flick, not the last tick */
 function cursorSample(g) {
   var s = g.samp, t = performance.now();
+  /* (in the screen's cells, not the world's, on purpose: a throw is as hard as the flick, even if the view has been
+     carried along at the edge meanwhile) */
   s.push([t, (g.mx - PANEL) / CELL, (g.my - PLAY_Y) / CELL]);
   while (s.length > 12 || (s.length > 2 && t - s[0][0] > 150)) s.shift();
 }

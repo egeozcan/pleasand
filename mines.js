@@ -272,7 +272,7 @@ function mPlanMine(g, p) {
   /* (anywhere in the valley: what they have not found yet is worth going a long way for) */
   /* (on any floor of it: a shelf of rock over the valley floor has a floor of its own, and so may the valley under it) */
   if (g.mineFar) g.mineFar = g.mineFar.filter(function (f) { return f.t > g.tick; });
-  for (x = 24; x < g.gw - 24; x++) {
+  for (x = rLo(g, 24); x < rHi(g, 24); x++) {   /* (in the village's range: world.js) */
     if (g.mineNo[x] > g.tick) continue;
     var R = mMinePlots(g, x);
     for (k = 0; k < R.length; k++) { r = R[k]; r.sc = r.score - Math.abs(x - fx) * 0.05 - Math.abs(r.ref - p.y) * 0.05; C.push(r); }
@@ -286,7 +286,7 @@ function mPlanMine(g, p) {
   if (!best && iCount(g, "farm") >= 2) {
     M_FARMOK = true;
     var F = [];
-    for (x = 24; x < g.gw - 24; x++) {
+    for (x = rLo(g, 24); x < rHi(g, 24); x++) {
       if (g.mineNo[x] > g.tick) continue;   /* (given up near here lately) */
       var RF = mMinePlots(g, x);
       /* (and only over a field that can be spared: somewhere else for it to go, or others near enough) */
@@ -908,9 +908,12 @@ function mPlanFurnace(g, p) {
     g.furnaceNo[key] = g.tick + 20000;
     return null;
   }
-  for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(mFurnacePlot(g, sd > 0 ? cx + d : cx - d - 4, -sd, ref));
+  /* (in a wide valley, only a furnace, and the room to work it, in the village's range: world.js) */
+  var vr = vRange(g), wide = g.gw > VIEW_GW;
+  function fp(x, mouth) { return wide && (x - 3 < vr.x0 || x + 7 > vr.x1) ? null : mFurnacePlot(g, x, mouth, ref); }
+  for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(fp(sd > 0 ? cx + d : cx - d - 4, -sd));
   /* (nowhere with its mouth to the mine: then with its back to it. the ore will find its way round) */
-  for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(mFurnacePlot(g, sd > 0 ? cx + d : cx - d - 4, sd, ref));
+  for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(fp(sd > 0 ? cx + d : cx - d - 4, sd));
   if (!r) { p.planCD = 1500; iNoRoom(g, "a furnace"); return false; }
   var x0 = r.x0, x1 = x0 + 4, G = r.G, mouth = r.mouth, fc = mouth < 0 ? x0 : x1, bc = mouth < 0 ? x1 : x0, chim = mouth < 0 ? x0 + 3 : x0 + 1;
   var plan = [], x;

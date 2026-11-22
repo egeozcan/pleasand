@@ -33,7 +33,8 @@ function open(opts) { return new Harness(opts); }
 function Harness(opts) {
   opts = opts || {};
   this.host = {};
-  this.loaded = loader.loadGame({ seed: opts.seed == null ? 1 : opts.seed, startTime: opts.startTime || 0, host: this.host });
+  this.gw = opts.gw || (typeof process !== "undefined" && +process.env.PLEASAND_GW) || 272;   /* (PLEASAND_GW=1088: every harness wide) */
+  this.loaded = loader.loadGame({ seed: opts.seed == null ? 1 : opts.seed, startTime: opts.startTime || 0, host: this.host, gw: this.gw });
   this._eval = this.loaded.eval;
   if (!this.loaded.boot()) throw new Error("harness: the game did not boot (no DOMContentLoaded handler)");
   this.g = this._eval("g");
@@ -235,6 +236,8 @@ Harness.prototype.slow = function (on) { this.g.speed = on === false ? this._eva
 Harness.prototype.speed = function (i) { this.g.speed = i; this.g.speedAcc = 0; return this; };
 
 /* fresh village. same seed, same people, same hills */
+/* the width the next new valley (reset, NEW) is: 272, one screen, or the browser's 1088 */
+Harness.prototype.setWidth = function (w) { this.gw = w; this.loaded.window.PLEASAND_GW = w; if (this.g) this.g.bootW = w; return this; };
 Harness.prototype.reset = function (seed) {
   if (seed != null) { this.seed = seed >>> 0; }
   this.loaded.rng.reseed(this.seed);
@@ -351,8 +354,12 @@ Harness.prototype.restore = function (s) {
   if (!s || !s.state) throw new Error("restore wants a snapshot or a checkpoint id");
   /* a save's keyframe goes in exactly as loading it would put it in (save.js saveApplyState: what a save does not keep is
      left be, nobody is touching anything, a save from before the speed selector plays at 1x): one way in, not two */
-  if (s.save) this._eval("saveApplyState")(this.g, snap.clone(s.state, this._keep()), false);
+  /* (a snapshot of a valley another width: the game is made that wide first, and the view put back in it after) */
+  var sw = s.state && typeof s.state.gw === "number" ? s.state.gw : this.g.gw;
+  if (sw !== this.g.gw) this._eval("gameResize")(this.g, sw);
+  if (s.save) { this._eval("saveApplyState")(this.g, snap.clone(s.state, this._keep()), false); this._eval("camLoaded")(this.g); }   /* (as loading it would: the view, and no gesture left over) */
   else snap.apply(s, this.g, this._keep());
+  this._eval("camClamp")(this.g);
   /* the pathfinder's scratch is not state, but it is marked with generations:
      clear the marks so a restored generation cannot collide with a stale one */
   if (this.g.navSeen) { this.g.navSeen.fill(0); this.g.navShut.fill(0); }
@@ -896,13 +903,31 @@ Harness.prototype._doGive = function (a) {
 /* -------------------------------------------------------------------
    10. THE HAND: mouse, keys, clicks, drags, throws
    ------------------------------------------------------------------- */
-Harness.prototype._screen = function (x, y) {
-  return { mx: this.PANEL + (x + 0.5) * this.CELL, my: this.PLAY_Y + (y + 0.5) * this.CELL };
+/* a world cell, as the screen point over it. in a valley wider than the screen, the view is moved first if the cell is
+   out of it, or so near its edge that a drag would carry the view along (game.js camStep): centred on it, at once. the
+   same every time, so a scenario replays to the same village */
+Harness.prototype._screen = function (x, y, margin) {
+  var g = this.g, V = this._eval("VIEW_GW"), c = g.camI || 0, M = margin || 0;
+  if (x < 0) c = 0;   /* (left of the field is the picker, in the screen's own terms) */
+  /* (the smallest move that puts it in view: a cell in view is left be. a drag asks for a margin, eight columns in from
+     the side, clear of where a drag carries the view along) */
+  else if (g.gw > V && x < g.gw && (x < c + M || x >= c + V - M)) {
+    g.camX = g.camT = x < c + M ? x - M : x - V + 1 + M; this._eval("camClamp")(g); c = g.camI;
+  }
+  return { mx: this.PANEL + (x - c + 0.5) * this.CELL, my: this.PLAY_Y + (y + 0.5) * this.CELL };
+};
+/* the view, by hand: its left edge at column x (clamped to the valley) */
+Harness.prototype.cam = function (x) { var a = { x: numArg(x, "x") }; this._op("cam", a); return this._doCam(a.x); };
+Harness.prototype._doCam = function (x) {
+  var g = this.g;
+  g.camX = g.camT = x; this._eval("camClamp")(g);
+  g.cx = (g.mx - this.PANEL) / this.CELL + g.camI;   /* (the pointer is where it was on the screen: over another cell now) */
+  return this;
 };
 
 Harness.prototype.mouse = function (x, y) { this._op("mouse", { x: x, y: y }); return this._doMouse(x, y); };
-Harness.prototype._doMouse = function (x, y) {
-  var g = this.g, nx = numArg(x, "x"), ny = numArg(y, "y"), s = this._screen(nx, ny);
+Harness.prototype._doMouse = function (x, y, margin) {
+  var g = this.g, nx = numArg(x, "x"), ny = numArg(y, "y"), s = this._screen(nx, ny, margin);
   g.mx = s.mx; g.my = s.my; g.cx = nx + 0.5; g.cy = ny + 0.5;
   this.game.cursorSample(g);
   return this;
@@ -1039,11 +1064,11 @@ Harness.prototype.drag = function (x0, y0, x1, y1, opts) {
 };
 Harness.prototype._doDrag = function (a) {
   var i, t = Math.max(1, a.ticks | 0);
-  this._doMouse(a.x0, a.y0);
+  this._doMouse(a.x0, a.y0, 8);
   this.g.lx = null;
   this._press(a.btn, a.act);
   for (i = 1; i <= t; i++) {
-    this._doMouse(a.x0 + (a.x1 - a.x0) * i / t, a.y0 + (a.y1 - a.y0) * i / t);
+    this._doMouse(a.x0 + (a.x1 - a.x0) * i / t, a.y0 + (a.y1 - a.y0) * i / t, 8);
     this._tickQuiet();
   }
   return this._release();
@@ -1058,8 +1083,9 @@ Harness.prototype.flick = function (vx, vy) {
 Harness.prototype._doFlick = function (vx, vy) {
   var g = this.g, t = this.loaded.clock.t;
   g.samp.length = 0;
-  g.samp.push([t - 5 * TICK_MS, g.cx - vx * 5, g.cy - vy * 5]);
-  g.samp.push([t, g.cx, g.cy]);
+  var sx = g.cx - (g.camI || 0);   /* (the samples are in the screen's cells: game.js cursorSample) */
+  g.samp.push([t - 5 * TICK_MS, sx - vx * 5, g.cy - vy * 5]);
+  g.samp.push([t, sx, g.cy]);
   return this;
 };
 
@@ -1074,14 +1100,24 @@ Harness.prototype.input = function (o) {
   if (o.flick) this.flick(o.flick[0], o.flick[1]);
   if (o.down) this.down(o.btn);
   if (o.up) this.up();
+  if (o.cam != null) this.cam(o.cam);
   return this;
+};
+/* the browser's journal (a save's history.inputs): its camera rows, as cam ops at the updates they happened at (a row's
+   u: sixty a second since the village began, paused or not, which is the harness's own count from a new village). origin:
+   {u, ticks}, when replaying from somewhere else, such as a save: its update and this harness's tick count there. the
+   rest of the journal is for reading (save-info); the camera is what a later click needs to land where it did */
+Harness.prototype.journalCams = function (rows, origin) {
+  var o = origin || { u: 0, ticks: 0 };
+  return (Array.isArray(rows) ? rows : []).filter(function (r) { return r && r.kind === "cam" && Number.isFinite(r.x) && Number.isFinite(r.u); })
+    .map(function (r) { return { at: r.u - o.u + o.ticks, op: "cam", args: { x: r.x } }; });
 };
 
 /* -------------------------------------------------------------------
    11. REPRODUCING: the seed and every hand laid on the world
    ------------------------------------------------------------------- */
 Harness.prototype.scenario = function () {
-  var sc = { version: 2, seed: this.seed, ticks: this.ticks, hash: this.hash(), ops: this.ops.slice(), picks: this.pick.map(function (q) { return q.name; }) };
+  var sc = { version: 2, seed: this.seed, gw: this.gw, ticks: this.ticks, hash: this.hash(), ops: this.ops.slice(), picks: this.pick.map(function (q) { return q.name; }) };
   /* a village loaded from a file replays from that file, not from the seed */
   if (this.origin && this.origin.path) sc.from = { path: this.origin.path, keyframe: this.origin.keyframe, atTick: this.origin.ticks };
   return sc;
@@ -1102,6 +1138,8 @@ Harness.prototype._advanceRaw = function (n) {
 
 Harness.prototype._apply = function (op) {
   var a = op.args || {};
+  /* (a row of the browser's own journal, save.js saveInput, where it is one the harness can act on: the camera) */
+  if (op.op == null && op.kind === "cam") return this._doCam(numArg(op.x, "x"));
   switch (op.op) {
     case "place": return this._doPlace(a);
     case "fill": return this._doFill(a);
@@ -1119,6 +1157,7 @@ Harness.prototype._apply = function (op) {
     case "key": return this._doKey(a.k, a.sel);
     case "wheel": return this._doWheel(a.d, a.sel);
     case "mouse": return this._doMouse(a.x, a.y);
+    case "cam": return this._doCam(a.x);
     case "tap": return this._doTap(a.x, a.y, a.act);
     case "down": return this._doDown(a.btn, a.act);
     case "up": return this._doUp();
@@ -1142,6 +1181,7 @@ Harness.prototype.replay = function (sc, opts) {
   this._scLayout = sc.picks ? { n: sc.picks.length, SIZE_Y: this.game.SIZE_Y, BTN_Y: this.game.BTN_Y, BTN2_Y: this.game.BTN2_Y, BTN3_Y: this.game.BTN3_Y }
                             : { n: this._scPicks.length, SIZE_Y: 341, BTN_Y: 354, BTN2_Y: 367, BTN3_Y: 380 };   /* (master's panel) */
   try {
+    this.setWidth(sc.gw || 272);   /* (a scenario from before there were wide valleys is one screen wide) */
     if (sc.from && sc.from.path) this.load(sc.from.path, { keyframe: sc.from.keyframe, seed: sc.seed });
     else this.reset(sc.seed);
     for (var i = 0; i < ops.length; i++) {
@@ -1227,7 +1267,8 @@ Harness.prototype.load = function (src, opts) {
   this.breaks.forEach(function (b) { b.has = false; b.prev = undefined; b.v = undefined; });
   this._hist.frames.length = 0;
   if (this._hist.on) this._pushFrame();
-  this.trail = ((doc.history || {}).trail || []).filter(function (r) { return r.tick <= this.g.tick; }, this);
+  var tr = (doc.history || {}).trail;
+  this.trail = (Array.isArray(tr) ? tr : []).filter(function (r) { return r && Number.isFinite(r.tick) && r.tick <= this.g.tick; }, this);
   this._trailTick = -1;
   this.lastError = null;
   this.origin = { path: path, savedAt: meta.savedAt || null, source: meta.source || null, tick: meta.tick, keyframe: opts.keyframe == null ? null : opts.keyframe, ticks: this.ticks };
@@ -1236,10 +1277,13 @@ Harness.prototype.load = function (src, opts) {
   this.checkpointList = this.checkpointList.filter(function (c) { return !/^(save|kf\d+)$/.test(c.id); });
   this.checkpointList.push({ id: "save", tick: this.ticks, snap: this.snapshot() });
   var decode = this._eval("saveDecode"), self = this, ids = [];
-  (doc.keyframes || []).forEach(function (f, i) {
+  (Array.isArray(doc.keyframes) ? doc.keyframes : []).forEach(function (f, i) {
     if (kf && i === opts.keyframe) return;
     var st;
-    try { st = decode(f.state); } catch (e) { return; }
+    try { st = f && decode(f.state); } catch (e) { return; }
+    /* (a keyframe that is not a whole world is not offered: the grids a village cannot go on without, save.js) */
+    var n = (st && st.gw || 0) * (st && st.gh || 0);
+    if (!st || typeof st !== "object" || !n || self._eval("SAVE_GRID").some(function (k) { return !st[k] || st[k].length !== n; })) return;
     var ns = self._eval("saveSelOf")(doc, st, false);   /* (its brush, by name: save.js) */
     if (ns != null) st.sel = ns;
     self.checkpointList.push({ id: "kf" + i, tick: f.updates != null ? f.updates : -1, snap: {

@@ -1237,9 +1237,12 @@ function pWaters(g) {
   return out.filter(function (b) { return b.n >= 30; }).sort(function (a, b) { return b.n - a.n; });
 }
 function pPlanPalace(g, p) {
-  var B = pWaters(g), best = null, k, d;
+  var B = pWaters(g), best = null, k, d, vr = vRange(g), wide = g.gw > VIEW_GW;
+  /* (in a wide valley, water the village's range has some of, and a palace wholly in it: world.js) */
+  if (wide) B = B.filter(function (b) { return b.xb >= vr.x0 && b.xa <= vr.x1; });
   for (k = 0; k < B.length && k < 3; k++) for (d = -1; d <= 1; d += 2) {
     var r = pPalaceFit(g, B[k], d);
+    if (r && wide && r.plan.some(function (e) { var x = e.i % g.gw; return x < vr.x0 || x > vr.x1; })) r = null;   /* (all of it, ramp and all) */
     if (r && (!best || r.score > best.score)) best = r;
   }
   if (!best) return false;

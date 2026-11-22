@@ -20,10 +20,16 @@
 /* -------------------------------------------------------------------
    0. GEOMETRY + SMALL MATH
    ------------------------------------------------------------------- */
-var VW = 640, VH = 400;          /* the game, in game pixels */
+var VW = 640;                    /* the game, in game pixels, across */
 var PANEL = 96;                  /* the picker on the left */
 var PLAY_Y = 14, BAR_H = 14;     /* header on top, description bar underneath */
 var CELL = 2;                    /* game pixels per cell */
+/* the field: one screen of it is VIEW_GW columns by GH rows. the valley itself is wider (WORLD_GW, four screens), and
+   you look along it (game.js). under the field, a strip with the whole valley in it, then the description bar */
+var VIEW_GW = (VW - PANEL) / CELL, GH = 186, WORLD_GW = 4 * VIEW_GW;
+var PLAY_H = GH * CELL, PLAY_B = PLAY_Y + PLAY_H;
+var MAP_Y = PLAY_B, MAP_H = 10, BAR_Y = MAP_Y + MAP_H;
+var VH = BAR_Y + BAR_H;          /* (and down) */
 
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
 function irnd(n) { return (Math.random() * n) | 0; }
@@ -1182,6 +1188,7 @@ function sandStep(g) {
   var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k;
   g.parity ^= 1;
   g.pressN = 0;
+  if (gw > VIEW_GW && T % 300 === 0) vRangeSet(g);   /* (the village's range, now and then: section 7) */
   /* bottom to top, alternating left and right, so nothing gets a free ride */
   for (y = gh - 1; y >= 0; y--) {
     var flip = ((y + g.parity) & 1) === 1, row = y * gw;
@@ -1233,9 +1240,10 @@ function sandClear(g) {
    where the ground is flattest. a bowl, six deep, whose sides slope in a cell at a time (as steep as sand will stand,
    and it is only sand on the top five), a bit of flat floor, and water up to the row under the lowest bit of bank.
    {x0, x1, L (the top of the water)} or null if there is no room */
-function sandPool(g, top, huts, hutW) {
+function sandPool(g, top, huts, hutW, a, b) {
   var gw = g.gw, D = 6, W = 4 + 2 * D, best = -1, bs = 1e9, c0, k, x, y, lo, hi, L, ok, B, depth;
-  for (c0 = 16; c0 + W < gw - 16; c0++) {
+  if (a == null) { a = 0; b = gw; }
+  for (c0 = a + 16; c0 + W < b - 16; c0++) {
     for (k = 0, ok = true; k < huts.length; k++) if (c0 + W + 12 > huts[k] && c0 - 12 < huts[k] + hutW) ok = false;
     if (!ok) continue;
     for (x = c0 - 1, lo = 1e9, hi = -1; x <= c0 + W; x++) { lo = Math.min(lo, top[x]); hi = Math.max(hi, top[x]); }
@@ -1264,7 +1272,8 @@ function sandOres(g, rock) {
     if (g.m[j] === MAT.STONE) g.m[j] = v;
   }
   var seams = [];
-  for (k = 0; k < 11; k++) {
+  var S = gw / VIEW_GW;   /* (as much in the rock a column, however wide the valley) */
+  for (k = 0; k < 11 * S; k++) {
     cx = irnd(gw); len = 12 + irnd(22); cy = rock[cx] + 6 + irnd(20); n = 1 + irnd(3);
     for (dx = -(len >> 1); dx <= len >> 1; dx++) {
       y = cy + Math.round(Math.sin((cx + dx) * 0.17 + k) * 1.5);
@@ -1279,13 +1288,13 @@ function sandOres(g, rock) {
     for (dy = -3; dy <= 3; dy++) for (dx = -5; dx <= 5; dx++)
       if (dx * dx / (r * r * 1.8) + dy * dy / (r * r * 0.6) < 1 && ((dx * 7 + dy * 13 + k) & 3)) put(cx + dx, cy + dy, MAT.ORE);
   }
-  for (k = 0; k < 10; k++) {
+  for (k = 0; k < 10 * S; k++) {
     cx = irnd(gw); cy = rock[cx] + 9 + irnd(28); r = 2 + Math.random() * 2.5;
     for (dy = -4; dy <= 4; dy++) for (dx = -6; dx <= 6; dx++)
       if (dx * dx / (r * r * 1.8) + dy * dy / (r * r * 0.6) < 1 && Math.random() < 0.75) put(cx + dx, cy + dy, MAT.ORE);
   }
   /* (a nugget, and a little vein round it: deep, but not so deep the galleries go under it) */
-  for (k = 0; k < 10; k++) {
+  for (k = 0; k < 10 * S; k++) {
     cx = irnd(gw); cy = rock[cx] + 12 + ((irnd(26) * 0.7) | 0); n = 1 + irnd(3);
     for (r = 0; r < n; r++) put(cx + irnd(3) - 1, cy + irnd(2), MAT.GOLD);
     put(cx, cy + 1, MAT.GOLD); put(cx - 1, cy + 2, MAT.GOLD); put(cx + 1, cy + 2, MAT.GOLD);
@@ -1303,17 +1312,22 @@ function sandOres(g, rock) {
 }
 
 function sandLandscape(g) {
-  var gw = g.gw, gh = g.gh, m = g.m, x, y, top = [], ph = Math.random() * 6, lo = 0, k, dx, dy;
+  var gw = g.gw, gh = g.gh, m = g.m, x, y, top = [], ph = Math.random() * 6, lo = -1, k, dx, dy;
+  /* (a valley wider than the screen: S screens of it. the village is made in the middle one, where you first look, and
+     in a valley one screen wide that is all of it, and everything comes out as it always did) */
+  var S = gw / VIEW_GW, V0 = (gw - VIEW_GW) >> 1, V1 = V0 + VIEW_GW, VW0 = Math.min(gw, VIEW_GW);
   sandClear(g);
   ideasReset(g);   /* a new village has had no ideas yet */
   var hgt = [];
-  /* (the rock goes a good way down: somebody may want to dig in it, one day) */
-  for (x = 0; x < gw; x++) hgt[x] = gh - 32 - Math.round(Math.sin(x * 0.07 + ph) * 7 + Math.sin(x * 0.023 + ph * 2) * 13);
+  /* (the rock goes a good way down: somebody may want to dig in it, one day. and in a wide valley a long slow swell
+     as well, so that the far ends are not the middle over again) */
+  for (x = 0; x < gw; x++) hgt[x] = gh - 32 - Math.round(Math.sin(x * 0.07 + ph) * 7 + Math.sin(x * 0.023 + ph * 2) * 13 +
+                                                       (S > 1 ? Math.sin(x * 0.006 + ph * 5) * 10 : 0));
   /* flat plots for the huts, away from the edges */
   var huts = [], hutW = 22;
   for (k = 0; k < 2; k++) {
     for (var tries = 0; tries < 30; tries++) {
-      var hx = 14 + irnd(gw - hutW - 28), ok = true;
+      var hx = V0 + 14 + irnd(VW0 - hutW - 28), ok = true;
       for (var q = 0; q < huts.length; q++) if (Math.abs(huts[q] - hx) < hutW + 30) ok = false;
       if (ok) { huts.push(hx); break; }
     }
@@ -1333,18 +1347,35 @@ function sandLandscape(g) {
   sandOres(g, hgt);
   oSeedOil(g, hgt);   /* and the odd pool of oil, sealed deep in the rock (oil.js) */
   /* fill the deepest dip, away from the huts, up to just under its lip */
-  for (x = 0; x < gw; x++) {
+  for (x = V0, lo = V0; x < V1; x++) {
     var nearHut = false;
     for (k = 0; k < huts.length; k++) if (x > huts[k] - 12 && x < huts[k] + hutW + 12) nearHut = true;
     if (!nearHut && top[x] > top[lo]) lo = x;
   }
   var L = top[lo] - 9, x0 = lo, x1 = lo;
-  while (x0 > 0 && top[x0 - 1] > L) x0--;
-  while (x1 < gw - 1 && top[x1 + 1] > L) x1++;
+  while (x0 > V0 && top[x0 - 1] > L) x0--;   /* (in the middle screen: in a valley one screen wide, the whole of it) */
+  while (x1 < V1 - 1 && top[x1 + 1] > L) x1++;
   var pondOK = true, pondPool = null;
   for (k = 0; k < huts.length; k++) if (x1 > huts[k] - 4 && x0 < huts[k] + hutW + 4) pondOK = false;
+  /* (a dip that runs on out of the middle screen has no bank there: not that one, then. the world's own edges are walls) */
+  if ((x0 === V0 && V0 > 0 && top[V0 - 1] > L) || (x1 === V1 - 1 && V1 < gw && top[V1] > L)) pondOK = false;
   if (pondOK) for (x = x0; x <= x1; x++) for (y = L; y < top[x]; y++) m[y * gw + x] = MAT.WATER;
-  else if ((pondPool = sandPool(g, top, huts, hutW))) { x0 = pondPool.x0; x1 = pondPool.x1; L = pondPool.L; pondOK = true; }
+  else if ((pondPool = sandPool(g, top, huts, hutW, V0, V1))) { x0 = pondPool.x0; x1 = pondPool.x1; L = pondPool.L; pondOK = true; }
+  /* (and out in the wilds of a wide valley, now and then another, one a screen at most) */
+  var wild = [];
+  var segs = S > 1 ? [[16, V0 >> 1], [V0 >> 1, V0 - 12], [V1 + 12, (V1 + gw) >> 1], [(V1 + gw) >> 1, gw - 16]] : [];
+  for (var sc = 0; sc < segs.length; sc++) {
+    if (Math.random() >= 0.5) continue;
+    var wa = segs[sc][0], wb = segs[sc][1], wl = wa;
+    for (x = wa; x < wb; x++) if (top[x] > top[wl]) wl = x;
+    var WL = top[wl] - 9, w0 = wl, w1 = wl;
+    while (w0 > wa && top[w0 - 1] > WL) w0--;
+    while (w1 < wb - 1 && top[w1 + 1] > WL) w1++;
+    if (w1 - w0 < 6 || (w0 < V1 + 12 && w1 > V0 - 12)) continue;
+    if ((w0 === wa && top[wa - 1] > WL) || (w1 === wb - 1 && top[wb] > WL)) continue;   /* (no bank at the end of its stretch) */
+    for (x = w0; x <= w1; x++) for (y = WL; y < top[x]; y++) m[y * gw + x] = MAT.WATER;
+    wild.push([w0, w1]);
+  }
   /* huts: wooden walls, a doorway at each end, a thatched roof that will burn beautifully */
   huts.forEach(function (hx) {
     var base = top[hx + 2], H = 15, door = Math.random() < 0.5;
@@ -1361,19 +1392,28 @@ function sandLandscape(g) {
     m[(base - H + 1) * gw + hx + (door ? hutW - 1 : 0)] = MAT.GLASS;
     m[(base - H + 2) * gw + hx + (door ? hutW - 1 : 0)] = MAT.GLASS;
   });
-  /* a tree, somewhere dry and empty */
-  for (tries = 0; tries < 40; tries++) {
-    var tx = 16 + irnd(gw - 32), clear = true;
-    if (pondOK && tx > x0 - 10 && tx < x1 + 10) continue;
-    for (k = 0; k < huts.length; k++) if (tx > huts[k] - 14 && tx < huts[k] + hutW + 14) clear = false;
-    if (!clear) continue;
-    var ty = top[tx];
-    for (y = ty - 22; y < ty; y++) for (dx = 0; dx < 3; dx++) m[y * gw + tx + dx] = MAT.WOOD;
-    for (dy = -8; dy <= 8; dy++) for (dx = -13; dx <= 15; dx++) {
-      if ((dx - 1) * (dx - 1) / 196 + dy * dy / 64 < 1 + Math.random() * 0.25 && ty - 26 + dy >= 0 && tx + dx >= 0 && tx + dx < gw)
-        m[(ty - 26 + dy) * gw + tx + dx] = MAT.PLANT;
+  /* a tree, somewhere dry and empty (and in a wide valley, one more out in each screen of the wilds) */
+  var trees = [];
+  for (var tree = 0; tree < S; tree++) {
+    /* (a side of the village too narrow for a tree gets none) */
+    if (tree > 0 && ((tree & 1) ? V0 : gw - V1) < 48) continue;
+    for (tries = 0; tries < 40; tries++) {
+      /* (the first in the village's screen; the rest out either side of it, turn about) */
+      var tx = tree === 0 ? V0 + 16 + irnd(VW0 - 32) : (tree & 1 ? 16 + irnd(V0 - 32) : V1 + 16 + irnd(gw - V1 - 32)), clear = true;
+      if (pondOK && tx > x0 - 10 && tx < x1 + 10) continue;
+      for (k = 0; k < huts.length; k++) if (tx > huts[k] - 14 && tx < huts[k] + hutW + 14) clear = false;
+      for (k = 0; k < wild.length; k++) if (tx > wild[k][0] - 10 && tx < wild[k][1] + 10) clear = false;
+      for (k = 0; k < trees.length; k++) if (Math.abs(tx - trees[k]) < 30) clear = false;   /* (nor on top of another) */
+      if (!clear) continue;
+      var ty = top[tx];
+      for (y = ty - 22; y < ty; y++) for (dx = 0; dx < 3; dx++) m[y * gw + tx + dx] = MAT.WOOD;
+      for (dy = -8; dy <= 8; dy++) for (dx = -13; dx <= 15; dx++) {
+        if ((dx - 1) * (dx - 1) / 196 + dy * dy / 64 < 1 + Math.random() * 0.25 && ty - 26 + dy >= 0 && tx + dx >= 0 && tx + dx < gw)
+          m[(ty - 26 + dy) * gw + tx + dx] = MAT.PLANT;
+      }
+      trees.push(tx);
+      break;
     }
-    break;
   }
   for (var i = 0; i < m.length; i++) g.sh[i] = irnd(256);
   heatReset(g);
@@ -1383,7 +1423,7 @@ function sandLandscape(g) {
   g.popGoal = null; g.arriveT = 0; g.duckArriveT = null;
   for (k = 0; k < 7; k++) {
     for (tries = 0; tries < 20; tries++) {
-      x = 6 + irnd(gw - 12);
+      x = V0 + 6 + irnd(VW0 - 12);
       if (pondOK && x > x0 - 3 && x < x1 + 3) continue;
       y = top[x] - 1;
       while (y > 10 && SOLID[m[y * gw + x]]) y--;
@@ -1401,4 +1441,36 @@ function sandLandscape(g) {
   /* and one of them has noticed you */
   if (g.peasants.length) g.helloP = g.peasants[irnd(g.peasants.length)];
   g.helloT = 280;
+  vRangeSet(g);
 }
+
+/* -------------------------------------------------------------------
+   7. THE VILLAGE'S RANGE: in a valley wider than the screen, the span
+      the village thinks of as its own. somewhere new for a field, a mine,
+      a great work, and wherever somebody walks in from, or a falling
+      star comes down, is in it. it is everything they have built (or
+      mean to), and a good stretch either side, so it grows as they do.
+      in a valley one screen wide it is the whole valley, always
+   ------------------------------------------------------------------- */
+var R_MARGIN = 96;
+function vRangeSet(g) {
+  var gw = g.gw, lo = 1e9, hi = -1, k, s;
+  if (gw <= VIEW_GW) { g.vrange = { x0: 0, x1: gw - 1 }; return g.vrange; }
+  for (k = 0; k < g.sites.length; k++) { s = g.sites[k]; if (s.x0 == null || s.x1 == null) continue; lo = Math.min(lo, s.x0); hi = Math.max(hi, s.x1); }
+  if (hi < 0) { lo = (gw - VIEW_GW) >> 1; g.vrange = { x0: lo, x1: lo + VIEW_GW - 1 }; return g.vrange; }   /* (nobody has built anything: the middle screen) */
+  lo -= R_MARGIN; hi += R_MARGIN;
+  if (hi - lo + 1 < VIEW_GW) { var mid = (lo + hi) / 2; lo = Math.round(mid - VIEW_GW / 2); hi = lo + VIEW_GW - 1; }
+  if (lo < 0) { hi = Math.min(gw - 1, hi - lo); lo = 0; }
+  if (hi > gw - 1) { lo = Math.max(0, lo - (hi - gw + 1)); hi = gw - 1; }
+  g.vrange = { x0: lo, x1: hi };
+  return g.vrange;
+}
+function vRange(g) { return g.vrange || vRangeSet(g); }
+/* the range's bounds, as a loop over the whole valley had them: x from rLo(g, a) while x < rHi(g, b) is, in a valley
+   one screen wide, x from a while x < g.gw - b */
+function rLo(g, m) { return vRange(g).x0 + m; }
+function rHi(g, m) { return vRange(g).x1 + 1 - m; }
+function rMid(g) { var r = vRange(g); return (r.x0 + r.x1 + 1) / 2; }
+/* a column anywhere in the range: irnd(g.gw), in a valley one screen wide */
+function rCol(g) { var r = vRange(g); return r.x0 + irnd(r.x1 - r.x0 + 1); }
+function rSpan(g) { var r = vRange(g); return r.x1 - r.x0 + 1; }

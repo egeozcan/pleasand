@@ -128,7 +128,7 @@ function dDie(g, d, cause) {
   if (d.dead) return;
   d.dead = 1;
   g.duckRip = (g.duckRip || 0) + 1;
-  feed(g, pick(D_DEATH[cause] || D_DEATH.splat), "#ffb0a0");
+  feed(g, pick(D_DEATH[cause] || D_DEATH.splat), "#ffb0a0", null, d.x);
   dFeathers(g, d, cause === "nuke" ? 0 : 8);
   if (cause === "fire" || cause === "zap") {
     var j = Math.floor(d.y) * g.gw + Math.floor(d.x);
@@ -194,7 +194,7 @@ function dTakeOff(g, d, scared) {
   d.alt = clamp(Math.floor(d.y) - 18 - irnd(30), 8, g.gh - 30);
   d.goal = -1;
   for (var k = 0; k < 40; k++) {
-    var x = irnd(g.gw), y;
+    var x = rCol(g), y;   /* (water in the village's range: world.js) */
     for (y = 4; y < g.gh && AIRY[g.m[y * g.gw + x]]; y++);
     if (y < g.gh && WET[g.m[y * g.gw + x]]) { d.goal = x; break; }
   }
@@ -244,7 +244,7 @@ function duckGrab(g, d) {
   dSay(g, d, "quack", true);
 }
 function dHeld(g, d) {
-  d.x = clamp((g.mx - PANEL) / CELL - 0.5, 1, g.gw - 2);
+  d.x = clamp((g.mx - PANEL) / CELL + (g.camI || 0) - 0.5, 1, g.gw - 2);
   d.y = clamp((g.my - PLAY_Y) / CELL + 2, 4, g.gh - 1);
   d.vx = g.cvx; d.vy = g.cvy; d.anim++;
   if (d.sayT <= 0 && Math.random() < 0.02) dSay(g, d, "quack");
@@ -583,7 +583,7 @@ function duckWalkIn(g, n) {
   var first = Math.random() < 0.5 ? 1 : -1;
   for (var t = 0; t < 120; t++) {
     var side = (t & 1) ? -first : first, dir = side, off = 3 + (t >> 1) + n * 4;
-    var x = side > 0 ? off : g.gw - 1 - off, y = mGround(g, x);
+    var x = side > 0 ? rLo(g, off) : rHi(g, 1 + off), y = mGround(g, x);
     if (y < 10 || !pRoom(g, x, y - 1)) continue;
     var kind = n ? (Math.random() < 0.5 ? D_KINDS[1] : D_KINDS[2]) : null, d = duckSpawn(g, x + 0.5, y - 0.5, kind, false, true);
     if (!d) return null;
@@ -596,7 +596,7 @@ function duckWalkIn(g, n) {
       if (!b) break;
       b.dir = dir; b.lead = prev; prev = b; kids++;
     }
-    feed(g, kids ? "a duck has brought her ducklings to the valley" : "a duck has waddled into the valley", "#ffd94a", "duckarrive");
+    feed(g, kids ? "a duck has brought her ducklings to the valley" : "a duck has waddled into the valley", "#ffd94a", "duckarrive", d);
     dSay(g, d, "quack", true);
     return d;
   }
@@ -653,7 +653,8 @@ function ducksBubbles(g, c) {
   for (var k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k];
     if (d.dead || d.sayT <= 0 || g.hush) continue;
-    var sx = PANEL + (d.x + 0.5) * CELL, sy = PLAY_Y + (d.y - 6) * CELL;
+    var sx = scrX(d.x), sy = PLAY_Y + (d.y - 6) * CELL;
+    if (sx < PANEL - 20 || sx > VW + 20) continue;
     c.globalAlpha = Math.min(1, d.sayT / 12);
     c.fillStyle = "rgba(10,14,22,0.6)";
     var w = c.measureText(d.say).width + 4;

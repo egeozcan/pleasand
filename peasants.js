@@ -370,10 +370,23 @@ function pSay(g, p, kind, force, other) {
   }
 }
 
-function feed(g, text, col, key) {
+/* (at: where it happened, if it happened somewhere: a column, a peasant, a duck or a site. kept as plain numbers, so a
+   click on the line's arrow can take you there: game.js) */
+var FEED_SITE = /^(plan|fix|blaze|flood|level|charge|potash|foretell|play|tomb|niche|glaze|crypt|serv|laid|gild|organ|boycott|light|found|bell|fuel|count|crew|boom)\d+$/;
+function feed(g, text, col, key, at) {
   /* a line with a key replaces the last line with the same key, instead of stacking */
   if (key) for (var k = 0; k < g.feed.length; k++) if (g.feed[k].key === key) { g.feed.splice(k, 1); break; }
-  g.feed.push({ text: text, col: col || "#c8d0dc", t: 0, key: key });
+  var f = { text: text, col: col || "#c8d0dc", t: 0, key: key };
+  if (at != null) {
+    if (typeof at === "number") f.x = at;
+    else if (at.x0 != null && at.x1 != null) f.x = (at.x0 + at.x1) / 2;
+    else if (at.x != null) { f.x = at.x; if (at.id != null) { if (at.kind && at.kind.name) f.did = at.id; else f.pid = at.id; } }
+  } else if (key && FEED_SITE.test(key)) {
+    /* (a line about one of their sites, by its key: it happened there) */
+    var st = typeof bSite === "function" ? bSite(g, +key.replace(/^\D+/, "")) : null;
+    if (st && st.x0 != null) f.x = (st.x0 + st.x1) / 2;
+  }
+  g.feed.push(f);
   if (g.feed.length > 6) g.feed.shift();
 }
 function banner(g, title, sub) {
@@ -412,7 +425,7 @@ function pDie(g, p, cause) {
   wDropAll(g, p);       /* and a pail of wet concrete, or a lump of it gone off (wonders.js) */
   tCarry(g, p);         /* and an armful of sand off somebody's roof (tidy.js) */
   var line = pick(P_DEATH[cause]);
-  feed(g, line.replace("{n}", p.name), "#ff9a8a");
+  feed(g, line.replace("{n}", p.name), "#ff9a8a", null, p);
   iMourn(g, p, line);   /* remembered, for a grave (ideas.js) */
   wTale(g, "death", p, cause);   /* (and as a tale, for telling: wonders.js) */
   var talking = 0;
@@ -582,7 +595,7 @@ function peasantsStep(g) {
         pSay(g, q, Math.random() < 0.5 ? "oof" : "thrown", true);
         g.fx.thud++;
         p.pins = (p.pins || 0) + 1;
-        if (p.pins >= 2) feed(g, (["", "", "DOUBLE!", "TRIPLE!", "QUADRUPLE!"][p.pins] || "PEASANT AVALANCHE!") + "  " + p.name + " knocked over " + p.pins, "#ffd94a", "bowl" + p.id);
+        if (p.pins >= 2) feed(g, (["", "", "DOUBLE!", "TRIPLE!", "QUADRUPLE!"][p.pins] || "PEASANT AVALANCHE!") + "  " + p.name + " knocked over " + p.pins, "#ffd94a", "bowl" + p.id, p);
         if (p.pins >= 3) achieve(g, "strike");
       }
     }
@@ -628,10 +641,10 @@ function pStep(g, p) {
       var sx = p.spaceX; p.spaceX = null;
       /* (from the moon, straight down onto it, kept in the world: no drift sideways to carry them off the edge of it from a
          pad at the edge. the dice rolled all the same) */
-      if (sx == null) { p.state = "fly"; p.x = 10 + Math.random() * (g.gw - 20); p.y = -12; p.vx = Math.random() - 0.5; p.vy = 1.5; }   /* (as on master, die for die) */
+      if (sx == null) { p.state = "fly"; p.x = rLo(g, 10) + Math.random() * (rSpan(g) - 20); p.y = -12; p.vx = Math.random() - 0.5; p.vy = 1.5; }   /* (as on master, die for die) */
       else { p.state = "fly"; p.x = Math.max(6, Math.min(g.gw - 7, sx)); p.y = -12; Math.random(); p.vx = 0; p.vy = -0.8; }
       p.fromSpace = 240; p.flyT = sx != null ? 13 : 0;   /* (and slowly enough, at first, for the cord) */
-      feed(g, p.name + (sx != null ? " is back from the moon" : " is back from space"), "#9ad0ff");
+      feed(g, p.name + (sx != null ? " is back from the moon" : " is back from space"), "#9ad0ff", null, p);
       pSay(g, p, "space", true);
     }
     return;
@@ -768,7 +781,7 @@ function pHeat(g, p, fx, fy) {
 
 function pHeld(g, p) {
   p.rope = null; p.jumping = false; p.chute = null; p.task = null; p.bored = 0; p.climb = null; p.sleep = 0;
-  p.x = clamp((g.mx - PANEL) / CELL, 1, g.gw - 2);
+  p.x = clamp((g.mx - PANEL) / CELL + (g.camI || 0), 1, g.gw - 2);
   p.y = clamp((g.my - PLAY_Y) / CELL + 8, 9, g.gh - 1);
   p.vx = g.cvx; p.vy = g.cvy; p.spin = 0; p.falling = false; p.fallY = p.y;
   p.idle = 0; p.stun = 0;
@@ -1421,14 +1434,14 @@ function pLife(g) {
   for (var t = 0; t < 400; t++) {
     /* (in from one edge, or the other, as far as there is somewhere to stand: on the ground the village lives on, and
        if there is none of that near either edge, the first ground there is) */
-    var u = t % 200, side = (u & 1) === ((g.tick / P_ARRIVE | 0) % 2) ? 1 : -1, x = side > 0 ? 4 + (u >> 1) : g.gw - 5 - (u >> 1);
+    var u = t % 200, side = (u & 1) === ((g.tick / P_ARRIVE | 0) % 2) ? 1 : -1, x = side > 0 ? rLo(g, 4) + (u >> 1) : rHi(g, 5) - (u >> 1);   /* (the edges of the village's range: world.js) */
     var y = t < 200 ? pArriveY(g, x) : mGround(g, x);
     if (y < 10 || !pRoom(g, x, y - 1)) continue;
     var q = peasantSpawn(g, x + 0.5, y - 1, true);
     if (!q) return;
     q.born = g.tick - 20000 - ((q.voice * 7919) | 0) % 15000;   /* (grown up, and not yet old) */
-    q.dir = x < g.gw / 2 ? 1 : -1;
-    feed(g, q.name + " has moved to the valley", "#a8e08a", "arrive");
+    q.dir = x < rMid(g) ? 1 : -1;
+    feed(g, q.name + " has moved to the valley", "#a8e08a", "arrive", q);
     pSay(g, q, "arrive", true);
     if (!g.got.arrive) achieve(g, "arrive");
     return;
@@ -2165,7 +2178,7 @@ function pTask(g, p) {
       }
       if (best < 0) { p.task = null; return false; }
       pIgniteCell(g, best);
-      feed(g, p.name + " got bored and lit a fire", "#ffb070");
+      feed(g, p.name + " got bored and lit a fire", "#ffb070", null, p);
       achieve(g, "arson");
       g.burnt = true;   /* (and somebody, somewhere, starts thinking about buckets: ideas.js) */
       pSay(g, p, "light", true);
@@ -2191,7 +2204,7 @@ function pTask(g, p) {
       for (var lx = k.x - 1; lx <= k.x + 1 && log < 0; lx++) for (var ly = k.y; ly >= k.y - 1 && log < 0; ly--) if (pFuel(g.m[ly * gw + lx])) log = ly * gw + lx;
       if (log < 0) { p.task = null; return false; }
       pIgniteCell(g, log);
-      feed(g, p.name + (k.coal ? " made a fire of coal. it will be going for a while" : " made a campfire"), "#ffb070", k.coal ? "coalfire" : null);
+      feed(g, p.name + (k.coal ? " made a fire of coal. it will be going for a while" : " made a campfire"), "#ffb070", k.coal ? "coalfire" : null, p);
       achieve(g, "camp");
       pSay(g, p, "camp", true);
       p.bored = 0; p.calmT = 600; p.task = null; p.taskDone = true; p.idle = 150;   /* and stand there admiring it */
@@ -2362,7 +2375,8 @@ function peasantsBubbles(g, c, sx0, sy0) {
     var text = p.sayT > 0 && !g.hush ? p.say : (p === hover || p === g.held ? p.name : "");
     if (!text) continue;
     var tag = p.sayT <= 0 || g.hush, a = tag ? 0.85 : Math.min(1, p.sayT / 12);
-    var sx = sx0 + PANEL + (p.x + 0.5) * CELL, sy = sy0 + PLAY_Y + (Math.floor(p.y) - 10) * CELL;
+    var sx = sx0 + scrX(p.x), sy = sy0 + PLAY_Y + (Math.floor(p.y) - 10) * CELL;
+    if (sx < PANEL - 4 || sx > VW + 4) continue;   /* (out of view along the valley: their bubble is not pinned to the edge) */
     var w = Math.ceil(c.measureText(text).width) + 6, h = 10;
     var bx = clamp(Math.round(sx - w / 2), PANEL + 2, VW - w - 2), by = Math.max(PLAY_Y + 2, Math.round(sy - h - 3));
     /* nudge up out of the way of bubbles already placed */
@@ -2401,7 +2415,8 @@ function peasantsBubbles(g, c, sx0, sy0) {
   for (k = 0; k < g.ghosts.length; k++) {
     var gs = g.ghosts[k];
     if (!gs.say || gs.t < 30 || gs.t > 170 || g.hush) continue;
-    var gx = sx0 + PANEL + (gs.x + 0.5) * CELL, gy = sy0 + PLAY_Y + (gs.y - 6) * CELL;
+    var gx = sx0 + scrX(gs.x), gy = sy0 + PLAY_Y + (gs.y - 6) * CELL;
+    if (gx < PANEL - 40 || gx > VW + 40) continue;
     c.globalAlpha = Math.min(1, (170 - gs.t) / 20, (gs.t - 30) / 10) * 0.85;
     c.fillStyle = "#cfe0ff"; c.textAlign = "center";
     c.font = "italic bold 7px " + UI_FONT;

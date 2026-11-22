@@ -50,7 +50,7 @@ function shortError(e) {
    a harness, configured from the command line
    ------------------------------------------------------------------- */
 function makeHarness(o) {
-  var h = open({ seed: num(o.seed, 1), record: String(o.record) !== "false" });
+  var h = open({ seed: num(o.seed, 1), gw: o.gw == null ? undefined : num(o.gw, 272), record: String(o.record) !== "false" });
   if (num(o.history, 0) > 0) h.history(num(o.history, 24), { every: num(o["history-every"], 1) });
   list(o.break).forEach(function (e, i) { h.breakOn(e, { id: "break" + (i + 1), once: true }); });
   list(o["break-change"]).forEach(function (e, i) { h.breakOnChange(e, { id: "change" + (i + 1) }); });
@@ -355,6 +355,7 @@ function help() {
     "",
     "run options",
     "  --seed N                 which village (default 1)",
+    "  --gw N                   how wide the valley is: 272 (one screen, the default) or 1088 (the browser's four)",
     "  --ticks N                how many ticks (default 600; with --until it is the cap)",
     "  --until EXPR             play until an expression in the game's scope is true",
     "  --std                    install the standard invariants (NaN, bounds, counts)",

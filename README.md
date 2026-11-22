@@ -1,6 +1,8 @@
 # pleasand
 
-A falling sand game, with peasants in it.
+A falling sand game, with peasants in it. The valley is four screens wide, and you look
+along it: swipe sideways, Shift-wheel, the arrow keys, or drag the strip of the whole
+valley under the field.
 
 Twenty-odd kinds of pixel (sand, water, salt water, oil, wood, plant, fire,
 lava, stone, metal, ice, snow, gunpowder, ash, salt, seed, glass, acid, gas,
@@ -502,10 +504,22 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 To check it still works, with node (and still no dependencies): `node test/run.js`
 plays a few villages headless, with some things forced, and checks them (mines,
 galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
-`test/sim.js` is the game without a browser, for writing more.
+`test/sim.js` is the game without a browser, for writing more. The tests, the harness
+and its scenarios run a valley one screen wide (272 columns) unless asked for another
+(`sim.load(seed, { gw: 1088 })`, `open({ seed, gw: 1088 })`, `--gw 1088`, or
+`PLEASAND_GW=1088`), and a valley one screen wide goes exactly as it did before there
+were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is how it works.
 
 ## Controls
 
+- **Looking along the valley** (it is four screens wide): swipe sideways on a trackpad,
+  **Shift-wheel**, or hold **←/→** (**Shift-←/→** a screen at a time, **Home**/**End**
+  the ends, **G** back to the village). The strip under the field is the whole valley,
+  with everybody on it as dots and a box where you are looking: press it to go there,
+  drag it to look along. Drag a stroke, or somebody you are holding, into the left or
+  right edge and the view comes along. A news line about somewhere out of view has a
+  little arrow on it: click the arrow to go there. A save from before the valley was
+  wide loads one screen wide, as it was; NEW makes a wide one
 - **Left-drag** paints, **right-drag** erases
 - **PEASANT** (V): click to make one and hold it, click one to pick it up,
   drag and let go to throw
@@ -521,7 +535,8 @@ galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
 - **Shift-drag** draws a straight line
 - **Middle-click / Alt-click** picks up the material under the cursor
 - **1–0** pick materials, **F** firework, **E** erase, **↑/↓** cycle, **[ ]** brush size
-- **Space / P** pause, **.** single step while paused, **S** / **A** slower / faster (1/4x to 4x)
+- **Space / P** pause, **.** single step while paused, **S** / **A** slower / faster (1/4x to 4x;
+  a big village in a wide valley may not quite keep up at 4x: the world goes slower, the picture stays smooth)
 - **C** clear, **R** new village, **M** mute, **`** fps
 - **SAVE** / **LOAD** (top right, or **Ctrl/Cmd-S** / **Ctrl/Cmd-O**) keep the village in a
   `.json` file and bring it back; dropping a save on the game loads it too. A save also

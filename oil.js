@@ -79,7 +79,7 @@ P_ACHIEVE.rocket = ["ONE SMALL TOWN", "a peasant flew. the ducks are unimpressed
    ------------------------------------------------------------------- */
 function oSeedOil(g, rock) {
   var gw = g.gw, gh = g.gh, n, tries, cx, cy, rx, ry, dx, dy, x, y, j, hi, ok, inside, shell;
-  for (n = 0; n < O_POOLS; n++) {
+  for (n = 0; n < O_POOLS * gw / VIEW_GW; n++) {   /* (as many a screen, however wide the valley) */
     for (tries = 0; tries < 90; tries++) {
       cx = 18 + irnd(gw - 36);
       rx = 5 + irnd(5);             /* 5 .. 9 */
@@ -281,7 +281,7 @@ function oPlanWell(g, p) {
   for (d = 0; d <= g.gw; d++) for (sd = -1; sd <= 1; sd += 2) {
     if (!d && sd > 0) continue;
     x = fx + d * sd;
-    if (x < 10 || x > g.gw - 11) continue;
+    if (x < rLo(g, 10) || x > rHi(g, 11)) continue;   /* (in the village's range: world.js) */
     /* (on any floor of it: the rock under a shelf has oil in it as well as the rock under open sky) */
     var L = oFloors(g, x, fy);
     for (var n = 0; n < L.length; n++) for (k = 0; k < 2; k++) {
@@ -299,7 +299,7 @@ function oPlanWell(g, p) {
   if (!best && iCount(g, "farm") >= 2) {
     M_FARMOK = true;
     C = [];
-    for (x = 10; x < g.gw - 10; x++) {
+    for (x = rLo(g, 10); x < rHi(g, 10); x++) {
       var LF = oFloors(g, x, fy);
       for (var nf = 0; nf < LF.length; nf++) for (k = 0; k < 2; k++) {
         r = oWellPlot(g, x - 2, LF[nf], k);

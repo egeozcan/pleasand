@@ -28,16 +28,18 @@ function stubCtx() {
 }
 function stubCanvas() {
   return { width: 0, height: 0, getContext: stubCtx, addEventListener: function () {}, setPointerCapture: function () {},
-           getBoundingClientRect: function () { return { left: 0, top: 0, width: 640, height: 400 }; } };
+           getBoundingClientRect: function () { return { left: 0, top: 0, width: 640, height: 410 }; } };
 }
-/* a fresh game, with Math.random seeded. returns a lookup: w.g is the game, w.anything is whatever the game calls it */
-function load(seed) {
+/* a fresh game, with Math.random seeded. returns a lookup: w.g is the game, w.anything is whatever the game calls it.
+   opts.gw: the valley's width (by default one screen, 272, as every test here was written for; the browser's is 1088) */
+function load(seed, opts) {
+  opts = opts || {};
   var s = (seed == null ? 1 : seed) >>> 0 || 1, M = Object.create(Math);
   M.random = function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
   var src = FILES.map(function (f) { return fs.readFileSync(path.join(ROOT, f), "utf8").replace(/^"use strict";/m, ""); }).join("\n;\n");
   var ev = new Function("window", "document", "requestAnimationFrame", "performance", "Math",
     '"use strict";\n' + src + "\n;return function (expr) { return eval(expr); };")(
-    { addEventListener: function () {}, devicePixelRatio: 1 },
+    { addEventListener: function () {}, devicePixelRatio: 1, PLEASAND_GW: opts.gw || 272 },
     { readyState: "complete", createElement: stubCanvas, getElementById: stubCanvas, addEventListener: function () {} },
     function () {}, { now: function () { return 0; } }, M);
   return new Proxy({}, { get: function (t, k) { return k === "eval" ? ev : (k === "g" ? ev("g") : ev(k)); } });
@@ -57,7 +59,7 @@ function build(w, s) {
 /* the picture, as a png (scale: pixels to a cell; crop: [x, y, w, h] in cells) */
 function png(w, file, scale, crop) {
   var g = w.g;
-  w.drawWorld(g);
+  w.drawWorld(g, true);
   scale = scale || 3; crop = crop || [0, 0, g.gw, g.gh];
   var W = crop[2] * scale, H = crop[3] * scale, raw = Buffer.alloc((W * 4 + 1) * H), px = new Uint8Array(g.px.buffer), x, y, k;
   for (y = 0; y < H; y++) for (x = 0; x < W; x++) {

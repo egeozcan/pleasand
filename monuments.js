@@ -111,7 +111,7 @@ function mCleared(g, r, plan) {
    whichever is best. a crowded valley has room on some floor more often than on the top one */
 function mPlotAny(g, o) {
   var best = wPlot(g, o), rows = {}, x, k, L, F;
-  for (x = 8; x < g.gw - 8; x += 6) { L = mFloors(g, x, true); for (k = 0; k < L.length; k++) rows[(L[k] >> 2) << 2] = 1; }
+  for (x = rLo(g, 8); x < rHi(g, 8); x += 6) { L = mFloors(g, x, true); for (k = 0; k < L.length; k++) rows[(L[k] >> 2) << 2] = 1; }
   for (F in rows) {
     o.floor = +F;
     var r = wPlot(g, o);

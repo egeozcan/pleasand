@@ -25,6 +25,8 @@
 "use strict";
 
 var SAVE_FORMAT = "pleasand-save", SAVE_VERSION = 1;
+/* the grids a village cannot go on without: a save without any of them, or with one the wrong size, is not loaded */
+var SAVE_GRID = ["m", "aux", "sh", "T", "lat", "stamp", "vy"];
 
 /* keys of g that are drawing or per-tick scratch, not the village. the
    harness's snapshots skip the same list (test/run.js keeps them equal) */
@@ -35,10 +37,12 @@ var SAVE_SKIP = [
   "bg", "dep", "haze", "wave",                  /* the sky and its parallax */
   "zmark", "zlist", "zn", "zt",                 /* lightning flood scratch */
   "pmark", "pstack", "pgen", "pressList", "pressN", "fastList",  /* pressure and heat scratch */
-  "navSeen", "navShut", "navCost", "navFrom", "navHow", "navLad", "navHeapI", "navHeapF", "navGen"  /* pathfinding scratch, and the count it marks its rounds with (the two go together) */
+  "navSeen", "navShut", "navCost", "navFrom", "navHow", "navLad", "navHeapI", "navHeapF", "navGen",  /* pathfinding scratch, and the count it marks its rounds with (the two go together) */
+  "camI", "bootW", "stripC", "stripX", "stripI", "stripP", "stripN"   /* the column the picture is drawn from, the width a NEW valley is, the strip's picture */
 ];
 /* and the hand on the mouse: a loaded village starts with nobody pressing anything */
-var SAVE_INPUT = ["down", "btn", "ptr", "keys", "samp", "lx", "ax", "pop", "popRect", "hdrHit", "fps", "ms"];
+var SAVE_INPUT = ["down", "btn", "ptr", "keys", "samp", "lx", "ax", "pop", "popRect", "hdrHit", "fps", "ms",
+                  "whlAxis", "whlT", "edgeT", "edgeSide", "stripDrag", "arrowT", "feedHit", "svx", "camNote", "eaten", "tipW", "arrowEnd"];   /* (and the hand on the view: game.js) */
 /* and where the cursor is. peasants notice it, so the harness takes the saved one (to go on as the
    browser would have); the browser keeps the real one, under your hand */
 var SAVE_POINTER = ["mx", "my", "cx", "cy", "pcx", "pcy", "cvx", "cvy"];
@@ -385,7 +389,9 @@ function saveTrailRow(g) {
 /* once a game update: the trail every couple of seconds, a keyframe every so often */
 function saveTick(g) {
   if (!SAVE_J.on) return;
-  if (g.down && ++SAVE_J.lastDrag % 6 === 0) saveInput(g, "drag", { x: saveR(g.cx), y: saveR(g.cy), pick: curPick(g).name });
+  /* (a drag over the field, not the strip under it: and where the view is, first, game.js) */
+  if (g.down && !g.stripDrag && !g.eaten && ++SAVE_J.lastDrag % 6 === 0 && typeof camJournal === "function") camJournal(g);
+  if (g.down && !g.stripDrag && !g.eaten && SAVE_J.lastDrag % 6 === 0) saveInput(g, "drag", { x: saveR(g.cx), y: saveR(g.cy), pick: curPick(g).name });
   if (g.tick < SAVE_J.lastTrail) SAVE_J.lastTrail = SAVE_J.lastKey = -1e9;   /* a new village, or a load */
   if (g.tick - SAVE_J.lastTrail >= SAVE_TRAIL_EVERY) {
     SAVE_J.lastTrail = g.tick;
@@ -458,7 +464,8 @@ function saveProblem(g, doc) {
   if (doc.format !== SAVE_FORMAT) return "that is not a PLEASAND save";
   if (!(doc.version <= SAVE_VERSION)) return "that save is from a newer PLEASAND (version " + doc.version + ")";
   if (!doc.state) return "that save has no state in it";
-  if (doc.meta && doc.meta.grid && (doc.meta.grid.w !== g.gw || doc.meta.grid.h !== g.gh))
+  /* (a valley of another width is fine: the game is made that wide to load it. another height is not) */
+  if (doc.meta && doc.meta.grid && (doc.meta.grid.h !== g.gh || !(doc.meta.grid.w >= (typeof VIEW_GW === "number" ? VIEW_GW : 1))))
     return "that save is " + doc.meta.grid.w + "x" + doc.meta.grid.h + "; this game is " + g.gw + "x" + g.gh;
   return null;
 }
@@ -512,7 +519,40 @@ function saveLoad(g, doc, opts) {
     src = kf.state;
   }
   var st = saveDecode(src);
-  saveApplyState(g, st, !!opts.keepPointer);
+  /* (decoded first: a file that will not decode leaves the game as it was. then, if the save is of a valley another
+     width, the game is made that wide) */
+  /* (the state's own width: a keyframe may be of a valley another width than the save it is in) */
+  var sw = st && typeof st.gw === "number" ? st.gw : (doc.meta && doc.meta.grid && doc.meta.grid.w ? doc.meta.grid.w : g.gw);
+  var sh = st && typeof st.gh === "number" ? st.gh : g.gh;
+  if (!(st && Number.isInteger(st.gw) && Number.isInteger(st.gh))) throw new Error("that save does not say how big its world is");
+  if (!st || typeof st !== "object" || sh !== g.gh || !(sw >= (typeof VIEW_GW === "number" ? VIEW_GW : 1)))
+    throw new Error("that save's world is not whole (no grid, or a grid of the wrong size)");
+  /* (everything a village cannot go on without, there and the right size, before anything is touched) */
+  SAVE_GRID.forEach(function (k) {
+    if (!st[k] || !ArrayBuffer.isView(st[k]) || st[k].length !== sw * sh) throw new Error("that save's world is not whole (" + k + (st[k] ? " is " + st[k].length + " long" : " is missing") + ")");
+  });
+  ["peasants", "sites", "ducks", "feed", "banners", "ghosts"].forEach(function (k) { if (!Array.isArray(st[k])) throw new Error("that save has no " + k + " list"); });
+  ["know", "got", "causes"].forEach(function (k) { if (!st[k] || typeof st[k] !== "object") throw new Error("that save has no " + k); });
+  /* (and what the journal will want of it, made ready now: nothing after the village is put in may fail) */
+  var hist = doc.history && typeof doc.history === "object" ? doc.history : {};
+  function list(v, n) { return Array.isArray(v) ? (n ? v.slice(-n) : v) : []; }
+  var prior = { meta: doc.meta, checksFailed: list(doc.checksFailed), events: list(hist.events, 100), errors: list(hist.errors), inputs: list(hist.inputs, 50) };
+  /* (all or nothing: the game as it was is kept to hand, and put back if the save turns out not to be whole) */
+  var was = {}, wasMoon = typeof SKY_MOON !== "undefined" ? SKY_MOON : null;
+  Object.keys(g).forEach(function (k) { was[k] = g[k]; });
+  try {
+    if (sw !== g.gw && typeof gameResize === "function") gameResize(g, sw);
+    saveApplyState(g, st, !!opts.keepPointer);
+    SAVE_GRID.forEach(function (k) {
+      if (!g[k] || g[k].length !== sw * sh) throw new Error("that save's world is not whole (" + k + " is " + (g[k] ? g[k].length + " long" : "missing") + ")");
+    });
+    if (typeof camLoaded === "function") camLoaded(g);   /* (the view, and the range: inside, so a failure here undoes the load too) */
+  } catch (e) {
+    Object.keys(g).forEach(function (k) { if (!(k in was)) delete g[k]; });
+    Object.keys(was).forEach(function (k) { g[k] = was[k]; });
+    if (wasMoon && typeof SKY_MOON !== "undefined") SKY_MOON = wasMoon;
+    throw e;
+  }
   /* the brush picked, by its name, not its place in the list: a save from before something was put in the list (wet
      concrete, say) would otherwise come back with the one next to it picked */
   var ns = saveSelOf(doc, st, !kf);
@@ -524,8 +564,7 @@ function saveLoad(g, doc, opts) {
                file: opts.file || null, dice: dice != null, keyframe: kf ? { index: opts.keyframe, tick: kf.tick, why: kf.why } : null };
   /* the journal starts again, remembering where it came from (one save back, not the whole chain) */
   SAVE_J.loadedFrom = from;
-  SAVE_J.prior = { meta: doc.meta, checksFailed: doc.checksFailed || [], events: ((doc.history || {}).events || []).slice(-100),
-                   errors: (doc.history || {}).errors || [], inputs: ((doc.history || {}).inputs || []).slice(-50) };
+  SAVE_J.prior = prior;
   SAVE_J.ev.length = 0; SAVE_J.inputs.length = 0; SAVE_J.trail.length = 0; SAVE_J.keys.length = 0; SAVE_J.errKey = null;
   SAVE_J.lastTrail = SAVE_J.lastKey = -1e9;
   saveNote(g, "loaded", from);
