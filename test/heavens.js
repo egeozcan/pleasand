@@ -798,6 +798,11 @@ module.exports = function (test, check, sim) {
     check(s.repair && !s.done, "(the test wants the lens to mend)");
     Object.assign(p, { task: null, x: f.sx + 0.5, y: w.mSpotRow(g, f), coal: 0, ore: 0, glass: 1, sand: 3, logs: 2 });
     g.wPlanT = 1e9;
+    /* (the order itself: fitting the pane is picked before any charcoal, so the logs alone would not show it asked for) */
+    check(!w.wKilnOrders(g).some(function (o) { return o.r === "coal"; }), "charcoal ordered for a pane already in hand: " + JSON.stringify(w.wKilnOrders(g)));
+    p.glass = 0;
+    check(w.wKilnOrders(g).some(function (o) { return o.r === "coal"; }), "(the test wants charcoal ordered with no pane in hand)");
+    p.glass = 1;
     for (i = 0; i < 400 && !s.done && !p.dead; i++) sim.step(w, 1);
     check(s.done && g.m[lens.i] === M.GLASS, "not mended in 400 ticks: done " + s.done + ", logs " + p.logs + ", glass " + p.glass);
     check(p.logs === 2, "burnt " + (2 - p.logs) + " logs for a pane already in hand");

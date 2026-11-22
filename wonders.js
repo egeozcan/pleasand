@@ -770,10 +770,13 @@ function wKilnOrders(g) {
      furnace's pile. last, so that a coal that does turn up goes on the order it was wanted for */
   var f = mSites(g, "furnace", true)[0];
   if (f && U.length && wPocketedSure(g, "coal") + ((f.stock && f.stock.coal) || 0) < W_CHAR) {
+    /* (plain glass too, the observatory's lens say: blowing it takes a coal, leftovers.js. but not for panes already in
+       pockets, and those counted once over all the works, not once for each: one pane in hand is not two lenses mended) */
+    var glass = -wPocketedSure(g, "glass");
+    for (k = 0; k < U.length; k++) glass += bNeed(g, U[k], "glass");
     for (k = 0; k < U.length; k++) {
       s = U[k];
-      /* (plain glass too, the observatory's lens say: blowing it takes a coal, leftovers.js) */
-      if (bNeed(g, s, "firebrick") > 0 || wLimeWant(g, s) > 0 || bNeed(g, s, "stained") > 0 || Math.max(0, bNeed(g, s, "glass") - wPocketedSure(g, "glass")) > 0 || bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01) { out.push({ r: "coal", n: W_CHAR, site: s.id }); break; }
+      if (bNeed(g, s, "firebrick") > 0 || wLimeWant(g, s) > 0 || bNeed(g, s, "stained") > 0 || (glass > 0 && bNeed(g, s, "glass") > 0) || bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01) { out.push({ r: "coal", n: W_CHAR, site: s.id }); break; }
     }
   }
   return out;
