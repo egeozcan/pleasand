@@ -546,10 +546,11 @@ function sandBoom(g, i, R, P) {
   }
   g.shake = Math.min(big ? 18 : 6, g.shake + (big ? 18 : 0.7));
   g.flash = Math.max(g.flash, big ? 1 : 0.08);
-  /* (whether this one has a ring is the simulation's dice, rolled whatever: whether there is room among the rings still
-     going, which fade by the frame, not the tick, only says if it is drawn. otherwise the game played at another speed
-     would roll other dice) */
-  var ring = big || Math.random() < 0.15;
+  /* (a ring is drawn, not simulated. in a village with great works it is rolled on the side dice, every time, so that the
+     room among the rings (which fade by the frame, not the tick) cannot change what the village rolls. a plain village
+     rolls the village's dice as it always did: only when there is room among the rings, as master does) */
+  var ring = big;
+  if (!ring) ring = g.wAny ? RNG_SIDE.random() < 0.15 : (g.rings.length < 8 && Math.random() < 0.15);
   if (ring && g.rings.length < 8) g.rings.push({ x: x0, y: y0, r: 0, R: R * (big ? 3 : 2.2), t: 0 });
   peasantsBlast(g, x0, y0, R, P);
   ducksBlast(g, x0, y0, R, P);

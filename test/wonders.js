@@ -336,6 +336,7 @@ module.exports = function (test, check, sim) {
   test("wonders: a bang rolls the same dice however many rings are still fading on the screen (the game at any speed)", function () {
     function after(rings) {
       var w = sim.load(1), g = w.g, k;
+      g.wAny = true;   /* (a village with great works: a plain village rolls as master does, rings or no rings) */
       for (k = 0; k < rings; k++) g.rings.push({ x: 0, y: 0, r: 0, R: 1, t: 0 });
       for (k = 0; k < 12; k++) w.sandBoom(g, (130 + k) * g.gw + 40 + 15 * k, 3, 1.2);   /* (a meteorite's size of bang, a dozen) */
       return w.eval("Math.random()");
@@ -517,6 +518,44 @@ module.exports = function (test, check, sim) {
     check(g.salvage && g.salvage.lump === 3, "CLEAR lost what was kept: " + JSON.stringify(g.salvage));
     w.sandLandscape(g);
     check(!g.salvage && !g.wSalv, "a NEW village has the old one's salvage: " + JSON.stringify(g.salvage));
+  });
+  test("wonders: a plain village's blasts with the rings full roll what master rolls (the ring is drawn on the side dice only once there are great works)", function () {
+    /* (recorded from a worktree of 27b07de, master before the great works: six blasts at a time with eight rings still going) */
+    var want = { 1: "8e3cf84c", 3: "17558158", 7: "f3fd0f06" };
+    for (var s in want) {
+      var w = sim.load(+s), g = w.g;
+      sim.step(w, 300);
+      for (var b = 0; b < 6; b++) {
+        g.rings = []; for (var k = 0; k < 8; k++) g.rings.push({ x: 0, y: 0, r: 0, R: 1, t: 0 });
+        var i = (120 + b * 7) * g.gw + 120 + b * 11;
+        w.sandPlace(g, i, w.MAT.SAND);
+        w.sandBoom(g, i, 3, 1);
+        sim.step(w, 40);
+      }
+      sim.step(w, 200);
+      var c = 0, m = g.m; for (var j = 0; j < m.length; j++) c = (c * 31 + m[j]) >>> 0;
+      check(c.toString(16) === want[s], "seed " + s + " rolled differently from master: " + c.toString(16) + ", was " + want[s]);
+    }
+  });
+  test("wonders: in a great work's stone with no way out to the floor, and a sealed chamber above: put out at the foot of the shaft on dry footing, not held, not afloat", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y;
+    var q = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 9; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var fx = 60, fy = 100;
+    /* (a sealed chamber at rows 70..79, a shaft up to it at column fx from row 80, and the peasant's cell at the foot of it, in stone) */
+    for (x = fx - 3; x <= fx + 3; x++) for (y = 70; y <= 79; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+    for (y = 80; y <= 99; y++) w.sandPlace(g, y * g.gw + fx, M.EMPTY);
+    g.sites.push({ wonder: true, kind: "probe", plan: [{ i: fy * g.gw + fx, v: M.STONE }], done: true });
+    q.x = fx + 0.5; q.y = fy; q.buried = 5; q.state = "walk"; q.task = null;
+    check(!w.hRelease(g, q), "(the test wants nowhere to let them out to on the floor, but there is somewhere)");
+    w.wEvict(g);
+    check(q.state !== "space" && !q.aboard, "held, with dry footing under the shaft: " + q.state);
+    check(!q.dead && w.navStand(g, Math.floor(q.x), Math.floor(q.y)) === 1, "not on footing: " + q.x + "," + q.y);
+    check(Math.floor(q.y) === 99 && Math.floor(q.x) === fx, "put out at " + q.x + "," + q.y + ", not at the foot of the shaft");
+    sim.step(w, 20);
+    check(!q.dead, "dead after twenty ticks there: " + JSON.stringify(g.causes));
   });
   test("wonders: the salvage by a great work as tall as the world is fetched from footing beside it, in the world", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, y, k;
