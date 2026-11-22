@@ -557,6 +557,29 @@ module.exports = function (test, check, sim) {
     sim.step(w, 20);
     check(!q.dead, "dead after twenty ticks there: " + JSON.stringify(g.causes));
   });
+  test("wonders: put out in a great work's stone under a lower pool, with a flooded ledge above it: put out dry, not in the water", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x, y;
+    var q = g.peasants[0];
+    g.peasants.forEach(function (o) { if (o !== q) o.dead = 1; });
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = 9; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, M.STONE);
+    var fx = 60;
+    /* (a sealed chamber at rows 70..79; a shaft at fx from row 80 down: water at 95..99 standing in it, a stone ledge at 88
+       with water on it at 84..87, and the peasant's cell at 100 in stone) */
+    for (x = fx - 3; x <= fx + 3; x++) for (y = 70; y <= 79; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY);
+    for (y = 80; y <= 99; y++) w.sandPlace(g, y * g.gw + fx, M.EMPTY);
+    for (y = 95; y <= 99; y++) w.sandPlace(g, y * g.gw + fx, M.WATER);
+    w.sandPlace(g, 88 * g.gw + fx, M.STONE);
+    for (y = 84; y <= 87; y++) w.sandPlace(g, y * g.gw + fx, M.WATER);
+    g.sites.push({ wonder: true, kind: "probe", plan: [{ i: 100 * g.gw + fx, v: M.STONE }], done: true });
+    q.x = fx + 0.5; q.y = 100; q.buried = 5; q.state = "walk"; q.task = null;
+    w.wEvict(g);
+    var at = g.m[Math.floor(q.y) * g.gw + Math.floor(q.x)];
+    check(q.state !== "space" && !q.aboard, "held, with dry air to be put in: " + q.state);
+    check(at !== M.WATER, "put out in the water at " + q.x + "," + q.y);
+    sim.step(w, 30);
+    check(!q.dead && g.m[Math.floor(q.y) * g.gw + Math.floor(q.x)] !== M.WATER, "not alive in the water after 30 ticks at " + q.x.toFixed(1) + "," + q.y.toFixed(1));
+  });
   test("wonders: the salvage by a great work as tall as the world is fetched from footing beside it, in the world", function () {
     var w = sim.load(1), g = w.g, M = w.MAT, G = 150, x0 = 200, y, k;
     flat(w, x0 - 40, 80, G);

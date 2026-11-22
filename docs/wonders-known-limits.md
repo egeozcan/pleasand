@@ -42,7 +42,7 @@ The fallback in `wEvict` (wonders.js), which puts a person out on dry footing wh
 
 The "Pleasand Wonders" page has its status updated to the final state. Its pictures and card text are from earlier rounds and have not been re-rendered.
 
-## Open findings from a pi review of 4fbc88b (P2)
+## pi review of 4fbc88b (fixed)
 
-- `wonders.js` eviction fallback (~line 582): the check is `navStand === 1`, which pi says tests solid support, not dry footing. A person put out below a flooded ledge can drown on the next tick. pi reproduced this on the pre-fix and final revisions; not yet checked here.
-- `wonders.js` lens repair (~line 776): with a pane already in hand, the repair still sends a villager to make charcoal and burns two logs. pi's repro took 514 ticks where the earlier version took 20.
+- Eviction fallback (`wonders.js`): it could put someone in a flooded ledge's room and drown them. It now refuses any spot with water in its headroom. Tested: "put out in a great work's stone under a lower pool".
+- Lens repair (`wonders.js`): charcoal was ordered for a pane already in hand. Only glass still needed now counts. Tested: "a pane already in hand". That test passes with and without the change, so it guards the behaviour but does not reproduce pi's exact 514-tick repro.

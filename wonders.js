@@ -579,7 +579,7 @@ function wEvict(g) {
     /* (nowhere in the valley that will do: straight up out of it, then, to the first room there is over them that nothing
        near would kill them in, with footing to stand on there (not left in the air, to fall back down by a drain): a drain,
        fire, acid, as the walking keeps off them, paths.js navLethalNear) */
-    if (!at) for (var uy = fy - 1; uy > 9 && !at; uy--) { var room = true; for (d = 0; d <= 8 && room; d++) if (pBody(g, fx, uy - d)) room = false; if (room && navStand(g, fx, uy) === 1 && !navLethalNear(g, fx, uy, 3) && !navDrainAt(g, fx, uy)) at = { x: fx, y: uy }; }   /* (dry footing: 2 is afloat) */
+    if (!at) for (var uy = fy - 1; uy > 9 && !at; uy--) { var room = true; for (d = 0; d <= 8 && room; d++) if (pBody(g, fx, uy - d) || LIQUID[pCell(g, fx, uy - d)]) room = false; if (room && navStand(g, fx, uy) === 1 && !navLethalNear(g, fx, uy, 3) && !navDrainAt(g, fx, uy)) at = { x: fx, y: uy }; }   /* (dry footing: 2 is afloat, and a flooded ledge with water in the room over it is not dry) */
     /* (and nowhere at all: held, as the crew of a rocket that cannot go are, out of sight and unhurt, and let out as soon as
        there is somewhere: heavens.js hHeld) */
     if (!at) { p.state = "space"; p.aboard = -1; p.task = null; p.vx = p.vy = 0; p.climb = null; p.rope = null; continue; }
@@ -773,7 +773,7 @@ function wKilnOrders(g) {
     for (k = 0; k < U.length; k++) {
       s = U[k];
       /* (plain glass too, the observatory's lens say: blowing it takes a coal, leftovers.js) */
-      if (bNeed(g, s, "firebrick") > 0 || wLimeWant(g, s) > 0 || bNeed(g, s, "stained") > 0 || bNeed(g, s, "glass") > 0 || bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01) { out.push({ r: "coal", n: W_CHAR, site: s.id }); break; }
+      if (bNeed(g, s, "firebrick") > 0 || wLimeWant(g, s) > 0 || bNeed(g, s, "stained") > 0 || Math.max(0, bNeed(g, s, "glass") - wPocketedSure(g, "glass")) > 0 || bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01) { out.push({ r: "coal", n: W_CHAR, site: s.id }); break; }
     }
   }
   return out;
