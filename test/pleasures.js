@@ -55,6 +55,27 @@ module.exports = function (test, check, sim) {
     check(s.L === s.G && n === 27, "the basin is not sunk to the ground, nine by three: " + n);
   });
 
+  test("baths: sunk into sand that keeps pouring back in, they are given up, and not planned there again for a while", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    ["farm", "dig", "bucket", "mine", "masonry", "smelt", "concrete", "baths"].forEach(function (k) { g.know[k] = "TEST"; });
+    var p = g.peasants[0];
+    check(w.pPlanBaths(g, p), "nowhere for the baths in seed 1");
+    var s = g.sites.filter(function (t) { return t.kind === "baths"; })[0], x0 = s.x0, x1 = s.x1;
+    s.stock = { stone: 3 };
+    var e = s.plan.filter(function (q) { return q.v === M.EMPTY && !q.mine; })[0], stone = p.stone || 0, k;
+    /* (the same spadeful, back in the hole every time it is thrown out) */
+    for (k = 0; k < 60; k++) { w.sandPlace(g, e.i, M.SAND); w.bDig(g, s, e, p); }
+    check(g.sites.indexOf(s) >= 0, "the baths were given up after only 60 spadefuls");
+    w.sandPlace(g, e.i, M.SAND); w.bDig(g, s, e, p);
+    check(g.sites.indexOf(s) < 0, "the baths were still being dug after 61 spadefuls of the same sand");
+    check((p.stone || 0) === stone + 3, "what was on the baths' pile did not go back to the digger");
+    check(w.wSandNo(g, x0, x1), "the ground the baths were given up on is not kept clear of great works");
+    if (w.pPlanBaths(g, p)) {
+      var t = g.sites.filter(function (q) { return q.kind === "baths"; })[0];
+      check(t.x1 < x0 - 8 || t.x0 > x1 + 8, "the baths were planned again on the same sand: " + t.x0 + ".." + t.x1);
+    }
+  });
+
   test("baths: the basin holds its 27 cells of water, and none leaks in 2000 ticks", function () {
     var B = baths(0), w = B.w, g = B.g;
     check(w.wBathNeed(g, B.s) === 0, "(the test wants it full)");

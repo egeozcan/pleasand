@@ -115,7 +115,7 @@ function wIdea(id) { for (var k = 0; k < IDEAS.length; k++) if (IDEAS[k].id === 
 var W_GKEYS = ["curseSlips", "dmask", "draught", "hConst", "hLake", "hLakeT", "hLightFame", "hRock", "hRockOut", "hShower", "kilnN",
   "kingDied", "lastKing", "lastSwim", "looks", "moonCrew", "moonFlag", "moonLooks", "moonT", "noField", "noFieldT", "packFlights",
   "rocket", "rocketBooms", "thinkerDied", "wChar", "wDuckPalace", "wIceN", "wLump", "wNo", "wPlanT", "wPyrFame", "wQuarryFar",
-  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "wSalvNo", "festX", "wRngS"];   /* (only keys of the great works': resow and the rest are the village's, as on master) */
+  "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "wSalvNo", "festX", "wRngS", "wSandNo"];   /* (only keys of the great works': resow and the rest are the village's, as on master) */
 /* lightning, as it strikes at (x, y) (world.js sandLightning, not taken down a rod): any great work standing that
    answers it (the lighthouse's lantern) */
 function wStruck(g, x, y) {
@@ -128,7 +128,7 @@ function wStruck(g, x, y) {
    finds it somewhere to be). a new village (wReset, W_GKEYS) starts with none of it */
 function wClearWorld(g) {
   delete g.rocket; delete g.moonT; delete g.hRock; delete g.hRockOut; delete g.wDuckPalace;   /* (and a falling star on its way down: heavens.js) */
-  delete g.wNo; delete g.wQuarryFar; delete g.wQuarryNo; delete g.noFieldT; delete g.festX; delete g.wSalvNo;
+  delete g.wNo; delete g.wQuarryFar; delete g.wQuarryNo; delete g.noFieldT; delete g.festX; delete g.wSalvNo; delete g.wSandNo;
   g.draught = {}; if (g.dmask) g.dmask.fill(0);
   g.kiln = [];
 }
@@ -221,6 +221,23 @@ function wLayBy(g, s) {
   var why = wNote(g, s), w = /^waiting for /.test(why) ? why.replace(/^waiting for /, "") : "";
   feed(g, bLabel(s) + " is laid by for now" + (w ? ". it wants " + w.replace(/ \(.*\)$/, "") + ", and there is none to be had" : ". nobody can get on with it") +
        ". something else, meanwhile", "#c8d0dc", "laid" + s.id);
+}
+/* a great work whose hole the sand keeps pouring back into (build.js bDig): given up, what is on its pile back in p's
+   pockets, and no great work planned on that stretch of ground for a good while */
+function wGiveUpSand(g, s, p) {
+  var j = g.sites.indexOf(s);
+  if (j < 0) return;
+  feed(g, "the sand keeps pouring back into " + bLabel(s) + ". the village gives it up, and will try somewhere firmer", "#c8d0dc", "plan" + s.id);
+  if (!g.wSandNo) g.wSandNo = [];
+  g.wSandNo.push({ x0: s.x0 - 8, x1: s.x1 + 8, t: g.tick + 40000 });
+  bGiveBack(s, p);
+  bRemove(g, j);
+}
+function wSandNo(g, x0, x1) {
+  var L = g.wSandNo;
+  if (!L) return false;
+  for (var k = 0; k < L.length; k++) if (L[k].t > g.tick && x1 >= L[k].x0 && x0 <= L[k].x1) return true;
+  return false;
 }
 /* how many wonders stand */
 function wCount(g) { var n = 0, seen = {}; for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && s.done && !seen[s.kind]) { seen[s.kind] = 1; n++; } } return n; }
@@ -1508,6 +1525,7 @@ function wPlot(g, o) {
     }
     if (!ok || lo - hi > (o.rough == null ? 4 : o.rough) || hi - sky < 4) continue;
     if (g.tip && x0 <= g.tip.x + 8 && x0 + W - 1 >= g.tip.x - 8) continue;   /* (the heap: tidy.js. its site has room about it already) */
+    if (wSandNo(g, x0, x0 + W - 1)) continue;   /* (where a great work was given up to the sand lately) */
     for (k = 0; k < g.sites.length && ok; k++) {
       var t = g.sites[k];
       if (x0 + W - 1 + pad >= t.x0 && x0 - pad <= t.x1 && lo + 4 >= t.y0 && hi - sky <= t.y1) ok = false;

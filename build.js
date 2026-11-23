@@ -867,6 +867,9 @@ function bDig(g, s, e, p) {
   /* (the head of a mine sunk through sand that pours back in as fast as it is dug: after enough of that, they leave
      it, and sink one somewhere firmer. mines.js) */
   if (s.kind === "mine" && !s.done && !s.repair && !s.sunk && (e.digs = (e.digs || 0) + 1) > 60) { mGiveUpMine(g, s, p); return; }   /* (the first sinking only) */
+  /* (and a great work dug into a bank of sand that slides back into the hole as fast as it is dug: the same. the baths,
+     say, sunk beside a dune. wonders.js) */
+  if (s.wonder && !s.done && !s.repair && e.v === MAT.EMPTY && (e.digs = (e.digs || 0) + 1) > 60) { wGiveUpSand(g, s, p); return; }
   /* (where a great work's stone (or firebrick) goes, sand that runs back in as fast as it is dug out: after a few
      spadefuls, it is driven in where the sand lies, as the cathedral's crypt walls are. wonders.js) */
   if (s.wonder && e.v !== MAT.EMPTY && (e.digs = (e.digs || 0) + 1) > 4) e.drive = true;
