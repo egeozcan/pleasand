@@ -978,8 +978,9 @@ module.exports = function (test, check, sim) {
     }
     check(!p.fire && !p.dead, "the founder stood in it and caught fire");
   });
-  test("foundry: full casts on flat ground, seeds 1, 2, 4, 6: a bell each, nobody burnt, the air about the founder never near igniting", function () {
-    [1, 2, 4, 6].forEach(function (seed) {
+  /* (these, one test a seed, so they can run side by side) */
+  [1, 2, 4, 6].forEach(function (seed) {
+    test("foundry: full casts on flat ground, seed " + seed + " (of 1, 2, 4, 6): a bell each, nobody burnt, the air about the founder never near igniting", function () {
       var F = fflat(seed), w = F.w, g = F.g, p = F.p, M = F.M, i, d;
       var q = sim.load(seed).g.peasants[1];
       q.x = 172.5; q.y = 149; q.task = null; q.idle = 0; q.hunger = 0; q.bored = 0; q.born = 0; q.iron = 0; q.coal = 50;
@@ -1173,20 +1174,18 @@ module.exports = function (test, check, sim) {
     }
     return { f: f, g: g, burnt: burnt, air: air, at: at };
   }
-  test("foundry: a whole village about it, ten seeds, 8000 ticks: nobody burnt, every one casts, and the air anywhere anybody can stand about it, its roof too, under 150", function () {
-    /* (pi's cases among them: seed 2, a passer-by fallen into a plate pour; seed 11, a hot-air pulse before the first; seeds
-       1 and 4, the hot side's ground; seed 6, a vine up the jacket and across the roof) */
-    var airs = [];
-    [[1, 182.5], [2, 182.5], [3, 182.5], [7, 182.5], [11, 175.5], [4, 182.5], [5, 182.5], [6, 175.5], [8, 182.5], [9, 182.5]].forEach(function (c) {
+  /* (pi's cases among them: seed 2, a passer-by fallen into a plate pour; seed 11, a hot-air pulse before the first; seeds
+     1 and 4, the hot side's ground; seed 6, a vine up the jacket and across the roof. one test a seed, so they run side by side) */
+  [[1, 182.5], [2, 182.5], [3, 182.5], [7, 182.5], [11, 175.5], [4, 182.5], [5, 182.5], [6, 175.5], [8, 182.5], [9, 182.5]].forEach(function (c) {
+    test("foundry: a whole village about it, seed " + c[0] + " (of ten), 8000 ticks: nobody burnt, every one casts, and the air anywhere anybody can stand about it, its roof too, under 150", function () {
       var r = fSoak(c[0], c[1], 8000), seed = c[0];
       check(r.f.casts >= 1 && !r.burnt && !r.g.causes.fire && !r.g.causes.lava && !r.g.causes.heat, "seed " + seed + ": casts " + (r.f.casts || 0) + ", burning " + r.burnt + " ticks, " + JSON.stringify(r.g.causes));
       check(r.air < 150, "seed " + seed + ": the air where somebody could stand about the foundry reached " + Math.round(r.air) + " (" + r.at + ")");
-      airs.push(seed + ":" + Math.round(r.air));
+      console.log("      (the most the air anywhere anybody can stand about it got to, seed " + seed + ": " + Math.round(r.air) + ")");
     });
-    console.log("      (the most the air anywhere anybody can stand about it got to, by seed: " + airs.join(" ") + ")");
   });
-  test("foundry: a village housed either side of it, hungry as it comes, all the food on one side, seeds 1 to 5: nobody starves, and every one casts", function () {
-    [[1, 182.5], [2, 182.5], [3, 182.5], [4, 182.5], [5, 182.5]].forEach(function (c) {
+  [[1, 182.5], [2, 182.5], [3, 182.5], [4, 182.5], [5, 182.5]].forEach(function (c) {
+    test("foundry: a village housed either side of it, hungry as it comes, all the food on one side, seed " + c[0] + " (of 1 to 5): nobody starves, and every one casts", function () {
       var r = fSoak(c[0], c[1], 12000, true), seed = c[0];
       check(r.f.casts >= 1 && !r.g.causes.starve && !r.burnt && !r.g.causes.fire && !r.g.causes.heat, "seed " + seed + ": casts " + (r.f.casts || 0) + ", burning " + r.burnt + " ticks, " + JSON.stringify(r.g.causes));
     });
@@ -1324,8 +1323,8 @@ module.exports = function (test, check, sim) {
       check(hot < 150, (cliff ? "by the bluff: " : "flat: ") + "the air about the pad reached " + Math.round(hot) + " at " + at);
     });
   });
-  test("moon rocket: launches with the whole village about the pad, seeds 1 to 5: it goes, and nobody but the crew is burnt by its exhaust", function () {
-    [1, 2, 3, 4, 5].forEach(function (seed) {
+  [1, 2, 3, 4, 5].forEach(function (seed) {
+    test("moon rocket: launches with the whole village about the pad, seed " + seed + " (of 1 to 5): it goes, and nobody but the crew is burnt by its exhaust", function () {
       var P = fPad(seed), w = P.w, g = P.g, s = P.s, burnt = 0;
       g.peasants.forEach(function (q, k) { if (q === P.a) return; Object.assign(q, { x: 100.5 + k * 7, y: 149, dir: k % 2 ? 1 : -1, task: null, idle: 0, hunger: 3000 + k * 800, bored: 0, life: 1e9 }); });
       while (g.tick < 2400) { sim.step(w, 1); g.peasants.forEach(function (q) { if (q !== P.a && q.fire) burnt++; }); }
@@ -1429,8 +1428,8 @@ module.exports = function (test, check, sim) {
     check(broken && repair && coalAt > 0, "broken at " + broken + ", repair asked for at " + repair + " with coal left " + coalAt);
     check(s.casts >= 1, "never cast once mended: phase " + s.phase + " (" + s.note + "), coal " + p.coal);
   });
-  test("foundry: nobody, at work or not, walks onto a fresh casting: a whole village about a foundry casting a bell and plates", function () {
-    [1, 7].forEach(function (seed) {
+  [1, 7].forEach(function (seed) {
+    test("foundry: nobody, at work or not, walks onto a fresh casting: a whole village about a foundry casting a bell and plates, seed " + seed + " (of 1, 7)", function () {
       var w = sim.load(seed), g = w.g, M = w.MAT, x, y, i;
       w.sandClear(g);
       for (x = 0; x < g.gw; x++) for (y = 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y < 158 ? M.SAND : M.STONE);

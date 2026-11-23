@@ -416,8 +416,9 @@ module.exports = function (test, check) {
     check(far === 0, far + " of 40 constellations started out of sight of the observatory");
   });
 
-  test("valley: 20000 ticks in a wide valley, three seeds: nothing broken, nothing NaN", function () {
-    [3, 7, 14].forEach(function (s) {
+  /* (one test a seed, so they can run side by side) */
+  [3, 7, 14].forEach(function (s) {
+    test("valley: 20000 ticks in a wide valley, seed " + s + " (of 3, 7, 14): nothing broken, nothing NaN", function () {
       var h = wide(s);
       h.standardInvariants({ grid: 600, temps: 300 });
       var t0 = Date.now(), r = h.step(20000);

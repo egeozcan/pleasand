@@ -503,7 +503,9 @@ No build, no dependencies. Open `index.html`, or serve the folder:
 
 To check it still works, with node (and still no dependencies): `node test/run.js`
 plays a few villages headless, with some things forced, and checks them (mines,
-galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice).
+galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice). They run side by
+side, one process to a core, the longest first (`-j4` for four at a time, `-j1` for one
+at a time in the one process; `node test/run.js lift` for the ones with "lift" in their name).
 `test/sim.js` is the game without a browser, for writing more. The tests, the harness
 and its scenarios run a valley one screen wide (272 columns) unless asked for another
 (`sim.load(seed, { gw: 1088 })`, `open({ seed, gw: 1088 })`, `--gw 1088`, or

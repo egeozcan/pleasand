@@ -7,9 +7,15 @@
 
      node test/run.js
      node test/run.js lift
+     node test/run.js -j1 lift      (one at a time, in this process)
+
+   they run side by side, one process to a core (-jN for N of them),
+   the longest first, as long as they took last time (test/.timings.json)
    ===================================================================== */
 "use strict";
-var sim = require("./sim.js"), tests = [], only = process.argv[2];
+var ARGS = process.argv.slice(2), JOBS = 0, only;
+ARGS.forEach(function (a) { var m = /^-j(\d+)$/.exec(a); if (m) JOBS = +m[1]; else only = a; });
+var sim = require("./sim.js"), tests = [];
 function test(name, fn) { tests.push({ name: name, fn: fn }); }
 function check(ok, what) { if (!ok) throw new Error(what); }
 function know(g, list) { list.forEach(function (k) { g.know[k] = "TEST"; }); }
@@ -2476,12 +2482,65 @@ require("./heavens.js")(test, check, sim);
 /* the valley, four screens wide, and the view along it (docs/wide-valley-spec.md) */
 require("./valley.js")(test, check, sim);
 
-var failed = 0, t0 = Date.now();
-tests.forEach(function (t) {
-  if (only && t.name.indexOf(only) < 0) return;
-  var t1 = Date.now();
-  try { t.fn(); console.log("ok    " + t.name + "  (" + ((Date.now() - t1) / 1000).toFixed(1) + "s)"); }
-  catch (e) { failed++; console.log("FAIL  " + t.name + "\n      " + (e && e.message)); }
-});
-console.log((failed ? failed + " failed" : "all passed") + " in " + ((Date.now() - t0) / 1000).toFixed(0) + "s");
-process.exit(failed ? 1 : 0);
+/* one test, its console.log kept rather than printed (so tests side by side do not interleave) */
+function runOne(t) {
+  var out = [], log = console.log, t1 = Date.now(), err = null;
+  console.log = function () { out.push(Array.prototype.join.call(arguments, " ")); };
+  try { t.fn(); } catch (e) { err = String(e && e.message); } finally { console.log = log; }
+  return { ok: !err, err: err, ms: Date.now() - t1, out: out };
+}
+function report(t, r) {
+  var s = r.ok ? "ok    " + t.name + "  (" + (r.ms / 1000).toFixed(1) + "s)" : "FAIL  " + t.name + "\n      " + r.err;
+  console.log((r.out.length ? r.out.join("\n") + "\n" : "") + s);
+}
+
+if (process.env.PLEASAND_TEST_WORKER) {
+  /* a worker: the parent hands it tests by number, and it hands back how they went */
+  process.on("message", function (i) {
+    if (i < 0) return process.disconnect();
+    process.send({ i: i, r: runOne(tests[i]) });
+  });
+} else {
+  var fs = require("fs"), path = require("path"), cp = require("child_process"), os = require("os");
+  var TIMINGS = path.join(__dirname, ".timings.json"), last = {};
+  try { last = JSON.parse(fs.readFileSync(TIMINGS, "utf8")); } catch (e) { /* none yet: registration order */ }
+  var picked = [], failed = 0, failures = [], took = {}, t0 = Date.now();
+  tests.forEach(function (t, i) { if (!only || t.name.indexOf(only) >= 0) picked.push(i); });
+  /* the longest first, so no long one is left to start at the end on its own */
+  picked.sort(function (a, b) { return (last[tests[b].name] || 0) - (last[tests[a].name] || 0) || a - b; });
+  var jobs = Math.max(1, Math.min(JOBS || (os.availableParallelism ? os.availableParallelism() : os.cpus().length), picked.length));
+  var done = function (i, r) {
+    took[tests[i].name] = r.ms;
+    if (!r.ok) { failed++; failures.push(tests[i].name); }
+    report(tests[i], r);
+  };
+  var finish = function () {
+    var all = {}; Object.keys(last).forEach(function (k) { all[k] = last[k]; });
+    Object.keys(took).forEach(function (k) { all[k] = took[k]; });
+    try { fs.writeFileSync(TIMINGS, JSON.stringify(all, null, 1)); } catch (e) { /* read-only: no matter */ }
+    if (failures.length > 1) console.log("\nfailed:\n" + failures.map(function (n) { return "  " + n; }).join("\n"));
+    console.log((failed ? failed + " failed" : "all passed") + " (" + picked.length + " tests, " + jobs + " at a time) in " +
+                ((Date.now() - t0) / 1000).toFixed(1) + "s");
+    process.exit(failed ? 1 : 0);
+  };
+  if (jobs === 1) {
+    picked.sort(function (a, b) { return a - b; }).forEach(function (i) { done(i, runOne(tests[i])); });
+    finish();
+  } else {
+    var next = 0, live = 0;
+    var spawn = function () {
+      var c = cp.fork(__filename, [], { env: Object.assign({}, process.env, { PLEASAND_TEST_WORKER: "1" }) }), at = -1;
+      live++;
+      var feed = function () { at = next < picked.length ? picked[next++] : -1; c.send(at); };
+      c.on("message", function (m) { at = -1; done(m.i, m.r); feed(); });
+      c.on("exit", function (code) {
+        live--;
+        /* it died in the middle of one: that one failed, and a fresh worker takes up the rest */
+        if (at >= 0) { done(at, { ok: false, err: "the worker died (exit " + code + ")", ms: 0, out: [] }); at = -1; if (next < picked.length) spawn(); }
+        if (!live) finish();
+      });
+      feed();
+    };
+    for (var k = 0; k < jobs; k++) spawn();
+  }
+}
