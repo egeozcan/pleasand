@@ -226,9 +226,11 @@ function wLayBy(g, s) {
 function wCount(g) { var n = 0, seen = {}; for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && s.done && !seen[s.kind]) { seen[s.kind] = 1; n++; } } return n; }
 /* a crew: a third of the village, two at the least */
 function wCap(g) { return Math.max(2, Math.floor(bAlive(g) / 3)); }
+/* (not one swimming about in a pond on the way, the job still in hand: they are not at it, and in a small village they
+   would be the whole crew allowed, and nobody else let near it until they got out) */
 function wCrew(g, s, but) {
   var n = 0;
-  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k], t = q.task; if (q !== but && !q.dead && t && t.kind === "build" && t.site === s.id) n++; }
+  for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k], t = q.task; if (q !== but && !q.dead && !q.swimming && t && t.kind === "build" && t.site === s.id) n++; }
   return n;
 }
 /* is site s's crew full, as far as p is concerned (they are not in it already): its own cap, or the great works' crews
@@ -800,7 +802,7 @@ function wTintable(g, p, s, st) {
 }
 function wGoKiln(g, p) {
   var f = mSites(g, "furnace", true)[0], k;
-  if (!f || f.repair || Math.abs(f.cx - p.x) > 260 || wNoGo(g, p, f.id)) return false;
+  if (!f || f.repair || mFurnaceFar(g, f, p, 260) || wNoGo(g, p, f.id)) return false;
   /* (one at the bellows; two, with a long order in: forty firebricks for a foundry, say) */
   var at = 0, big = 0;
   for (k = 0; k < g.kiln.length; k++) big += g.kiln[k].r === "coal" ? 0 : g.kiln[k].n;
@@ -812,24 +814,25 @@ function wGoKiln(g, p) {
     var o = g.kiln[k], s = bSite(g, o.site);
     if (!s) continue;
     /* (the makings: a stone, somewhere to get it, and a coal. a pane, for stained glass) */
-    if (o.r === "coal") { if ((p.logs || 0) < 2) continue; p.task = { kind: "kiln", site: f.id, r: "coal", of: o.site, n: 0, want: o.n, t: 0, act: 0 }; return true; }
+    if (o.r === "coal") { if ((p.logs || 0) < 2) continue; p.task = { kind: "kiln", site: f.id, r: "coal", of: o.site, n: 0, want: o.n, t: 0, act: 0 }; mTrekOn(g, f, p, 260); return true; }
     var stone = (p.stone || 0) + ((s.stock && s.stock.stone) || 0) + ((f.stock && f.stock.stone) || 0);
     if (o.r !== "stained" && stone < 1) continue;
     if (o.r === "stained" && (p.glass || 0) + ((f.stock && f.stock.glass) || 0) + ((s.stock && s.stock.glass) || 0) < 1) continue;
     if (o.r === "stained" ? !wTintable(g, p, s, f.stock || {}) : (p.coal || 0) + ((f.stock && f.stock.coal) || 0) < 1) continue;
     p.task = { kind: "kiln", site: f.id, r: o.r, of: o.site, n: 0, want: o.n, t: 0, act: 0 };
+    mTrekOn(g, f, p, 260);
     return true;
   }
   return false;
 }
 function wTaskKiln(g, p, k) {
   var f = bSite(g, k.site), s = bSite(g, k.of), st, ws;
-  if (!f || !f.done || f.repair || !s || s.done || ++k.t > 5000) return iDone(p, (k.n || 0) > 0);
+  if (!f || !f.done || f.repair || !s || s.done || ++k.t > 5000 + (k.trek || 0)) return iDone(p, (k.n || 0) > 0);
   st = f.stock || (f.stock = {}); ws = s.stock || (s.stock = {});
   /* done, or out of makings: off to the site with it */
   if (k.carry) {
     var fo = wFoot(g, s), at = wNear(g, s, 2);
-    if (!at(Math.floor(p.x), Math.floor(p.y))) { if (iWalk(g, p, k, "kiln" + s.id, fo.x, fo.y, at)) pGiveUp(g, p, fo.x); return false; }
+    if (!at(Math.floor(p.x), Math.floor(p.y))) { pLeg(k, "carry"); if (iWalk(g, p, k, "kiln" + s.id, fo.x, fo.y, at)) pGiveUp(g, p, fo.x); return false; }
     if (k.r === "lime") wDepositLime(g, p, s); else bDeposit(g, p, s);
     p.bored = 0;
     return iDone(p, true);
@@ -838,7 +841,7 @@ function wTaskKiln(g, p, k) {
   if (k.r !== "stained" && k.r !== "coal" && (p.stone || 0) < 1 && (st.stone || 0) < 1) {
     if ((ws.stone || 0) < 1) { if ((p[k.r] || 0) >= 1) { k.carry = true; return false; } return iDone(p, false); }
     var wf = wFoot(g, s), wat = wNear(g, s, 2);
-    if (!wat(Math.floor(p.x), Math.floor(p.y))) { if (iWalk(g, p, k, "kstone" + s.id, wf.x, wf.y, wat)) pGiveUp(g, p, wf.x); return false; }
+    if (!wat(Math.floor(p.x), Math.floor(p.y))) { pLeg(k, "stone"); if (iWalk(g, p, k, "kstone" + s.id, wf.x, wf.y, wat)) pGiveUp(g, p, wf.x); return false; }
     var take = Math.min(ws.stone, Math.max(1, Math.ceil((k.want - k.n) / 2)));
     ws.stone -= take; p.stone = (p.stone || 0) + take;
     return true;
@@ -848,13 +851,14 @@ function wTaskKiln(g, p, k) {
   if (k.r === "stained" && (p.glass || 0) < 1 && (st.glass || 0) < 1) {
     if ((ws.glass || 0) < 1) { if ((p.stained || 0) >= 1) { k.carry = true; return false; } return iDone(p, false); }
     var gf = wFoot(g, s), gat = wNear(g, s, 2);
-    if (!gat(Math.floor(p.x), Math.floor(p.y))) { if (iWalk(g, p, k, "kglass" + s.id, gf.x, gf.y, gat)) pGiveUp(g, p, gf.x); return false; }
+    if (!gat(Math.floor(p.x), Math.floor(p.y))) { pLeg(k, "pane"); if (iWalk(g, p, k, "kglass" + s.id, gf.x, gf.y, gat)) pGiveUp(g, p, gf.x); return false; }
     var panes = Math.min(Math.floor(ws.glass), Math.max(1, k.want - k.n), L_POCKET.glass);
     ws.glass -= panes; p.glass = (p.glass || 0) + panes;
     return true;
   }
   var sx = f.sx, sy = mSpotRow(g, f), fy = Math.floor(p.y);
   if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(g, fy, sy)) {
+    pLeg(k, "furnace");
     if (iWalk(g, p, k, "kiln" + f.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);
     return false;
   }
@@ -1417,8 +1421,10 @@ function wStep(g) {
     if (s.kind === "quarry" && s.done && !s.benched) { s.benched = true; wBenched(g, s); }
     if (!s.wonder) continue;
     d = wOf(s.kind);
-    /* set at last: finished (bFinish waited for it) */
-    if (s.setting && !s.done && wReady(g, s) && bFinished(g, s)) bFinish(g, s, null);
+    /* set at last: finished (bFinish waited for it). or under repair with nothing left to put right, the sand that silted
+       it gone again by itself, say: mended (else nobody has anything to do at it, so nobody comes to say so, and it is
+       under repair for good: a garden's pool never filled) */
+    if ((s.setting || s.repair) && !s.done && wReady(g, s) && bFinished(g, s)) bFinish(g, s, null);
     if (s.done || s.gilding) wRegild(g, s); else wGoldGone(g, s);
     wLayBy(g, s);
     s.note = (s.laid ? "laid by: " : "") + wNote(g, s);

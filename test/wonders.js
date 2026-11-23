@@ -909,6 +909,159 @@ module.exports = function (test, check, sim) {
     check(limed() >= 1, "no lime reached the wonder: " + JSON.stringify(s.stock));
   });
 
+  test("wonders: the kiln's worker fetches the stone off a wonder's pile a long walk from the furnace, and still gets to the furnace", function () {
+    /* (each leg of the job, to the pile and then to the furnace, counts its own way: with one count over both, the walk
+       to the furnace never got closer than the pile had, read as stuck, and was given up halfway, every time) */
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    know(g, ["farm", "dig", "mine", "smelt", "masonry"]);
+    var p = g.peasants[0];
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+    var f = sim.build(w, sites(g, "furnace")[0]);
+    /* (the tree by the furnace, out of the way: grown into the room the furnace keeps clear, it is a furnace to mend) */
+    for (var tx = f.x0 - 8; tx <= f.x1 + 8; tx++) for (var ty = f.y0 - 16; ty < f.G; ty++) { var tj = ty * g.gw + tx; if (g.m[tj] === M.WOOD || g.m[tj] === M.PLANT) w.sandPlace(g, tj, M.EMPTY); }
+    var x = f.x1 + 90, G = w.mGround(g, x);
+    var s = cairn(w, p, x, G, 2, function () { return M.FIREBRICK; });
+    s.stock = { stone: 4 }; f.stock = {};
+    g.peasants.forEach(function (q) { q.task = null; q.mineCD = 1e9; q.hunger = 0; q.stone = 0; q.coal = 0; });
+    /* (beyond the pile, from the furnace: a walk to the pile, then a longer one back past it to the furnace) */
+    var px = x + 10;
+    check(w.mGround(g, px) > 0, "(the test wants ground past the pile)");
+    p.coal = 4; p.x = px + 0.5; p.y = w.mGround(g, px) - 1;
+    sim.step(w, 1); p.task = null; g.kiln = w.wKilnOrders(g);
+    check(w.wGoKiln(g, p) && p.task.kind === "kiln", "(the test wants them at the kiln: " + JSON.stringify(g.kiln) + ")");
+    var gave = false, k0 = g.kilnN || 0;
+    for (var k = 0; k < 4000 && (g.kilnN || 0) === k0 && !gave; k++) { sim.step(w, 1); if (!p.task || p.task.kind !== "kiln") gave = true; }
+    check((g.kilnN || 0) > k0, "no firebrick was fired (" + (gave ? "the kiln job was given up" : "still going") + ", at " + Math.floor(p.x) + ", furnace at " + f.sx + ")");
+  });
+
+  test("wonders: in a valley four screens wide, the furnace takes somebody from the far end of the village, and gives them time for the walk", function () {
+    var w = sim.load(1, { gw: 1088 }), g = w.g, M = w.MAT;
+    know(g, ["farm", "dig", "mine", "smelt", "masonry"]);
+    var p = g.peasants[0];
+    check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+    var f = sim.build(w, sites(g, "furnace")[0]);
+    var x = f.x1 + 12, G = w.mGround(g, x);
+    var s = cairn(w, p, x, G, 2, function () { return M.FIREBRICK; });
+    g.peasants.forEach(function (q) { q.task = null; q.mineCD = 1e9; q.hunger = 0; q.stone = 0; q.coal = 0; });
+    w.vRangeSet(g); var v = w.vRange(g);
+    var far = v.x1 - f.cx > f.cx - v.x0 ? v.x1 - 2 : v.x0 + 2;
+    check(Math.abs(far - f.cx) > 300, "(the test wants the village to reach more than 300 from its furnace: " + JSON.stringify(v) + ")");
+    p.stone = 4; p.coal = 4; p.x = far; p.y = w.mGround(g, Math.floor(far)) - 1;
+    sim.step(w, 1); p.task = null; g.kiln = w.wKilnOrders(g);
+    check(w.wGoKiln(g, p) && p.task.kind === "kiln", "somebody " + Math.round(Math.abs(far - f.cx)) + " off was not taken on at the kiln");
+    check(p.task.trek > 0, "no time given for the walk");
+    /* (and one screen wide, as it always was: 260 and no further) */
+    var w1 = sim.load(1), g1 = w1.g, f1 = { cx: 100 };
+    check(w1.mFurnaceFar(g1, f1, { x: 361 }, 260) && !w1.mFurnaceFar(g1, f1, { x: 359 }, 260) && w1.mTrek(g1, f1, { x: 361 }, 260) === 0, "a valley one screen wide reaches its furnace differently");
+    void s;
+  });
+
+  test("wonders: a great work short of panes gets a second glassblower at the furnace, and one short of a pane or two does not", function () {
+    function second(n) {
+      var w = sim.load(1), g = w.g, M = w.MAT;
+      know(g, ["farm", "dig", "mine", "smelt", "masonry", "glass"]);
+      var p = g.peasants[0], q = g.peasants[1];
+      check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+      var f = sim.build(w, sites(g, "furnace")[0]);
+      var x = f.x1 + 12, G = w.mGround(g, x);
+      cairn(w, p, x, G, n, function () { return M.GLASS; });
+      g.peasants.forEach(function (o) { o.task = null; o.hunger = 0; o.glass = 0; o.coal = 2; o.x = f.cx + 4; });
+      p.task = { kind: "glassblow", site: f.id, t: 0, act: 0, n: 0 };
+      for (var k = 0; k < 60; k++) { q.task = null; if (w.lGlassPick(g, q) && q.task && q.task.kind === "glassblow") return true; }
+      return false;
+    }
+    check(second(8), "eight panes wanted, and nobody joined the one glassblower");
+    check(!second(2), "two panes wanted, and a second glassblower went to the furnace for them");
+  });
+
+  test("wonders: on the way to a job, a puddle at their feet is splashed through, in a village with great works going on; not in one without", function () {
+    function kept(wAny) {
+      var w = sim.load(1), g = w.g, M = w.MAT;
+      know(g, ["farm", "dig", "mine", "smelt"]);
+      var p = g.peasants[0];
+      check(w.mPlanFurnace(g, p), "(the test wants a furnace)");
+      var f = sim.build(w, sites(g, "furnace")[0]);
+      g.wAny = wAny;
+      var x = f.x1 + 30, G = w.mGround(g, x);
+      g.peasants.forEach(function (o) { if (o !== p) o.x = 10; o.task = null; o.hunger = 0; });
+      /* (a puddle a cell deep, in a stone dip) */
+      for (var dx = -3; dx <= 3; dx++) { w.sandPlace(g, G * g.gw + x + dx, M.STONE); w.sandPlace(g, (G - 1) * g.gw + x + dx, Math.abs(dx) === 3 ? M.STONE : M.WATER); }
+      p.x = x + 0.5; p.y = G - 1; p.vx = 0; p.vy = 0; p.ash = 30;
+      p.task = { kind: "store", site: f.id, what: "ash", put: true, want: 0, t: 0 };
+      sim.step(w, 1);
+      check(w.LIQUID[w.pCell(g, x, G - 1)] || p.wade, "(the test wants them standing in the puddle)");
+      return !!(p.task && p.task.kind === "store");
+    }
+    check(kept(true), "a puddle at their feet, and they dropped the job");
+    check(!kept(false), "a village with no great works kept a job in the water: it should go on as it always did");
+  });
+
+  test("wonders: carried on past the place on the way they were making for, they go on from where they are, not back to it", function () {
+    /* (a route over a pond's deep floor: the route walks it, and they float up and swim, on past the places on it, to the
+       far slope. back to the first of them, they swam back over, and back, for ever. a village with none goes back) */
+    function dir(wAny) {
+      var w = sim.load(1), g = w.g;
+      g.wAny = wAny;
+      var p = g.peasants[0], x0 = Math.floor(p.x) + 10, P = [], k;
+      for (k = 0; k < 40; k++) P.push({ x: x0 + k, y: w.mGround(g, x0 + k) - 1, m: 0 });
+      var at = P[25];
+      p.x = at.x + 0.5; p.y = at.y; p.dir = 1; p.swimming = false; p.wade = true;   /* (on the far slope, feet in the water) */
+      p.nav = { key: "t", path: P, i: 1, t: g.tick, off: 0 };
+      var end = P[P.length - 1];
+      w.pathGo(g, p, "t", end.x, end.y, function (x, y) { return x === end.x && y === end.y; });
+      check(p.nav.key === "t" && p.nav.path === P, "(the test wants the route it gave them kept)");
+      return p.dir;
+    }
+    check(dir(true) === 1, "turned back to the first place on the route, behind them");
+    check(dir(false) === -1, "a village with no great works went on along the route: it should go on as it always did");
+  });
+
+  test("wonders: a great work under repair with nothing left to put right is mended, with nobody at it", function () {
+    /* (else nobody has anything to do at it, so nobody comes to finish it, and it is under repair for good: a garden's
+       pool, under repair, is never filled) */
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    var p = g.peasants[0], x = Math.floor(p.x) + 20, G = w.mGround(g, x);
+    var s = cairn(w, p, x, G, 2, function () { return M.BRICK; });
+    sim.build(w, s);
+    g.peasants.forEach(function (q) { q.task = null; q.x = 10; });
+    s.done = false; s.repair = true;
+    for (var k = 0; k < 120 && !s.done; k++) sim.step(w, 1);
+    check(s.done && !s.repair, "still under repair, with nothing to mend");
+  });
+
+  test("wonders: a bucket fetched for a great work's pool is carried through the shallows on the way, like any other", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT;
+    var p = g.peasants[0], x = Math.floor(p.x) + 30, G = w.mGround(g, x);
+    var s = cairn(w, p, x + 20, w.mGround(g, x + 20), 2, function () { return M.BRICK; });
+    sim.build(w, s);
+    /* (the cairn, for this, holds water: a dry cell to fill, and somewhere to tip it in) */
+    var d = w.wOf("cairn"), dry0 = d.dry, spout0 = d.spout, cell = (w.mGround(g, x + 20) - 2) * g.gw + x + 20;
+    d.dry = function () { return [cell]; }; d.spout = function () { return { x: x + 20, y: w.mGround(g, x + 20) - 1 }; };
+    g.peasants.forEach(function (o) { if (o !== p) o.x = 10; o.task = null; o.hunger = 0; });
+    for (var dx = -3; dx <= 3; dx++) { w.sandPlace(g, G * g.gw + x + dx, M.STONE); w.sandPlace(g, (G - 1) * g.gw + x + dx, Math.abs(dx) === 3 ? M.STONE : M.WATER); }
+    p.x = x + 0.5; p.y = G - 1; p.vx = 0; p.vy = 0;
+    p.task = { kind: "pfill", site: s.id, w: { x: x + 60, y: G - 1 }, t: 0, act: 0 };
+    sim.step(w, 1);
+    check(p.wade, "(the test wants them standing in the puddle)");
+    var kept = p.task && p.task.kind === "pfill";
+    d.dry = dry0; d.spout = spout0;
+    check(kept, "a puddle at their feet, and they dropped the bucket job");
+  });
+
+  test("wonders: sand dug out is not thrown where it comes down in water, in a village with great works going on", function () {
+    var w = sim.load(1), g = w.g, M = w.MAT, x, y;
+    var x0 = 120, G = w.mGround(g, x0);
+    /* (flat stone, and a pool of water a long throw off to the right) */
+    for (x = x0 - 40; x <= x0 + 40; x++) { for (y = G - 30; y < G; y++) w.sandPlace(g, y * g.gw + x, M.EMPTY); for (y = G; y < G + 4; y++) w.sandPlace(g, y * g.gw + x, M.STONE); }
+    for (x = x0 + 4; x <= x0 + 40; x++) w.sandPlace(g, (G - 1) * g.gw + x, M.WATER);
+    g.wAny = true;
+    /* (a spadeful at x0, thrown right first: that way it comes down in the water, so it goes left) */
+    var j = (G - 2) * g.gw + x0; w.sandPlace(g, j, M.SAND);
+    var np = g.np;
+    check(w.bToss(g, j, 1), "(the test wants the spadeful thrown)");
+    check(g.np === np + 1 && g.pvx[np] < 0, "it was thrown into the water (" + (g.pvx[np] > 0 ? "right" : "nowhere") + ")");
+  });
+
   test("wonders: a pane of coloured glass is the colour of what went into it: coal makes amber, whatever the window was drawn as", function () {
     var w = sim.load(1), g = w.g, M = w.MAT;
     know(g, ["farm", "dig", "mine", "smelt", "masonry", "glass", "stained"]);

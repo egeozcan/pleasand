@@ -885,9 +885,31 @@ function bToss(g, j, out) {
       if (X < 0 || X >= gw || Y < 0) break;
       if (!AIRY[pCell(g, Math.floor(X), Math.floor(Y))]) ok = false;
     }
+    if (ok && g.wAny && !bTossLands(g, x, y, out)) ok = false;
     if (ok && sandFling(g, j, out * (0.9 + Math.random() * 0.2), -1.6 - Math.random() * 0.2)) return true;
   }
   return false;
+}
+/* (in a village with great works going on: and not where it comes down in water, or on a great work: a field dug beside
+   the hanging gardens throws its sand into their pool, a spadeful at a time, and the pool is never full. followed on
+   past the first cells, the same arc, to the first thing it meets) */
+function bTossLands(g, x, y, out) {
+  var gw = g.gw, t, X, Y, px = -1, py = -1, c, k, s;
+  for (t = 0.25; t <= 90; t += 0.25) {   /* (in quarter-ticks: coming down, a grain falls a cell and more a tick, and a puddle is a cell deep) */
+    X = Math.floor(x + 0.5 + out * t); Y = Math.floor(y + 0.5 - 1.7 * t + 0.055 * t * t);
+    if (X < 0 || X >= gw || Y >= g.gh) return true;   /* (off the edge, or down a hole out of the grid: nobody's pool) */
+    if (Y < 0 || (X === x && Y === y)) continue;   /* (the spadeful itself, still in the hole it came out of) */
+    c = pCell(g, X, Y);
+    if (!AIRY[c]) break;
+    px = X; py = Y;
+  }
+  if (t > 90 || px < 0) return true;
+  if (LIQUID[c]) return false;
+  for (k = 0; k < g.sites.length; k++) {
+    s = g.sites[k];
+    if (s.wonder && px >= s.x0 - 1 && px <= s.x1 + 1 && py >= s.y0 - 1 && py <= s.y1 + 1) return false;
+  }
+  return true;
 }
 function bFinish(g, s, p) {
   if (s.wonder && !wReady(g, s)) return;   /* (wet concrete in it, still going off: wonders.js) */

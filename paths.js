@@ -37,6 +37,10 @@ var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LA
 function navStand(g, x, y) {
   if (x < 1 || x > g.gw - 2 || y < 9 || y >= g.gh) return 0;
   if (!pRoom(g, x, y) || navHazard(g, x, y)) return 0;
+  /* (pRoom looks at four rows of them, not all nine: a slab a cell thick at their knees slips between, the roof of a
+     furnace's hearth say, and a route goes in at its mouth and up through it, where nobody can follow. a village with
+     great works going on looks there too; one with none finds its way as it always did) */
+  if (g.wAny && (pBody(g, x, y - 1) || pBody(g, x, y - 2))) return 0;
   if (pGround(g, x, y)) return 1;
   if (WET[pCell(g, x, y + 1)] && !LIQUID[pCell(g, x, y)]) return 2;
   return 0;
@@ -280,6 +284,11 @@ function pathGo(g, p, key, tx, ty, goal) {
      arriving at the top of the bush, and the sink from up there goes nowhere.
      next.m is the move out of here, so this tightens only where the through
      move starts, not where it lands */
+  /* (further along it than the place they were making for: a swim over a pond's deep floor, where the route walks and they
+     float, carried them on past it. on from there, not back to it, and back across the pond, and back, for ever. in the
+     water, in a village with great works going on; one with none finds its way as it always did) */
+  if (g.wAny && (p.swimming || p.wade) && nv.i < P.length &&Math.abs(p.x - P[nv.i].x - 0.5) + Math.abs(py - P[nv.i].y) > 4)
+    for (k = Math.min(P.length - 1, nv.i + 60); k > nv.i; k--) if (Math.abs(p.x - P[k].x - 0.5) < 0.7 && Math.abs(py - P[k].y) < 3.5) { nv.i = k; break; }
   while (nv.i < P.length) {
     var here = P[nv.i], next = P[nv.i + 1];
     var vtol = next && (next.m === NAV_UP || next.m === NAV_DOWN || next.m === NAV_HOOK) ? 0.75 : 3.5;   /* (a hook, too: thrown from a row off, it does not catch) */

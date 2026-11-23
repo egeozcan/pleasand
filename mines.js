@@ -975,9 +975,16 @@ function mFurnacePlot(g, x0, mouth, ref) {
 }
 /* ore or coal in their pockets: off to the furnace with it. everybody's goes on the one pile, and whoever is there
    works the bellows while there is both */
+/* the furnace's jobs: for anybody within r of it, in a valley one screen wide (as it always was). in a wider one the
+   village spreads along it and the one furnace serves all of it: anybody in the village's range (vRange), given longer
+   for the walk (mTrek: ticks over the job's own time, for each cell past r) */
+var M_TREK = 6;
+function mFurnaceFar(g, f, p, r) { if (g.gw <= VIEW_GW) return Math.abs(f.cx - p.x) > r; var v = vRange(g); return p.x < v.x0 || p.x > v.x1 + 1; }
+function mTrek(g, f, p, r) { return g.gw <= VIEW_GW ? 0 : Math.round(Math.max(0, Math.abs(f.cx - p.x) - r) * M_TREK); }
+function mTrekOn(g, f, p, r) { var t = mTrek(g, f, p, r); if (t > 0) p.task.trek = t; }
 function mGoSmelt(g, p) {
   var s = mSites(g, "furnace", true)[0], st;
-  if (!s || Math.abs(s.cx - p.x) > 220 || mCrew(g, "smelt", s.id) >= 2) return false;
+  if (!s || mFurnaceFar(g, s, p, 220) || mCrew(g, "smelt", s.id) >= 2) return false;
   st = s.stock || {};
   /* (the coal they would put on the pile: all of it, or all but a fire's worth if the pile has some: as mTaskSmelt) */
   var ore = p.ore || 0, coal = (st.coal || 0) >= 2 ? Math.max(0, (p.coal || 0) - 3) : (p.coal || 0);
@@ -985,11 +992,12 @@ function mGoSmelt(g, p) {
      coal both waiting on the pile, anybody with nothing better to do goes and works the bellows, now and then) */
   if (ore + coal < 3 && !(ore + (st.ore || 0) >= 1 && coal + (st.coal || 0) >= 1 && (ore + coal > 0 || Math.random() < 0.3))) return false;
   p.task = { kind: "smelt", site: s.id, t: 0, act: 0, n: 0 };
+  mTrekOn(g, s, p, 220);
   return true;
 }
 function mTaskSmelt(g, p, k) {
   var s = bSite(g, k.site);
-  if (!s || !s.done || s.repair || ++k.t > 3000) return iDone(p, false);
+  if (!s || !s.done || s.repair || ++k.t > 3000 + (k.trek || 0)) return iDone(p, false);
   /* (somewhere to stand at the mouth: about where it was, give or take whatever has piled up there since) */
   if (k.sy == null) k.sy = mSpotRow(g, s);
   var sx = s.sx, sy = k.sy, fy = Math.floor(p.y), st = s.stock || (s.stock = {});
@@ -1035,15 +1043,16 @@ function mTaskSmelt(g, p, k) {
    ------------------------------------------------------------------- */
 function mGoForge(g, p) {
   var s = mSites(g, "furnace", true)[0];
-  if (!s || Math.abs(s.cx - p.x) > 220 || mCrew(g, "forge", s.id) >= 1 || ((p.iron || 0) < 1 && mIronToHand(g) < 2)) return false;
+  if (!s || mFurnaceFar(g, s, p, 220) || mCrew(g, "forge", s.id) >= 1 || ((p.iron || 0) < 1 && mIronToHand(g) < 2)) return false;
   /* (a great work that wants iron: new tools wait for iron to spare, worn ones are still done again. wonders.js) */
   if (!p.worn && wIronHeld(g) && mIronToHand(g) < mIronSpare(g)) return false;
   p.task = { kind: "forge", site: s.id, t: 0, act: 0 };
+  mTrekOn(g, s, p, 220);
   return true;
 }
 function mTaskForge(g, p, k) {
   var s = bSite(g, k.site);
-  if (!s || !s.done || s.repair || ++k.t > 2400 || p.tools) return iDone(p, false);
+  if (!s || !s.done || s.repair || ++k.t > 2400 + (k.trek || 0) || p.tools) return iDone(p, false);
   var sx = s.sx, sy = mSpotRow(g, s), fy = Math.floor(p.y);
   if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(g, fy, sy)) {
     if (iWalk(g, p, k, "forge" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);

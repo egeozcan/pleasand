@@ -1099,9 +1099,13 @@ function lGlassPick(g, p) {
     var pile0 = ((f && f.stock) || {}).glass || 0;
     if (cc) want = cc.glass > 0 ? Math.max(0, cc.glass - lToHand(g, "glass") - pile0) : 0; else g.glassNo = g.tick + 6000;
   }
-  if (f && want > 0.5 && (p.glass || 0) <= L_POCKET.glass - 2 && mCrew(g, "glassblow", f.id) < 1 && Math.abs(f.cx - p.x) < 220 &&
+  /* (one at the furnace's mouth blowing glass; two, with a great work waiting on its windows, and panes enough wanted for
+     both: L_GLASS_TWO or more) */
+  var crew = lWonderPanes(g) > 0 && want >= L_GLASS_TWO ? 2 : 1;
+  if (f && want > 0.5 && (p.glass || 0) <= L_POCKET.glass - 2 && mCrew(g, "glassblow", f.id) < crew && (g.gw <= VIEW_GW ? Math.abs(f.cx - p.x) < 220 : !mFurnaceFar(g, f, p, 220)) &&
       ((p.coal || 0) >= 1 || ((f.stock && f.stock.coal) || 0) >= 1) && Math.random() < 0.5) {
     p.task = { kind: "glassblow", site: f.id, t: 0, act: 0, n: 0 };
+    mTrekOn(g, f, p, 220);
     return true;
   }
   /* glass in hand, iron enough about for the posts, and a field with no roof over it: a glasshouse */
@@ -1113,13 +1117,19 @@ function lGlassPick(g, p) {
   }
   return false;
 }
+var L_GLASS_TWO = 4;
+/* a great work's windows: its panes, and the panes its coloured glass is made of at the kiln (wonders.js). none, in a
+   village with no great works */
+function lWonderPanes(g) {
+  var ww = 0;
+  for (var k = 0; k < g.sites.length; k++) if (g.sites[k].wonder && !g.sites[k].done) ww += Math.max(0, bNeed(g, g.sites[k], "glass")) + Math.max(0, bNeed(g, g.sites[k], "stained") - wPocketedSure(g, "stained"));
+  return ww;
+}
 /* panes still wanted for glasshouses going up (or being mended), less what is in pockets and on the furnace's pile */
 function lGlassShort(g, f) {
   var want = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "glasshouse" && !g.sites[k].done) want += Math.max(0, bNeed(g, g.sites[k], "glass"));
-  /* (and a great work's windows: its panes, and the panes its coloured glass is made of at the kiln. wonders.js) */
-  var ww = 0;
-  for (k = 0; k < g.sites.length; k++) if (g.sites[k].wonder && !g.sites[k].done) ww += Math.max(0, bNeed(g, g.sites[k], "glass")) + Math.max(0, bNeed(g, g.sites[k], "stained") - wPocketedSure(g, "stained"));
+  var ww = lWonderPanes(g);
   /* (with a great work wanting panes: only the panes in pockets that can get there count, wPocketedSure. a plain village
      counts as it always has) */
   if (ww > 0) return Math.max(0, want + ww - wPocketedSure(g, "glass") - (((f && f.stock) || {}).glass || 0));
@@ -1135,7 +1145,7 @@ function lSandy(g, x, y) { return pCell(g, x, y) === MAT.SAND && !bMarked(g, x, 
 var P_SANDY = new Uint8Array(NMAT); P_SANDY[MAT.SAND] = 1;
 function lTaskGlass(g, p, k) {
   var s = bSite(g, k.site), go;
-  if (!s || !s.done || s.repair || ++k.t > 3600 || (p.glass || 0) > L_POCKET.glass - 2) return iDone(p, k.n > 0);
+  if (!s || !s.done || s.repair || ++k.t > 3600 + (k.trek || 0) || (p.glass || 0) > L_POCKET.glass - 2) return iDone(p, k.n > 0);
   var st = s.stock || (s.stock = {});
   /* (before another batch: still wanted?) */
   if (k.n > 0 && !k.sx && (p.sand || 0) < 3 && !lGlassWanted(g, p, s)) { p.bored = 0; return iDone(p, true); }
@@ -1146,6 +1156,7 @@ function lTaskGlass(g, p, k) {
       if (!t) return iDone(p, k.n > 0);
       k.sx = t.x; k.sy = t.y;
     }
+    pLeg(k, "sand");
     go = lGo(g, p, k, "sand" + k.sx + "," + k.sy, k.sx, k.sy, 3, 10, 2);
     if (go <= 0) return false;
     p.dir = k.sx + 0.5 < p.x ? -1 : 1; k.act++;
@@ -1160,6 +1171,7 @@ function lTaskGlass(g, p, k) {
   /* then the furnace mouth, and the bellows */
   var sx = s.sx, sy = mSpotRow(g, s), fy = Math.floor(p.y);
   if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(g, fy, sy)) {
+    pLeg(k, "furnace");
     if (iWalk(g, p, k, "glass" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);
     p.idle = 0;
     return false;
@@ -1194,7 +1206,7 @@ function lGoStore(g, p) {
   if (p.lStoreT > g.tick) return false;
   p.lStoreT = g.tick + 600 + irnd(600);
   var f = mSites(g, "furnace", true)[0], K = g.know;
-  if (!f || Math.abs(f.cx - p.x) > 220 || mCrew(g, "store", f.id) >= 2) return false;
+  if (!f || mFurnaceFar(g, f, p, 220) || mCrew(g, "store", f.id) >= 2) return false;
   var st = f.stock || {}, what = null, put = false, want = 0;
   /* full up: the rest goes in */
   if ((p.ash || 0) >= L_POCKET.ash - 2) { what = "ash"; put = true; }
@@ -1215,6 +1227,7 @@ function lGoStore(g, p) {
   else if (K.potash && (p.ash || 0) < L_POTASH_ASH && (st.ash || 0) >= L_POTASH_ASH && lFieldWanting(g)) { what = "ash"; want = L_POTASH_ASH; }
   if (!what) return false;
   p.task = { kind: "store", site: f.id, what: what, put: put, want: want, t: 0 };
+  mTrekOn(g, f, p, 220);
   return true;
 }
 function lWantForGlasshouse(g, r) {
@@ -1228,7 +1241,7 @@ function lFieldWanting(g) {
 }
 function lTaskStore(g, p, k) {
   var s = bSite(g, k.site);
-  if (!s || !s.done || ++k.t > 2400) return iDone(p, false);
+  if (!s || !s.done || ++k.t > 2400 + (k.trek || 0)) return iDone(p, false);
   var sx = s.sx, sy = mSpotRow(g, s);
   if (Math.abs(p.x - sx - 0.5) > 1.5 || !mBySpot(g, Math.floor(p.y), sy)) {
     if (iWalk(g, p, k, "store" + s.id, sx, sy, function (x, y) { return Math.abs(x - sx) <= 1 && mBySpot(g, y, sy); })) pGiveUp(g, p, sx);
@@ -1267,11 +1280,12 @@ function lGoBrine(g, p) {
   if (p.lBrineT > g.tick || lToHand(g, "salt") + ((((mSites(g, "furnace", true)[0] || {}).stock || {}).salt) || 0) >= 6) return false;
   p.lBrineT = g.tick + 3000;
   var f = mSites(g, "furnace", true)[0];
-  if (!f || Math.abs(f.cx - p.x) > 220 || mCrew(g, "brine", f.id) >= 1) return false;
+  if (!f || mFurnaceFar(g, f, p, 220) || mCrew(g, "brine", f.id) >= 1) return false;
   if ((p.coal || 0) < 1 && ((f.stock && f.stock.coal) || 0) < 1) return false;   /* (a fire to boil it on: a lump of coal) */
   var w = lFindBrine(g, p, 160);
   if (!w) return false;
   p.task = { kind: "brine", site: f.id, x: w.x, y: w.y, t: 0, act: 0, full: 0 };
+  mTrekOn(g, f, p, 220);
   return true;
 }
 /* the nearest top of a pool of salt water, with air over it, within R */
@@ -1290,7 +1304,7 @@ function lFindBrine(g, p, R) {
 }
 function lTaskBrine(g, p, k) {
   var s = bSite(g, k.site), go;
-  if (!s || !s.done || ++k.t > 3600) return iDone(p, false);
+  if (!s || !s.done || ++k.t > 3600 + (k.trek || 0)) return iDone(p, false);
   if (!k.full && (p.brine || 0) > 0) k.full = p.brine;   /* (a bucket still full from last time, put down for a fire) */
   if (!k.full) {
     if (g.m[k.y * g.gw + k.x] !== MAT.SALTWATER) { var w = lFindBrine(g, p, 16); if (!w) return iDone(p, false); k.x = w.x; k.y = w.y; }

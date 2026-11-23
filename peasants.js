@@ -1631,8 +1631,14 @@ function pWalk(g, p, wading) {
        a pit with something runny in the bottom of it, say, or are hungry, when it is time to be off and find food) */
     /* (struggling in the water, short of breath or in it a long while: nothing matters but the bank. pSwim) */
     var struggling = wading && (p.wadeT > 900 || p.breath < P_BREATH - 60);
-    /* (paddling in a puddle on purpose, to bail it out, or across a wet floor to sweep a roof, is not wading: tidy.js) */
-    if (!scared && !struggling && (!wading || p.wadeT > 300 || p.hunger > P_HUNGRY || (p.task && (p.task.src || p.task.kind === "tidy") && !p.swimming))) {
+    /* (paddling in a puddle on purpose, to bail it out, or across a wet floor to sweep a roof, is not wading: tidy.js. nor
+       is a bucket fetched for a wonder's pool or tank, through the shallows on the way to the water, like any other
+       bucket: pleasures.js pTaskFill) */
+    /* (nor is splashing through a puddle or the shallows on the way to work, in a village with great works going on: the
+       long way to the furnace crosses the edge of a pond, with the water not up to their middle. P_WADE_ON. other work in
+       the water, and a village with none, keeps to its old ways) */
+    var shallows = wading && g.wAny && p.task && P_WADE_ON[p.task.kind] && !p.swimming && !LIQUID[pCell(g, fx, fy - 4)];
+    if (!scared && !struggling && (!wading || shallows || p.wadeT > 300 || p.hunger > P_HUNGRY || (p.task && (p.task.src || p.task.kind === "tidy" || p.task.kind === "pfill") && !p.swimming))) {
       /* (starving, and busy with something else: down tools, and look for food first. once: if there is none to be had,
          eatCD keeps them at the job) */
       if (p.task && p.task.kind !== "eat" && p.hunger > P_HUNGRY * 4 && !p.eatCD && !p.climb && !p.rope && (p.anim % 60) === 0) {
@@ -2072,6 +2078,11 @@ function pStuck(p, k, d) {
   if (k.best == null || d < k.best - 1) { k.best = d; k.since = 0; return false; }
   return ++k.since > 320;
 }
+/* jobs a puddle on the way does not end (pWalk): the furnace's errands, walked a long way in a valley four screens wide */
+var P_WADE_ON = { kiln: 1, glassblow: 1, smelt: 1, forge: 1, store: 1, brine: 1 };
+/* a job walked in legs (for sand, then to the furnace; to a pile, then to the furnace, then to the site): each leg's
+   closest yet starts afresh, or the next leg, never closer than the last one got, reads as stuck and is given up partway */
+function pLeg(k, leg) { if (k.leg !== leg) { k.leg = leg; k.best = null; k.since = 0; } }
 /* give up on a job they could not get to, and steer clear of that spot for a while */
 function pGiveUp(g, p, x) {
   /* (a great work they could not get to, or the salvage, or the moon rock's spot: let be a while, and the next one tried.

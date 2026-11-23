@@ -222,7 +222,7 @@ function pTaskStoke(g, p, k) {
   /* (the stoker keeps at it until they are hungry or tired, or have been at it a long while: and hands over while it is
      warm, so the next one has time to get here) */
   if (hot || t >= P_BATH_LO + 2) {
-    if (!hot && t > P_BATH_HI - 3 && (p.hunger > P_HUNGRY || (p.tired || 0) > B_SLEEPY * 0.8 || k.t > 9000)) { p.bored = 0; return iDone(p, true); }
+    if (!hot && t > P_BATH_HI - 3 && (p.hunger > P_HUNGRY || (p.tired || 0) > B_SLEEPY * 0.8 || (k.t > 9000 && pRelief(g, s, p)))) { p.bored = 0; return iDone(p, true); }
     return true;
   }
   /* the hearth: the ash out of it first, a scrape at a time, then a coal in */
@@ -234,6 +234,15 @@ function pTaskStoke(g, p, k) {
   p.coal--; s.coals = (s.coals || 0) + 1; g.fx.thud++;
   if (p.sayT <= 0) pSay(g, p, "stoke");
   return true;
+}
+/* somebody to take over a long shift at the stoke-hole: idle, about, out of the water, with coal. with nobody, the stoker
+   stays on (else they hand over to nobody, are sent back as the nearest, and the way back is across the bath) */
+function pRelief(g, s, p) {
+  for (var k = 0; k < g.peasants.length; k++) {
+    var q = g.peasants[k];
+    if (q !== p && wIdle(g, q, s) && !q.wade && Math.abs(q.x - s.cx) <= 240 && (q.coal || 0) >= 1) return true;
+  }
+  return false;
 }
 /* a fire at the baths that is all in the hearth, the flue and the chimney is the fire under the baths, not a fire: the
    brigade lets it be */
@@ -255,7 +264,9 @@ function pBathsStep(g, s) {
     var best = null, bd = 1e9;
     for (k = 0; k < g.peasants.length; k++) {
       q = g.peasants[k];
-      if (!wIdle(g, q, s) || Math.abs(q.x - s.cx) > 240) continue;
+      /* (not one paddling in the bath itself, the nearest of all: in the water a job is dropped as soon as it is given,
+         peasants.js pWalk, and they would be picked again and again while the water cooled) */
+      if (!wIdle(g, q, s) || Math.abs(q.x - s.cx) > 240 || q.wade) continue;
       var d = Math.abs(q.x - s.cx) - ((q.coal || 0) >= 1 ? 40 : 0) - (q.id === s.stoker ? 30 : 0);
       if (d < bd) { bd = d; best = q; }
     }
