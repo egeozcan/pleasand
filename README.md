@@ -8,9 +8,10 @@ Twenty-odd kinds of pixel (sand, water, salt water, oil, wood, plant, fire,
 lava, stone, metal, ice, snow, gunpowder, ash, salt, seed, glass, acid, gas,
 torch, faucet, drain, cloner, wet concrete, and inert: a magic block that stays where you put
 it, carries no heat and ignores everything but the eraser), plus fireworks, a
-nuke and lightning. And under the sand, in the rock, what you cannot paint:
-seams of coal, lumps of iron ore, beds of rock salt and, deep down, the odd speck of gold, and here
-and there a pool of oil sealed in the stone, waiting for somebody to drill for it.
+nuke and lightning. And under the sand, in the rock: seams of coal, lumps of iron ore, beds of rock salt and,
+deep down, the odd speck of gold, and here and there a pool of oil sealed in the stone, waiting for somebody
+to drill for it. MORE, under ERASE, opens onto the rest you can paint: that rock (coal, iron ore, gold, rock
+salt) and the peasants' building stone (stonework, concrete, firebrick, stained glass).
 
 Every pixel has a temperature. Heat flows from hot to cold, fast through metal
 and slowly through wood, ash and air; hot air and hot water rise, cold air sinks.

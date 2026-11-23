@@ -502,7 +502,7 @@ function saveApplyState(g, state, keepPointer) {
    works in it (g.tales), without if it is from before them). null if there is no knowing */
 function saveSelOf(doc, st, own) {
   if (typeof PICK === "undefined") return null;
-  var names = (doc.ui && doc.ui.picks) || PICK.map(function (q) { return q.name; }).filter(function (n) { return "tales" in st || n !== "WET CONCRETE"; });
+  var names = (doc.ui && doc.ui.picks) || PICK.filter(function (q) { return !q.more; }).map(function (q) { return q.name; }).filter(function (n) { return "tales" in st || n !== "WET CONCRETE"; });
   var sel = own && doc.ui && doc.ui.sel ? doc.ui.sel : names[st.sel];
   for (var k = 0; k < PICK.length; k++) if (PICK[k].name === sel) return k;
   return null;
@@ -557,6 +557,7 @@ function saveLoad(g, doc, opts) {
      concrete, say) would otherwise come back with the one next to it picked */
   var ns = saveSelOf(doc, st, !kf);
   if (ns != null) g.sel = ns;
+  g.moreOpen = 0; g.moreLast = -1;   /* (MORE's flyout shut, and its row as new: game.js) */
   /* and the dice, where the save has them and this game owns its own (the browser; the harness sets its own) */
   var dice = kf ? kf.rng : doc.rng;
   if (RNG && dice != null) RNG.state = dice;

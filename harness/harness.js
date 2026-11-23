@@ -950,12 +950,11 @@ Harness.prototype._doSelect = function (sel) {
       return this._doSelect(nm);
     }
     if (sel < 0 || sel >= PICK.length) throw new Error("picker index out of range: " + sel);
-    this.g.sel = sel; return this;
+    this.g.sel = sel; this.game.moreNote(this.g); return this;
   }
   var s = String(sel).toUpperCase();
   for (i = 0; i < PICK.length; i++) {
-    if ((PICK[i].name || "").toUpperCase() === s) { this.g.sel = i; return this; }
-    if (PICK[i].key && PICK[i].key.toUpperCase() === s) { this.g.sel = i; return this; }
+    if ((PICK[i].name || "").toUpperCase() === s || (PICK[i].key && PICK[i].key.toUpperCase() === s)) { this.g.sel = i; this.game.moreNote(this.g); return this; }
   }
   throw new Error("nothing in the picker called " + sel);
 };
@@ -977,27 +976,27 @@ Harness.prototype.key = function (k) {
   return this;
 };
 Harness.prototype._doKey = function (k, sel) {
-  var g = this.g, kk = String(k).toLowerCase(), was = g.sel;
+  var g = this.g, kk = String(k).toLowerCase(), was = g.sel, wasMore = g.moreLast;   /* (and what MORE's row remembered) */
   this.game.gameKey(g, kk);
   if (kk !== "arrowup" && kk !== "arrowdown") return this;
   if (sel != null) this._doSelect(sel);
-  else if (this._replaying && this._scPicks) { g.sel = was; if (!this._stepSel(kk === "arrowup" ? -1 : 1)) this.game.gameKey(g, kk); }
+  else if (this._replaying && this._scPicks) { g.sel = was; g.moreLast = wasMore; if (!this._stepSel(kk === "arrowup" ? -1 : 1)) this.game.gameKey(g, kk); }
   return this;
 };
 
 Harness.prototype.wheel = function (d) {
-  var a = { d: d }, over = this.g.mx < this.PANEL;
+  var a = { d: d }, over = this.g.mx < this.PANEL || this.game.moreIn(this.g, this.g.mx, this.g.my);
   this._doWheel(d);
   if (over) a.sel = this.pick[this.g.sel].name;
   this._op("wheel", a);
   return this;
 };
 Harness.prototype._doWheel = function (d, sel) {
-  var g = this.g, was = g.sel, over = g.mx < this.PANEL;
+  var g = this.g, was = g.sel, wasMore = g.moreLast, over = g.mx < this.PANEL || this.game.moreIn(g, g.mx, g.my);
   this.game.gameWheel(g, d);
   if (!over) return this;
   if (sel != null) this._doSelect(sel);
-  else if (this._replaying && this._scPicks) { g.sel = was; if (!this._stepSel(d)) this.game.gameWheel(g, d); }
+  else if (this._replaying && this._scPicks) { g.sel = was; g.moreLast = wasMore; if (!this._stepSel(d)) this.game.gameWheel(g, d); }
   return this;
 };
 
@@ -1007,7 +1006,8 @@ Harness.prototype._doWheel = function (d, sel) {
    the buttons under it where they were (master's, below a list without wet concrete: _scLayout) */
 Harness.prototype._panelAct = function () {
   var g = this.g, a, L = this._replaying ? this._scLayout : null;
-  if (g.mx >= this.PANEL) return null;
+  /* (a brush on MORE's flyout, over the field: by name, too) */
+  if (g.mx >= this.PANEL) { var mk = this.game.moreAt(g, g.mx, g.my); return mk >= 0 ? "sel:" + this.pick[mk].name : null; }
   a = this.game.panelAt(g.mx, g.my, L || undefined);
   if (a.slice(0, 4) !== "row:") return a;
   var names = L && this._scPicks ? this._scPicks : this.pick.map(function (q) { return q.name; }), nm = names[+a.slice(4)];
@@ -1038,9 +1038,10 @@ Harness.prototype._doUp = function () { return this._release(); };
 /* a click: down, the real tap handler, one frame of painting, up */
 Harness.prototype.tap = function (x, y) {
   var a = { x: x, y: y }, s = this._screen(numArg(x, "x"), numArg(y, "y"));
-  if (s.mx < this.PANEL) {
+  if (s.mx < this.PANEL || this.game.moreIn(this.g, s.mx, s.my)) {   /* (the panel, or MORE's flyout over the field) */
     var g = this.g, mx = g.mx, my = g.my;
     g.mx = s.mx; g.my = s.my; a.act = this._panelAct(); g.mx = mx; g.my = my;
+    if (a.act == null) delete a.act;
   }
   this._op("tap", a); return this._doTap(x, y, a.act);
 };
@@ -1056,9 +1057,10 @@ Harness.prototype._doTap = function (x, y, act) {
 Harness.prototype.drag = function (x0, y0, x1, y1, opts) {
   opts = opts || {};
   var a = { x0: x0, y0: y0, x1: x1, y1: y1, ticks: opts.ticks || 8, btn: opts.btn || 0 }, s = this._screen(numArg(x0, "x0"), numArg(y0, "y0"));
-  if (s.mx < this.PANEL) {
+  if (s.mx < this.PANEL || this.game.moreIn(this.g, s.mx, s.my)) {   /* (the panel, or MORE's flyout over the field) */
     var g = this.g, mx = g.mx, my = g.my;
     g.mx = s.mx; g.my = s.my; a.act = this._panelAct(); g.mx = mx; g.my = my;
+    if (a.act == null) delete a.act;
   }
   this._op("drag", a); return this._doDrag(a);
 };
@@ -1177,8 +1179,12 @@ Harness.prototype.replay = function (sc, opts) {
   this.recording = false;
   this._replaying = true;
   var wasPicks = this._scPicks, wasLayout = this._scLayout;
-  this._scPicks = sc.picks || this.pick.map(function (q) { return q.name; }).filter(function (n) { return n !== "WET CONCRETE"; });
-  this._scLayout = sc.picks ? { n: sc.picks.length, SIZE_Y: this.game.SIZE_Y, BTN_Y: this.game.BTN_Y, BTN2_Y: this.game.BTN2_Y, BTN3_Y: this.game.BTN3_Y }
+  this._scPicks = sc.picks || this.pick.filter(function (q) { return !q.more; }).map(function (q) { return q.name; }).filter(function (n) { return n !== "WET CONCRETE"; });
+  /* (a list recorded with MORE's brushes in it: the panel's rows are the ones before them, and MORE's row is under) */
+  var more = this.pick.filter(function (q) { return q.more; }).map(function (q) { return q.name; });
+  var rows = sc.picks ? sc.picks.filter(function (n) { return more.indexOf(n) < 0; }).length : 0;
+  this._scLayout = sc.picks && rows < sc.picks.length ? { n: rows, more: true, SIZE_Y: this.game.SIZE_Y, BTN_Y: this.game.BTN_Y, BTN2_Y: this.game.BTN2_Y, BTN3_Y: this.game.BTN3_Y }
+                  : sc.picks ? { n: rows, SIZE_Y: 351, BTN_Y: 363, BTN2_Y: 375, BTN3_Y: 387 }   /* (the panel before MORE) */
                             : { n: this._scPicks.length, SIZE_Y: 341, BTN_Y: 354, BTN2_Y: 367, BTN3_Y: 380 };   /* (master's panel) */
   try {
     this.setWidth(sc.gw || 272);   /* (a scenario from before there were wide valleys is one screen wide) */

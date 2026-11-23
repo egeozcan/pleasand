@@ -10,7 +10,8 @@
 var UI_FONT = '"Menlo", "Consolas", "DejaVu Sans Mono", "Courier New", monospace';
 /* (the field's size is in world.js: VIEW_GW columns on screen, GH rows, a valley g.gw wide) */
 var ROW0 = PLAY_Y + 2, ROWH = 10, FUN_N = 7, FUN_GAP = 4;
-var SIZE_Y = 351, BTN_Y = 363, BTN2_Y = 375, BTN3_Y = 387;   /* (the picker runs down to 350) */
+/* (the picker runs down to 350, and MORE's row under it to 360) */
+var SIZE_Y = 361, BTN_Y = 373, BTN2_Y = 385, BTN3_Y = 397;
 /* how fast time goes: sand ticks per frame, slowest first. SPEED_1 is normal */
 var SKY_MOON = null;   /* the moon in the sky: where it is, and how big (gameInit; the flag on it is heavens.js) */
 var SPEEDS = [0.25, 0.5, 1, 2, 4], SPEED_NAMES = ["1/4", "1/2", "1x", "2x", "4x"], SPEED_1 = 2;
@@ -63,7 +64,8 @@ var TIPS = [
   "tip: paint some SNOW by the houses and wait for somebody to get bored. then duck",
   "tip: the peasants pick up what is left over: ash, salt, lumps of glass. hover over one to see their pockets",
   "tip: COOL a field and the wheat stops growing. a village that makes glass knows what to do about that",
-  "tip: coal, salt and ash, ground fine, go bang. the peasants will work that out. eventually"
+  "tip: coal, salt and ash, ground fine, go bang. the peasants will work that out. eventually",
+  "tip: MORE, under ERASE: coal, ore, gold, building stone. paint some near a mine"
 ];
 /* and, in a valley wider than the screen, one of these in place of every fourth of those. (a list of their own: g.tip
    counts round TIPS as it always has, and the village's heap, tidy.js, shares the name) */
@@ -160,7 +162,7 @@ function gameInit(g) {
   g.intro = 0; g.tip = irnd(TIPS.length);
   gamePicture(g);
   gameSky(g);
-  g.sel = FUN_N; g.size = 5; g.paused = 0; g.speed = SPEED_1; g.speedAcc = 0; g.lx = null; g.ax = null;
+  g.sel = FUN_N; g.moreOpen = 0; g.moreLast = -1; g.size = 5; g.paused = 0; g.speed = SPEED_1; g.speedAcc = 0; g.lx = null; g.ax = null;
   camReset(g);
   sandLandscape(g);
   camHome(g, true);
@@ -267,6 +269,7 @@ function gameNew(g) {
   /* (in a wide valley, whatever stroke or line the hand had going belongs to the old one: it ends, and the press with it) */
   if (camMax(g) > 0 || g.gw !== (g.bootW || gameBootW())) { g.lx = null; g.ax = null; if (g.down) g.eaten = 1; }
   if (g.gw !== (g.bootW || gameBootW())) gameResize(g, g.bootW || gameBootW());
+  g.moreOpen = 0;
   sandLandscape(g);
   camHome(g, true);
   g.camJ = g.camI;
@@ -324,7 +327,7 @@ function camPan(g, d) {
 }
 /* is the hand doing something a drag can carry along past the edge of the view? */
 function camDragging(g) {
-  if (!g.down || g.stripDrag || g.eaten) return false;
+  if (!g.down || g.stripDrag || g.eaten || g.moreOpen) return false;
   /* (something actually going on in the field: a stroke under way, a ruled line, somebody held. a press on the picker,
      or an eyedrop, is not) */
   return !!(g.held || g.heldDuck || g.ax != null || g.lx != null);
@@ -429,7 +432,11 @@ function sandDab(g, cx, cy, v, solid) {
     if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) continue;
     j = y * g.gw + x;
     if (g.m[j] === MAT.INERT && v !== MAT.EMPTY) continue;   /* only erasing moves it */
-    if (!pour) sandPlace(g, j, v);
+    if (!pour) {
+      if (v === MAT.STAINED && g.m[j] === v) continue;   /* (stained glass keeps the panes it has: a held brush does not shuffle them) */
+      sandPlace(g, j, v);
+      if (v === MAT.STAINED) g.aux[j] = irnd(3);   /* (a pane of its own colour to a grain) */
+    }
     else if (g.m[j] === MAT.EMPTY && (solid || Math.random() < pour)) sandPlace(g, j, v);
   }
 }
@@ -482,7 +489,7 @@ function cellReadout(g, j) {
 function sandBrush(g) { return g.btn === 2 ? MAT.EMPTY : curPick(g).m; }   /* right button always erases */
 /* (the cell under the cursor is one in view: past the edge of it, while a stroke is carried along, the edge's) */
 function sandCell(g) { var c = g.camI || 0; return { x: clamp(g.cx, c, Math.min(g.gw, c + VIEW_GW) - 1), y: clamp(g.cy, 0, g.gh - 1) }; }
-function inPlay(g) { return g.mx >= PANEL && g.mx < VW && g.my >= PLAY_Y && g.my < PLAY_B; }
+function inPlay(g) { return g.mx >= PANEL && g.mx < VW && g.my >= PLAY_Y && g.my < PLAY_B && !moreIn(g, g.mx, g.my); }   /* (MORE's flyout is not the field) */
 function painting(g) { var p = curPick(g); return g.btn === 2 || (!p.tool && p.m !== MAT.NUKE); }
 
 function sandPaint(g) {
@@ -538,34 +545,89 @@ function sandEyedrop(g) {
   else if (v === MAT.SMOKE) v = MAT.FIRE;
   else if (v === MAT.EMBER) v = MAT.WOOD;
   else if (v === MAT.FLOWER) v = MAT.SEED;
-  for (var k = 0; k < PICK.length; k++) if (!PICK[k].tool && PICK[k].m === v) { g.sel = k; return; }
+  for (var k = 0; k < PICK.length; k++) if (!PICK[k].tool && PICK[k].m === v) { g.sel = k; moreNote(g); return; }
 }
 
 function rowY(k) { return ROW0 + k * ROWH + (k >= FUN_N ? FUN_GAP : 0); }
 function rowAt(x, y, n) {
   if (x >= PANEL || y < ROW0) return -1;
-  for (var k = 0; k < (n == null ? PICK.length : n); k++) if (y >= rowY(k) && y < rowY(k) + ROWH) return k;
+  for (var k = 0; k < (n == null ? PICK_N : n); k++) if (y >= rowY(k) && y < rowY(k) + ROWH) return k;
   return -1;
 }
+
+/* MORE: the row under ERASE, and what it opens onto, a flyout over the field beside it with the rest of the brushes
+   in (PICK's entries with .more: the rock the mines find, and what the great works are built of). the row is a slot: it
+   shows the last of them picked, and a click on it picks that again and opens the flyout. a click on the row with the
+   flyout open, Esc, or a click anywhere else closes it (that click going on to do what it does: it paints, in the
+   field). a press on the flyout is used up, all of it: nothing paints till it is let go */
+var MORE_Y = rowY(PICK_N), MORE_W = 98, MORE_PAD = 4, MORE_TITLE = 15, MORE_HEAD = 9, MORE_GAP = 3;
+var MORE_GROUPS = [["rock", "FROM THE ROCK"], ["build", "BUILDING"]];
+/* the flyout's rows, top to bottom: {k: the brush, y}, and its sub-headers, {head, y}; and how tall it is. its bottom is
+   the MORE row's, so the two read as one */
+var MORE_ROWS = [], MORE_H = (function () {
+  var y = MORE_TITLE;
+  MORE_GROUPS.forEach(function (gr, i) {
+    if (i) y += MORE_GAP;
+    MORE_ROWS.push({ head: gr[1], y: y }); y += MORE_HEAD;
+    for (var k = PICK_N; k < PICK.length; k++) if (PICK[k].more === gr[0]) { MORE_ROWS.push({ k: k, y: y }); y += ROWH; }
+  });
+  return y + MORE_PAD;
+})();
+var MORE_X = PANEL + 1, MORE_TOP = MORE_Y + ROWH - MORE_H;
+function isMore(k) { return k >= PICK_N && k < PICK.length; }
+/* the brush MORE's row shows: the one picked, if it is one of MORE's, or the last of them that was (-1: none yet).
+   (moreNote keeps the last: once an update, and before every tap, wheel and key, whatever changed the brush since. never
+   in the drawing, so a village played headless remembers what one played on the screen does) */
+function moreNote(g) { if (isMore(g.sel)) g.moreLast = g.sel; }
+function moreSlot(g) { return isMore(g.sel) ? g.sel : (isMore(g.moreLast) ? g.moreLast : -1); }
+/* is (x, y) on the flyout, open? (from the panel's edge, the tab's, out to its right border) */
+function moreIn(g, x, y) { return !!g.moreOpen && x >= PANEL && x < MORE_X + MORE_W && y >= MORE_TOP && y < MORE_Y + ROWH; }
+/* the brush on the flyout at (x, y): -1 for none (closed, off it, or its title and sub-headers) */
+function moreAt(g, x, y) {
+  if (!moreIn(g, x, y)) return -1;
+  for (var r = 0; r < MORE_ROWS.length; r++) {
+    var R = MORE_ROWS[r], ry = MORE_TOP + R.y;
+    if (R.k != null && y >= ry && y < ry + ROWH && x >= MORE_X + 2 && x < MORE_X + MORE_W - 2) return R.k;
+  }
+  return -1;
+}
+function moreOpen(g) { g.moreOpen = 1; g.pop = null; }   /* (one popup at a time: the counts' close) */
+function moreClose(g) { g.moreOpen = 0; }
+/* the wheel, over the flyout: up and down MORE's brushes only, round and round (from elsewhere in the list: down to the
+   first of them, up to the last) */
+function moreStep(g, d) {
+  var n = PICK.length - PICK_N;
+  if (!isMore(g.sel)) g.sel = d > 0 ? PICK_N : PICK.length - 1;
+  else g.sel = PICK_N + (g.sel - PICK_N + n + (d > 0 ? 1 : -1)) % n;
+}
 /* the side panel, as a click on it means: "row:<k>" (the k'th brush in the list), "size-", "size+", "pause", "clear",
-   "slower", "faster", "new", "thermal", "hush", or "tip". L is a layout of the panel (how many rows, and where the
+   "slower", "faster", "new", "thermal", "hush", "more" (MORE's row), or "tip". L is a layout of the panel (how many rows, and where the
    buttons are), for a recording made with another (harness.js); with none, the panel as it is */
-var PANEL_LAYOUT = { n: null, SIZE_Y: SIZE_Y, BTN_Y: BTN_Y, BTN2_Y: BTN2_Y, BTN3_Y: BTN3_Y };
+var PANEL_LAYOUT = { n: null, more: true, SIZE_Y: SIZE_Y, BTN_Y: BTN_Y, BTN2_Y: BTN2_Y, BTN3_Y: BTN3_Y };
 function panelAt(x, y, L) {
   L = L || PANEL_LAYOUT;
   var row = rowAt(x, y, L.n);
   if (row >= 0) return "row:" + row;
+  if ((L.n == null || L.more) && x < PANEL && y >= MORE_Y && y < MORE_Y + ROWH) return "more";   /* (a panel from before MORE has no such row) */
   if (y >= L.SIZE_Y && y < L.SIZE_Y + 12) return x >= 44 && x < 58 ? "size-" : (x >= 76 && x < 90 ? "size+" : "");
   if (y >= L.BTN_Y && y < L.BTN_Y + 12) return x < 48 ? "pause" : "clear";
   if (y >= L.BTN2_Y && y < L.BTN2_Y + 12) return x < 14 ? "slower" : (x >= 36 && x < 48 ? "faster" : (x >= 48 ? "new" : ""));
   if (y >= L.BTN3_Y && y < L.BTN3_Y + 12) return x < 48 ? "thermal" : "hush";
-  if (y >= 400) return "";   /* (under the buttons, below where the panel used to end: nothing) */
+  if (y >= Math.max(400, L.BTN3_Y + 12)) return "";   /* (under the buttons: nothing) */
   return "tip";
 }
 /* and what it does. "sel:<NAME>": that brush, by name */
 function panelDo(g, a) {
-  if (a.slice(0, 4) === "row:") { var k = +a.slice(4); if (k >= 0 && k < PICK.length) g.sel = k; return; }
-  if (a.slice(0, 4) === "sel:") { for (var i = 0; i < PICK.length; i++) if (PICK[i].name === a.slice(4)) g.sel = i; return; }
+  if (a === "more") {
+    g.eaten = 1;   /* (the press is MORE's: dragged on out over the flyout and into the field, it paints nothing) */
+    if (g.moreOpen) { moreClose(g); return; }
+    var ms = moreSlot(g);
+    if (ms >= 0) g.sel = ms;
+    moreOpen(g);
+    return;
+  }
+  if (a.slice(0, 4) === "row:") { var k = +a.slice(4); if (k >= 0 && k < PICK.length) g.sel = k; moreNote(g); return; }
+  if (a.slice(0, 4) === "sel:") { for (var i = 0; i < PICK.length; i++) if (PICK[i].name === a.slice(4)) g.sel = i; moreNote(g); return; }
   if (a === "size-") g.size = clamp(g.size - 1, 1, SAND_MAXSIZE);
   else if (a === "size+") g.size = clamp(g.size + 1, 1, SAND_MAXSIZE);
   else if (a === "pause") g.paused = g.paused ? 0 : 1;
@@ -588,6 +650,7 @@ function gameUpdate(g, dt) {
 function gameUpdate1(g, dt) {
   g.t += dt;
   g.intro += dt;
+  moreNote(g);
   /* where the view is (it glides, and the arrows and a drag at the edge move it), then where the cursor is, in the
      world's cells, and how fast it is going across the screen (for throwing: a flick is a flick, wherever the view is) */
   var cv2 = cursorVel(g);
@@ -941,6 +1004,7 @@ function gameDraw(g, c) {
   drawPanel(g, c);
   drawStrip(g, c);
   drawOverlays(g, c);
+  drawMore(g, c);
 }
 
 /* lightning bolts, shock rings, the glow of a firework */
@@ -1112,27 +1176,89 @@ function button(c, x, y, w, label, on, hot) {
   box(c, x, y, w, 12, on ? "#c87a2a" : "#3a4e72");
   txt(c, label, x + w / 2, y + 9, 7, "#ffffff", "center", true);
 }
+/* a brush's little square, at (x, y): its icon, or a swatch of its colours (stained glass: its three, side by side) */
+function drawSwatch(c, pk, x, y) {
+  if (pk.tool || pk.m === MAT.FIREWORK || pk.m === MAT.NUKE) {
+    c.imageSmoothingEnabled = false;
+    c.drawImage(ICONS[pk.tool || (pk.m === MAT.NUKE ? "nuke" : "firework")], x, y, 8, 8);
+    c.imageSmoothingEnabled = true;
+  } else if (pk.m === MAT.EMPTY) { rct(c, x, y, 8, 8, "#0b0e14"); box(c, x, y, 8, 8, "#8892a8"); }
+  else if (pk.m === MAT.STAINED) { var S = SAND_SHADES[pk.m]; rct(c, x, y, 3, 8, S[0]); rct(c, x + 3, y, 2, 8, S[1]); rct(c, x + 5, y, 3, 8, S[2]); }
+  else {
+    rct(c, x, y, 8, 8, SAND_SHADES[pk.m][0]);
+    if (SAND_SHADES[pk.m].length > 1) rct(c, x + 4, y + 4, 4, 4, SAND_SHADES[pk.m][1]);
+  }
+}
+/* a row of the picker (the panel's, or MORE's flyout's): the swatch and the name, x being the row's left edge */
+function drawPickRow(c, pk, x, ry, sel, fun) {
+  drawSwatch(c, pk, x + 5, ry + 1);
+  txt(c, pk.name, x + 17, ry + 7.5, 7, sel ? "#ffffff" : (fun ? "#f0c060" : "#9aa6b8"), "left", sel || fun);
+}
+/* MORE's little triangle, in the key column: pointing out to the flyout (d 1), or back, while it is open (d -1). the same
+   three columns either way, so it does not shift when it turns round */
+function moreArrow(c, d, y, col) {
+  var x0 = PANEL - 10;
+  for (var i = 0; i < 3; i++) rct(c, d > 0 ? x0 + i : x0 + 2 - i, y + i, 1, 5 - 2 * i, col);
+}
+/* the four colours on MORE's row while nothing has been picked from it: a 2x2 of what is in there */
+var MORE_ICON = [SAND_SHADES[MAT.COAL][3], SAND_SHADES[MAT.GOLD][0], SAND_SHADES[MAT.STAINED][0], SAND_SHADES[MAT.FIREBRICK][0]];
+function drawMoreRow(g, c, hovered) {
+  var ry = MORE_Y, slot = moreSlot(g), sel = slot >= 0 && slot === g.sel, open = !!g.moreOpen;
+  /* (its light starts a pixel down, under the rule; open, it runs out over the panel's edge to the flyout's tab) */
+  if (open) rct(c, 2, ry + 1, PANEL - 2, ROWH - 1, sel ? "#2a3d5e" : "#17202f");
+  else if (sel) rct(c, 2, ry + 1, PANEL - 5, ROWH - 1, "#2a3d5e");
+  else if (hovered) rct(c, 2, ry + 1, PANEL - 5, ROWH - 1, "#17202f");
+  rct(c, 4, ry, PANEL - 9, 1, "#26344e");   /* (the rule under ERASE: after the light, so the light never hides it) */
+  if (slot >= 0) drawPickRow(c, PICK[slot], 0, ry, sel, false);
+  else {
+    for (var q = 0; q < 4; q++) rct(c, 5 + (q & 1) * 4, ry + 1 + (q >> 1) * 4, 4, 4, MORE_ICON[q]);
+    txt(c, "MORE", 17, ry + 7.5, 7, "#9aa6b8", "left", false);
+  }
+  moreArrow(c, open ? -1 : 1, ry + 3, sel || open || hovered ? "#ffffff" : "#56698a");
+}
+/* MORE's flyout, over the field beside its row. drawn last of all, over everything */
+function drawMore(g, c) {
+  if (!g.moreOpen) return;
+  var x = MORE_X, y = MORE_TOP, w = MORE_W, h = MORE_H, hov = moreAt(g, g.mx, g.my), r, k;
+  var lit = isMore(g.sel) ? "#2a3d5e" : "#17202f";
+  rct(c, x, y, w, h, "#080b14");
+  box(c, x, y, w, h, "#3a4e72");
+  /* the tab: MORE's row runs on into the flyout, through the panel's edge and the flyout's left border, its outline
+     carried across top and bottom */
+  rct(c, PANEL - 1, MORE_Y + 1, x - PANEL + 2, ROWH - 2, lit);
+  rct(c, PANEL - 1, MORE_Y, x - PANEL + 2, 1, "#3a4e72");
+  rct(c, PANEL - 1, MORE_Y + ROWH - 1, x - PANEL + 2, 1, "#3a4e72");
+  txt(c, "MORE MATERIALS", x + MORE_PAD + 1, y + 11, 8, "#ffd94a", "left", true);
+  c.font = "bold 6px " + UI_FONT;
+  for (r = 0; r < MORE_ROWS.length; r++) {
+    var R = MORE_ROWS[r], ry = y + R.y;
+    if (R.head) {
+      txt(c, R.head, x + MORE_PAD + 1, ry + 7, 6, "#56698a", "left", true);
+      var hx = x + MORE_PAD + 1 + c.measureText(R.head).width + 4;
+      rct(c, hx, ry + 4, Math.max(0, x + w - MORE_PAD - 1 - hx), 1, "#26344e");
+      continue;
+    }
+    k = R.k;
+    if (k === g.sel) rct(c, x + 2, ry, w - 4, ROWH, "#2a3d5e");
+    else if (k === hov) rct(c, x + 2, ry, w - 4, ROWH, "#17202f");
+    drawPickRow(c, PICK[k], x, ry, k === g.sel, false);
+  }
+}
 function drawPanel(g, c) {
   var hov = rowAt(g.mx, g.my), k;
+  var overMore = g.mx >= 0 && g.mx < PANEL && g.my >= MORE_Y && g.my < MORE_Y + ROWH;
+  var mh = moreAt(g, g.mx, g.my), inMore = moreIn(g, g.mx, g.my);
   rct(c, 0, PLAY_Y, PANEL - 1, VH - PLAY_Y, "#0a0d16");
   rct(c, PANEL - 1, PLAY_Y, 1, VH - PLAY_Y, "#26344e");
   rct(c, 4, rowY(FUN_N) - 3, PANEL - 9, 1, "#26344e");
-  for (k = 0; k < PICK.length; k++) {
+  for (k = 0; k < PICK_N; k++) {
     var pk = PICK[k], ry = rowY(k), fun = k < FUN_N;
     if (k === g.sel) rct(c, 2, ry, PANEL - 5, ROWH, fun ? "#5a3a14" : "#2a3d5e");
     else if (k === hov) rct(c, 2, ry, PANEL - 5, ROWH, "#17202f");
-    if (pk.tool || pk.m === MAT.FIREWORK || pk.m === MAT.NUKE) {
-      c.imageSmoothingEnabled = false;
-      c.drawImage(ICONS[pk.tool || (pk.m === MAT.NUKE ? "nuke" : "firework")], 5, ry + 1, 8, 8);
-      c.imageSmoothingEnabled = true;
-    } else if (pk.m === MAT.EMPTY) { rct(c, 5, ry + 1, 8, 8, "#0b0e14"); box(c, 5, ry + 1, 8, 8, "#8892a8"); }
-    else {
-      rct(c, 5, ry + 1, 8, 8, SAND_SHADES[pk.m][0]);
-      if (SAND_SHADES[pk.m].length > 1) rct(c, 9, ry + 5, 4, 4, SAND_SHADES[pk.m][1]);
-    }
-    txt(c, pk.name, 17, ry + 7.5, 7, k === g.sel ? "#ffffff" : (fun ? "#f0c060" : "#9aa6b8"), "left", k === g.sel || fun);
+    drawPickRow(c, pk, 0, ry, k === g.sel, fun);
     if (pk.key) txt(c, pk.key, PANEL - 7, ry + 7.5, 7, "#56698a", "right");
   }
+  drawMoreRow(g, c, overMore);
   /* size, and the buttons */
   var bh = g.my >= SIZE_Y && g.mx < PANEL;
   txt(c, "SIZE", 5, SIZE_Y + 9, 7, "#9aa6b8", "left", true);
@@ -1199,12 +1325,13 @@ function drawPanel(g, c) {
   }
   var handle = camMax(g) > 0 && g.mx >= PANEL && g.my >= MAP_Y;
   if (typeof cv !== "undefined" && cv && cv.style) {
-    var want = g.stripDrag ? "grabbing" : (hot || feedTabAt(g, g.mx, g.my) ? "pointer" : (handle ? "grab" : "crosshair"));
+    var want = g.stripDrag ? "grabbing" : (hot || mh >= 0 || feedTabAt(g, g.mx, g.my) ? "pointer" : (inMore ? "default" : (handle ? "grab" : "crosshair")));
     if (cv.style.cursor !== want) cv.style.cursor = want;
   }
 
   /* description bar */
-  var info = hov >= 0 ? PICK[hov] : curPick(g), by = BAR_Y;
+  var ms = moreSlot(g);
+  var info = hov >= 0 ? PICK[hov] : (mh >= 0 ? PICK[mh] : (overMore && ms >= 0 ? PICK[ms] : curPick(g))), by = BAR_Y;
   rct(c, PANEL, by, VW - PANEL, BAR_H, "#0a0d16");
   rct(c, PANEL, by, VW - PANEL, 1, "#26344e");
   var hp = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null, line;
@@ -1212,6 +1339,9 @@ function drawPanel(g, c) {
   if (hp) line = hp.name + "  " + pMood(g, hp);
   else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd);
   else if (g.my < PLAY_Y && g.mx >= PANEL) line = iSummary(g);   /* over the header: what the village knows */
+  else if (overMore && ms < 0) line = "MORE  coal, iron ore, gold, rock salt, stonework, concrete, firebrick, stained glass. click to open";
+  else if (overMore) line = info.name + "  " + info.desc;
+  else if (inMore && mh < 0) line = "MORE MATERIALS  pick one. a click anywhere else, or Esc, closes it";
   else if (g.mx < PANEL && hov < 0) line = tipLine(g);
   else if (g.camNote > g.t) line = "G  nobody lives here. this is the middle of the valley";
   else if (g.mx >= PANEL && ((g.my >= MAP_Y && g.my < BAR_Y) || g.stripDrag)) line = "THE VALLEY  drag to look along it. swipe sideways, Shift-wheel or \u2190/\u2192. G goes home";
@@ -1561,10 +1691,12 @@ function drawThermalKey(c) {
 /* (act: what a click on the side panel is to do, instead of what is at (x, y) there: harness.js, replaying) */
 function gameTap(g, x, y, act) {
   camJournal(g);
+  moreNote(g);
   saveInput(g, "tap", { x: saveR(x), y: saveR(y), cell: x >= PANEL && y >= PLAY_Y ? [Math.round(g.cx), Math.round(g.cy)] : null, btn: g.btn, pick: curPick(g).name });
   g.intro = Math.max(g.intro, 4.5);
   /* the counts along the top open (and close) their popups. a click anywhere else closes it; a click on it is eaten */
   if (y < PLAY_Y && x >= PANEL) {
+    moreClose(g);   /* (one popup at a time) */
     for (var h = 0; h < g.hdrHit.length; h++) if (x >= g.hdrHit[h].x0 && x < g.hdrHit[h].x1) {
       if (g.hdrHit[h].key === "save") { g.pop = null; saveDownload(g); return; }
       if (g.hdrHit[h].key === "load") { g.pop = null; saveOpenFile(g); return; }
@@ -1572,6 +1704,22 @@ function gameTap(g, x, y, act) {
       return;
     }
     g.pop = null; return;
+  }
+  /* MORE's flyout: a press on it is used up (a brush on it picked, and the flyout shut); one anywhere but on it, or on
+     MORE's row (which shuts it itself), shuts it, and goes on to do what it does */
+  if (g.moreOpen) {
+    if (moreIn(g, x, y)) {
+      g.eaten = 1;
+      /* (only the left button picks, and shuts it: a right or middle press on it is used up, and it stays open) */
+      if (g.btn === 0) {
+        var mk = moreAt(g, x, y);
+        if (act != null && act.slice(0, 4) === "sel:") { panelDo(g, act); moreClose(g); }
+        else if (mk >= 0) { g.sel = mk; moreClose(g); }
+        moreNote(g);
+      }
+      return;
+    }
+    if (!(x < PANEL && (act != null ? act : panelAt(x, y)) === "more")) moreClose(g);
   }
   if (g.pop) {
     var pr = g.popRect;
@@ -1765,22 +1913,29 @@ function stripMove(g, last) {
 function gameSpeed(g, d) { g.speed = clamp(g.speed + d, 0, SPEEDS.length - 1); g.speedAcc = 0; }
 /* a wheel event, either way: sideways looks along the valley, up and down is what it always was (camWheelGesture) */
 function gameWheelXY(g, dx, dy, mode, shift, now, scale) {
+  /* (over MORE's flyout: up and down it, whichever way the wheel went. it neither pans nor sizes the brush) */
+  /* (a sideways gesture already going, that drifts over it, goes on panning) */
+  if (moreIn(g, g.mx, g.my) && !(g.whlAxis === "x" && now - g.whlT <= 150)) { if (dy) gameWheel(g, dy > 0 ? 1 : -1); return; }   /* (sideways: nothing) */
   var d = camWheelGesture(g, dx || 0, dy || 0, mode || 0, !!shift, now, scale || 1);
   if (d) gameWheel(g, d);
 }
 function gameWheel(g, d) {
   camJournal(g);
+  moreNote(g);
   saveInput(g, "wheel", { d: d });
-  if (g.mx < PANEL) { var n = PICK.length; g.sel = (g.sel + n + d) % n; }   /* over the list: scroll the list */
+  if (moreIn(g, g.mx, g.my)) moreStep(g, d);   /* over MORE's flyout: up and down that */
+  else if (g.mx < PANEL) { var n = PICK.length; g.sel = (g.sel + n + d) % n; }   /* over the list: scroll the list */
   else g.size = clamp(g.size - d, 1, SAND_MAXSIZE);
+  moreNote(g);
 }
 function gameKey(g, k) {
   camJournal(g);
+  moreNote(g);
   saveInput(g, "key", { k: k });
   var n = PICK.length, i;
   for (i = 0; i < n; i++) if (PICK[i].key && PICK[i].key.toLowerCase() === k) { g.sel = i; return; }
-  if (k === "arrowup") g.sel = (g.sel + n - 1) % n;
-  else if (k === "arrowdown") g.sel = (g.sel + 1) % n;
+  if (k === "arrowup") { g.sel = (g.sel + n - 1) % n; moreNote(g); }
+  else if (k === "arrowdown") { g.sel = (g.sel + 1) % n; moreNote(g); }
   else if (k === "[" || k === "-") g.size = clamp(g.size - 1, 1, SAND_MAXSIZE);
   else if (k === "]" || k === "=" || k === "+") g.size = clamp(g.size + 1, 1, SAND_MAXSIZE);
   else if (k === " " || k === "p") g.paused = g.paused ? 0 : 1;
@@ -1798,6 +1953,7 @@ function gameKey(g, k) {
   else if (k === "`") g.debug = !g.debug;
   else if (k === "t") g.thermal = !g.thermal;
   else if (k === "b") g.hush = !g.hush;   /* speech bubbles off (and on again) */
+  else if (k === "escape") { moreClose(g); g.pop = null; }   /* (MORE's flyout, or a count's popup, shut) */
 }
 
 /* -------------------------------------------------------------------

@@ -104,8 +104,21 @@ var PICK = [
   { m: MAT.DRAIN,      name: "DRAIN",     key: "",  desc: "does not move. swallows whatever touches it. peasants included. they hate that." },
   { m: MAT.CLONER,     name: "CLONER",    key: "",  desc: "does not move. remembers the first thing it touches, then makes it forever. try a nuke." },
   { m: MAT.INERT,      name: "INERT",     key: "",  desc: "magic. stays exactly where you put it. does not burn, melt, dissolve, conduct or care. only erase moves it." },
-  { m: MAT.EMPTY,      name: "ERASE",     key: "E", desc: "removes whatever it touches. right-drag erases from anywhere, too." }
+  { m: MAT.EMPTY,      name: "ERASE",     key: "E", desc: "removes whatever it touches. right-drag erases from anywhere, too." },
+  /* and MORE, under ERASE (game.js): a row that opens onto these, the rock the mines find and the stone the great works
+     are built of. after ERASE, so every brush above keeps its place in the list (saves, and recordings, count on it) */
+  { m: MAT.COAL,       name: "COAL",      key: "", more: "rock",  desc: "black rock that burns. slow to catch, at 400, then smoulders a long while. it is what a mine is for." },
+  { m: MAT.ORE,        name: "IRON ORE",  key: "", more: "rock",  desc: "rock shot through with rust. runs at 1250, and what runs out of it sets as iron." },
+  { m: MAT.GOLD,       name: "GOLD",      key: "", more: "rock",  desc: "soft, heavy and shiny. does not burn or rust. carries heat well. the peasants will want it." },
+  { m: MAT.ROCKSALT,   name: "ROCK SALT", key: "", more: "rock",  desc: "salt, in a bed of rock. does not move. a mine brings it up as salt; so does 800 degrees." },
+  { m: MAT.BRICK,      name: "STONEWORK", key: "", more: "build", desc: "dressed stone, laid in courses. the peasants' best walls. melts like stone, past 1150." },
+  { m: MAT.CONCRETE,   name: "CONCRETE",  key: "", more: "build", desc: "set hard: what WET CONCRETE becomes. grey and board-marked. stands to 1500." },
+  { m: MAT.FIREBRICK,  name: "FIREBRICK", key: "", more: "build", desc: "a pale brick that stands a furnace. carries heat badly, and lasts to 2000." },
+  { m: MAT.STAINED,    name: "STAINED GLASS", key: "", more: "build", desc: "ruby, green and amber, a pane to a grain. glows with a light behind it. melts at 1400." }
 ];
+/* how many rows the panel itself has: everything before the first of MORE's */
+var PICK_N = PICK.findIndex(function (p) { return !!p.more; });
+if (PICK_N < 0) PICK_N = PICK.length;
 
 var SAND_MAXSIZE = 16;
 var CLONE_PEASANT = 255;   /* what a cloner remembers when it has touched a peasant */
