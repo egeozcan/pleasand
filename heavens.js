@@ -712,6 +712,7 @@ function hLakeScan(g, all) {
    lantern */
 function hLightTick(g) {
   if (g.tick % W_STRIDE) return;
+  for (var j = 0; j < g.sites.length; j++) if (g.sites[j].kind === "lighthouse" && !g.sites[j].through) hLightThrough(g, g.sites[j]);
   if (g.know.oil && g.know.glass && g.know.masonry && !g.know.lighthouse) {
     /* (looked at now and then; and whenever somebody is in the water and it has not been looked at lately) */
     var swim = g.peasants.some(function (q) { return !q.dead && q.swimming; });
@@ -725,6 +726,18 @@ function hLightTick(g) {
       var j = (Math.floor(p.y) - 3) * g.gw + Math.floor(p.x);
       if (j >= 0 && j < g.m.length && WET[g.m[j]] && hBodyAtLeast(g, j, H_LAKE)) { wSpark(g, p, "lighthouse"); break; }
     }
+  }
+}
+/* a lighthouse planned with a door on the land side only (an older one, before hLightPlan put one each side): a door
+   on the water side too, put in where the stonework is (the stone out, and into whoever does it's pocket: build.js
+   bPlace). the tower stands across the bank, and whoever got to the land side of it could only get back over the top,
+   up a tree, or not at all: up and down the ladder inside, at a blank wall, for ever */
+function hLightThrough(g, s) {
+  s.through = true;
+  var x = s.side > 0 ? s.x0 + 7 : s.x0 + 1, y, k, e;
+  for (y = s.Fr - 9; y < s.Fr; y++) for (k = 0; k < s.plan.length; k++) {
+    e = s.plan[k];
+    if (e.i === y * g.gw + x && e.v === MAT.BRICK) { e.v = MAT.DOOR; e.a = Math.min(9, y - (s.Fr - 9) + 1); e.over = true; }
   }
 }
 /* the lighthouse's plot: seven wide, on the bank of the biggest water, its door on the land side */
@@ -747,17 +760,17 @@ function hPlanLight(g, p) {
   if (!r) return false;
   var F = r.r.Fr, G1 = F - 16;
   var s = bNew(g, "lighthouse", p, wGild(g, wCleared(g, r, r.r.plan)), [r.x0 - 1, G1 - 16, r.x0 + 7, F],
-               { wonder: true, Fr: F, G1: G1, side: r.r.side, fuel: 0, keeper: p.id, spot: r.x0 + 4, lx: r.x0 + 3, ly: G1 - 12 });
+               { wonder: true, Fr: F, G1: G1, side: r.r.side, fuel: 0, keeper: p.id, spot: r.x0 + 4, lx: r.x0 + 3, ly: G1 - 12, through: true });
   feed(g, p.name + " is building a lighthouse on the bank", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planLight", true);
   if (bCarries(p)) bJoin(g, p, s);
   return true;
 }
-/* the plan: a level floor (made up under the low end), walls and a ladder up the inside to the gallery, a door on the
-   land side; the gallery a cell out over the walls with iron rails; the watch room, iron-framed at the top; the lantern
+/* the plan: a level floor (made up under the low end), walls and a ladder up the inside to the gallery, a door on each
+   side; the gallery a cell out over the walls with iron rails; the watch room, iron-framed at the top; the lantern
    room on that, glass, two lamps and a reflector between them; a cap. {plan, Fr} or null */
 function hLightPlan(g, x0, gy, side) {
-  var Fr = Math.min.apply(null, gy), G1 = Fr - 16, plan = [], u, y, x, c, bad = false, dx = side > 0 ? x0 : x0 + 6;
+  var Fr = Math.min.apply(null, gy), G1 = Fr - 16, plan = [], u, y, x, c, bad = false;
   function put(u, y, v, ph, a) {
     var x = x0 + u, c = pCell(g, x, y);
     if (v === MAT.EMPTY) { if (!AIRY[c]) { if (!mClear(g, x, y, c) || bMarked(g, x, y)) bad = true; else plan.push(bE(g, x, y, MAT.EMPTY, 0)); } return; }
@@ -774,8 +787,10 @@ function hLightPlan(g, x0, gy, side) {
     var ph = 10 + Fr - y;
     for (u = 1; u <= 3; u++) put(u, y, MAT.LADDER, ph, u - 1);
     put(4, y, MAT.EMPTY); put(5, y, MAT.EMPTY);
+    /* (a door each side, as a house has: thirty cells of tower on the bank, with only the one door, is a wall across the
+       valley, and whoever is on the land side of it can only get back over the top. hLightThrough) */
     for (u = 0; u <= 6; u += 6) {
-      if (x0 + u === dx && y >= Fr - 9) put(u, y, MAT.DOOR, ph, Math.min(9, y - (Fr - 9) + 1));
+      if (y >= Fr - 9) put(u, y, MAT.DOOR, ph, Math.min(9, y - (Fr - 9) + 1));
       else put(u, y, MAT.BRICK, ph);
     }
   }

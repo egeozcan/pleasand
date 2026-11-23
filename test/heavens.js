@@ -205,6 +205,32 @@ module.exports = function (test, check, sim) {
     var route = w.navFind(g, Math.round(s.cx + (s.side > 0 ? -8 : 8)), L.G - 1, function (x, y) { return Math.abs(x - s.spot) <= 1 && y === s.G1 - 1; }, s.spot, s.G1 - 1, 30000);
     check(!!route, "no way up to the lamp");
   });
+  /* (from the land beside the tower to the bank between it and the water, and back: through it, not over it) */
+  function through(L) {
+    var w = L.w, g = L.g, s = L.s, land = s.side > 0 ? s.x0 - 2 : s.x1 + 2, sea = s.side > 0 ? s.x1 + 1 : s.x0 - 1, y = L.G - 1;
+    var to = w.navFind(g, land, y, function (x, yy) { return x === sea && yy === y; }, sea, y, 30000);
+    var back = w.navFind(g, sea, y, function (x, yy) { return x === land && yy === y; }, land, y, 30000);
+    return !!to && !!back && to.length < 20 && back.length < 20;
+  }
+  test("lighthouse: a door on each side, so the tower on the bank is a way through and not a wall across the valley", function () {
+    var L = lighthouse(true), w = L.w, g = L.g, s = L.s, M = w.MAT, y;
+    for (y = s.Fr - 9; y < s.Fr; y++) check(g.m[y * g.gw + s.x0 + 1] === M.DOOR && g.m[y * g.gw + s.x0 + 7] === M.DOOR, "no door both sides at row " + y);
+    check(through(L), "no way through the lighthouse from the land to the bank and back");
+  });
+  test("lighthouse: one built with its only door on the land side gets one on the water side, the stone back in a pocket", function () {
+    var L = lighthouse(true), w = L.w, g = L.g, s = L.s, M = w.MAT, x = s.side > 0 ? s.x0 + 7 : s.x0 + 1, y, k, e;
+    /* (as hLightPlan had it: stonework on the water side, all the way down) */
+    for (y = s.Fr - 9; y < s.Fr; y++) {
+      for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.i === y * g.gw + x) { e.v = M.BRICK; e.a = 0; } }
+      w.sandPlace(g, y * g.gw + x, M.BRICK);
+    }
+    s.through = false;
+    check(!through(L), "(the test wants the old lighthouse to be a wall)");
+    g.peasants.forEach(function (q) { q.boards = 12; q.hunger = 0; });
+    for (k = 0; k < 8000 && !through(L); k += 100) sim.step(w, 100);
+    check(through(L), "the water side of an old lighthouse got no door in 8000 ticks: " + s.note);
+    check(g.peasants.some(function (q) { return (q.stone || 0) > 0; }), "the stone taken out for the door went nowhere");
+  });
   test("lighthouse: lightning in the lantern sets its oil alight as it strikes, at any speed", function () {
     var L = lighthouse(true), w = L.w, g = L.g, s = L.s, k, hit = false;
     s.fuel = 4000;

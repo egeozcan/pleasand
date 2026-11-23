@@ -456,7 +456,8 @@ great work wants iron, new tools wait. What they build:
 - **The lighthouse**: comes of oil, glass, masonry, and a lake: a real one, a
   hundred and fifty cells of water at the least, which no valley has unless
   you give it one. It occurs to the first one to swim in it. A red and white
-  tower on the bank, a ladder up the inside, a gallery with iron rails, and a
+  tower on the bank, a door at its foot each side (so it is a way along the bank,
+  not a wall across it), a ladder up the inside, a gallery with iron rails, and a
   glass lantern with two lamps and a gilded reflector. The keeper carries a
   barrel of oil up from the well's tank whenever it is getting low; a barrel
   is a minute or so of light. The beam goes round, and whoever it passes over
