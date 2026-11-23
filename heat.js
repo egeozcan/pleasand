@@ -98,6 +98,7 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
      firebrick is light and slow (insulating firebrick: a furnace keeps its heat in it). moon rock is rock */
   def(MAT.MORTAR, 2.6, 0.15); def(MAT.CONCRETE, 2.0, 0.12); def(MAT.STAINED, 1.5, 0.1);
   def(MAT.FIREBRICK, 0.8, 0.03); def(MAT.MOONROCK, 2.0, 0.1);
+  def(MAT.LINEN, 1.5, 0.03);   /* (storeys.js) washing: cloth, and the air in it */
 
   function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
   function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
@@ -122,7 +123,7 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   hi(MAT.WOOD, 300, 0); hi(MAT.OIL, 250, 0); hi(MAT.PLANT, 220, 0); hi(MAT.FLOWER, 200, 0); hi(MAT.SEED, 200, 0);
   hi(MAT.GAS, 200, 0); hi(MAT.GUNPOWDER, 180, 0); hi(MAT.FIREWORK, 150, 0); hi(MAT.NUKE, 400, 0);
   hi(MAT.PLANK, 300, 0); hi(MAT.DOOR, 300, 0); hi(MAT.LADDER, 300, 0); hi(MAT.STAIRS, 300, 0);
-  hi(MAT.BED, 200, 0); hi(MAT.SAPLING, 220, 0);
+  hi(MAT.BED, 200, 0); hi(MAT.SAPLING, 220, 0); hi(MAT.LINEN, 200, 0);
   hi(MAT.CROP, 220, 0); hi(MAT.WHEAT, 200, 0); hi(MAT.LAMP, 250, 0); hi(MAT.SOIL, 800, 0);   /* (a field of ripe wheat goes up like a field of ripe wheat) */
   /* coal catches late and burns long. iron ore runs, and what runs out of it sets as iron: a furnace is only a way of
      getting it hot enough. dressed stone is stone, and a girder is iron */

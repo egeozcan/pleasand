@@ -154,6 +154,7 @@ function bGiveBack(s, p) {
 function bRemove(g, idx) {
   var s = g.sites[idx];
   g.sites.splice(idx, 1);
+  if (s.kind === "storey" && !s.done) sUnplan(g, s);   /* (a flat given up: the roof it was to replace is the house's again. storeys.js) */
   /* (and whoever was on their way to it, or at it, stops: there is nothing there to do now) */
   for (var q = 0; q < g.peasants.length; q++) {
     var t = g.peasants[q].task;
@@ -184,6 +185,7 @@ function bHome(g, p) {
   return s;
 }
 function bLabel(s) {
+  if (s.kind === "storey") return sLabel(s);   /* (a flat, over somebody's house: storeys.js) */
   var what = s.hut ? "hut" : "house";
   if (s.kind === "house") return s.who ? pTitle(s.who) + "'s " + what : "the empty " + what;
   return iLabel(s) || "the " + s.kind;
@@ -194,7 +196,7 @@ function bTill(g, e) { return e.v === MAT.SOIL && B_TILL[g.m[e.i]] === 1; }
 /* (a log that has fallen into somewhere meant to be dug out, the head of a mine say, is in the way too: chopped out) */
 /* (and a puddle in a mine, say a spilled bucket sitting on the top rung of the ladder, is bailed out: drain) */
 /* (and concrete is in once it is poured: wet, it is setting. wonders.js) */
-function bOk(g, e) { var c = g.m[e.i]; if (e.off > g.tick) return true; return e.v === MAT.EMPTY ? (e.once && P_LEAF[c] ? true : !B_DIG[c]) && !(e.mine && ROCK[c]) && !(c === MAT.WOOD && !bMarkedOther(g, e)) && !(e.drain && LIQUID[c]) : c === e.v || (e.v === MAT.CONCRETE && c === MAT.MORTAR); }
+function bOk(g, e) { var c = g.m[e.i]; if (e.off > g.tick) return true; if (e.strip) return !!e.gone; return e.v === MAT.EMPTY ? (e.once && P_LEAF[c] ? true : !B_DIG[c]) && !(e.mine && ROCK[c]) && !(c === MAT.WOOD && !bMarkedOther(g, e)) && !(e.drain && LIQUID[c]) : c === e.v || (e.v === MAT.CONCRETE && c === MAT.MORTAR); }
 /* is the cell of an empty entry some other site's (a log that is somebody's cross is not in anybody's way) */
 function bMarkedOther(g, e) { return !!(g.bmark && g.bmark[e.i]); }
 /* could it be put right now: a board needs thin air to go into, or something loose they can shovel out of the way first */
@@ -208,6 +210,7 @@ function bFree(g, e) {
   if (c === MAT.WOOD && e.v !== MAT.EMPTY && e.v !== MAT.WOOD) return true;       /* a fallen log where a board goes: chopped out first */
   if (e.v === MAT.CROP && g.m[e.i + g.gw] !== MAT.SOIL) return false;            /* and wheat is sown in earth */
   if (e.redo && c === MAT.PLANK) return true;                                    /* a board to be re-laid in stone (mines.js) */
+  if (e.over && (c === MAT.PLANK || c === MAT.BRICK)) return true;               /* a hatch cut in a ceiling (storeys.js) */
   if (e.gild && c === MAT.BRICK) return true;                                    /* a stone stand-in, to be gilded (wonders.js) */
   if (e.v === MAT.STAINED && c === MAT.GLASS) return true;                       /* coloured glass melted and set plain: the glazier (monuments.js) */
   if (e.wet && WET[c] === 1) return true;                                        /* a great work's stone goes in where a puddle is (wonders.js) */
@@ -390,6 +393,7 @@ function bShort(g, s) { var e = bNext(g, s, null), pr = e && bPrice(e); return p
 /* is the village short of wood: something going up, or a homeless peasant with room for a house */
 function bWoodWanted(g, p) {
   for (var k = 0; k < g.sites.length; k++) if (!g.sites[k].done && !g.sites[k].free && Math.abs(g.sites[k].cx - p.x) < 200) return true;
+  if (!p.home && !bOwnsSite(g, p) && g.know.storey && sCrowded(g)) return true;   /* (or for a flat on top of one: storeys.js) */
   return !p.home && !bOwnsSite(g, p) && bHouses(g) < Math.min(B_HOUSES, bAlive(g));
 }
 /* a new house going up already: one at a time, or the wood goes everywhere and nothing gets finished */
@@ -398,7 +402,7 @@ function bGoingUp(g) {
   return false;
 }
 function bOwnsSite(g, p) {
-  for (var k = 0; k < g.sites.length; k++) if (g.sites[k].owner === p.id && g.sites[k].kind === "house") return true;
+  for (var k = 0; k < g.sites.length; k++) if (g.sites[k].owner === p.id && sDwelling(g.sites[k])) return true;
   return false;
 }
 /* the nearest unfinished site they would be any use on, their own house first. (left: only one that nobody is building,
@@ -830,6 +834,7 @@ function bPlace(g, s, e, p) {
   if (WET[g.m[e.i]] && !bShove(g, e.i)) { e.wait = g.tick + 300; return; }
   if (!bPay(g, p, s, e)) return;
   if (e.redo && g.m[e.i] === MAT.PLANK) p.boards = (p.boards || 0) + 1;   /* (the old board, out, and into their pocket) */
+  if (e.over && g.m[e.i] !== e.v) { if (g.m[e.i] === MAT.PLANK) p.boards = (p.boards || 0) + 1; else if (g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5; }   /* (storeys.js) */
   if (e.gild && g.m[e.i] === MAT.BRICK) p.stone = (p.stone || 0) + 0.5;   /* (the stand-in, out: wonders.js) */
   if (e.v === MAT.STAINED && g.m[e.i] === MAT.GLASS) p.glass = (p.glass || 0) + 1;   /* (the plain pane, out: monuments.js) */
   /* (concrete goes in wet, into its form, and sets there: wonders.js) */
@@ -847,6 +852,7 @@ function bPlace(g, s, e, p) {
 /* a spadeful of sand off the plot, flung out of the way. it lands where it lands, heat and all */
 function bDig(g, s, e, p) {
   var gw = g.gw, x = e.i % gw, y = (e.i / gw) | 0, out = x + 0.5 < s.cx ? -1 : 1, c = g.m[e.i];
+  if (e.strip) { sStrip(g, s, e, p); return; }   /* (a built cell to come out, a gable under a new storey: storeys.js) */
   /* a log in the way (off a tree somebody felled, or fallen into a hole that should be empty): chopped out of it, and kept */
   if (c === MAT.WOOD) {
     heatVacate(g, e.i); p.logs = (p.logs || 0) + 1; s.last = g.tick; g.fx.thud++;
@@ -946,7 +952,9 @@ function bFinish(g, s, p) {
       if (n >= 3) achieve(g, "village");
     }
     if (o) { o.home = s.id; pSay(g, o, "homeDone", true); }
-  } else if (!iFinish(g, s, p)) {
+  } else if (s.kind === "storey") sFinish(g, s, p);   /* (storeys.js) */
+  else if (s.kind === "roofgarden") sRoofFinish(g, s, p);
+  else if (!iFinish(g, s, p)) {
     feed(g, p.name + " built " + (s.kind === "stairs" ? "some stairs" : "a " + s.kind), "#a8e08a", "plan" + s.id);
     achieve(g, s.kind);
   }
@@ -963,7 +971,7 @@ function buildStep(g) {
   for (k = S.length - 1; k >= 0; k--) {
     s = S[k];
     /* the owner is gone. their name stays on it until somebody moves in */
-    if (s.owner && !bOwner(g, s)) { s.owner = 0; if (s.kind !== "house" || !s.done) s.who = ""; }
+    if (s.owner && !bOwner(g, s)) { s.owner = 0; if (!sDwelling(s) || !s.done) s.who = ""; }
     if (s.done) { if (((g.tick / 30) + s.id) % 4 === 0) bInspect(g, s, k); }
     /* a field that has not come on at all in a good while (buried under a fall of sand, say, its earth out of anybody's
        reach): given up, busy or not, so that another can be started. a village is not to starve waiting on it */
@@ -974,9 +982,9 @@ function buildStep(g) {
     }
     else if (g.tick - s.last > 20000 && !bBusy(g, s) && !s.wonder) {   /* (a great work waits: wonders.js) */
       /* nobody has touched it in ages. a house that is mostly up is lived in as it is; anything else is forgotten */
-      if ((s.kind === "house" || s.free) && (s.repair || s.hut || bShare(g, s) > 0.6)) {
+      if ((sDwelling(s) || s.free) && (s.repair || s.hut || bShare(g, s) > 0.6)) {
         s.done = true; s.repair = s.sow = false; s.last = g.tick;
-        if (s.kind === "house" && bOwner(g, s)) bOwner(g, s).home = s.id;
+        if (sDwelling(s) && bOwner(g, s)) bOwner(g, s).home = s.id;
       }
       else { feed(g, "the village gave up on " + bLabel(s), "#c8d0dc", "plan" + s.id); bGiveBack(s, bNearestLiving(g, s)); bRemove(g, k); }
     }
@@ -984,7 +992,7 @@ function buildStep(g) {
   /* an empty house: the nearest peasant without one moves in */
   for (k = 0; k < S.length; k++) {
     s = S[k];
-    if (s.kind !== "house" || s.owner || !s.done) continue;
+    if (!sDwelling(s) || s.owner || !s.done) continue;
     var best = null, bd = 1e9;
     for (j = 0; j < g.peasants.length; j++) {
       var q = g.peasants[j];
@@ -995,9 +1003,11 @@ function buildStep(g) {
     if (!best) continue;
     var old = s.who;
     s.owner = best.id; s.who = best.short; best.home = s.id;
-    feed(g, best.name + " moved into " + (old ? pTitle(old) + "'s old " + (s.hut ? "hut" : "house") : "the empty " + (s.hut ? "hut" : "house")), "#a8e08a");
+    if (s.kind === "storey") feed(g, best.name + " moved into the flat over " + bLabel(sHouseOf(g, s) || s), "#a8e08a");
+    else feed(g, best.name + " moved into " + (old ? pTitle(old) + "'s old " + (s.hut ? "hut" : "house") : "the empty " + (s.hut ? "hut" : "house")), "#a8e08a");
     pSay(g, best, "moveIn", true);
   }
+  sStep(g);   /* (a flat whose floor below is gone goes with it: storeys.js) */
 }
 /* how much of it is up */
 function bShare(g, s) {
@@ -1030,10 +1040,11 @@ function bInspect(g, s, idx) {
     if (lost) gone++;
     if (lost || (e.v === MAT.SOIL && !bOk(g, e))) broken++;
   }
-  if (broken > n * 0.6 && !s.mine) {   /* (a mine is a hole in the ground: there is no knocking that down) */
+  /* (nor a floor with a flat on it: what is over it stands, and the floor is mended under it. storeys.js) */
+  if (broken > n * 0.6 && !s.mine && !(g.know.storey && sDwelling(s) && sOver(g, s))) {   /* (a mine is a hole in the ground: there is no knocking that down) */
     var o = bOwner(g, s);
     feed(g, bLabel(s).charAt(0).toUpperCase() + bLabel(s).slice(1) + " is gone", "#ff9a8a", "fix" + s.id);
-    if (o && s.kind === "house") { o.home = 0; pSay(g, o, "lostHome", true); }
+    if (o && sDwelling(s)) { o.home = 0; pSay(g, o, "lostHome", true); }
     if (s.kind === "house") { achieve(g, "ruin"); wTale(g, "house", o, bLabel(s), s.cx, s.y1); }
     bRemove(g, idx);
     return;
@@ -1053,14 +1064,14 @@ function bInspect(g, s, idx) {
   /* a village that knows masonry, and has stone to hand, puts back what burned (or was knocked out) of a house in
      stone, which does not burn: the doors, the window and the bed are still wood */
   var brick = 0;
-  if (s.kind === "house" && g.know.masonry && bStoneToHand(g) >= 6) for (k = 0; k < s.plan.length; k++) {
+  if (sDwelling(s) && g.know.masonry && bStoneToHand(g) >= 6) for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
     if (e.v === MAT.PLANK && e.a !== 1 && !bOk(g, e) && bFree(g, e)) { e.v = MAT.BRICK; brick++; }
   }
   if (brick) s.stone = true;
   feed(g, (brick ? "the village is rebuilding " + bLabel(s) + " in stone" : "the village is fixing " + bLabel(s)), "#a8e08a", "fix" + s.id);
   var ow = bOwner(g, s);
-  if (ow && s.kind === "house" && gone > 3) pSay(g, ow, "lostHome");
+  if (ow && sDwelling(s) && gone > 3) pSay(g, ow, "lostHome");
 }
 
 /* -------------------------------------------------------------------
@@ -1086,10 +1097,15 @@ function bPick(g, p) {
   var s = bCarries(p) ? bNearestSite(g, p, 170) : (Math.random() < 0.2 ? bNearestSite(g, p, 170, true) : null);
   if (s) { bJoin(g, p, s); return true; }
   if (bWood(p) > 0.3) {
+    var tried = false;
     if (!bHome(g, p) && !bOwnsSite(g, p) && p.logs >= 4 && !p.planCD && bHouses(g) < Math.min(B_HOUSES, bAlive(g)) && !bGoingUp(g)) {
       if (bPlanHouse(g, p)) return true;
-      p.planCD = 2400;
+      tried = true;
+      if (g.know.masonry) g.noPlotT = g.tick;   /* (no plot: crowded, maybe. storeys.js) */
     }
+    if (g.know.storey && sTry(g, p)) return true;   /* (no room on the ground: on top, then. storeys.js) */
+    if (g.know.roofgarden && sTryRoof(g, p)) return true;   /* (and a field up there: storeys.js) */
+    if (tried) p.planCD = 2400;
   }
   if (p.wantPlant) {
     p.wantPlant = false;
@@ -1111,6 +1127,8 @@ function bTask(g, p, k) {
   if (k.kind === "home") return bTaskHome(g, p, k);
   if (k.kind === "plant") return bTaskPlant(g, p, k);
   if (k.kind === "explore") return exploreTask(g, p, k);
+  if (k.kind === "warming") return sTaskWarming(g, p, k);   /* (a housewarming, upstairs: storeys.js) */
+  if (k.kind === "leave") return sTaskLeave(g, p, k);       /* (over the hills: storeys.js) */
   return iTask(g, p, k);
 }
 
@@ -1148,6 +1166,7 @@ function bSleeping(g, p) {
 function bWake(g, p) {
   var rough = !p.inBed;
   p.sleep = 0; p.inBed = false;
+  if (rough && g.know.masonry && !g.know.storey && !p.wspark) wSpark(g, p, "storey");   /* (a night on the ground, and no room: storeys.js) */
   pSay(g, p, rough && Math.random() < 0.7 ? "backache" : "wake", true);
 }
 
@@ -1359,6 +1378,8 @@ function bClimbStart(g, p, cx, dir) {
      cells say where its middle is; one that says wrong puts them in the wall beside it. the great works' villages:
      a plain village climbs as it always has) */
   if (g.wAny) for (var d = 0; d <= 8; d++) if (pBody(g, cx, Math.floor(p.y) - d)) return false;
+  /* (down a flat's ladder with a fire at it: no. out past it: storeys.js) */
+  if (dir > 0 && g.know.storey && sOnLadder(g, cx, Math.floor(p.y)) && sLadderHot(g, cx)) return sLeapOff(g, p, cx);
   p.climb = { x: cx, dir: dir, t: 0, y0: p.y, stuck: 0 };
   p.x = cx + 0.5; p.jumping = false; p.falling = false; p.idle = 0;
   /* a ladder with a lift on it: into the cage, if nobody else is in it (mines.js) */
@@ -1450,8 +1471,8 @@ function bDraw(g) {
       else if (((x + y) & 1) === 0 || e.v === MAT.DOOR) px[e.i] = blend32(px[e.i], B_PRINT, a);
     }
     /* indoors, the back wall: dark boards, warm with lamplight when somebody is in */
-    var home = s.kind === "house" && s.iy0 && (s.done || s.repair) && bOccupied(g, s);
-    if (s.kind === "house" && s.iy0 && (s.done || s.repair)) for (y = s.iy0; y < s.F; y++) for (x = s.ix0; x <= s.ix1; x++) {
+    var home = sDwelling(s) && s.iy0 && (s.done || s.repair) && bOccupied(g, s);
+    if (sDwelling(s) && s.iy0 && (s.done || s.repair)) for (y = s.iy0; y < s.F; y++) for (x = s.ix0; x <= s.ix1; x++) {
       j = y * gw + x;
       if (g.m[j] !== MAT.EMPTY) continue;
       var wall = B_INSIDE[(y % 3 === 0) ? 1 : 0];
@@ -1460,7 +1481,7 @@ function bDraw(g) {
     /* somebody home: the window glows */
     if (s.win && s.win.length && home) for (j = 0; j < s.win.length; j++) {
       var w = s.win[j];
-      if (g.m[w] === MAT.PLANK && g.aux[w] === 1) { px[w] = B_WIN_LIT; gp[w] = B_WIN_GLOW; lit++; }
+      if ((g.m[w] === MAT.PLANK && g.aux[w] === 1) || (g.m[w] === MAT.GLASS && s.kind === "storey")) { px[w] = B_WIN_LIT; gp[w] = B_WIN_GLOW; lit++; }
     }
   }
   /* doors swing open for whoever is going through: a peasant, or a duck slipping in behind */
@@ -1503,8 +1524,9 @@ function bReadout(g, j) {
     for (var n = 0; n < s.plan.length; n++) {
       var e = s.plan[n];
       if (e.i !== j) continue;
-      var what = bLabel(s).toUpperCase() + (s.done ? "" : bWhy(g, s)) + (s.note ? ": " + s.note.toUpperCase() : "");
+      var what = bLabel(s).toUpperCase() + (g.know.storey ? sNote(g, s) : "") + (s.done ? "" : bWhy(g, s)) + (s.note ? ": " + s.note.toUpperCase() : "");
       if (bOk(g, e)) return what;
+      if (e.strip) return "TO TAKE DOWN, FOR " + what;
       if (e.v === MAT.EMPTY) return (e.mine && ROCK[g.m[j]] ? "TO MINE, FOR " : "TO DIG OUT, FOR ") + what;
       return "PLANNED " + (e.v === MAT.PLANK && e.a === 1 ? "WINDOW" : MAT_NAME[e.v]) + ", FOR " + what;
     }

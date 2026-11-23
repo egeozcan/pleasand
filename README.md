@@ -492,6 +492,46 @@ great work wants iron, new tools wait. What they build:
 Two of them are yours: there is no weather in the valley, and no lake big
 enough, unless you make one. The rest a valley gets as it has room for them.
 
+And the valley fills up. One screen of it has level ground for four or five
+houses, the two old huts among them, and eight people to put in them: three or
+four sleep on the ground all their lives, and say so every morning. Once they
+know masonry, whoever wakes up on the ground next, with nowhere left for a
+house, thinks of building on top of one instead (`docs/storeys-plan.md` is how):
+
+- **Storeys**: the gable comes off a finished house (the boards go in somebody's
+  pocket; the ceiling stays, and nobody downstairs is unroofed), and a flat goes
+  up in its place: walls, a window, a roof with a window in it as the house's
+  has, a bed, and a door at one end with its own ladder up the outside to it.
+  Somebody homeless lives there now. Any house takes one; a stone house with a
+  stone flat on it takes a second, its ladder up the other end, so every flat
+  has its own way in and its own way out (and nobody climbing to the top floor
+  gets off at the middle one). Nothing takes a fourth floor. The neighbours come
+  up for a look round when it is done, six of them in a room nine wide, and
+  after that they talk through the floor ("do you have to stomp?"). Somebody
+  climbing past the window on the way up is seen ("i can see you, you know"). A
+  bucket spilt upstairs is bailed, and thrown out of the upstairs door,
+  GARDYLOO, onto the ladder, and on whoever is on it. In a fire (in a village that
+  knows the bucket) everybody in the stack is woken and makes for the door that is
+  not on fire, and nobody climbs down a ladder with the fire at it: they jump
+- **Word gets round**: once they build upward, a valley where everybody has a roof
+  and nobody has gone without for a good while draws a newcomer now and then
+  ("i heard there was room upstairs"), who is homeless, and puts the next flat
+  up. It stops when the roofs or the food run out (sixteen at most)
+- **Over the hills**: somebody who has had no roof for a very long time, and has
+  gone hungry, with nothing anywhere that could house them, puts down what is
+  the village's, picks up a bundle on a stick, says goodbye and walks out of the
+  valley for good. Not dead: there is no cross. Now and then a letter comes back
+- **Roof gardens**: a stack that can grow no higher, in a valley with no room for
+  another field, gets a flat roof with a parapet, a hatch and a ladder up from
+  the top floor, and a bed of sand, five furrows wide: wheat on the roof, which
+  the fields a village keeps do not count, and which the ducks find
+- **Washing lines**: a flat's window strung to whatever faces it across open air
+  (another flat's window, a tree, the next house), and the washing hung out on it
+  now and then.
+  It is linen, a thing of its own (which you cannot paint: it is theirs). A line
+  alight smoulders along like a fuse, and gets in at a shuttered window at the other end (not a
+  glass one)
+
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
 and grown from there.
 
@@ -601,6 +641,11 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 - Give them a lake (a big one), and some oil. Then strike the lantern with lightning while there is oil up there
 - Knock a hole in the foundry's mould while it pours. Or pour water on it
 - Set fire to something near the moon rocket once it is fuelled. Stand well back
+- Leave a valley with no flat ground to itself until it knows masonry. Then watch the roofs come off
+- Set fire to the bottom of a ladder up a three-floor house, at night
+- Pour water into a top-floor flat. Stand underneath
+- Set fire to the washing. Then try it again with a glass window
+- Drop ten more peasants into a valley that has stopped growing. Then wait
 
 ## Files
 
@@ -620,6 +665,7 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 - `monuments.js`: the theatre, the pyramid, and the cathedral with its crypt
 - `pleasures.js`: the baths, the hanging gardens, the steam organ, the duck palace and the ice palace
 - `heavens.js`: the observatory and its falling stars, the lighthouse, the foundry, and the moon rocket
+- `storeys.js`: a crowded valley: flats on top of the houses, their ladders, neighbours, gardyloo and fire, word getting round, going over the hills, roof gardens and washing lines
 - `ducks.js`: the ducks
 - `save.js`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it
 - `game.js`: rendering, the picker and HUD, input, and the main loop

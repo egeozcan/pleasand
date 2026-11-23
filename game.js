@@ -452,6 +452,7 @@ MAT_NAME[MAT.PLANK] = "PLANKS"; MAT_NAME[MAT.DOOR] = "DOOR"; MAT_NAME[MAT.LADDER
 MAT_NAME[MAT.BED] = "BED"; MAT_NAME[MAT.SAPLING] = "SAPLING";
 MAT_NAME[MAT.SOIL] = "TILLED EARTH"; MAT_NAME[MAT.CROP] = "YOUNG WHEAT"; MAT_NAME[MAT.WHEAT] = "RIPE WHEAT"; MAT_NAME[MAT.LAMP] = "LANTERN";
 MAT_NAME[MAT.COAL] = "COAL"; MAT_NAME[MAT.ORE] = "IRON ORE"; MAT_NAME[MAT.GOLD] = "GOLD"; MAT_NAME[MAT.BRICK] = "STONEWORK"; MAT_NAME[MAT.GIRDER] = "IRON GIRDER";
+MAT_NAME[MAT.LINEN] = "WASHING";   /* (on a line, between the flats: storeys.js. theirs, not the picker's) */
 MAT_NAME[MAT.CONCRETE] = "CONCRETE"; MAT_NAME[MAT.STAINED] = "STAINED GLASS"; MAT_NAME[MAT.FIREBRICK] = "FIREBRICK"; MAT_NAME[MAT.MOONROCK] = "MOON ROCK";
 /* a cell partway through melting, boiling or setting says so */
 var MAT_UP = [], MAT_DOWN = [];
@@ -790,6 +791,10 @@ function drawWorld(g, all) {
         /* coloured glass: its colour is in aux. lit from behind (a lantern, a fire, near it) it glows (wonders.js) */
         px[i] = blend32(SAND_PAL[v][g.aux[i] % 3], bg[i], 0.25);
         if (wLitGlass(g, x, y)) { px[i] = blend32(SAND_PAL[v][g.aux[i] % 3], 0xffffffff, 0.2); gp[i] = px[i]; hot++; }
+      } else if (v === MAT.LINEN) {
+        /* washing: a shirt's colour by its aux, the cord by 6 (anything else: a shirt, by its shade. storeys.js) */
+        a = g.aux[i];
+        px[i] = SAND_PAL[v][(a === 6 ? 0 : a ? a : 1 + ((sh[i] >> 5) % 5)) + 6 * ((sh[i] >> 3) & 7)];
       } else if (v === MAT.MOONROCK) {
         /* pale and pitted, with a faint shimmer */
         px[i] = SAND_PAL[v][(sh[i] + ((Math.sin(x * 0.31 + y * 0.23 + t * 0.9) * 20) | 0)) & 255];
@@ -1285,7 +1290,7 @@ var P_CAUSE = { starve: "hunger", old: "old age", fire: "fire", lava: "lava", dr
   fall: "a long fall", splat: "going splat", nuke: "the nuke", drain: "the drain", buried: "being buried",
   zap: "lightning", chute: "a parachute", reentry: "re-entry", freeze: "the cold" };
 /* what the other things they build are called, one and many */
-var SITE_NAMES = { farm: ["field", "fields"], lamp: ["porch light", "porch lights"], post: ["street lamp", "street lamps"],
+var SITE_NAMES = { farm: ["field", "fields"], storey: ["flat upstairs", "flats upstairs"], lamp: ["porch light", "porch lights"], post: ["street lamp", "street lamps"],
   grave: ["cross", "crosses"], scarecrow: ["scarecrow", "scarecrows"], jetty: ["jetty", "jetties"], pond: ["dug pond", "dug ponds"],
   statue: ["statue", "statues"], well: ["oil well", "oil wells"], mine: ["mine", "mines"], tunnel: ["gallery", "galleries"],
   tower: ["watchtower", "watchtowers"], furnace: ["furnace", "furnaces"], lift: ["lift", "lifts"], bell: ["bell", "bells"],

@@ -37,6 +37,7 @@ var P_HARD = new Uint8Array(NMAT);
 var P_PASS = new Uint8Array(NMAT); P_PASS[MAT.DOOR] = P_PASS[MAT.LADDER] = 1;
 P_PASS[MAT.LAMP] = 1;   /* (and lanterns, hung over doorways: they duck) */
 P_PASS[MAT.GIRDER] = 1;   /* (and the iron lattice of a lift's headframe: they step through it) */
+P_PASS[MAT.LINEN] = 1;    /* (and washing on a line: they duck under it. storeys.js) */
 /* how warm a peasant likes it. above P_SWEAT they complain, above P_SCALD they run, above
    P_IGNITE they are on fire. below P_CHILL they get colder and colder until they are ice */
 var P_SWEAT = 50, P_SCALD = 90, P_IGNITE = 230, P_CHILL = -8, P_FREEZE = 900;
@@ -604,6 +605,7 @@ function peasantsStep(g) {
   buildStep(g);
   ideasStep(g);
   wStep(g);   /* (the great works: wonders.js) */
+  if (g.lines && g.lines.length) sFuse(g);   /* (a washing line alight: storeys.js) */
   lTick(g);   /* (snowballs in the air, and fuses burning: leftovers.js) */
   exploreNote(g);
   /* (however they went, died or left the valley by air: what they carried for the great works, kept. wonders.js. pDie has
@@ -1441,8 +1443,9 @@ function pLife(g) {
     if (!q) return;
     q.born = g.tick - 20000 - ((q.voice * 7919) | 0) % 15000;   /* (grown up, and not yet old) */
     q.dir = x < rMid(g) ? 1 : -1;
-    feed(g, q.name + " has moved to the valley", "#a8e08a", "arrive", q);
-    pSay(g, q, "arrive", true);
+    var word = g.wordDue && sArrived(g, q);   /* (word got round: storeys.js) */
+    feed(g, q.name + " has moved to the valley" + (word ? " (word got round)" : ""), "#a8e08a", "arrive", q);
+    if (!word) pSay(g, q, "arrive", true);
     if (!g.got.arrive) achieve(g, "arrive");
     return;
   }
@@ -2312,6 +2315,7 @@ function peasantsDraw(g) {
     pBlit(g, p.hat.spr, ox, oy, flip, rot, pal, p.fire > 0);
     pBlit(g, body, ox, oy, flip, rot, pal, p.fire > 0);
     if (rot === 0 && !g.thermal) iDrawGear(g, p, ox, oy);   /* a bucket, a fishing rod, a bright idea (ideas.js) */
+    if (p.task && p.task.kind === "leave" && rot === 0 && !g.thermal) sDrawBundle(g, p, ox, oy);   /* (over the hills: storeys.js) */
     if (p.pack && rot === 0 && !g.thermal) pDrawPack(g, p, ox, oy);   /* (oil.js) */
     if (p.launch) pDrawFlame(g, p, ox, oy);
   }

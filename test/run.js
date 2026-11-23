@@ -2479,6 +2479,8 @@ require("./wonders.js")(test, check, sim);
 require("./monuments.js")(test, check, sim);
 require("./pleasures.js")(test, check, sim);
 require("./heavens.js")(test, check, sim);
+/* a crowded valley: storeys on the houses (storeys.js) */
+require("./storeys.js")(test, check, sim);
 /* the valley, four screens wide, and the view along it (docs/wide-valley-spec.md) */
 require("./valley.js")(test, check, sim);
 

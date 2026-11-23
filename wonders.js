@@ -1397,7 +1397,7 @@ function wStep(g) {
      until then, nothing in here rolls a single die */
   var any = false, k, s, p, d;
   for (k = 0; k < W_DEFS.length && !any; k++) if (g.know[W_DEFS[k].id]) any = true;
-  if (g.know.concrete || g.know.stained) any = true;
+  if (g.know.concrete || g.know.stained || g.know.storey) any = true;   /* (and storeys: storeys.js) */
   for (k = 0; k < g.sites.length && !any; k++) if (g.sites[k].wonder) any = true;
   g.wAny = any;
   /* (is there anywhere to cut stone, for a pyramid: looked at now and then, once it could matter) */

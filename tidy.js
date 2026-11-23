@@ -205,6 +205,7 @@ function tBailStep(g, p, k) {
      the news, as any other, with whatever was bailed counted. a bucket in hand is thrown, if it can be, first) */
   if (k.t0 != null && g.tick - k.t0 > TD_LONG * (p.pail ? 3 : 2)) { tNoGo(g, k.src.x, true); return tBailDone(g, p, k); }
   if (!p.pail || k.topUp) return tBailScoop(g, p, k);
+  if (g.know.storey) { var lo = sGardyloo(g, p, k); if (lo !== undefined && lo !== null) return lo; }   /* (in a flat: out of the door with it. storeys.js) */
   return undefined;
 }
 /* what a bailer says, throwing it */

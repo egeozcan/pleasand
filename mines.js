@@ -824,11 +824,11 @@ function mRenovate(g, p) {
   if (bStoneToHand(g) < 30 || g.tick < (g.renoT || 0)) return false;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind === "house" && s.redo && !s.done) return false;   /* (one at a time) */
+    if (sDwelling(s) && s.redo && !s.done) return false;   /* (one at a time) */
   }
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
-    if (s.kind !== "house" || !s.done || s.repair || s.stone || s.x0 < 12 || s.x1 > g.gw - 13) continue;
+    if (!sDwelling(s) || !s.done || s.repair || s.stone || s.x0 < 12 || s.x1 > g.gw - 13) continue;
     /* (only a house that is all there: doing over a house that needs mending is two jobs, and the second gets lost) */
     for (j = 0; j < s.plan.length && (s.plan[j].v === MAT.EMPTY || bOk(g, s.plan[j])); j++);
     if (j < s.plan.length) continue;
@@ -1164,7 +1164,7 @@ function mPlanBell(g, p) {
   /* off a tower's battlements; or, with no tower, off the end of the beam of a lift's headframe */
   /* (and with neither, in a little belfry on the ridge of somebody's roof: up out of everybody's way) */
   var T = mSites(g, "tower", true).concat(mSites(g, "lift", true)), k, j, s, has, x, y, c, ok, plan;
-  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done && !g.sites[k].hut && !g.sites[k].repair) T.push(g.sites[k]);
+  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done && !g.sites[k].hut && !g.sites[k].repair && !(g.know.storey && sOver(g, g.sites[k]))) T.push(g.sites[k]);
   if (mSites(g, "bell").length || mGoldToHand(g) < 1.4) return false;   /* (seven cells of bell, five to a nugget) */
   for (k = 0; k < T.length * 2; k++) {
     s = T[k >> 1];
@@ -1221,7 +1221,7 @@ function mStep(g) {
       bRemove(g, k); k--; continue;
     }
     /* a house being done over in stone that nobody has got any further with in a long while: the rest stays wood */
-    if (s.kind === "house" && s.redo && !s.done && g.tick - s.last > 6000) { bUnstone(g, s); s.redo = false; s.last = g.tick; }
+    if (sDwelling(s) && s.redo && !s.done && g.tick - s.last > 6000) { bUnstone(g, s); s.redo = false; s.last = g.tick; }
     if (s.kind === "furnace" && s.done && s.hot > g.tick) {
       /* lit: the hearth is hot (not so hot as to set the neighbours going), and the chimney smokes */
       for (y = s.G - 3; y <= s.G - 2; y++) for (x = s.fx0 + 1; x <= s.fx0 + 3; x++) {

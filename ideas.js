@@ -409,6 +409,7 @@ function iPick(g, p) {
   if (K.farm && !p.planCD && iFields(g) < Math.min(4, Math.ceil(bAlive(g) / 3)) && (hungry || Math.random() < 0.3)) {
     if (iPlanFarm(g, p, !iCount(g, "farm"))) return true;   /* (no field at all: anywhere in the valley will do) */
     p.planCD = 1800;
+    if (g.know.storey) { g.noFieldT = g.tick; sSparkRoof(g, p); }   /* (no room for a field: the roofs, then. storeys.js) */
   }
   /* a pond wants hands, not wood, either. then filling it, and keeping it full, and planning the next */
   if (K.dig && (s = iFieldWork(g, p, 160, "pond"))) { bJoin(g, p, s); return true; }
@@ -515,7 +516,7 @@ function iCrew(g, kind, id) {
 }
 function iCount(g, kind) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === kind) n++; return n; }
 /* fields, for the cap on them: a terrace of the hanging gardens is a field, but not one of those (pleasures.js) */
-function iFields(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "farm" && !g.sites[k].terrace) n++; return n; }
+function iFields(g) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "farm" && !g.sites[k].terrace && !g.sites[k].roof) n++; return n; }   /* (nor a roof garden: storeys.js) */
 /* walk p towards somewhere goal likes, near (x, y), as every errand here does. true once they are stuck for good */
 function iWalk(g, p, k, key, x, y, goal) {
   var left = pathGo(g, p, key, x, y, goal);
@@ -596,7 +597,8 @@ function ideasStep(g) {
 function iBurningHouse(g, p) {
   for (var k = 0; k < g.blaze.length; k++) {
     var s = bSite(g, g.blaze[k].site);
-    if (s && s.kind === "house" && s.done && bInside(s, p)) return s;
+    if (s && sDwelling(s) && s.done && bInside(s, p)) return s;
+    if (s && g.know.storey && sDwelling(s) && (s = sBurningStackOf(g, s, p))) return s;   /* (any floor of a stack on fire: all of it out. storeys.js) */
   }
   return null;
 }
@@ -607,6 +609,7 @@ function iExit(g, p, h) {
     var door = d < 0 ? h.ix0 - 1 : h.ix1 + 2;
     n = 0;
     if (b) for (k = 0; k < b.cells.length; k++) { x = b.cells[k] % g.gw; if ((x - p.x) * (door - x) > 0) n++; }
+    if (g.know.storey) n += sFireOutside(g, h, door, d);   /* (and fire just outside the door, at a flat's ladder say: storeys.js) */
     var sc = Math.abs(door - p.x) + n * 4;
     if (sc < bs) { bs = sc; best = d; }
   }
@@ -617,7 +620,7 @@ function iFlee(g, p) {
   if (!g.know.bucket) return false;
   var h = iBurningHouse(g, p);
   if (!h) return false;
-  p.dir = iExit(g, p, h);
+  p.dir = h.kind === "storey" ? h.d : iExit(g, p, h);   /* (a flat has the one door: storeys.js) */
   return true;
 }
 /* somebody on fire, near enough to run at with a bucket */

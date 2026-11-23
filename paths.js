@@ -130,6 +130,7 @@ function navEdges(g, x, y, add) {
      build.js bClimbStep) */
   var cx = NAV_NOLEAP ? -1 : bLadderNear(g, x, y);
   if (cx >= 0 && NAV_LADNO && NAV_LADNO[cx] > g.tick) cx = -1;   /* (a ladder that would not have them on it, a while ago) */
+  if (cx >= 0 && g.know.storey && sOnLadder(g, cx, y) && sLadderHot(g, cx)) cx = -1;   /* (a flat's ladder, with a fire at it: storeys.js) */
   if (cx >= 0) {
     for (j = y; j > 0 && pCell(g, cx, j) === MAT.LADDER && !pBody(g, cx, j - 9); j--);
     if (pCell(g, cx, j) === MAT.LADDER) j = y;   /* something overhead: the climber would stop under it (bClimbStep) */

@@ -63,7 +63,9 @@ var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STON
             PACKSNOW: 46, ROCKSALT: 47,
             /* and what they build their great works of (wonders.js): wet concrete, set concrete, coloured glass, a brick that
                will stand a furnace, and what comes back from the moon */
-            MORTAR: 48, CONCRETE: 49, STAINED: 50, FIREBRICK: 51, MOONROCK: 52 };
+            MORTAR: 48, CONCRETE: 49, STAINED: 50, FIREBRICK: 51, MOONROCK: 52,
+            /* and what a crowded street hangs out between its flats (storeys.js): washing, on a line */
+            LINEN: 53 };
 /* how many kinds of thing there may ever be: the size of every per-thing table */
 var NMAT = 64;
 
@@ -185,7 +187,9 @@ var SAND_SHADES = [
   ["#aaa69b", "#b2aea3", "#a29e93", "#b8b4a9"],
   ["#c0283c", "#3a9a52", "#e0a030"],
   ["#e6d49a", "#dccb8f", "#efdea8", "#d2c084"],
-  ["#c8c6c0", "#b8b6b0", "#d4d2cc", "#a8a6a0"]
+  ["#c8c6c0", "#b8b6b0", "#d4d2cc", "#a8a6a0"],
+  /* linen: the cord (aux 6), and five shirts (aux 1 to 5: game.js) */
+  ["#e4dcc4", "#d8484c", "#4a78d4", "#e8c040", "#58b45a", "#f2f0ea"]
 ];
 
 /* every (thing, shade) pair is worked out once, up here, not sixty times a second */
@@ -213,7 +217,7 @@ var SOLID = new Uint8Array(NMAT), LIQUID = new Uint8Array(NMAT), HOT = new Uint8
  MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW, MAT.INERT,
  MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.SOIL, MAT.CROP, MAT.WHEAT, MAT.LAMP,
  MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER, MAT.PACKSNOW, MAT.ROCKSALT,
- MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK].forEach(function (v) { SOLID[v] = 1; });
+ MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK, MAT.LINEN].forEach(function (v) { SOLID[v] = 1; });
 /* rock: what a pick is for (mines.js). it all stays where it is, whatever is dug out from under it */
 var ROCK = new Uint8Array(NMAT);
 [MAT.STONE, MAT.COAL, MAT.ORE, MAT.GOLD, MAT.ROCKSALT].forEach(function (v) { ROCK[v] = 1; });
@@ -223,12 +227,14 @@ var WOODY = new Uint8Array(NMAT);
 /* things that burn up like a plant does: in flames, not embers */
 var LEAFY = new Uint8Array(NMAT);
 [MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.BED, MAT.SAPLING, MAT.CROP, MAT.WHEAT].forEach(function (v) { LEAFY[v] = 1; });
+/* (linen is not: hot enough, it catches, as anything does; on a washing line it smoulders along it like a fuse.
+   storeys.js sFuse) */
 /* things that never move and never do anything on their own: the step skips them */
 var STILL = new Uint8Array(NMAT);
 [MAT.EMPTY, MAT.STONE, MAT.WOOD, MAT.GLASS, MAT.FLOWER, MAT.METAL, MAT.INERT,
  MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.WHEAT, MAT.LAMP,
  MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER, MAT.PACKSNOW, MAT.ROCKSALT,
- MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK].forEach(function (v) { STILL[v] = 1; });
+ MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK, MAT.LINEN].forEach(function (v) { STILL[v] = 1; });
 /* (wet concrete is a liquid, but not a fluid: nothing sinks into it, it sinks into nothing but water. sand sits on it) */
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER, MAT.MORTAR].forEach(function (v) { LIQUID[v] = 1; });
 /* water, as far as fire, plants, peasants and lightning are concerned */
