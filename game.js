@@ -1163,20 +1163,8 @@ function drawPanel(g, c) {
   if (g.wAny) segs.push(["wonders", "WONDERS " + wCount(g) + "/" + W_TOTAL]);
   if (nd) segs.push(["ducks", "DUCKS " + nd]);
   if (space) segs.push(["peasants", "IN SPACE " + space]);
-  c.font = "bold 8px " + UI_FONT;
-  var gap = c.measureText("     ").width, tw = -gap;
-  for (k = 0; k < segs.length; k++) tw += c.measureText(segs[k][1]).width + gap;
-  var hx = PANEL + (VW - PANEL - tw) / 2, hot = null;
   g.hdrHit = [];
-  for (k = 0; k < segs.length; k++) {
-    var sw = c.measureText(segs[k][1]).width, on = g.pop === segs[k][0];
-    var over = g.my < PLAY_Y && g.mx >= hx - 3 && g.mx < hx + sw + 3;
-    if (over) hot = segs[k][0];
-    if (on || over) rct(c, hx - 3, 2, sw + 6, PLAY_Y - 4, on ? "#2a3d5e" : "#17202f");
-    txt(c, segs[k][1], hx, 10, 8, on ? "#ffd94a" : (over ? "#ffffff" : "#d8dde6"), "left", true);
-    g.hdrHit.push({ key: segs[k][0], x0: hx - 3, x1: hx + sw + 3 });
-    hx += sw + gap;
-  }
+  var hot = null;
   txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
   /* SAVE and LOAD, left of the sound: a file to keep, a file to open (or drop one on the game) */
   c.font = "7px " + UI_FONT;
@@ -1189,6 +1177,21 @@ function drawPanel(g, c) {
     g.hdrHit.push({ key: lb.toLowerCase(), x0: x0 - 3, x1: fx + 3 });
     fx = x0 - 10;
   });
+  /* the counts sit centred in what is left between the panel and LOAD, never under it */
+  c.font = "bold 8px " + UI_FONT;
+  var gap = c.measureText("     ").width, tw = -gap;
+  for (k = 0; k < segs.length; k++) tw += c.measureText(segs[k][1]).width + gap;
+  var right = fx + 10 - 3 - gap;
+  var hx = Math.max(PANEL, PANEL + (right - PANEL - tw) / 2);
+  for (k = 0; k < segs.length; k++) {
+    var sw = c.measureText(segs[k][1]).width, on = g.pop === segs[k][0];
+    var over = g.my < PLAY_Y && g.mx >= hx - 3 && g.mx < hx + sw + 3;
+    if (over) hot = segs[k][0];
+    if (on || over) rct(c, hx - 3, 2, sw + 6, PLAY_Y - 4, on ? "#2a3d5e" : "#17202f");
+    txt(c, segs[k][1], hx, 10, 8, on ? "#ffd94a" : (over ? "#ffffff" : "#d8dde6"), "left", true);
+    g.hdrHit.push({ key: segs[k][0], x0: hx - 3, x1: hx + sw + 3 });
+    hx += sw + gap;
+  }
   var handle = camMax(g) > 0 && g.mx >= PANEL && g.my >= MAP_Y;
   if (typeof cv !== "undefined" && cv && cv.style) {
     var want = g.stripDrag ? "grabbing" : (hot || feedTabAt(g, g.mx, g.my) ? "pointer" : (handle ? "grab" : "crosshair"));
