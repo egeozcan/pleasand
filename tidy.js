@@ -260,7 +260,10 @@ function tMood(g, p) {
 function tOwnWater(s) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "glasshouse" || !!s.bath; }   /* (the baths: pleasures.js) */
 /* a site nobody sweeps: sand on a field is tilled, a pond's banks and the collar of a mine are sand on purpose, and a
    grave is let be. (a glasshouse's roof is a roof, and is swept) */
-function tNoSweep(s) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "grave"; }
+function tNoSweep(s, g) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "grave" ||
+  (!!g && !!g.know.deck && plOverRoof(g, s)); }   /* (a roof with a platform low over it: nobody can stand on it to sweep. platforms.js) */
+/* the site at (x, y), its box: a house before a platform over it (platforms.js) */
+function tSiteAt(g, x, y) { var s = bSiteAround(g, x, y, null, 0); return s && s.kind === "deck" && g.know.deck ? plSiteUnder(g, x, y) || s : s; }
 /* is (x, y) somewhere a house or a field is near: the village, where tidiness matters */
 function tVillage(g, x) {
   for (var k = 0; k < g.sites.length; k++) {
@@ -1019,8 +1022,8 @@ function tLitterAt(g, x, y) {
   for (var yy = y + 1; yy < y + 24 && yy < g.gh; yy++) {   /* (a roof buried deep: the top of it) */
     var c = pCell(g, x, yy), s;
     if (bMarked(g, x, yy) || (TD_HUTROOF[c] && (s = bSiteAround(g, x, yy, "house", 2)) && s.hut)) {
-      s = bSiteAround(g, x, yy, null, 0) || s;   /* (the eaves of a hut overhang its box by a cell or two) */
-      return s && !tNoSweep(s) ? s : null;
+      s = tSiteAt(g, x, yy) || s;   /* (the eaves of a hut overhang its box by a cell or two) */
+      return s && !tNoSweep(s, g) ? s : null;
     }
     if (!TD_LITTER[c]) return null;
   }
@@ -1055,7 +1058,7 @@ function tDriftAt(g, s, x, y) {
     /* (a door buried deep: the top of the heap over it, so long as it is sand all the way down to the doorway) */
     if (at < 1 || at > 3 || y > d.bot || (y < d.top - 4 && !tSandDown(g, x, y, d.top))) continue;
     if (!tBlocked(g, d)) return false;
-    o = bSiteAround(g, x, y, null, 0);
+    o = tSiteAt(g, x, y);
     return !o || o === s;
   }
   return false;
@@ -1092,7 +1095,7 @@ function tFindLitter(g, p, R, only) {
   for (k = 0; k < g.sites.length; k++) {
     s = only || g.sites[k];
     /* (a roof somebody is already on is theirs: the next one along) */
-    if (Math.abs(s.cx - p.x) > R + 20 || tNoSweep(s) || (!only && tSiteTidying(g, s.id))) { if (only) break; continue; }
+    if (Math.abs(s.cx - p.x) > R + 20 || tNoSweep(s, g) || (!only && tSiteTidying(g, s.id))) { if (only) break; continue; }
     /* (a roof let be is let be; the door of the house under it is another matter: tidyRest, doorRest) */
     var roof = !(s.tidyRest > g.tick) && (only || !(s.sweptT > g.tick));
     for (x = s.x0 - 2; roof && x <= s.x1 + 2; x++) {   /* (the thatch on the old huts hangs out past the walls) */

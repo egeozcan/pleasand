@@ -38,6 +38,7 @@ var P_PASS = new Uint8Array(NMAT); P_PASS[MAT.DOOR] = P_PASS[MAT.LADDER] = 1;
 P_PASS[MAT.LAMP] = 1;   /* (and lanterns, hung over doorways: they duck) */
 P_PASS[MAT.GIRDER] = 1;   /* (and the iron lattice of a lift's headframe: they step through it) */
 P_PASS[MAT.LINEN] = 1;    /* (and washing on a line: they duck under it. storeys.js) */
+P_PASS[MAT.TRESTLE] = 1;  /* (and a platform's timber legs: through the bracing. platforms.js) */
 /* how warm a peasant likes it. above P_SWEAT they complain, above P_SCALD they run, above
    P_IGNITE they are on fire. below P_CHILL they get colder and colder until they are ice */
 var P_SWEAT = 50, P_SCALD = 90, P_IGNITE = 230, P_CHILL = -8, P_FREEZE = 900;
@@ -1784,7 +1785,7 @@ var P_FOOD = new Uint8Array(NMAT); P_FOOD[MAT.PLANT] = P_FOOD[MAT.FLOWER] = P_FO
 var P_WOOD = new Uint8Array(NMAT); P_WOOD[MAT.WOOD] = 1;
 var P_FLAM = new Uint8Array(NMAT);
 [MAT.WOOD, MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.OIL, MAT.GAS, MAT.GUNPOWDER, MAT.FIREWORK, MAT.NUKE, MAT.EMBER,
- MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.CROP, MAT.WHEAT, MAT.LAMP, MAT.COAL].forEach(function (v) { P_FLAM[v] = 1; });
+ MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.CROP, MAT.WHEAT, MAT.LAMP, MAT.COAL, MAT.TRESTLE].forEach(function (v) { P_FLAM[v] = 1; });
 var P_BANG = new Uint8Array(NMAT); P_BANG[MAT.GAS] = P_BANG[MAT.GUNPOWDER] = P_BANG[MAT.FIREWORK] = P_BANG[MAT.NUKE] = 1;
 var P_TINDER = new Uint8Array(NMAT); P_TINDER[MAT.WOOD] = P_TINDER[MAT.PLANT] = P_TINDER[MAT.FLOWER] = P_TINDER[MAT.SEED] = P_TINDER[MAT.OIL] = 1;
 

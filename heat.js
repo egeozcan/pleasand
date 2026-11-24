@@ -99,6 +99,7 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   def(MAT.MORTAR, 2.6, 0.15); def(MAT.CONCRETE, 2.0, 0.12); def(MAT.STAINED, 1.5, 0.1);
   def(MAT.FIREBRICK, 0.8, 0.03); def(MAT.MOONROCK, 2.0, 0.1);
   def(MAT.LINEN, 1.5, 0.03);   /* (storeys.js) washing: cloth, and the air in it */
+  def(MAT.TRESTLE, 2.0, 0.04);   /* (platforms.js) a trestle leg: timber, as a board is */
 
   function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
   function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
@@ -123,7 +124,7 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   hi(MAT.WOOD, 300, 0); hi(MAT.OIL, 250, 0); hi(MAT.PLANT, 220, 0); hi(MAT.FLOWER, 200, 0); hi(MAT.SEED, 200, 0);
   hi(MAT.GAS, 200, 0); hi(MAT.GUNPOWDER, 180, 0); hi(MAT.FIREWORK, 150, 0); hi(MAT.NUKE, 400, 0);
   hi(MAT.PLANK, 300, 0); hi(MAT.DOOR, 300, 0); hi(MAT.LADDER, 300, 0); hi(MAT.STAIRS, 300, 0);
-  hi(MAT.BED, 200, 0); hi(MAT.SAPLING, 220, 0); hi(MAT.LINEN, 200, 0);
+  hi(MAT.BED, 200, 0); hi(MAT.SAPLING, 220, 0); hi(MAT.LINEN, 200, 0); hi(MAT.TRESTLE, 300, 0);
   hi(MAT.CROP, 220, 0); hi(MAT.WHEAT, 200, 0); hi(MAT.LAMP, 250, 0); hi(MAT.SOIL, 800, 0);   /* (a field of ripe wheat goes up like a field of ripe wheat) */
   /* coal catches late and burns long. iron ore runs, and what runs out of it sets as iron: a furnace is only a way of
      getting it hot enough. dressed stone is stone, and a girder is iron */
@@ -311,7 +312,7 @@ function heatUp(g, i, v) {
     case MAT.ORE: case MAT.GIRDER: m[i] = MAT.LAVA; g.aux[i] = MAT.METAL; return 0;
     case MAT.COAL: m[i] = MAT.EMBER; g.aux[i] = 1; return 0;
     case MAT.SAND: case MAT.SOIL: m[i] = MAT.GLASS; g.aux[i] = 0; g.score++; return 0;
-    case MAT.WOOD: case MAT.PLANK: case MAT.DOOR: case MAT.LADDER: case MAT.STAIRS: m[i] = MAT.EMBER; g.aux[i] = 0; return 0;
+    case MAT.WOOD: case MAT.PLANK: case MAT.DOOR: case MAT.LADDER: case MAT.STAIRS: case MAT.TRESTLE: m[i] = MAT.EMBER; g.aux[i] = 0; return 0;
     case MAT.ACID: m[i] = MAT.SMOKE; g.aux[i] = 0; return 0;
     case MAT.GAS: m[i] = MAT.FIRE; g.sh[i] = SAND_CLEAN; g.aux[i] = 0; g.fx.whoosh++; return 0;
     case MAT.GUNPOWDER: sandBoom(g, i); return 0;

@@ -18,7 +18,7 @@ var GLYPH = {
   SMOKE: "k", EMBER: "e", GLASS: "G", SALT: "n", CLONER: "C", GAS: "`", TORCH: "t", SEED: ",",
   FLOWER: "F", FIREWORK: "w", NUKE: "N", SALTWATER: "S", METAL: "M", SNOW: "z", INERT: "I",
   PLANK: "=", DOOR: "D", LADDER: "H", STAIRS: "L", BED: "b", SAPLING: "y", SOIL: "_",
-  CROP: "p", WHEAT: "u", LAMP: "l", COAL: "c", ORE: "R", GOLD: "$", BRICK: "B", GIRDER: "E"
+  CROP: "p", WHEAT: "u", LAMP: "l", COAL: "c", ORE: "R", GOLD: "$", BRICK: "B", GIRDER: "E", TRESTLE: "X"
 };
 var HEAT_RAMP = " .:-=+*#%@";
 

@@ -65,7 +65,10 @@ var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STON
                will stand a furnace, and what comes back from the moon */
             MORTAR: 48, CONCRETE: 49, STAINED: 50, FIREBRICK: 51, MOONROCK: 52,
             /* and what a crowded street hangs out between its flats (storeys.js): washing, on a line */
-            LINEN: 53 };
+            LINEN: 53,
+            /* and what a crowded valley stands its platforms on (platforms.js): cross-braced timber legs, which they
+               walk through, as they do a lift's girders */
+            TRESTLE: 54 };
 /* how many kinds of thing there may ever be: the size of every per-thing table */
 var NMAT = 64;
 
@@ -114,7 +117,8 @@ var PICK = [
   { m: MAT.BRICK,      name: "STONEWORK", key: "", more: "build", desc: "dressed stone, laid in courses. the peasants' best walls. melts like stone, past 1150." },
   { m: MAT.CONCRETE,   name: "CONCRETE",  key: "", more: "build", desc: "set hard: what WET CONCRETE becomes. grey and board-marked. stands to 1500." },
   { m: MAT.FIREBRICK,  name: "FIREBRICK", key: "", more: "build", desc: "a pale brick that stands a furnace. carries heat badly, and lasts to 2000." },
-  { m: MAT.STAINED,    name: "STAINED GLASS", key: "", more: "build", desc: "ruby, green and amber, a pane to a grain. glows with a light behind it. melts at 1400." }
+  { m: MAT.STAINED,    name: "STAINED GLASS", key: "", more: "build", desc: "ruby, green and amber, a pane to a grain. glows with a light behind it. melts at 1400." },
+  { m: MAT.TRESTLE,    name: "TRESTLE",   key: "", more: "build", desc: "timber legs, cross-braced. peasants walk through it. sand and water do not. it burns." }
 ];
 /* how many rows the panel itself has: everything before the first of MORE's */
 var PICK_N = PICK.findIndex(function (p) { return !!p.more; });
@@ -202,7 +206,9 @@ var SAND_SHADES = [
   ["#e6d49a", "#dccb8f", "#efdea8", "#d2c084"],
   ["#c8c6c0", "#b8b6b0", "#d4d2cc", "#a8a6a0"],
   /* linen: the cord (aux 6), and five shirts (aux 1 to 5: game.js) */
-  ["#e4dcc4", "#d8484c", "#4a78d4", "#e8c040", "#58b45a", "#f2f0ea"]
+  ["#e4dcc4", "#d8484c", "#4a78d4", "#e8c040", "#58b45a", "#f2f0ea"],
+  /* trestle: sawn timber, a little darker than a board, in a lattice (game.js) */
+  ["#9a6a3c", "#8e6036", "#a67444", "#855a32"]
 ];
 
 /* every (thing, shade) pair is worked out once, up here, not sixty times a second */
@@ -230,13 +236,13 @@ var SOLID = new Uint8Array(NMAT), LIQUID = new Uint8Array(NMAT), HOT = new Uint8
  MAT.GLASS, MAT.SALT, MAT.CLONER, MAT.TORCH, MAT.SEED, MAT.FLOWER, MAT.FIREWORK, MAT.NUKE, MAT.METAL, MAT.SNOW, MAT.INERT,
  MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.SOIL, MAT.CROP, MAT.WHEAT, MAT.LAMP,
  MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER, MAT.PACKSNOW, MAT.ROCKSALT,
- MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK, MAT.LINEN].forEach(function (v) { SOLID[v] = 1; });
+ MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK, MAT.LINEN, MAT.TRESTLE].forEach(function (v) { SOLID[v] = 1; });
 /* rock: what a pick is for (mines.js). it all stays where it is, whatever is dug out from under it */
 var ROCK = new Uint8Array(NMAT);
 [MAT.STONE, MAT.COAL, MAT.ORE, MAT.GOLD, MAT.ROCKSALT].forEach(function (v) { ROCK[v] = 1; });
 /* wood, and everything a peasant has made out of wood: it all burns the same way, down to embers */
 var WOODY = new Uint8Array(NMAT);
-[MAT.WOOD, MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS].forEach(function (v) { WOODY[v] = 1; });
+[MAT.WOOD, MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.TRESTLE].forEach(function (v) { WOODY[v] = 1; });
 /* things that burn up like a plant does: in flames, not embers */
 var LEAFY = new Uint8Array(NMAT);
 [MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.BED, MAT.SAPLING, MAT.CROP, MAT.WHEAT].forEach(function (v) { LEAFY[v] = 1; });
@@ -247,7 +253,7 @@ var STILL = new Uint8Array(NMAT);
 [MAT.EMPTY, MAT.STONE, MAT.WOOD, MAT.GLASS, MAT.FLOWER, MAT.METAL, MAT.INERT,
  MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.WHEAT, MAT.LAMP,
  MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER, MAT.PACKSNOW, MAT.ROCKSALT,
- MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK, MAT.LINEN].forEach(function (v) { STILL[v] = 1; });
+ MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK, MAT.LINEN, MAT.TRESTLE].forEach(function (v) { STILL[v] = 1; });
 /* (wet concrete is a liquid, but not a fluid: nothing sinks into it, it sinks into nothing but water. sand sits on it) */
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER, MAT.MORTAR].forEach(function (v) { LIQUID[v] = 1; });
 /* water, as far as fire, plants, peasants and lightning are concerned */

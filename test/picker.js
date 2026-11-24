@@ -22,7 +22,7 @@ module.exports = function (test, check) {
     };
     return h;
   }
-  var NEW = ["COAL", "IRON ORE", "GOLD", "ROCK SALT", "STONEWORK", "CONCRETE", "FIREBRICK", "STAINED GLASS"];
+  var NEW = ["COAL", "IRON ORE", "GOLD", "ROCK SALT", "STONEWORK", "CONCRETE", "FIREBRICK", "STAINED GLASS", "TRESTLE"];
 
   test("picker: the rock and the building stone are in the picker, after ERASE, each with a colour, a name and a description", function () {
     var h = open(), w = h.game, P = h.pick, e = h.idx("ERASE");
@@ -116,15 +116,15 @@ module.exports = function (test, check) {
     h.wheel(1);
     check(h.pick[g.sel].name === "COAL", "the first step down landed on " + h.pick[g.sel].name);
     h.wheel(-1);
-    check(h.pick[g.sel].name === "STAINED GLASS", "a step up from COAL went to " + h.pick[g.sel].name);
+    check(h.pick[g.sel].name === "TRESTLE", "a step up from COAL went to " + h.pick[g.sel].name);
     check(g.size === s0 && g.moreOpen, "the wheel changed the brush size, or shut it");
     var cam = g.camX;
     w.gameWheelXY(g, 40, 0, 0, false, 1000, 1);
     check(g.camX === cam && g.camT === cam, "a sideways swipe over the flyout panned");
     h.key("escape"); h.select("ERASE"); h.key("arrowdown");
     check(h.pick[g.sel].name === "COAL", "down from ERASE is " + h.pick[g.sel].name);
-    h.select("STAINED GLASS"); h.key("arrowdown");
-    check(h.pick[g.sel].name === "PEASANT", "down from STAINED GLASS is " + h.pick[g.sel].name);
+    h.select("TRESTLE"); h.key("arrowdown");
+    check(h.pick[g.sel].name === "PEASANT", "down from TRESTLE is " + h.pick[g.sel].name);
   });
 
   test("picker: painted stained glass comes in its three colours, and a held brush does not shuffle them", function () {

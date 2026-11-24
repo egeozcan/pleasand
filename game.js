@@ -862,6 +862,10 @@ function drawWorld(g, all) {
         /* pale and pitted, with a faint shimmer */
         px[i] = SAND_PAL[v][(sh[i] + ((Math.sin(x * 0.31 + y * 0.23 + t * 0.9) * 20) | 0)) & 255];
         if (((x * 5 + y * 11) % 7) === 0) px[i] = blend32(px[i], 0xff000000, 0.3);
+      } else if (v === MAT.TRESTLE) {
+        /* a trestle: timber posts at the edges of a leg, and the braces crossing between them. the gaps show through */
+        a = m[i - 1] !== v || m[i + 1] !== v || ((x + y) & 3) === 0 || ((x - y + 400) & 3) === 0;
+        px[i] = a ? SAND_PAL[v][sh[i]] : blend32(bg[i], 0xff000000, 0.4);
       } else if (v === MAT.GIRDER) {
         /* a lattice: the edges and the crossing diagonals are iron, the rest is see-through */
         a = ((x + y) % 3 === 0) || ((x - y + 300) % 3 === 0);
@@ -1420,7 +1424,7 @@ var P_CAUSE = { starve: "hunger", old: "old age", fire: "fire", lava: "lava", dr
   fall: "a long fall", splat: "going splat", nuke: "the nuke", drain: "the drain", buried: "being buried",
   zap: "lightning", chute: "a parachute", reentry: "re-entry", freeze: "the cold" };
 /* what the other things they build are called, one and many */
-var SITE_NAMES = { farm: ["field", "fields"], storey: ["flat upstairs", "flats upstairs"], lamp: ["porch light", "porch lights"], post: ["street lamp", "street lamps"],
+var SITE_NAMES = { farm: ["field", "fields"], storey: ["flat upstairs", "flats upstairs"], deck: ["platform", "platforms"], lamp: ["porch light", "porch lights"], post: ["street lamp", "street lamps"],
   grave: ["cross", "crosses"], scarecrow: ["scarecrow", "scarecrows"], jetty: ["jetty", "jetties"], pond: ["dug pond", "dug ponds"],
   statue: ["statue", "statues"], well: ["oil well", "oil wells"], mine: ["mine", "mines"], tunnel: ["gallery", "galleries"],
   tower: ["watchtower", "watchtowers"], furnace: ["furnace", "furnaces"], lift: ["lift", "lifts"], bell: ["bell", "bells"],

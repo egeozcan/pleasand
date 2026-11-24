@@ -11,7 +11,9 @@ it, carries no heat and ignores everything but the eraser), plus fireworks, a
 nuke and lightning. And under the sand, in the rock: seams of coal, lumps of iron ore, beds of rock salt and,
 deep down, the odd speck of gold, and here and there a pool of oil sealed in the stone, waiting for somebody
 to drill for it. MORE, under ERASE, opens onto the rest you can paint: that rock (coal, iron ore, gold, rock
-salt) and the peasants' building stone (stonework, concrete, firebrick, stained glass).
+salt) and the peasants' building stone (stonework, concrete, firebrick, stained glass), and trestle, the
+cross-braced timber their platforms stand on: sand and water rest on it, and peasants walk straight through it
+(and so fall straight through it, if it is all there is under them).
 
 Every pixel has a temperature. Heat flows from hot to cold, fast through metal
 and slowly through wood, ash and air; hot air and hot water rise, cold air sinks.
@@ -534,6 +536,27 @@ house, thinks of building on top of one instead (`docs/storeys-plan.md` is how):
   alight smoulders along like a fuse, and gets in at a shuttered window at the other end (not a
   glass one)
 
+And when the roofs will take no more (a foundry against one end of the house, the bell on another, a well against
+the third), whoever wakes on the ground next thinks of making more ground (`docs/platforms-plan.md` is how):
+
+- **Platforms**: a level deck, high over whatever is under it (roofs, a field, the pond, the well), on legs of
+  cross-braced timber, with a ladder up one end of it, or up through the end of it. It clears a roof by three rows
+  and anywhere anybody stands by twelve, so the village goes on underneath; a leg stands on the ground, or on the
+  ridge of somebody's roof. The deck goes down first, out from the top of the ladder, and the legs are let down
+  from it a length at a time. Then a house goes up on it, its floor the deck: ON STILTS. It is a house like any
+  other, so a flat can go on top of it too. They go up by the ladder and, from a deck low enough, come down off
+  the end ("WHEEE"), and say "don't look down" up there, and "who's that walking about up there" from the house
+  underneath. A platform with a house on it is mended, whatever burns, and never given up. The legs are wood all
+  the way up, and a fire at the foot of one runs up it
+- **The high street**: now and then, when somebody with no home is about while a platform near them stands
+  finished and empty air runs on from the far end of it, the next platform is run on from that end instead of
+  standing on its own: at its row, or a step or three up or down it (a riser at the join), or up to twelve rows (a
+  short ladder between them), with no ladder of its own to the ground. A walkway over the roofs with houses along
+  it, one ladder at the end: HIGH STREET. Somebody with no wood at all can start one: the others bring the boards.
+  A platform the street runs on from is kept, and mended, for the houses further along, whatever happens to its own
+- **Under the boards**: somebody with no home, going to sleep, goes and lies down under a platform if there is one
+  near: out of the weather, no backache, and no idea about sleeping rough in the morning ("slept like a plank")
+
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
 and grown from there.
 
@@ -648,6 +671,9 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 - Pour water into a top-floor flat. Stand underneath
 - Set fire to the washing. Then try it again with a glass window
 - Drop ten more peasants into a valley that has stopped growing. Then wait
+- Let a one-screen valley run on past its storeys. Then look up
+- Set fire to the foot of the leg that stands on somebody's roof
+- Paint a trestle across a gorge and pour sand on it. Then send somebody across
 
 ## Files
 
@@ -668,6 +694,7 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 - `pleasures.js`: the baths, the hanging gardens, the steam organ, the duck palace and the ice palace
 - `heavens.js`: the observatory and its falling stars, the lighthouse, the foundry, and the moon rocket
 - `storeys.js`: a crowded valley: flats on top of the houses, their ladders, neighbours, gardyloo and fire, word getting round, going over the hills, roof gardens and washing lines
+- `platforms.js`: when the roofs will take no more: decks on trestle legs over the village, a house on each, the high street, and sleeping under the boards
 - `ducks.js`: the ducks
 - `save.js`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it
 - `game.js`: rendering, the picker and HUD, input, and the main loop

@@ -47,6 +47,7 @@ var B_COST = new Float32Array(NMAT);
 B_COST[MAT.PLANK] = B_COST[MAT.DOOR] = B_COST[MAT.STAIRS] = B_COST[MAT.BED] = B_COST[MAT.WOOD] = 1;
 B_COST[MAT.LADDER] = 1 / 3;
 B_COST[MAT.LAMP] = 1;             /* a lantern: a board's worth of frame, round a little oil */
+B_COST[MAT.TRESTLE] = 0.5;        /* a cell of a platform's leg: two of them a board (platforms.js) */
 /* (tilling a field and sowing it cost nothing but the work: SOIL and CROP are free) */
 /* and the things that are not made of wood (mines.js): what they are made of, and how much of it a cell takes. a stone
    dresses into two blocks, an iron bar into five lengths of girder, and a nugget of gold casts five cells of bell */
@@ -186,6 +187,7 @@ function bHome(g, p) {
 }
 function bLabel(s) {
   if (s.kind === "storey") return sLabel(s);   /* (a flat, over somebody's house: storeys.js) */
+  if (s.kind === "deck") return plLabel(s);     /* (platforms.js) */
   var what = s.hut ? "hut" : "house";
   if (s.kind === "house") return s.who ? pTitle(s.who) + "'s " + what : "the empty " + what;
   return iLabel(s) || "the " + s.kind;
@@ -450,14 +452,20 @@ function bPlanHouse(g, p) {
     if (r && (!best || r.work + d * 0.15 < best.score)) { best = r; best.score = r.work + d * 0.15; }
   }
   if (!best) return false;
-  var x0 = best.x0, x1 = x0 + 10, F = best.F, plan = [], x, y, k;
+  bHousePlan(g, p, best.x0, best.F, best.dig, best.fill);
+  return true;
+}
+/* the house itself, at x0 on floor row F, for p: its plan and its site. (opts.deck: on a platform, whose deck is its
+   floor: platforms.js) */
+function bHousePlan(g, p, x0, F, dig, fill, opts) {
+  var x1 = x0 + 10, plan = [], x, y, k, deck = opts && opts.deck;
   /* (a village that knows masonry, with stone to spare, builds in it: it does not burn. the doors, the window and the
      bed are still wood) */
   var W = g.know.masonry && bStoneToHand(g) >= 30 ? MAT.BRICK : MAT.PLANK;
   /* 0: dig out whatever is loose in the way, top down. 1: posts down to the ground where it dips, and a plank floor */
-  for (k = 0; k < best.dig.length; k++) plan.push(bE(g, best.dig[k][0], best.dig[k][1], MAT.EMPTY, 0));
-  for (k = 0; k < best.fill.length; k++) plan.push(bE(g, best.fill[k][0], best.fill[k][1], W, 1));
-  for (x = x0; x <= x1; x++) plan.push(bE(g, x, F, W, 1));
+  for (k = 0; k < dig.length; k++) plan.push(bE(g, dig[k][0], dig[k][1], MAT.EMPTY, 0));
+  for (k = 0; k < fill.length; k++) plan.push(bE(g, fill[k][0], fill[k][1], W, 1));
+  if (!deck) for (x = x0; x <= x1; x++) plan.push(bE(g, x, F, W, 1));
   /* 2: the walls are the doors, one at each end, up from the ground. a door cell's aux is how far down the door it is:
      the knob is at 5. 3: the lintels over them, the ceiling, and the roof, with a window in the gable */
   bDoors(g, plan, [x0, x1], F - 9, F - 1, 2);
@@ -475,10 +483,11 @@ function bPlanHouse(g, p) {
   for (k = -1; k <= 1; k++) plan.push(bE(g, bx + k, F - 1, MAT.BED, 4, 0, (k === 1 ? 5 : blanket) + 6 * irnd(42)));
   var s = bNew(g, "house", p, plan, [x0, F - 14, x1, F + 3],
                { F: F, ix0: x0 + 1, ix1: x1 - 1, iy0: F - 10, bed: { x: bx, y: F - 1 }, win: win, stone: W === MAT.BRICK });
-  feed(g, p.name + " is building a " + (W === MAT.BRICK ? "stone " : "") + "house", "#a8e08a", "plan" + s.id);
+  if (deck) s.deck = deck;
+  feed(g, p.name + " is building a " + (W === MAT.BRICK ? "stone " : "") + "house" + (deck ? " on the platform" : ""), "#a8e08a", "plan" + s.id);
   pSay(g, p, "planHouse", true);
   bJoin(g, p, s);
-  return true;
+  return s;
 }
 /* a door in each of the columns xs, rows y0 (its top) to y1, from the bottom up, in phase ph */
 function bDoors(g, plan, xs, y0, y1, ph) {
@@ -660,7 +669,8 @@ function bFail(g, p, s, t, why) {
   /* nor anything nobody can find a way to, time after time (a grave across the lake from everybody, a gallery down a
      mine they cannot get into, a pond dug where nobody can get to it to finish it): given up, and planned again
      somewhere they can get to. (a gallery is written off. a pond that was dug once is mended, not given up) */
-  if (why === "walk" && s.kind !== "house" && s.kind !== "farm" && !s.mine && !s.wonder && (s.kind !== "pond" || !s.repair) && (s.lost = (s.lost || 0) + 1) > 24) {
+  var carries = g.know.deck && plCarries(g, s);   /* (a platform with a house on it is mended, whatever it takes: platforms.js) */
+  if (why === "walk" && s.kind !== "house" && s.kind !== "farm" && !s.mine && !s.wonder && !carries && (s.kind !== "pond" || !s.repair) && (s.lost = (s.lost || 0) + 1) > 24) {
     var j = g.sites.indexOf(s);
     if (j >= 0) {
       feed(g, "nobody can get to " + bLabel(s) + ". the village gave up on it", "#c8d0dc", "plan" + s.id);
@@ -675,7 +685,7 @@ function bFail(g, p, s, t, why) {
     s.flood = 2; var m0 = bSite(g, s.of); if (m0 && (m0.lv || 0) === (s.lv || 0)) m0.out[s.dir] = true;
     feed(g, "nobody can get down to " + bLabel(s) + ". that way is done with", "#c8d0dc", "plan" + s.id);
   }
-  if (why === "nothing" && s.kind !== "house" && !s.free && !s.wonder && ++s.nothing > 6) {
+  if (why === "nothing" && s.kind !== "house" && !s.free && !s.wonder && !carries && ++s.nothing > 6) {
     var k = g.sites.indexOf(s);
     if (k >= 0) { feed(g, "the village gave up on " + bLabel(s), "#c8d0dc", "plan" + s.id); if (s.kind === "glasshouse") lRefund(g, s); else bGiveBack(s, p); bRemove(g, k); }
   }
@@ -955,8 +965,10 @@ function bFinish(g, s, p) {
       if (n >= 3) achieve(g, "village");
     }
     if (o) { o.home = s.id; pSay(g, o, "homeDone", true); }
+    if (s.deck) { achieve(g, "stilts"); if (o) pSay(g, o, "deckHome", true); }   /* (a house on a platform: platforms.js) */
   } else if (s.kind === "storey") sFinish(g, s, p);   /* (storeys.js) */
   else if (s.kind === "roofgarden") sRoofFinish(g, s, p);
+  else if (s.kind === "deck") plFinish(g, s, p);   /* (platforms.js) */
   else if (!iFinish(g, s, p)) {
     feed(g, p.name + " built " + (s.kind === "stairs" ? "some stairs" : "a " + s.kind), "#a8e08a", "plan" + s.id);
     achieve(g, s.kind);
@@ -983,7 +995,7 @@ function buildStep(g) {
       bGiveBack(s, bNearestLiving(g, s)); bRemove(g, k); g.resow = 1;   /* (and another, wherever there is room: ideas.js) */
       iFarmNo(g, s.x0, s.x1, 30000);   /* (not there again, for a good while) */
     }
-    else if (g.tick - s.last > 20000 && !bBusy(g, s) && !s.wonder) {   /* (a great work waits: wonders.js) */
+    else if (g.tick - s.last > 20000 && !bBusy(g, s) && !s.wonder && !(g.know.deck && plCarries(g, s))) {   /* (a great work waits: wonders.js. and a platform with a house on it: platforms.js) */
       /* nobody has touched it in ages. a house that is mostly up is lived in as it is; anything else is forgotten */
       if ((sDwelling(s) || s.free) && (s.repair || s.hut || bShare(g, s) > 0.6)) {
         s.done = true; s.repair = s.sow = false; s.last = g.tick;
@@ -1011,6 +1023,7 @@ function buildStep(g) {
     pSay(g, best, "moveIn", true);
   }
   sStep(g);   /* (a flat whose floor below is gone goes with it: storeys.js) */
+  plStep(g);   /* (and a house whose platform is gone: platforms.js) */
 }
 /* how much of it is up */
 function bShare(g, s) {
@@ -1044,7 +1057,7 @@ function bInspect(g, s, idx) {
     if (lost || (e.v === MAT.SOIL && !bOk(g, e))) broken++;
   }
   /* (nor a floor with a flat on it: what is over it stands, and the floor is mended under it. storeys.js) */
-  if (broken > n * 0.6 && !s.mine && !(g.know.storey && sDwelling(s) && sOver(g, s))) {   /* (a mine is a hole in the ground: there is no knocking that down) */
+  if (broken > n * 0.6 && !s.mine && !(g.know.storey && sDwelling(s) && sOver(g, s)) && !(g.know.deck && plCarries(g, s))) {   /* (a mine is a hole in the ground: there is no knocking that down. nor a platform with a house on it: platforms.js) */
     var o = bOwner(g, s);
     feed(g, bLabel(s).charAt(0).toUpperCase() + bLabel(s).slice(1) + " is gone", "#ff9a8a", "fix" + s.id);
     if (o && sDwelling(s)) { o.home = 0; pSay(g, o, "lostHome", true); }
@@ -1106,8 +1119,10 @@ function bPick(g, p) {
       tried = true;
       if (g.know.masonry) g.noPlotT = g.tick;   /* (no plot: crowded, maybe. storeys.js) */
     }
+    var cd0 = p.planCD;   /* (whether they could plan anything before sTry had its go: platforms.js) */
     if (g.know.storey && sTry(g, p)) return true;   /* (no room on the ground: on top, then. storeys.js) */
     if (g.know.roofgarden && sTryRoof(g, p)) return true;   /* (and a field up there: storeys.js) */
+    if (g.know.deck && plTry(g, p, cd0)) return true;             /* (no roof will take a floor: make some ground. platforms.js) */
     if (tried) p.planCD = 2400;
   }
   if (p.wantPlant) {
@@ -1138,6 +1153,7 @@ function bTask(g, p, k) {
 /* bed: their own, if they have one with a bed in it. otherwise wherever they are standing */
 function bTaskSleep(g, p, k) {
   var h = bHome(g, p);
+  if (!h && g.know.deck) { var u = plUnder(g, p, k); if (u !== undefined) return u; }   /* (no home: under a platform, then. platforms.js) */
   if (++k.t > 1500 || !h || !h.bed || pCell(g, h.bed.x, h.bed.y) !== MAT.BED) { bNap(g, p); return true; }
   var bx = h.bed.x + 0.5, dx = bx - p.x, fy = Math.floor(p.y);
   if (Math.abs(dx) < 0.7 && Math.abs(fy - (h.bed.y - 1)) <= 1) {
@@ -1153,6 +1169,7 @@ function bTaskSleep(g, p, k) {
 }
 function bNap(g, p) {
   p.sleep = (B_SLEEP >> 1) + irnd(300); p.tired = B_SLEEPY * 0.4; p.inBed = false;
+  if (p.underDeck) p.underDeck = false;   /* (a nap cut short, by a hand or a blast, left it set: platforms.js) */
   p.task = null; p.taskDone = true;
   pSay(g, p, "nap", true);
 }
@@ -1167,10 +1184,12 @@ function bSleeping(g, p) {
   return true;
 }
 function bWake(g, p) {
-  var rough = !p.inBed;
+  var under = !!p.underDeck && !p.inBed, rough = !p.inBed && !under;   /* (under a platform is out of the weather, and no backache: platforms.js) */
+  if (p.underDeck) p.underDeck = false;
   p.sleep = 0; p.inBed = false;
   if (rough && g.know.masonry && !g.know.storey && !p.wspark) wSpark(g, p, "storey");   /* (a night on the ground, and no room: storeys.js) */
-  pSay(g, p, rough && Math.random() < 0.7 ? "backache" : "wake", true);
+  if (rough && g.know.storey && !g.know.deck && !p.wspark && plReady(g)) wSpark(g, p, "deck");   /* (and no roof that will take a floor: platforms.js) */
+  pSay(g, p, under ? "underWake" : rough && Math.random() < 0.7 ? "backache" : "wake", true);
 }
 
 /* cold: go and stand by a fire. a respectful distance from it */
@@ -1527,7 +1546,7 @@ function bReadout(g, j) {
     for (var n = 0; n < s.plan.length; n++) {
       var e = s.plan[n];
       if (e.i !== j) continue;
-      var what = bLabel(s).toUpperCase() + (g.know.storey ? sNote(g, s) : "") + (s.done ? "" : bWhy(g, s)) + (s.note ? ": " + s.note.toUpperCase() : "");
+      var what = bLabel(s).toUpperCase() + (g.know.storey ? sNote(g, s) : "") + (g.know.deck ? plNote(g, s) : "") + (s.done ? "" : bWhy(g, s)) + (s.note ? ": " + s.note.toUpperCase() : "");
       if (bOk(g, e)) return what;
       if (e.strip) return "TO TAKE DOWN, FOR " + what;
       if (e.v === MAT.EMPTY) return (e.mine && ROCK[g.m[j]] ? "TO MINE, FOR " : "TO DIG OUT, FOR ") + what;

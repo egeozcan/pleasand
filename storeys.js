@@ -482,7 +482,7 @@ function sLadderHot(g, cx) {
   var v = false;
   for (var k = 0; k < g.sites.length && !v; k++) {
     var s = g.sites[k];
-    if (s.kind !== "storey" || s.lad !== cx) continue;
+    if ((s.kind !== "storey" && s.kind !== "deck") || s.lad !== cx) continue;
     for (var y = s.F - 2; y <= s.fy + 1 && !v; y++) for (var x = cx - 3; x <= cx + 3; x++) { var c = pCell(g, x, y); if (c === MAT.FIRE || c === MAT.EMBER) { v = true; break; } }
   }
   L[cx] = { t: g.tick, v: v };
@@ -494,14 +494,14 @@ function sIsLadder(g, cx) {
   var key = g.tick + ":" + g.sid + ":" + g.sites.length;
   if (S_LADS.t !== key || S_LADS.g !== g) {
     S_LADS.t = key; S_LADS.g = g; S_LADS.on = {};
-    for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "storey") S_LADS.on[g.sites[k].lad] = 1;
+    for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "storey" || g.sites[k].kind === "deck") S_LADS.on[g.sites[k].lad] = 1;   /* (and a platform's: platforms.js) */
   }
   return S_LADS.on[cx] === 1;
 }
 /* is (cx, y) on a flat's ladder: its column, and within its rows (a mine's ladder in the same column is not) */
 function sOnLadder(g, cx, y) {
   if (!sIsLadder(g, cx)) return false;
-  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.kind === "storey" && s.lad === cx && y >= s.F - 3 && y <= s.fy + 1) return true; }
+  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if ((s.kind === "storey" || s.kind === "deck") && s.lad === cx && y >= s.F - 3 && y <= s.fy + 1) return true; }
   return false;
 }
 /* about to climb down a flat's ladder with a fire at it: out past it instead, and down, and hope (build.js bClimbStart).
@@ -511,7 +511,7 @@ P_ACHIEVE.topdoor = ["OUT THE TOP DOOR", "a peasant jumped out of a burning flat
 function sLeapOff(g, p, cx) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
-    if (s.kind !== "storey" || s.lad !== cx) continue;
+    if ((s.kind !== "storey" && s.kind !== "deck") || s.lad !== cx) continue;
     pLeap(p, 0.9, s.d * 1.1);
     p.dir = s.d;
     pSay(g, p, "leap", true);
@@ -584,6 +584,7 @@ function sComings(g) {
 /* could anybody homeless be housed yet: an empty home, something going up, or a storey that could go up somewhere */
 function sAnyHome(g) {
   var k, s;
+  if (g.know.deck && plAnyHome(g)) return true;   /* (a platform going up, or waiting for its house: platforms.js) */
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     if (!sDwelling(s)) continue;
