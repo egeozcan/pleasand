@@ -38,7 +38,8 @@ var SAVE_SKIP = [
   "zmark", "zlist", "zn", "zt",                 /* lightning flood scratch */
   "pmark", "pstack", "pgen", "pressList", "pressN", "fastList",  /* pressure and heat scratch */
   "navSeen", "navShut", "navCost", "navFrom", "navHow", "navLad", "navHeapI", "navHeapF", "navGen",  /* pathfinding scratch, and the count it marks its rounds with (the two go together) */
-  "camI", "bootW", "stripC", "stripX", "stripI", "stripP", "stripN"   /* the column the picture is drawn from, the width a NEW valley is, the strip's picture */
+  "camI", "bootW", "stripC", "stripX", "stripI", "stripP", "stripN",   /* the column the picture is drawn from, the width a NEW valley is, the strip's picture */
+  "tipN"                                        /* which tip the panel shows, in a valley one screen wide */
 ];
 /* and the hand on the mouse: a loaded village starts with nobody pressing anything */
 var SAVE_INPUT = ["down", "btn", "ptr", "keys", "samp", "lx", "ax", "pop", "popRect", "hdrHit", "fps", "ms",
@@ -493,6 +494,8 @@ function saveApplyState(g, state, keepPointer) {
   saveScratchReset();
   if (g.pmark) { g.pmark.fill(0); g.pgen = 0; }
   if (g.zmark) g.zmark.fill(0);
+  /* (a save from before the hand's grains were marked: none of them is. world.js partInit) */
+  if (!g.ph) g.ph = new Uint8Array(PMAX);
   /* (and a lump that was in the hand is let go where it was, still: nobody is holding it now. hand.js) */
   if (g.hand && g.hand.held) handLetGo(g, [0, 0]);
   return g;

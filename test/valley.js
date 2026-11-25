@@ -157,7 +157,7 @@ module.exports = function (test, check) {
         if (!ArrayBuffer.isView(v) || v instanceof DataView) return;
         /* (exempt: the particles, the pressure tries and the pathfinder's heap are sized by what they hold, not the grid;
            the glow's small canvases' pixels, if any, are one screen's; the explorers' map is in blocks) */
-        if (/^(pp[xy]|pv[xy]|pl|pk|pm|pc|pt|ps|pressList|navHeap[IF]|seenAt|stripP)$/.test(k)) return;
+        if (/^(pp[xy]|pv[xy]|pl|pk|pm|pc|pt|ps|ph|pressList|navHeap[IF]|seenAt|stripP)$/.test(k)) return;
         if (v.length !== n && v.length !== n + 8 && v.length !== w && v.length !== 186) bad.push(k + ":" + v.length);
       });
       check(!bad.length, "at " + w + " wide: " + bad.join(", "));
@@ -394,6 +394,20 @@ module.exports = function (test, check) {
     /* (and the tips, in a wide valley, go round: the valley's own first) */
     var tl = h.fn("tipLine"), t0 = tl(g); h.fn("panelDo")(g, "tip");
     check(/four screens/.test(t0) && tl(g) !== t0, "the tips in a wide valley: " + t0 + " then " + tl(g));
+  });
+
+  test("valley: a valley one screen wide shows a tip from the first, and a click on it is the next one, not a heap for the village", function () {
+    var h = harness.open({ seed: 6 }), g = h.g, tl = h.fn("tipLine"), TIPS = h.eval("TIPS"), go = h.fn("panelDo");
+    var t0 = tl(g);
+    check(TIPS.indexOf(t0) >= 0, "the tip a one-screen valley starts with is " + t0);
+    go(g, "tip");
+    check(TIPS.indexOf(tl(g)) >= 0 && tl(g) !== t0 && g.tip === null, "after a click the tip is " + tl(g) + ", and the village's heap " + JSON.stringify(g.tip));
+    /* (and with a heap standing, a click leaves it where it is) */
+    var heap = { x: 100, y: 120, site: 0, n: 3 };
+    g.tip = heap; go(g, "tip");
+    check(g.tip === heap && heap.x === 100 && heap.n === 3, "a click on the tip with a heap made the heap " + JSON.stringify(g.tip));
+    check(TIPS.indexOf(tl(g)) >= 0, "with a heap, the tip is " + tl(g));
+    g.tip = null;
   });
 
   test("valley: the header's left corner, over the picker, is no edge; a wide valley's constellations are over the observatory", function () {

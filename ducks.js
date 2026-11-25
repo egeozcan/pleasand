@@ -336,6 +336,7 @@ function dStep(g, d) {
   if (d.quackT > 0) d.quackT--;
   else { d.quackT = 300 + irnd(900); if (d.state !== "thrown") dSay(g, d, "quack"); }
 
+  if (d.shoved && d.state !== "thrown") d.shoved = 0;   /* (down again from a knock: hand.js) */
   if (d.state === "thrown") dThrown(g, d);
   else if (d.state === "fly") dFly(g, d);
   else if (LIQUID[cf] || (LIQUID[cu] && !dGround(g, d.x, d.y))) dSwim(g, d);
@@ -530,6 +531,7 @@ function dThrown(g, d) {
   if (spd > 5) { d.vx *= 5 / spd; d.vy *= 5 / spd; spd = 5; }
   for (s = 0; s < n; s++) {
     nx = d.x + d.vx / n; ny = d.y + d.vy / n;
+    if (d.shoved && (nx < 1 || nx > g.gw - 1)) { d.vx = -d.vx * 0.5; nx = d.x; }   /* (knocked by the hand: the edge is a wall. hand.js) */
     if (nx < -4 || nx > g.gw + 4 || ny > g.gh + 8) { d.dead = 1; feed(g, "a duck left. by air", "#c8d0dc"); return; }
     if (ny < -40) { d.dead = 1; feed(g, "a duck has gone to space", "#9ad0ff"); achieve(g, "duckspace"); return; }
     if (LIQUID[pCell(g, Math.floor(nx), Math.floor(ny))]) { d.x = nx; d.y = ny; d.vx = d.vy = 0; d.state = "swim"; g.fx.splash++; return; }
@@ -605,7 +607,8 @@ function duckWalkIn(g, n) {
 }
 
 /* how a duck is doing, for the bar at the bottom */
-function dMood(d) {
+function dMood(d, g) {
+  if (d.state === "held" && d.ride && g && g.hand) return g.hand.held ? "is sitting on a lump of the valley. quack" : "is flying, with the ground it was sitting on. quack";   /* (hand.js) */
   if (d.state === "held") return "is being held. quack";
   if (d.fire) return "is on fire";
   if (d.state === "thrown") return "is airborne. not on purpose";
@@ -626,7 +629,10 @@ function ducksDraw(g) {
     var d = D[k];
     if (d.dead) continue;
     var spr, fast = (d.anim >> 2) & 1, ox = Math.floor(d.x), oy = Math.floor(d.y), flip = d.dir < 0;
-    if (d.baby) spr = d.state === "swim" ? D_SPR.babySwim : (((d.anim / 6) | 0) & 1 ? D_SPR.babyA : D_SPR.babyB);
+    /* (one sitting on a lump in the hand sits, feet tucked, as on the pond: hand.js. thrown with it, it flaps) */
+    var sat = d.state === "held" && d.ride && g.hand && g.hand.held;
+    if (d.baby) spr = d.state === "swim" || sat ? D_SPR.babySwim : (((d.anim / 6) | 0) & 1 ? D_SPR.babyA : D_SPR.babyB);
+    else if (sat) spr = D_SPR.swim;
     else if (d.state === "fly" || d.state === "held" || d.state === "thrown") spr = fast ? D_SPR.flyA : D_SPR.flyB;
     else if (d.state === "swim") spr = d.dab > 0 ? D_SPR.dab : D_SPR.swim;
     else spr = d.idle > 0 || ((d.anim / 7) | 0) & 1 ? D_SPR.walkA : D_SPR.walkB;

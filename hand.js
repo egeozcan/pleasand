@@ -29,13 +29,14 @@ var H_HARD = 2.5;     /* a tick, or faster, into what it meets: it comes apart *
 var H_GRAV = 0.11;    /* debris's own gravity, and its top speed (world.js partStep) */
 var H_VMAX = 4;
 var H_WET = 1;        /* the fastest it goes down through water */
-var H_HOME_UP = 60;   /* how far up, and how far along, what it pushes aside looks for somewhere to go */
+var H_HOME_UP = 60;   /* how far up (past the water over it), and how far along, what it pushes aside looks for somewhere to go */
 var H_HOME_SIDE = 3;
 var H_FLICK = 4.5;    /* the fastest a hand throws anything (peasantThrow's clamp) */
 var H_SHARE = 60;     /* a lump of this many cells or fewer takes all of the flick; a bigger one sqrt(60 / n) of it */
 var H_STILL = 0.5;    /* under this, after the share, a hand trembles: it is let go still. and a skid this slow is over */
 var H_SKID = 0.6;     /* what a skid takes off its speed along, each tick it skids along what it has come down on */
 var H_KNOCK = 2;      /* speed squared, or more, and it knocks people flat (the bowling rule's own, peasants.js) */
+var H_SHOVE = 0.7;    /* the fastest it sends anybody it knocks flat along the ground (0.7² + 1.2² is under H_KNOCK) */
 var H_PANE = 4;       /* a window this near to where a hard lump hits is knocked out of the boards round it */
 /* what a lump has to be made of to break what it hits: the rock, the stonework, the metal, the glass and the ice, the
    timber, and the machines. not a bed, a flower, wheat, a lamp, linen or packed snow, and nothing loose */
@@ -49,12 +50,14 @@ P_SAY.handWoke = ["i was ASLEEP", "who moved my bed", "is it morning? it's not m
 P_SAY.handChase = ["MY HOUSE", "PUT IT BACK", "that's MINE", "careful with the bed", "THAT'S MY HOUSE", "mind the door"];
 
 /* what can be set down somewhere else and be the same thing there: small things, all of whose places are known. not a
-   great work, a flat or what a flat stands on, or a house on a platform */
-var H_MOVES = { house: 1, lamp: 1, scarecrow: 1, grave: 1, statue: 1 };
+   great work, a flat or what a flat stands on, or a house on a platform. (a lantern, or a bell on a ridge, only with
+   the house it hangs from: handOn) */
+var H_MOVES = { house: 1, lamp: 1, scarecrow: 1, grave: 1, statue: 1, bell: 1 };
 var H_WHOLE = 0.9;    /* this much of it came up, or more (and two cells at the least), and it is moved, not mended */
 var H_CHASE = 0.3;    /* this much of somebody's house in the hand, and they run after it */
 var H_RUIN = 0.6;     /* more of it than this come down in pieces, and it is a ruin (build.js bInspect's own share) */
 var H_LONG = 3000;    /* the longest anybody runs after one. and a house that is a ruin this soon after it flew, flew */
+var H_STAND = 1500;   /* and the longest they stand shouting at one that has stopped going anywhere */
 var H_FEEL = 9;       /* the most anybody thinks of it, either way */
 var H_SAYS = 3;       /* kindnesses over cruelties (or the other way) by this much, and those with no mind of their own go with the village */
 var H_LOOK = 80;      /* the ground going up, this near: they stop and look */
@@ -84,6 +87,8 @@ P_ACHIEVE.accepted = ["ACCEPTED", "they left something out for the hand, and it 
 P_ACHIEVE.kindly = ["A KINDLY HAND", "the village leaves out coal for it now"];
 P_SAY.handLift = ["the ground is going UP", "who ordered that", "oh no it's the hand again", "LOOK", "is it meant to do that",
                   "there goes the hill"];
+P_SAY.handLiftFirst = ["the ground is going UP", "who ordered that", "LOOK", "is it meant to do that", "there goes the hill"];   /* (there has been no hand before: handWitness) */
+P_SAY.handSmash = ["MY WINDOW", "that was a NEW window", "who threw that", "not the WINDOW", "i JUST fixed that"];
 P_SAY.handUnder = ["is that my house", "it's raining sky", "hello up there", "can i have a go", "don't drop it", "it's very big"];
 P_SAY.handLove = ["hello, hand", "we left you some coal", "*waves at the sky*", "the hand is kind", "it means well", "hi!"];
 P_SAY.handGrudge = ["YOU", "i know what you did", "put my house back", "keep your hands to yourself", "i'm watching you",
@@ -148,7 +153,7 @@ function handLift(g) {
     x = Math.floor(p.x); y = Math.floor(p.y);
     if (x < 0 || x >= gw || y < 0 || y >= g.gh) continue;
     /* (on it, or in it; or on the edge of it, with nothing of their own under them. on the bottom row, in it) */
-    if (!(took[y * gw + x] || (y + 1 < g.gh && (took[(y + 1) * gw + x] || (!pSolid(g, x, y + 1) && (took[(y + 1) * gw + x - 1] || took[(y + 1) * gw + x + 1])))))) continue;
+    if (!(took[y * gw + x] || (y + 1 < g.gh && (took[(y + 1) * gw + x] || (!pSolid(g, x, y + 1) && ((x > 0 && took[(y + 1) * gw + x - 1]) || (x < gw - 1 && took[(y + 1) * gw + x + 1]))))))) continue;
     p.state = "held"; p.ride = { dx: p.x - ax, dy: p.y - ay }; show = true;
     if (p.sleep > 0) { p.sleep = 0; p.inBed = false; p.underDeck = false; pSay(g, p, "handWoke", true); }
   }
@@ -400,7 +405,10 @@ function handSplash(g, f) {
   g.fx.splash++;
 }
 /* anybody in the way of it, going at the speed a thrown peasant bowls people over at: knocked flat, as they would be by
-   one. a wet lump puts out whoever it knocks over who was on fire. a duck in the way goes flying, and says so */
+   one. a wet lump puts out whoever it knocks over who was on fire. a duck in the way goes flying, and says so. a knock
+   is a shove, not a throw: off their feet and onto their back, a hop and a step or two along, whichever way and however
+   fast the lump was going. (not up into the sky, out over the valley's wall, or into the next one fast enough to bowl
+   them over too.) and whoever it knocked is remembered, so that it is not set down on them (handSet, handCrash) */
 function handKnock(g, f) {
   if (f.vx * f.vx + f.vy * f.vy < H_KNOCK) return;
   var c = f.c, b = handBox(c), x0 = f.x + b[0], x1 = f.x + b[1] + 1, y0 = f.y + b[2], y1 = f.y + b[3];
@@ -419,8 +427,9 @@ function handKnock(g, f) {
     }
     if (!hit) continue;
     p.state = "fly"; p.flyT = 0; p.immune = 6; p.fallY = p.y;
-    p.vx = f.vx * 0.8 + (p.x - mid) * 0.1; p.vy = Math.min(f.vy, 0) - 1.2;
+    p.vx = handShove(g, p.x, f.vx * 0.5 + (p.x - mid) * 0.1); p.vy = -1.2; p.shoved = 1;
     f.vx *= 0.9;
+    (f.knocked || (f.knocked = [])).push(p.id);
     handDeed(g, p, "knocked");
     g.fx.thud++;
     if (wet && p.fire) {
@@ -439,9 +448,17 @@ function handKnock(g, f) {
       hit = Math.abs(d.x - X - 0.5) < 1.5 && Y >= fy - 3 && Y <= fy;
     }
     if (!hit) continue;
-    d.state = "thrown"; d.flyT = 0; d.vx = f.vx * 0.8 + (d.x - mid) * 0.1; d.vy = Math.min(f.vy, 0) - 1.2;
+    d.state = "thrown"; d.flyT = 0; d.vx = handShove(g, d.x, f.vx * 0.5 + (d.x - mid) * 0.1); d.vy = -1.2; d.shoved = 1;
     dSay(g, d, "quack", true);
   }
+}
+/* how fast a knock sends somebody along: H_SHOVE at most, either way (with the hop's 1.2 up, under the speed that
+   bowls anybody over), and not at all into a wall they are beside. the hop lasts twenty ticks and more, fifteen columns
+   along and more where the ground falls away, so it is not this that keeps them in the valley: it is p.shoved (and
+   d.shoved), which has the edge of the valley a wall to them until they are down (pFly, dThrown) */
+function handShove(g, x, vx) {
+  vx = clamp(vx, -H_SHOVE, H_SHOVE);
+  return (x < 3 && vx < 0) || (x > g.gw - 4 && vx > 0) ? 0 : vx;
 }
 /* coming down on them: whoever is under it gets out from under it, the nearer way, at a run, and not home (their home
    might be what it is coming down on). anyone would */
@@ -468,10 +485,10 @@ function handOrder(c) {
   return o.sort(function (a, b) { return c[b + 1] - c[a + 1] || c[a] - c[b]; });
 }
 /* what it is set down into, that must go somewhere: liquids and gases, each to the lowest free air over the lump in its
-   column, or in one of the three each side (within 60 rows), a cell to each. [from, to, from, to...], or null if one of
-   them has nowhere to go. (wide: anywhere along the valley, and all the way up) */
+   column, or in one of the three each side, a cell to each. [from, to, from, to...], or null if one of them has nowhere
+   to go. (wide: anywhere along the valley, and all the way up) */
 function handHomes(g, c, order, x, y, wide) {
-  var gw = g.gw, mine = {}, top = {}, out = [], k, o, X, Y, j, v;
+  var gw = g.gw, mine = {}, top = {}, seen = {}, out = [], k, o, X, Y, j, v;
   for (k = 0; k < c.length; k += 6) {
     X = x + c[k]; Y = y + c[k + 1];
     if (Y >= 0) mine[Y * gw + X] = 1;
@@ -481,19 +498,36 @@ function handHomes(g, c, order, x, y, wide) {
     k = order[o]; X = x + c[k]; Y = y + c[k + 1];
     if (Y < 0) continue;
     j = Y * gw + X; v = g.m[j];
-    if (!(LIQUID[v] || v === MAT.GAS || v === MAT.STEAM || v === MAT.SMOKE)) continue;
-    var t = handHome(g, mine, X, top[X] - 1, wide);
+    if (!handPushed(v)) continue;
+    var t = handHome(g, mine, seen, X, top[X] - 1, wide);
     if (t < 0) return null;
     mine[t] = 2; out.push(j, t);
   }
   return out;
 }
-function handHome(g, mine, X, y0, wide) {
-  var gw = g.gw, side = wide ? gw : H_HOME_SIDE, lo = wide ? 0 : Math.max(0, y0 - H_HOME_UP), d, s, x, y, j;
-  for (d = 0; d <= side; d++) for (s = d ? -1 : 1; s <= 1; s += 2) {
-    x = X + d * s;
-    if (x < 0 || x >= gw) continue;
-    for (y = Math.min(y0, g.gh - 1); y >= lo; y--) { j = y * gw + x; if (g.m[j] === MAT.EMPTY && !mine[j]) return j; }
+/* what a lump set down into it pushes aside: liquids and gases */
+function handPushed(v) { return LIQUID[v] || v === MAT.GAS || v === MAT.STEAM || v === MAT.SMOKE; }
+/* the nearest column (of X's own and three each side) with free air in it over y0. up through the water standing over
+   the lump, however deep, and then H_HOME_UP rows more of anything (a lump sunk to the floor of a lake pushes its water
+   up to the top of the lake, not out through the rock beside it). and past the three, along the top of the valley, for
+   as long as each column on the way is gone up to the top and found nothing: a lake full to the brim rises all along
+   it. seen: where each column's look got to, from y0, and how far past the water it had come, so that the next cell
+   to go up that column starts there and not from the bottom again: the cells it passed are taken, or not air */
+function handHome(g, mine, seen, X, y0, wide) {
+  var gw = g.gw, side = wide ? gw : H_HOME_SIDE, top = {}, d, s, x, j, L;
+  for (d = 0; d < gw; d++) {
+    if (d > side && !top[-1] && !top[1]) break;
+    for (s = d ? -1 : 1; s <= 1; s += 2) {
+      x = X + d * s;
+      if (x < 0 || x >= gw || (d > side && !top[s])) { top[s] = false; continue; }
+      L = seen[x + "," + y0] || (seen[x + "," + y0] = { y: Math.min(y0, g.gh - 1), n: 0, wet: true });
+      for (; L.y >= 0 && (wide || L.n <= H_HOME_UP); L.y--) {
+        j = L.y * gw + x;
+        if (g.m[j] === MAT.EMPTY && !mine[j]) { L.y--; return j; }
+        if (!(L.wet && (mine[j] || handPushed(g.m[j])))) { L.wet = false; L.n++; }
+      }
+      top[s] = L.y < 0 && L.n <= H_HOME_UP;
+    }
   }
   return -1;
 }
@@ -570,6 +604,13 @@ function handSet(g) {
     handDeed(g, p, "rode");
     if (f.ax != null && Math.abs(f.x - f.ax) >= H_RIDE) wTale(g, "rode", p);   /* (over the valley and down by the sea) */   /* (who came down with it: a house's owner among them was not left behind) */
   }
+  /* (and whoever it knocked flat on the way, who it has come down on: up out of it, and down from there, as a rider
+     with no room. it knocked them over; it does not bury them as well) */
+  handUp(g, f, function (p) {
+    if (!pBlocked(g, p.x, p.y)) return;
+    while (p.y > 0 && pBlocked(g, p.x, p.y)) p.y--;
+    p.state = "fly"; p.flyT = 0; p.vx = p.vy = 0; p.fallY = p.y; p.immune = 4;
+  });
   for (k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k];
     if (!d.ride || d.dead || d.state !== "held") continue;
@@ -582,6 +623,14 @@ function handSet(g) {
   }
   h.fly = null;
   handEnd(g, f);
+}
+/* each of those it knocked flat in flight who is still about (living, and on their back or up again) */
+function handUp(g, f, fn) {
+  if (!f.knocked) return;
+  for (var k = 0; k < g.peasants.length; k++) {
+    var p = g.peasants[k];
+    if (!p.dead && (p.state === "fly" || p.state === "walk") && f.knocked.indexOf(p.id) >= 0) fn(p);
+  }
 }
 /* a cell of the lump with no room in the air for a grain of it (the pool full): put down at once where it would land in
    its column, on the first thing under the top, or in the nearest column that has room at the top, heat and all. (in a
@@ -597,12 +646,36 @@ function handDrop(g, c, k, X0) {
   heatSetQ(g, j, qa + c[k + 5]);
   return true;
 }
-/* a cell of the lump, as a flying grain of itself (world.js sandFling's grain): its heat and its shade */
+/* a cell of the lump, as a flying grain of itself (world.js sandFling's grain): its heat and its shade. and the hand's
+   (g.ph): if it comes down where a grain would be lost, with no room, or goes out of the valley, it is put down in it
+   (world.js partHand) */
 function handGrain(g, c, k, X, Y, vx, vy) {
   var v = c[k + 2], q = partAdd(g, PK_DEBRIS, X + 0.5, Y + 0.5, vx, vy, 240, SAND_PAL[v][c[k + 4]], v);
   if (q < 0) return false;
-  g.pt[q] = c[k + 5]; g.ps[q] = c[k + 4];
+  g.pt[q] = c[k + 5]; g.ps[q] = c[k + 4]; g.ph[q] = 1;
   return true;
+}
+/* what the hand throws, put down where it is in column X: from row Y (where it got to) down through the air to the first
+   thing under it, and on that, as handDrop puts a cell down on the first thing under the top. buried where it is (no room
+   where it came down, in a heap of its own grains), on top of what it is buried in: the first air over it. never the
+   lowest air in the column, which is a mine's gallery, a cave, or somebody's room, under the heap and the roof. failing
+   that (a column full from there to the top), the nearest column that has room, the same way. with its heat and the
+   heat of the air it went into. false only with every column full from there to the top */
+function handLand(g, m, aux, sh, q, X, Y) {
+  var gw = g.gw, gh = g.gh, d, s, x, y, j, qa;
+  X = clamp(X, 0, gw - 1); Y = clamp(Math.floor(Y), 0, gh - 1);
+  for (d = 0; d < gw; d++) for (s = d ? -1 : 1; s <= 1; s += 2) {
+    x = X + d * s;
+    if (x < 0 || x >= gw) continue;
+    for (y = Y; y >= 0 && g.m[y * gw + x] !== MAT.EMPTY; y--);   /* (out of what it is buried in) */
+    if (y < 0) continue;
+    while (y + 1 < gh && g.m[(y + 1) * gw + x] === MAT.EMPTY) y++;   /* (and down onto what is under it) */
+    j = y * gw + x; heatSync(g, j); qa = heatQ(g, j);
+    g.m[j] = m; g.aux[j] = aux; g.sh[j] = sh; g.vy[j] = 0;
+    heatSetQ(g, j, qa + q);
+    return true;
+  }
+  return false;
 }
 /* it hit too hard. (only if the air has room for every grain of it, as a bang keeps room: otherwise it is set down after
    all, or drops, or stops going up.) first what it hit, if it hit it with something hard (sx, sy: the way it was
@@ -643,6 +716,7 @@ function handCrash(g, sx, sy) {
     p.state = "fly"; p.flyT = 0; p.fallY = p.y; p.vx = vx; p.vy = f.vy; p.handOff = g.tick;
     handDeed(g, p, "dropped");   /* (they were sitting on it) */
   }
+  handUp(g, f, function (p) { p.handOff = g.tick; });   /* (and whoever it knocked flat: the grains of it come down round them too) */
   for (k = 0; k < g.ducks.length; k++) {
     d = g.ducks[k];
     if (!d.ride || d.dead || d.state !== "held") continue;
@@ -655,25 +729,16 @@ function handCrash(g, sx, sy) {
   return true;
 }
 /* a grain of it, flung from (X, Y) at (vx, vy), as world.js partStep would fly it through the valley as it is: if it
-   would go out through the floor, or a side, it is put down there instead, in the lowest free cell of the column it got
-   to, heat and all. (nothing the hand throws leaves the valley.) true if it was */
+   would go out through the floor, or a side, it is put down there instead, in the column it got to, on what is under
+   where it got to, heat and all (handLand). (nothing the hand throws leaves the valley.) true if it was */
 function handCaught(g, c, k, X, Y, vx, vy) {
-  var gw = g.gw, gh = g.gh, x = X + 0.5, y = Y + 0.5, t, n, s, nx, ny, ix, iy, j;
+  var gw = g.gw, gh = g.gh, x = X + 0.5, y = Y + 0.5, t, n, s, nx, ny, ix, iy;
   for (t = 0; t < 240; t++) {
     vy = Math.min(H_VMAX, vy + H_GRAV); vx *= 0.995;
     n = Math.ceil(Math.max(Math.abs(vx), Math.abs(vy)) * 1.5) || 1;
     for (s = 0; s < n; s++) {
       nx = x + vx / n; ny = y + vy / n; ix = Math.floor(nx); iy = Math.floor(ny);
-      if (ix < 0 || ix >= gw || iy >= gh) {
-        ix = clamp(ix, 0, gw - 1);
-        for (iy = gh - 1; iy >= 0 && g.m[iy * gw + ix] !== MAT.EMPTY; iy--);
-        if (iy < 0) return false;
-        j = iy * gw + ix; heatSync(g, j);
-        var qa = heatQ(g, j);
-        g.m[j] = c[k + 2]; g.aux[j] = c[k + 3]; g.sh[j] = c[k + 4]; g.vy[j] = 0;
-        heatSetQ(g, j, qa + c[k + 5]);
-        return true;
-      }
+      if (ix < 0 || ix >= gw || iy >= gh) return handLand(g, c[k + 2], c[k + 3], c[k + 4], c[k + 5], ix, iy);
       if (iy >= 0 && !(ix === X && iy === Y) && !AIRY[g.m[iy * gw + ix]]) return false;   /* (it lands on that, as grains do. not on where it starts from) */
       x = nx; y = ny;
     }
@@ -685,7 +750,7 @@ function handCaught(g, c, k, X, Y, vx, vy) {
    round it: a gable is solid timber, and its window is in the middle of it, so it is the shock that does it, not the
    lump going through. anything else stands it */
 function handHit(g, f, sx, sy) {
-  var c = f.c, gw = g.gw, gh = g.gh, R = H_PANE, hurt = [], k, X, Y, x, y, j, t, s;
+  var c = f.c, gw = g.gw, gh = g.gh, R = H_PANE, hurt = [], k, X, Y, x, y, j, t, s, o;
   for (k = 0; k < c.length; k += 6) {
     if (!H_HARDM[c[k + 2]]) continue;
     X = f.x + c[k] + sx; Y = f.y + c[k + 1] + sy;
@@ -700,8 +765,14 @@ function handHit(g, f, sx, sy) {
       handPane(g, j, X - sx, Y - sy, f); hurt.push(s);
     }
   }
-  /* (whose window it was: they will have something to say about it. once a house a throw, however many panes) */
-  for (k = 0; k < hurt.length; k++) if (hurt.indexOf(hurt[k]) === k) handDeed(g, bOwner(g, hurt[k]), "smashed");
+  /* (whose window it was: they will have something to say about it. once a house a throw, however many panes. and say it,
+     there and then, if they are up and about near enough to have heard it go) */
+  for (k = 0; k < hurt.length; k++) {
+    if (hurt.indexOf(hurt[k]) !== k) continue;
+    o = bOwner(g, hurt[k]);
+    handDeed(g, o, "smashed");
+    if (o && !o.dead && !(o.sleep > 0) && o !== g.held && o.state !== "held" && !o.ride && Math.abs(o.x - hurt[k].cx) <= H_LOOK) pSay(g, o, "handSmash", true);
+  }
 }
 /* whose window cell j is: the site that has it among its windows, or, for glass, among the glass it was built with */
 function handWinOf(g, j, glass) {
@@ -718,7 +789,7 @@ function handPane(g, j, X, Y, f) {
   var v = g.m[j], q = partAdd(g, PK_DEBRIS, X + 0.5, Y + 0.5, -f.vx * 0.2, -0.5 - Math.abs(f.vy) * 0.2, 240, SAND_PAL[v][g.sh[j]], v);
   if (q < 0) return;
   heatSync(g, j);
-  g.pt[q] = heatQ(g, j); g.ps[q] = g.sh[j];
+  g.pt[q] = heatQ(g, j); g.ps[q] = g.sh[j]; g.ph[q] = 1;
   g.m[j] = MAT.EMPTY; g.aux[j] = 0; g.T[j] = AMBIENT; g.lat[j] = 0;
   heatAccept(g, j);
 }
@@ -748,13 +819,14 @@ function handEnd(g, f) {
    the lake, unless the brigade had a few buckets on what was left; still burning after H_DOUSED, it was not. either way
    it comes off hold then, as handEnd would have left it */
 function handDunks(g) {
-  var h = g.hand, k, D, s, lit, e, d, j;
+  var h = g.hand, k, D, s, lit, e, d, j, x;
   for (k = h.dunks.length - 1; k >= 0; k--) {
     D = h.dunks[k]; s = bSite(g, D.id); lit = s ? iFlames(g, s).length : 0;
     if (D.no) lit = 1;   /* (its fire taken back up: judged now, and nobody's) */
     for (e = 0; s && !lit && e < D.e.length; e++) for (d = 0; d < 9 && !lit; d++) {
+      x = (D.e[e] % g.gw) + (d % 3) - 1;   /* (the cells round it, in the valley: not the far wall's, a row off) */
       j = D.e[e] + ((d % 3) - 1) + (((d / 3) | 0) - 1) * g.gw;
-      if (j >= 0 && j < g.m.length && (g.m[j] === MAT.EMBER || g.m[j] === MAT.FIRE)) lit++;
+      if (x >= 0 && x < g.gw && j >= 0 && j < g.m.length && (g.m[j] === MAT.EMBER || g.m[j] === MAT.FIRE)) lit++;
     }
     if (s && lit && !D.no && g.tick - D.t < H_DOUSED) continue;
     h.dunks.splice(k, 1);
@@ -788,19 +860,24 @@ function handShift(g, f) {
   if (!DX && !DY) { for (k = 0; k < C.length; k++) moved[C[k].id] = 1; return moved; }   /* (put back where it was) */
   /* and of those, the ones not set down on somebody else's: a house in a field is a mess in a field. (what moves with
      it is no matter, it moves the same way. one that cannot go stays, and then it is somebody else's, to the rest) */
+  /* (and a lantern, or a bell, goes only with what it hangs from: one carried off alone is a bite out of the old place,
+     to be mended there) */
   for (var again = true; again;) {
     again = false;
-    for (k = C.length - 1; k >= 0; k--) if (handBoxHit(g, C[k], C, DX, DY)) { C.splice(k, 1); again = true; }
+    for (k = C.length - 1; k >= 0; k--) if (handBoxHit(g, C[k], C, DX, DY) || handAlone(C[k], C)) { C.splice(k, 1); again = true; }
   }
   if (!C.length) return moved;
-  for (k = 0; k < C.length; k++) { bMark(g, C[k], 0); inC[C[k].id] = 1; }
+  for (k = 0; k < C.length; k++) inC[C[k].id] = 1;
+  /* what hung from one that is going, and is not going with it: there is nothing holding it up now, and it comes down */
+  for (k = g.sites.length - 1; k >= 0; k--) if (!inC[g.sites[k].id] && inC[handOn(g.sites[k])]) handFall(g, k);
+  for (k = 0; k < C.length; k++) bMark(g, C[k], 0);
   for (k = 0; k < C.length; k++) {
     s = C[k];
     for (j = 0; j < s.plan.length; j++) s.plan[j].i += d;
     s.x0 = clamp(s.x0 + DX, 0, gw - 1); s.x1 = clamp(s.x1 + DX, 0, gw - 1); s.cx += DX;   /* (its box, which can reach past its cells, kept in the valley) */
     s.y0 = clamp(s.y0 + DY, 0, g.gh - 1); s.y1 = clamp(s.y1 + DY, 0, g.gh - 1); s.cy += DY;
-    ["F", "G", "iy0"].forEach(function (n) { if (s[n] != null) s[n] += DY; });
-    ["ix0", "ix1", "px"].forEach(function (n) { if (s[n] != null) s[n] += DX; });
+    ["F", "G", "iy0", "by"].forEach(function (n) { if (s[n] != null) s[n] += DY; });
+    ["ix0", "ix1", "px", "bx"].forEach(function (n) { if (s[n] != null) s[n] += DX; });   /* (bx, by: a bell's mouth, where the clapper swings. mines.js) */
     if (s.bed) s.bed = { x: s.bed.x + DX, y: s.bed.y + DY };
     if (s.win) s.win = s.win.map(function (i) { return i + d; });
     delete s.tdoors;   /* (where its doors are, worked out once: tidy.js) */
@@ -814,12 +891,34 @@ function handShift(g, f) {
     }
     var o = bOwner(g, s);
     var why = s.kind !== "house" || !o ? "" : f.rode && f.rode.indexOf(o.id) >= 0 ? ", and " + pTitle(o.short) + " with it" : ". " + pTitle(o.short) + " was not asked";
-    if (!(s.kind === "lamp" && inC[s.home])) feed(g, iCap(bLabel(s)) + " has moved" + why, "#e0c890", "hand" + s.id, s);   /* (a house's lanterns go with it, and that is not news) */
+    if (!inC[handOn(s)]) feed(g, iCap(bLabel(s)) + " has moved" + why, "#e0c890", "hand" + s.id, s);   /* (a house's lanterns go with it, and its bell, and that is not news) */
     if (s.kind === "house") { wTale(g, "moved", o, bLabel(s), s.cx, s.y1); handDeed(g, o, burn[s.id] ? "rescued" : "moved"); }   /* (out of a fire, or out of the water, is another matter) */
   }
   for (k = 0; k < g.sites.length; k++) bMark(g, g.sites[k], 1);   /* (as bRemove does: where two plans shared a cell) */
   lMarkMen(g);
   return moved;
+}
+/* the id of the site s hangs from: a lantern's house, a bell's (or its tower's). undefined for anything else */
+function handOn(s) { return s.kind === "lamp" ? s.home : s.kind === "bell" ? s.on : undefined; }
+/* s hangs from something that is not moving with it, in C */
+function handAlone(s, C) {
+  var o = handOn(s);
+  if (o == null) return false;
+  for (var k = 0; k < C.length; k++) if (C[k].id === o) return false;
+  return true;
+}
+/* g.sites[idx], left hanging in the air where what held it up was: not anybody's any more, and what of it is standing
+   comes down, each cell a grain of itself, heat and all, as a window knocked out does (handPane). a bracket and its
+   lantern, or a bell's brick and its gold, on the ground, where the gold is anybody's to pick up */
+function handFall(g, idx) {
+  var s = g.sites[idx], up = [], k, e, q;
+  for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.v !== MAT.EMPTY && g.m[e.i] === e.v) up.push(e.i); }
+  bRemove(g, idx);
+  for (k = 0; k < up.length; k++) {
+    heatSync(g, up[k]);
+    q = g.np;
+    if (sandFling(g, up[k], 0, 0)) g.ph[q] = 1;   /* (the hand's doing: kept in the valley, as its own grains are) */
+  }
 }
 /* could site s, of which w says how much came up, be the same thing moved by (DX, DY): one of the small things, finished
    when it was lifted (so on hold), nearly all of it in the lump, not a flat or under one, not on a platform, not a
@@ -855,13 +954,15 @@ function handBoxHit(g, s, C, DX, DY) {
 }
 /* running after their house (ideas.js iTask): under it, as near as they can get, shouting, as long as it is in the
    hand or in the air. a route is asked for again only every eight columns it goes. over when it comes down, or the
-   house is not a house any more, or they are on it, or on fire, or it has been a long time */
+   house is not a house any more, or they are on it, or on fire, or it has been a long time. or it has been held over
+   the same few columns a good while (H_STAND, k.here): it is not going anywhere, and nor, shouting, are they */
 function handTask(g, p, k) {
   if (k.kind === "thank") return handTaskThank(g, p, k);   /* (and going to leave something out for it) */
   if (k.kind !== "chase") return undefined;
   var h = g.hand, L = h && (h.held || h.fly);
   if (!L || h.lifts !== k.lift || !bSite(g, k.site) || ++k.t > H_LONG || p.ride || p.fire) return iDone(p, true);
   var x = L.x, key = "chase" + (x >> 3);
+  if (k.was !== key) { k.was = key; k.here = 0; } else if (++k.here > H_STAND) return iDone(p, true);
   if (k.t % 150 === 1) pSay(g, p, "handChase", true);
   if (Math.abs(p.x - x - 0.5) > 3) {
     if (k.key !== key) { k.key = key; k.best = null; k.since = 0; }   /* (it moved: closer to where it is now is closer) */
@@ -914,7 +1015,7 @@ function handWitness(g, H, show, say) {
     p = g.peasants[k];
     if (!handFree(g, p) || Math.abs(p.x - H.x - 0.5) > H_LOOK) continue;
     p.idle = Math.max(p.idle || 0, 60); p.handSeen = h.lifts; p.handLook = g.tick; p.dir = H.x + 0.5 < p.x ? -1 : 1;
-    if (n++ < 3) pSay(g, p, say, true);
+    if (n++ < 3) pSay(g, p, say === "handLift" && h.wT == null ? "handLiftFirst" : say, true);   /* (not "again": there is no again yet) */
   }
   if (n) h.wT = g.tick;
 }
@@ -1105,7 +1206,9 @@ function handLeave(g, p, j) {
 }
 
 /* CLEAR: the valley is emptied, not your hand. a lump held is kept, riders and all; one in the air came from a valley
-   that is not there any more, and goes, and whoever was on it drops into the empty room */
+   that is not there any more, and goes, and whoever was on it drops into the empty room: from where they were, or, if
+   it had taken them up over the top of the valley, from the top of it. (a lump thrown at the sky that goes is not a
+   ride to space. it is a fall, as long a fall as it would have been) */
 function handClear(g) {
   var h = g.hand, k, p, d;
   h.sites = []; h.gifts = []; h.dunks = [];
@@ -1117,6 +1220,7 @@ function handClear(g) {
     if (!p.ride) continue;
     delete p.ride;
     if (p.dead || p.state !== "held") continue;
+    p.y = Math.max(p.y, 0);
     p.state = "fly"; p.flyT = 0; p.vx = p.vy = 0; p.fallY = p.y; p.immune = 4;
   }
   for (k = 0; k < g.ducks.length; k++) {
@@ -1124,6 +1228,7 @@ function handClear(g) {
     if (!d.ride) continue;
     delete d.ride;
     if (d.dead || d.state !== "held") continue;
+    d.y = Math.max(d.y, 0);
     d.state = "thrown"; d.flyT = 0; d.vx = d.vy = 0;
   }
 }

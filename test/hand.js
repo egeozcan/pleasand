@@ -88,6 +88,18 @@ module.exports = function (test, check, sim) {
     h.key("y");
     check(P[g.sel].name === "HAND", "Y picked " + P[g.sel].name);
     check(!w.painting(g), "HAND paints");
+    /* (its line in the bar says a flick throws, and is short enough to be read whole beside what is under the cursor:
+       in the browser, beside "AIR 20°", the bar shows about 111 characters of a brush's line before it cuts it short) */
+    var line = "HAND  " + P[k].desc;
+    check(line.length <= 104 && /flick/.test(P[k].desc), "HAND's line is " + line.length + " long: " + line);
+    /* (and its key is on its row in the flyout, as the panel's rows have theirs: the only key there) */
+    g.moreOpen = 1;
+    var c = h.eval("cv.getContext('2d')"), drawn = [], ry = w.MORE_TOP + last.y;
+    c.fillText = function (s, x, y) { drawn.push([String(s), x, y]); };
+    h.fn("drawMore")(g, c);
+    var keys = drawn.filter(function (q) { return q[0].length === 1; });
+    check(keys.length === 1 && keys[0][0] === "Y" && keys[0][2] === ry + 7.5, "the flyout drew the keys " + JSON.stringify(keys) + " (HAND's row at " + ry + ")");
+    g.moreOpen = 0;
   });
 
   test("hand: lifted, held 300 ticks and set down, the heat in the room and the hand together is what it was; and lava held 600 ticks over a pond leaves the pond as it was", function () {
@@ -165,10 +177,10 @@ module.exports = function (test, check, sim) {
     ip = inPlace(D, 0, 0);
     check(!gd.hand.fly && ip[0] < ip[1] * 0.3, "dropped from 40 rows, " + ip[0] + " of " + ip[1] + " of the house is in place");
     var c1 = JSON.parse(counts(hd)), q1 = heatAll(hd), lost = 0;
-    /* (a grain that comes down where there is no air left within three cells of it leaves its heat and not itself:
-       world.js partDrop, as for any bang. a grain or two, in a heap of a hundred and sixty) */
+    /* (none of it: a grain of the hand's that comes down with no air left about it is put down in its column, not
+       dropped as a bang's is. world.js partHand) */
     Object.keys(mats).forEach(function (v) { check(c1[v] <= c0[v], "dropped, there is more " + v + " than there was"); lost += c0[v] - c1[v]; });
-    check(lost <= 2, "dropped, " + lost + " cells of it were lost: " + JSON.stringify(c0) + " / " + JSON.stringify(c1));
+    check(lost === 0, "dropped, " + lost + " cells of it were lost: " + JSON.stringify(c0) + " / " + JSON.stringify(c1));
     check(Math.abs(q1 - q0) < 1e-6 * Math.abs(q0) + 1, "dropped, the heat went from " + q0 + " to " + q1);
     /* into the pond, from just over it */
     var P = housed(), hp = P.h, gp = P.g, w = P.w, M = P.M, px = 106, top = -1, y;
@@ -530,8 +542,9 @@ module.exports = function (test, check, sim) {
       g.peasants.length = 0; g.ducks.length = 0;
       /* (every tick, before it is stepped: is any grain in the air about to go over either side) */
       function over() { for (var q = 0; q < g.np; q++) { var x = g.ppx[q] + g.pvx[q] * 0.995; if (g.pk[q] === h.game.PK_DEBRIS && (x < 0 || x >= g.gw)) return true; } return false; }
-      /* (and what came down, against what went up. a grain that comes down with no air left about it leaves its heat and
-         not itself, world.js partDrop, as any bang's may: a handful, in a lump coming down all at once) */
+      /* (and what came down, against what went up: all of it. a grain of the hand's with no air left about it, or going
+         out at the floor or a side, is put down in its column, world.js partHand. a bang's is lost there, as it was;
+         before the hand's grains were marked, a handful of a lump coming down all at once at the edge was too) */
       function lost(c0, c1) { var a = JSON.parse(c0), b = JSON.parse(c1), n = 0; for (var k in a) { if ((b[k] || 0) > a[k]) return 1e9; n += a[k] - (b[k] || 0); } return n; }
       function go(x, y, vx, vy) {
         pebble(h, x, y, M.STONE, 4);
@@ -541,11 +554,11 @@ module.exports = function (test, check, sim) {
         return { top: top, off: off, lost: lost(c0, counts(h)), down: !g.hand.fly && !g.np };
       }
       var up = go(120, 50, 0.5, -4.5);
-      check(up.down && up.top < 0 && !up.off && up.lost <= 3, "at " + gw + " wide, thrown up it went to row " + up.top + ", came down " + up.down + ", and " + up.lost + " of it is lost" + (up.off ? ", over the edge" : ""));
+      check(up.down && up.top < 0 && !up.off && up.lost === 0, "at " + gw + " wide, thrown up it went to row " + up.top + ", came down " + up.down + ", and " + up.lost + " of it is lost" + (up.off ? ", over the edge" : ""));
       /* at the edge, either way, and coming down on the ground at it */
       [[gw - 30, 4.5, 0], [30, -4.5, 0], [gw - 60, 4.5, 3], [40, -4.5, 3]].forEach(function (a) {
         var r = go(a[0], 50, a[1], a[2]);
-        check(r.down && !r.off && r.lost <= 3, "at " + gw + " wide, thrown at the edge from " + a[0] + ": " + JSON.stringify(r));
+        check(r.down && !r.off && r.lost === 0, "at " + gw + " wide, thrown at the edge from " + a[0] + ": " + JSON.stringify(r));
       });
     });
   });
@@ -803,7 +816,7 @@ module.exports = function (test, check, sim) {
     check(s.done && s.x0 === x0 && ip[0] === ip[1], "the builders did not put it back up at the old place: done " + s.done + ", " + ip[0] + " of " + ip[1]);
   });
 
-  test("hand: a house and its lanterns lifted together and set down together all move, and none stops the others; set down with its box over a lantern that stayed behind, a house is not moved", function () {
+  test("hand: a house and its lanterns lifted together and set down together all move, and none stops the others; set down with its box over a lantern that stayed behind, a house is not moved, nor the lantern that came with it", function () {
     var C = housed(), h = C.h, g = C.g, w = C.w, s = C.s, L = lamps(C), x0 = s.x0, lx = L.map(function (l) { return l.x0; });
     lift(h, C.cx, C.cy + 1, 10);
     check(L.every(function (l) { return l.handH; }), "(the lanterns did not come up with the house)");
@@ -830,7 +843,7 @@ module.exports = function (test, check, sim) {
     var nx0 = xd + fd.x - (D.cx - 3), ny1 = sd.y1 + fd.y - D.cy - 1;
     check(rx >= nx0 && rx <= nx0 + 10 && ry <= ny1 && ry >= ny1 - 17, "(the test wants it come down with its box over the lantern: at " + nx0 + ".." + (nx0 + 10) + ", " + ny1 + "; the lantern at " + rx + "," + ry + ")");
     check(sd.x0 === xd && right.x0 === rx, "set down over the lantern that stayed, the house moved to " + sd.x0);
-    check(left.x0 === lx0 + fd.x - (D.cx - 3), "the lantern that came with it, and is on nobody's, did not move: " + left.x0);
+    check(left.x0 === lx0, "the lantern that came with it moved, and its house did not: " + left.x0 + " (it was at " + lx0 + ")");   /* (a lantern goes only with its house) */
   });
   /* ---- phase 4: they remember ---- */
   /* a house of somebody's own, built at once, as housed() builds the first peasant's */
@@ -884,6 +897,7 @@ module.exports = function (test, check, sim) {
       check(p.state === "fly", "(the test wants " + p.name + " knocked flat: " + p.state + ")");
       for (t = 0; t < 300 && (g.hand.fly || p.state !== "walk"); t++) h.step(1);
       check(!p.dead && p.state === "walk", "(the test wants " + p.name + " up again: " + p.state + (p.dead ? ", dead" : "") + ")");
+      stand(C, p, FLAT + 40);   /* (and out of the way of the next one: a knock is a shove, and leaves them where they were) */
     });
     check(ps.every(function (p) { return p.feel === -2 && w.handView(g, p) < 0; }) && g.hand.cruel >= 3 && g.hand.kind === 0, "knocked flat, they think " + ps.map(function (p) { return p.name + " " + p.feel; }) + "; cruel " + g.hand.cruel);
     /* (and three cruelties to none: whoever has no mind of their own goes with the village) */
@@ -1990,7 +2004,8 @@ module.exports = function (test, check, sim) {
     /* somebody with nowhere to go, walled in under a lump: frightened, and then, a good while on, not */
     var D = housed(), hd = D.h, gd = D.g, wd = D.w, q = gd.peasants[3], y = stand(D, q, FLAT), x;
     check(!wd.bHome(gd, q), "(the test wants " + q.name + " with no house)");
-    for (x = FLAT - 4; x <= FLAT + 4; x += 8) for (var yy = y - 17; yy <= y; yy++) wd.sandSet(gd, yy * gd.gw + x, D.M.STONE);
+    /* (walls of INERT, which a ninja rope's hook slides off: walls of stone she can, as the dice fall, rope her way over) */
+    for (x = FLAT - 4; x <= FLAT + 4; x += 8) for (var yy = y - 17; yy <= y; yy++) wd.sandSet(gd, yy * gd.gw + x, D.M.INERT);
     q.feel = -6;
     hd.pause(true); skyLump(hd, FLAT, 30, 3); carry(hd, FLAT, y - 22); hd.pause(false);
     var scared = false;
@@ -2000,5 +2015,631 @@ module.exports = function (test, check, sim) {
       if (t > wd.H_LONG + 200 && q.panic > 0) late++;
     }
     check(gd.hand.held && scared && !late && Math.abs(q.x - FLAT - 0.5) < 4, q.name + ", walled in under it, frightened at first " + scared + "; still frightened " + late + " ticks of the last 200, at " + q.x.toFixed(1));
+  });
+
+  /* (after the build: what the review left, mended) */
+  test("hand: a stone let go over a lake deeper than sixty rows sinks to the floor of it and is set down there, at once, and so is a hill of stone in a lake full to the brim; every drop of the lake is still there, in a cell of its own, with its heat", function () {
+    [10, 16].forEach(function (r) {
+      var h = H.open({ seed: 7 }), g = h.g, w = h.game, M = w.MAT, t, calls = 0, y;
+      g.peasants.length = 0; g.ducks.length = 0;
+      /* (water over rows 20 to 183, all along, on a floor of stone: twenty rows of air over it) */
+      h.fill(0, 20, g.gw, g.gh - 22, "WATER"); h.fill(0, g.gh - 2, g.gw, 2, "STONE");
+      h.paintDisc(136, 8 + r, r, "STONE");
+      function liq() { var n = 0, q = 0; for (var j = 0; j < g.m.length; j++) if (w.LIQUID[g.m[j]]) { n++; q += w.heatQ(g, j); } return [n, q]; }
+      /* (how many times the set-down looks for somewhere for the water to go) */
+      var homes = h._eval("handHomes");
+      h._eval("(function (f) { handHomes = f; })")(function () { calls++; return homes.apply(null, arguments); });
+      lift(h, 136, 8 + r, r);
+      var l0 = liq();
+      h.flick(0, 0); h.up();
+      var last = 0;
+      for (t = 0; t < 400 && g.hand.fly; t++) { last = g.hand.fly.y; h.step(1); }
+      var bot = -1, top = 1e9;
+      for (y = 0; y < g.gh - 2; y++) if (g.m[y * g.gw + 136] === M.STONE) { top = Math.min(top, y); bot = Math.max(bot, y); }
+      var l1 = liq();
+      h._eval("(function (f) { handHomes = f; })")(homes);
+      check(!g.hand.fly && last + r >= g.gh - 4 && bot >= g.gh - 5, "r " + r + ": let go over the lake, it went down to row " + last + ", and was set down with its bottom at row " + bot + " (top " + top + "), the floor at " + (g.gh - 2));
+      check(calls <= 2, "r " + r + ": setting it down looked for homes for the water " + calls + " times");
+      check(l1[0] === l0[0] && Math.abs(l1[1] - l0[1]) < 1e-6 * Math.abs(l0[1]) + 1e-3, "r " + r + ": the lake was " + l0 + ", and is " + l1);
+    });
+  });
+
+  test("hand: a hill lifted whole and dropped from sixty rows, or flicked into the wall, comes down a heap of all of itself; and a grain whose ledge is gone the tick after the crash still lands in the valley", function () {
+    function flat() { var h = H.open({ seed: 6 }); h.g.peasants.length = 0; h.g.ducks.length = 0; return h; }
+    /* (every cell of it, in the grid or the air, after 400 ticks: what there was before it went up, to the last grain and
+       the last of its heat) */
+    var h = flat(), g = h.g, gy = ground(h.game, g, FLAT) + 1, t, i;
+    var c0 = counts(h), q0 = heatAll(h);
+    lift(h, FLAT, gy + 14, 16);
+    check(g.hand.held.c.length / 6 > 700, "(the test wants a hill: " + g.hand.held.c.length / 6 + ")");
+    for (i = 1; i <= 20; i++) { at(h, FLAT, gy + 14 - 60 * i / 20); h.step(1); }
+    h.flick(0, 0); h.up();
+    for (t = 0; t < 400; t++) h.step(1);
+    check(!g.hand.fly && !g.np && counts(h) === c0, "dropped from sixty rows, a hill came down as " + counts(h) + ", having gone up as " + c0);
+    check(Math.abs(heatAll(h) - q0) < 1e-6 * Math.abs(q0) + 1e-2, "dropped from sixty rows, the heat went from " + q0 + " to " + heatAll(h));
+    /* (a disc of 12 of the ground flicked into the right-hand wall) */
+    var D = flat(), gd = D.g, wd = D.game, M = wd.MAT, dy = ground(wd, gd, 240) + 1;
+    gd.size = 12; wd.sandDab(gd, 240, dy - 40, M.STONE, true);
+    var d0 = counts(D), n0 = lift(D, 240, dy - 40, 12).c.length / 6;
+    for (i = 0; i < 20; i++) { at(D, 240, dy - 40 - 2 * i); D.step(1); }
+    D.flick(4.5, 0); D.up();
+    for (t = 0; t < 600 && (gd.hand.fly || gd.np); t++) D.step(1);
+    check(!gd.hand.fly && !gd.np && counts(D) === d0, "flicked into the wall, " + n0 + " cells came down as " + counts(D) + ", having gone up as " + d0);
+    /* (a grain flicked off a one-cell shelf in an emptied valley, at a ledge it lands on, the ledge erased the tick
+       after it comes apart: it goes on, past where it would have landed, and through the floor) */
+    var E = H.open({ seed: 6 }), ge = E.g, we = E.game, x;
+    E.key("c"); ge.peasants.forEach(function (q) { q.dead = 1; });
+    we.sandSet(ge, 130 * ge.gw + 136, M.METAL);
+    for (x = 140; x <= 175; x++) we.sandSet(ge, 150 * ge.gw + x, M.METAL);
+    ge.size = 1; we.sandSet(ge, 110 * ge.gw + 136, M.STONE);
+    lift(E, 136, 110, 1);
+    E.pause(true); at(E, 136, 129); E.step(1); E.flick(4.5, 4.5); E.up(); E.pause(false);
+    for (t = 0; t < 20 && ge.hand.fly; t++) E.step(1);
+    var stone = function () { var n = 0, k; for (k = 0; k < ge.m.length; k++) if (ge.m[k] === M.STONE) n++; for (k = 0; k < ge.np; k++) if (ge.pk[k] === we.PK_DEBRIS && ge.pm[k] === M.STONE) n++; return n; };
+    var flew = ge.np;
+    for (x = 140; x <= 175; x++) we.sandSet(ge, 150 * ge.gw + x, M.EMPTY);
+    for (t = 0; t < 400 && ge.np; t++) E.step(1);
+    check(flew === 1 && stone() === 1, "a grain off a shelf that was erased under it: " + flew + " in the air after the crash, " + stone() + " stone at the end");
+  });
+
+  test("hand: somebody stood at the very left of the valley, with nothing under them, is not taken by a lift at the right-hand wall; beside the lip of it they are; and fire at the right-hand wall is not fire beside an ember sunk at the left", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, M = C.M, q = g.peasants[3], gw = g.gw, y = 100, x, yy;
+    function clear(G, W) { for (x = 0; x < 3; x++) for (yy = y - 6; yy <= y + 6; yy++) W.sandSet(G, yy * gw + x, M.EMPTY); for (x = gw - 3; x < gw; x++) for (yy = y - 6; yy <= y + 6; yy++) W.sandSet(G, yy * gw + x, M.EMPTY); }
+    function put(p) { p.x = 0.5; p.y = y; p.state = "walk"; p.task = null; p.vx = p.vy = 0; p.falling = false; p.fallY = y; p.sleep = 0; }
+    /* (nothing under them at column 0, and one cell of stone at the right-hand wall on the row of their feet: what
+       column 0's x - 1, a row down, is, read without a look at the column) */
+    clear(g, w);
+    w.sandSet(g, y * gw + gw - 1, M.STONE);
+    put(q);
+    h.pause(true);
+    lift(h, gw - 1, y, 1);
+    check(g.hand.held && g.hand.held.c.length / 6 === 1, "(the test wants the one cell at the wall lifted: " + (g.hand.held && g.hand.held.c.length / 6) + ")");
+    check(q.state !== "held" && !q.ride, "stood at the left of the valley, " + q.name + " was taken up by a lift at the right-hand wall");
+    /* (and the same spot, with the lift's cell beside them under the lip) */
+    var D = housed(), hd = D.h, gd = D.g, wd = D.w, p = gd.peasants[3];
+    clear(gd, wd);
+    wd.sandSet(gd, (y + 1) * gw + 1, M.STONE);
+    put(p);
+    hd.pause(true);
+    lift(hd, 1, y + 1, 1);
+    check(gd.hand.held && p.state === "held" && p.ride, "beside the lip of a lift, " + p.name + " is " + p.state);
+    /* (a house dunked with an ember that ended up at column 0, and has gone out there: a flame at the right-hand wall, a
+       row up, is not beside it; one at column 1 is) */
+    [[gw - 1, y - 1, false], [1, y, true]].forEach(function (a) {
+      var E = housed(), ge = E.g, we = E.w;
+      clear(ge, we);
+      we.sandSet(ge, y * gw, M.WATER); we.sandSet(ge, a[1] * gw + a[0], M.FIRE);
+      ge.hand = { held: null, fly: null, sites: [], lifts: 1, gifts: [], kind: 0, cruel: 0, dunks: [{ id: E.s.id, t: ge.tick, e: [y * gw], n: 1, of: 100, d: 0 }] };
+      E.s.handD = 1;
+      we.handDunks(ge);
+      check(ge.hand.dunks.length === (a[2] ? 1 : 0), "an ember sunk at column 0, a flame at " + a[0] + "," + a[1] + ": the dunk is " + (ge.hand.dunks.length ? "still waiting" : "judged"));
+    });
+  });
+
+  test("hand: a pebble flicked up past somebody, or along, or both, knocks them onto their back, not into the sky or out of the valley, and too slowly to bowl anybody over; and a drift flicked at three in a row knocks over all three, itself", function () {
+    /* (a 5 by 5 of stone beside Sue, flicked past her: where it starts, from her feet, and the flick) */
+    [[2, -3, 0, -4.5], [-6, -4, 4, 0], [-6, -1, 3, -3], [-1, -3, 1, -4], [-6, -4, 4, 0, 8]].forEach(function (a) {
+      var C = housed(), h = C.h, g = C.g, w = C.w, M = C.M, p = C.p, y = stand(C, p, FLAT), X = FLAT + a[0], Y = y + a[1], i, j, t;
+      g.peasants.forEach(function (o) { if (o !== p && Math.abs(o.x - FLAT) < 60) stand(C, o, FLAT - 112); });
+      var q = a[4] != null ? g.peasants[1] : null;   /* (and somebody a little way along, the way it is going) */
+      if (q) stand(C, q, FLAT + a[4]);
+      for (i = -2; i <= 2; i++) for (j = -2; j <= 2; j++) w.sandSet(g, (Y + j) * g.gw + X + i, M.STONE);
+      lift(h, X, Y, 3);
+      check(g.hand.held.c.length / 6 === 25 && !p.ride, "(the test wants the pebble, and " + p.name + " not on it: " + g.hand.held.c.length / 6 + ")");
+      h.flick(a[2], a[3]); h.up();
+      var knocked = false, top = y, out = false, pins = 0, flew = [];
+      for (t = 0; t < 600; t++) {
+        h.step(1);
+        if (p.state === "fly") knocked = true;
+        if (knocked) top = Math.min(top, p.y);
+        if (p.x < 0 || p.x > g.gw) out = true;
+        pins = Math.max(pins, p.pins || 0);
+        g.peasants.forEach(function (o) { if (o !== p && o !== q && o.state === "fly" && flew.indexOf(o.name) < 0) flew.push(o.name); });
+      }
+      var how = "flicked (" + a[2] + ", " + a[3] + ") past " + p.name;
+      check(knocked && p.feel === -2, how + ", it did not knock her flat: knocked " + knocked + ", feel " + p.feel);
+      /* (the hop: 1.2 up, under 0.1 a tick of fall, is 6.6 rows) */
+      check(y - top <= 7 && !out && !p.dead, how + ", she went up " + (y - top).toFixed(1) + " rows" + (out ? ", out of the valley" : "") + (p.dead ? ", and is dead" : ""));
+      check(!pins && !flew.length, how + ", she bowled over " + pins + (flew.length ? ", and " + flew + " went flying" : ""));
+    });
+    /* (the snowball the size of a shed: a drift of 137 at three people three columns apart, from 18 along) */
+    var D = housed(), hd = D.h, gd = D.g, wd = D.w, ps = [gd.peasants[0], gd.peasants[1], gd.peasants[2]], t, pins = 0;
+    gd.peasants.forEach(function (o) { if (ps.indexOf(o) < 0) stand(D, o, FLAT - 112); });
+    ps.forEach(function (p, i) { stand(D, p, FLAT + 3 * i); });
+    var gy = ground(wd, gd, FLAT);
+    gd.size = 6; wd.sandDab(gd, FLAT - 18, gy - 11, D.M.SNOW, true);
+    check(lift(hd, FLAT - 18, gy - 11, 6).c.length / 6 === 137, "(the test wants a drift of 137: " + gd.hand.held.c.length / 6 + ")");
+    hd.flick(4.5, 0); hd.up();
+    for (t = 0; t < 300; t++) { hd.step(1); ps.forEach(function (p) { pins = Math.max(pins, p.pins || 0); }); }
+    check(ps.every(function (p) { return p.feel === -2 && !p.dead; }) && gd.hand.cruel === 3 && !pins, "a drift flicked at three: " + ps.map(function (p) { return p.name + " " + p.feel + (p.dead ? " dead" : ""); }) + ", cruel " + gd.hand.cruel + ", bowled " + pins);
+  });
+
+  test("hand: somebody knocked flat by a big lump that is then set down whole where they are is not buried in it: they are out on top of it, or beside it, and alive", function () {
+    /* (the reviewer's sweep: seed 6 at tick 3,000, Sue at 232.5, a disc of stone of 8 so many rows up and 16 along,
+       flicked back at her: [rows up, vx, vy]. every one of these knocked her, and buried her) */
+    var base = H.open({ seed: 6 });
+    base.step(3000);
+    var snap = base.snapshot();
+    [[20, -2, 0], [10, -2, 0], [20, -2, 2], [20, -4.5, 4], [30, -2, 4]].forEach(function (a) {
+      var h = base, g, w, p, y, t, i, sx, sy;
+      h.restore(snap); g = h.g; w = h.game; p = g.peasants[0];
+      y = ground(w, g, FLAT);
+      p.x = FLAT + 0.5; p.y = y; p.state = "walk"; p.task = null; p.vx = p.vy = 0; p.falling = false; p.fallY = y; p.sleep = 0; p.immune = 0; p.panic = 0;
+      h.pause(true);
+      sx = FLAT + 16; sy = y - 14 - a[0];
+      h.paintDisc(sx, sy, 8, "STONE");
+      lift(h, sx, sy, 8);
+      h.pause(false);
+      h.flick(a[1], a[2]); h.up();
+      var knocked = false, whole = false, b = 0;
+      for (t = 0; t < 400; t++) {
+        var f = g.hand.fly;
+        h.step(1);
+        if (p.state === "fly") knocked = true;
+        if (f && !g.hand.fly) for (whole = true, i = 0; i < g.np; i++) if (g.ph[i]) whole = false;   /* (down, and none of it a grain) */
+        b = Math.max(b, p.buried || 0);
+      }
+      var how = "a disc of 8 from " + a[0] + " rows up, flicked (" + a[1] + ", " + a[2] + ")";
+      check(knocked && p.feel === -2, "(the test wants " + p.name + " knocked flat by " + how + ": " + p.state + ")");
+      check(whole || a[2], how + " came apart (the reviewer's was set down whole)");
+      check(!p.dead && !b && !w.pBlocked(g, p.x, p.y), how + ": " + p.name + " was set down on" + (p.dead ? ", and is dead" : "") + ", buried " + b + ", at " + p.x.toFixed(1) + "," + p.y.toFixed(1) + (whole ? "" : " (it came apart)"));
+    });
+  });
+
+  test("hand: CLEAR while somebody rides a lump thrown up over the top of the valley drops them from the top, not into space", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, p = C.p, y = stand(C, p, FLAT), t, i;
+    lift(h, FLAT, y + 3, 3);
+    check(p.ride, "(the test wants " + p.name + " on the lump)");
+    carry(h, FLAT, 0);
+    h.flick(0, -6); h.up();
+    h.step(30);
+    check(g.hand.fly && p.ride && p.y < -40, "(the test wants " + p.name + " high over the valley on it: " + p.y.toFixed(1) + ")");
+    h.key("c");
+    var space = false, back = false;
+    for (t = 0; t < 600; t++) {
+      h.step(1);
+      if (p.state === "space") space = true;
+      for (i = 0; i < g.feed.length; i++) if (/back from space/.test(g.feed[i].text)) back = true;
+    }
+    check(!g.astronauts && !space && !back, "let go over the valley by CLEAR, " + p.name + " went to space: astronauts " + g.astronauts + ", " + (back ? "and came back" : "state " + p.state));
+  });
+
+  /* ---- after the build: what hangs from a house goes with it, or comes down ---- */
+  /* a bell on the ridge of C's house, as mPlanBell casts one there, and hung */
+  function belled(C) {
+    var g = C.g, w = C.w;
+    C.p.gold = 3;
+    check(w.mPlanBell(g, C.p), "(the test wants a bell)");
+    var B = sites(g, "bell")[0];
+    check(B.on === C.s.id, "(the test wants the bell on " + C.p.name + "'s house: it is on " + B.on + ")");
+    sim.build(w, B); w.bFinish(g, B, C.p);
+    g.peasants.forEach(function (o) { if (o.task && o.task.kind === "build") o.task = null; });
+    return B;
+  }
+
+  test("hand: a house carried off without one of its lanterns leaves none hanging in the air at the old place, and gets another by that door where it is now; a lantern carried off alone is not its house's somewhere else, and the house gets another", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, s = C.s, M = C.M, L = lamps(C), t;
+    var right = L.filter(function (l) { return l.x0 > s.x1; })[0], left = L.filter(function (l) { return l.x0 < s.x0; })[0];
+    var x0 = s.x0, lx = left.x0, rx = right.x0, ry = right.y0;
+    lift(h, C.cx - 3, C.cy + 1, 9);
+    check(s.handH && left.handH && !right.handH, "(the test wants the house and its left lantern, and not its right)");
+    var f = setAt(h, FLAT), DX = f.x - f.ax;
+    check(DX > 70 && s.x0 === x0 + DX && left.x0 === lx + DX, "set down " + DX + " along, the house is at " + s.x0 + " (was " + x0 + "), its left lantern at " + left.x0 + " (was " + lx + ")");
+    var mine = sites(g, "lamp").filter(function (l) { return l.home === s.id; });
+    check(!w.bSite(g, right.id) && mine.every(function (l) { return l.side < 0; }), "a lantern for the right-hand door is still its house's: " + mine.map(function (l) { return l.side + "@" + l.x0 + "," + l.y0; }));
+    for (t = 0; t < 300; t++) h.step(1);
+    var hung = [ry, ry + 1].filter(function (y) { var c = g.m[y * g.gw + rx]; return (c === M.PLANK || c === M.LAMP) && g.m[(ry + 2) * g.gw + rx] === M.EMPTY; });
+    check(!hung.length, "the old right-hand lantern's bracket and lamp are standing in the air at " + rx + "," + ry);
+    /* (and once the house is mended where it is: the one cell of it that did not come) */
+    function mended(D) { var ip = inPlace(D, 0, 0); return D.s.done && !D.s.repair && ip[0] === ip[1]; }
+    for (t = 0; t < 8000 && !mended(C); t++) h.step(1);
+    check(mended(C), "(the test wants the house mended where it is: " + inPlace(C, 0, 0) + ")");
+    if (!sites(g, "lamp").some(function (l) { return l.home === s.id && l.side > 0; })) w.iPlanLamp(g, C.p);
+    var R = sites(g, "lamp").filter(function (l) { return l.home === s.id && l.side > 0; })[0];
+    check(R && R.x0 === s.x1 + 1, "no lantern planned by the right-hand door of the house where it is now: " + (R ? R.x0 + "," + R.y0 : "none") + " (its wall at " + s.x1 + ")");
+    /* and the other way: a lantern carried off on its own is not that house's lantern somewhere else. it is gone from
+       the old place, and the house gets another */
+    var D = housed(), hd = D.h, gd = D.g, sd = D.s, Rd = lamps(D).filter(function (l) { return l.x0 > D.s.x1; })[0], rx0 = Rd.x0, ry0 = Rd.y0;
+    lift(hd, rx0, ry0 + 1, 1);
+    check(Rd.handH && !gd.hand.sites.some(function (q) { return q.id === sd.id && q.n >= 0.3 * q.of; }), "(the test wants the right-hand lantern in the hand, and next to nothing of its house)");
+    setAt(hd, FLAT);
+    check(Rd.x0 === rx0 && Rd.y0 === ry0, "a lantern carried off alone moved, to " + Rd.x0 + "," + Rd.y0);
+    for (t = 0; t < 8000 && (w.bSite(gd, Rd.id) || !mended(D)); t++) hd.step(1);   /* (and the bite out of its wall put back) */
+    check(!w.bSite(gd, Rd.id) && mended(D), "(the test wants the lantern gone from the old place, and the house mended: " + !!w.bSite(gd, Rd.id) + ", " + inPlace(D, 0, 0) + ")");
+    if (!sites(gd, "lamp").some(function (l) { return l.home === sd.id && l.side > 0; })) w.iPlanLamp(gd, D.p);
+    R = sites(gd, "lamp").filter(function (l) { return l.home === sd.id && l.side > 0; })[0];
+    check(R && R.x0 === sd.x1 + 1, "no new lantern planned by the right-hand door after its own was carried off: " + (R ? R.x0 + "," + R.y0 : "none"));
+  });
+
+  test("hand: a house carried off with the bell on its ridge takes the bell with it: the bell is whole there, and rings", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, s = C.s, M = C.M, B = belled(C), t;
+    var x0 = s.x0, bx = B.bx, by = B.by, i0 = B.plan[0].i, n = 0, inspected = 0;
+    lift(h, B.bx - 2, B.by + 7, 12);
+    check(s.handH && B.handH, "(the test wants the house and its bell in the hand)");
+    var f = setAt(h, FLAT), DX = f.x - f.ax, DY = f.y - f.ay;
+    check(DX > 70 && s.x0 === x0 + DX, "(the test wants the house moved: it is at " + s.x0 + ", was " + x0 + ")");
+    check(w.bSite(g, B.id) === B && B.bx === bx + DX && B.by === by + DY && B.plan[0].i === i0 + DX + DY * g.gw, "the bell did not go with it: its mouth at " + B.bx + "," + B.by + " (was " + bx + "," + by + "), moved " + DX + "," + DY);
+    check(whole(C, B) && g.m[B.by * g.gw + B.bx] === M.GOLD, "the bell is not as its plan says where it is now");
+    for (t = 0; t < 600; t++) { h.step(1); if (B.repair) n++; }
+    w.bInspect(g, B, g.sites.indexOf(B)); inspected = 1;
+    check(w.bSite(g, B.id) === B && B.done && !B.repair && !n && inspected, "bInspect found something of the bell missing where it is now (repair for " + n + " ticks)");
+    check(w.mRing(g, 2), "the bell does not ring where it is now");
+    /* (a DONG is a glint or two out of the mouth of it, where it is now) */
+    var dong = 0, q;
+    for (t = 0; t < 120; t++) {
+      h.step(1);
+      for (q = 0; q < g.np; q++) if (g.pk[q] === w.PK_GLINT && Math.abs(g.ppx[q] - B.bx - 0.5) < 3 && Math.abs(g.ppy[q] - B.by - 1) < 3) dong++;
+    }
+    check(dong > 0 && B.ring === 0, "rung, the bell where it is now made no DONG (" + dong + ", ring " + B.ring + ")");
+  });
+
+  test("hand: a house carried off without the bell on its ridge leaves no bell up in the air at the old place: it comes down, and its gold is on the ground, anybody's", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, s = C.s, M = C.M, B = belled(C), t, j, x, y;
+    var gold = B.plan.filter(function (e) { return e.v === M.GOLD; }).map(function (e) { return e.i; }), x0 = s.x0;
+    function golds() { var n = 0; for (var j = 0; j < g.m.length; j++) if (g.m[j] === M.GOLD) n++; return n; }
+    var n0 = golds();
+    lift(h, B.bx - 2, s.F - 5, 9);
+    check(s.handH && !B.handH, "(the test wants the house in the hand, and not its bell)");
+    var f = setAt(h, FLAT);
+    check(s.x0 !== x0, "(the test wants the house moved)");
+    check(!sites(g, "bell").length, "a bell site is left: at " + sites(g, "bell").map(function (b) { return b.bx + "," + b.by; }));
+    for (t = 0; t < 300; t++) h.step(1);
+    check(gold.every(function (i) { return g.m[i] !== M.GOLD; }), "the bell's gold is still up where the ridge was");
+    check(golds() === n0, "of " + n0 + " cells of gold, " + golds() + " are in the valley");
+    /* (round where the bell was, every cell of gold is on something) */
+    for (y = 0; y < g.gh - 1; y++) for (x = B.x0 - 12; x <= B.x1 + 12; x++) {
+      j = y * g.gw + x;
+      check(g.m[j] !== M.GOLD || !w.AIRY[g.m[j + g.gw]], "gold in the air at " + x + "," + y);
+    }
+  });
+
+  /* (after the build: what the review left, mended. the chase, and what they say) */
+  test("hand: somebody after their house splashes through a puddle on the way, and is still after it, and under it, on the far side", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, s = C.s, M = C.M, p = C.p, A = 163, B = 173, x, y, t, wet = 0, far = 0, near = 0;
+    stand(C, p, s.x0 - 9);
+    /* (a strip of water two rows deep, let into the ground across the way, on a stone bottom) */
+    for (x = A; x <= B; x++) { var gy = ground(w, g, x); for (y = gy + 1; y <= gy + 2; y++) w.sandSet(g, y * g.gw + x, M.WATER); w.sandSet(g, (gy + 3) * g.gw + x, M.STONE); }
+    lift(h, C.cx, C.cy + 1, 10);
+    check(p.task && p.task.kind === "chase", "(the test wants the owner after it)");
+    var X = C.cx, Y = C.cy - 20;
+    for (t = 0; t < 700; t++) {
+      if (t % 10 === 0 && X < 215) at(h, ++X, Y);
+      h.step(1);
+      if (p.wade) wet++;
+      if (p.x > B + 4 && g.hand.held.x > B + 8) { far++; if (p.task && p.task.kind === "chase" && Math.abs(p.x - g.hand.held.x - 0.5) <= 6) near++; }
+    }
+    check(wet > 10, "(the test wants " + p.name + " through the water: wet " + wet + " ticks)");
+    check(p.task && p.task.kind === "chase" && far > 200 && near === far, p.name + ", across the water, is " + JSON.stringify(p.task && p.task.kind) + " at " + p.x.toFixed(1) + " with the house at " + g.hand.held.x + ": under it " + near + " ticks of " + far);
+  });
+
+  test("hand: a house held still over the pond, out of its owner's reach, is given up on before the stuck observer would call it a stall", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, p = C.p, W = require("../harness/stuck.js").createWatcher(), px = -1, x, y, t, end = -1;
+    for (x = C.box[0]; x > 0 && px < 0; x--) for (y = 40; y < g.gh; y++) if (w.LIQUID[g.m[y * g.gw + x]]) { px = x; break; }
+    check(px > 100 && px < 140, "(the test wants the pond just left of the house: " + px + ")");
+    lift(h, C.cx, C.cy + 1, 10);
+    check(p.task && p.task.kind === "chase", "(the test wants " + p.name + " after it)");
+    for (t = 0; t < 60; t++) { at(h, Math.round(C.cx + (px - C.cx) * t / 60), C.cy - 15); h.step(1); }
+    for (t = 60; t < 3000; t++) {
+      h.step(1);
+      if (g.tick % 30 === 0) W.sample(h);
+      if (end < 0 && !(p.task && p.task.kind === "chase")) end = t;
+    }
+    check(g.hand.held && end >= w.H_STAND && end <= 2000, p.name + "'s chase of a house held still ended " + end + " ticks after the lift");
+    check(!W.report().length, "the stuck observer reports " + JSON.stringify(W.report()));
+  });
+
+  test("hand: the first lift anybody sees is not greeted with the hand again; a later one can be", function () {
+    var AGAIN = "oh no it's the hand again", first = 0, again = 0, later = false, i, h, g, w, x;
+    function up(h) { var g = h.g, x = Math.floor(g.peasants[0].x) + 12, y = ground(h.game, g, x); if (y < 0) return null; lift(h, x, y + 3, 3); return g.peasants.filter(function (p) { return p.handSeen === g.hand.lifts && p.say; }).map(function (p) { return p.say; }); }
+    for (i = 0; i < 40; i++) {
+      h = H.open({ seed: 6 }); g = h.g; w = h.game;
+      h.setRng((0x9e3779b9 * (i + 1)) >>> 0);
+      var said = up(h) || [];
+      if (said.length) first++;
+      if (said.indexOf(AGAIN) >= 0) again++;
+      /* (and, until it has come up, another a while later, with the first in the past) */
+      if (!later) { h.flick(0, 0); h.up(); h.step(w.H_QUIET + 2); later = (up(h) || []).indexOf(AGAIN) >= 0; }
+    }
+    check(first === 40, "(the test wants every first lift seen: " + first + " of 40)");
+    check(!again, "the first lift seen was the hand again in " + again + " of 40 valleys");
+    check(later, "in none of 40 valleys could a later lift be the hand again");
+  });
+
+  test("hand: a pebble of stone through the gable, and its owner, near, says so there and then; a pebble of sand that breaks nothing, nothing", function () {
+    function throwAt(v) {
+      var C = housed(), h = C.h, g = C.g, s = C.s, p = C.p, M = C.M, out = -1, said = null, smash = 0, t;
+      stand(C, p, s.x1 + 6);
+      pebble(h, s.x0 - 25, s.F - 18, v, 3);
+      h.flick(4, 0.5); h.up();
+      for (t = 0; t < 300; t++) {
+        h.step(1);
+        if (out < 0 && s.win.some(function (j) { return !(g.m[j] === M.PLANK && g.aux[j] === 1); })) { out = t; said = p.say; }
+        if (p.say && (C.w.P_SAY.handSmash || []).indexOf(p.say) >= 0) smash++;
+      }
+      return { out: out, said: said, smash: smash, p: p, w: C.w };
+    }
+    var M = H.open({ seed: 6 }).game.MAT, a = throwAt(M.STONE), b = throwAt(M.SAND);
+    check(a.out >= 0 && (a.w.P_SAY.handSmash || []).indexOf(a.said) >= 0, "the window came out at " + a.out + ", and " + a.p.name + " said " + JSON.stringify(a.said));
+    check(b.out < 0 && !b.smash, "a pebble of sand: the window out at " + b.out + ", " + b.smash + " ticks of a smashed window said");
+  });
+  test("hand: a duck lifted with the pond sits on it, feet tucked, and says so; thrown with it, it flaps, and says that", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, d = g.ducks.filter(function (u) { return u.state === "swim" || u.state === "walk"; })[0], drawn = [], t;
+    check(d, "(the test wants a duck about)");
+    /* (what ducksDraw draws each duck with: the sprite dBlit is handed) */
+    var blit = h.eval("dBlit");
+    h.eval("(function (f) { dBlit = f; })")(function (gg, spr) { drawn.push(spr); return blit.apply(null, arguments); });
+    function drawnAs() { drawn.length = 0; h.fn("ducksDraw")(g); return drawn[g.ducks.filter(function (u) { return !u.dead; }).indexOf(d)]; }
+    var S = w.D_SPR, dx = Math.floor(d.x), dy = Math.floor(d.y);
+    lift(h, dx, dy + 2, 4);
+    check(d.state === "held" && d.ride, "(the test wants the duck on the lifted ground: it is " + d.state + ")");
+    carry(h, dx, dy - 6);
+    check(/sitting on a lump/.test(w.dMood(d, g)) && drawnAs() === S.swim, "a duck on a lump in the hand " + w.dMood(d, g) + ", drawn " + (drawnAs() === S.swim ? "sat" : "flying"));
+    d.baby = true;
+    check(drawnAs() === S.babySwim, "a duckling on a lump in the hand is drawn on its feet");
+    d.baby = false;
+    /* (and thrown) */
+    h.flick(3, -2); h.up();
+    for (t = 0; t < 3 && g.hand.fly; t++) h.step(1);
+    check(g.hand.fly && d.ride && d.state === "held", "(the test wants the duck in the air with its lump: " + d.state + ")");
+    var a = drawnAs();
+    check(/flying/.test(w.dMood(d, g)) && (a === S.flyA || a === S.flyB), "a duck thrown with its lump " + w.dMood(d, g) + ", drawn " + (a === S.swim ? "sat" : "otherwise"));
+    check(down(h), "it never came down");
+    check(!/lump/.test(w.dMood(d, g)), "a duck set down " + w.dMood(d, g));
+  });
+
+  /* (after the build: what the review found no test of) */
+  /* a function of the game's, watched: how many times it was called, and with what it gave back */
+  function spy(h, name, each) {
+    var f = h.eval(name), n = { n: 0 };
+    h.eval("(function (f) { " + name + " = f; })")(function () { var r = f.apply(null, arguments); if (!each || each.apply(null, [r].concat([].slice.call(arguments)))) n.n++; return r; });
+    return n;
+  }
+  test("hand: lava set down on open ground, or let go into the pond, and a stone heated through set down gently: the tick each lands, the heat in the room and the hand together is what it was before the lift", function () {
+    /* (a lump at room temperature has next to no heat of its own to lose in the putting down. lava has: a hundredth of
+       it gone is a part in a hundred and twenty of the whole valley's. and the stone as hot as test 47's, 300 a cell) */
+    function setDown(mat, from, to, hot) {
+      var h = H.open({ seed: 6 }), g = h.g, w = h.game, M = w.MAT, r = 5, n = 0, dx, dy, j;
+      var crash = spy(h, "handCrash"), pushed = spy(h, "handHomes", function (o) { return o && o.length; });
+      g.size = r; w.sandDab(g, from[0], from[1], M[mat], true);
+      if (hot) for (dy = -r; dy <= r; dy++) for (dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r + r) w.heatAdd(g, (from[1] + dy) * g.gw + from[0] + dx, hot);
+      var q0 = heatAll(h);
+      lift(h, from[0], from[1], r);
+      var cells = g.hand.held.c.length / 6;
+      carry(h, to[0], to[1]);
+      check(down(h), "the " + mat + " never came down");
+      if (mat === "LAVA") for (j = 0; j < g.m.length; j++) if (g.m[j] === M.LAVA) n++;
+      return { q0: q0, q1: heatAll(h), cells: cells, n: mat === "LAVA" ? n : cells, crash: crash.n, pushed: pushed.n };
+    }
+    var C = housed(), gy = ground(C.w, C.g, FLAT), top = -1, j;
+    for (j = 0; j < C.g.m.length && top < 0; j++) if (C.w.LIQUID[C.g.m[j]] && j % C.g.gw === 106) top = (j / C.g.gw) | 0;
+    check(gy > 0 && top > 0, "(the test wants seed 6's open ground and its pond: " + gy + ", " + top + ")");
+    [["on open ground", setDown("LAVA", [FLAT - 40, 40], [FLAT, gy - 7])],
+     ["into the pond", setDown("LAVA", [136, 40], [106, top - 8])],
+     ["heated through, on open ground", setDown("STONE", [FLAT - 40, 40], [FLAT, gy - 7], 300)]].forEach(function (T) {
+      var R = T[1], what = T[0];
+      check(R.cells > 50 && R.n === R.cells && !R.crash, "(the test wants it set down whole " + what + ": " + JSON.stringify(R) + ")");
+      check(Math.abs(R.q1 - R.q0) < 1e-6 * Math.abs(R.q0) + 1e-2, "set down " + what + ", the heat went from " + R.q0 + " to " + R.q1);
+    });
+    check(setDown("LAVA", [136, 40], [106, top - 8]).pushed > 0, "(the test wants the pond's water pushed aside by the lava)");
+  });
+  test("hand: a lump of lava in the hand with somebody and a duck sat on it, and then in the air, is drawn: in the picture and in thermal vision, the palm over it shut and then open, and THE HAND in the village's numbers", function () {
+    var h = H.open({ seed: 6 }), g = h.g, w = h.game, M = w.MAT, X = FLAT, p = g.peasants[0], d = g.ducks[0], gy = ground(w, g, X), a, b;
+    p.x = X - 1.5; p.y = gy; p.state = "walk"; p.task = null; p.vx = p.vy = 0;
+    d.x = X + 2.5; d.y = gy; d.state = "walk"; d.vx = d.vy = 0;
+    for (a = -3; a <= 3; a++) for (b = -3; b <= 3; b++) if (a * a + b * b <= 12) w.sandPlace(g, (gy + 4 + b) * g.gw + X + a, M.LAVA);   /* (in the ground under them: lava does not pour into sand) */
+    lift(h, X, gy + 2, 6);
+    check(p.ride && d.ride, "(the test wants somebody and a duck on the lump: " + p.state + ", " + d.state + ")");
+    for (a = 0; a < 10; a++) { at(h, X - a, gy - 20 - a); h.step(1); }
+    /* (what peasantsDraw draws her with. and a context with only what sim.js's stub has, and setLineDash, which a canvas
+       has too: a call of anything else is a TypeError here, not only in the browser) */
+    var blit = h.eval("pBlit"), bodies = [], calls = [];
+    h.eval("(function (f) { pBlit = f; })")(function (gg, spr, ox) { if (ox === Math.floor(p.x)) bodies.push(spr); return blit.apply(null, arguments); });
+    var ctx = { createImageData: function (W, Hh) { return { data: new Uint8ClampedArray(W * Hh * 4), width: W, height: Hh }; },
+                measureText: function (s) { return { width: s.length * 4 }; },
+                createRadialGradient: function () { return { addColorStop: function () {} }; } };
+    ["fillRect", "strokeRect", "drawImage", "putImageData", "clearRect", "save", "restore", "translate", "scale", "beginPath",
+     "moveTo", "lineTo", "quadraticCurveTo", "fill", "stroke", "rect", "clip", "fillText", "setTransform", "arc", "closePath", "setLineDash"]
+      .forEach(function (k) { ctx[k] = function () { calls.push([k].concat([].slice.call(arguments))); }; });
+    function look(when, palm) {
+      var L = g.hand.held || g.hand.fly, i = -1, k;
+      for (k = 0; k < L.c.length && i < 0; k += 6) if (L.c[k + 2] === M.LAVA && L.y + L.c[k + 1] >= 0) i = (L.y + L.c[k + 1]) * g.gw + L.x + L.c[k];
+      check(i >= 0 && g.m[i] === M.EMPTY, "(the test wants a cell of the lava in the sky, off the grid: " + i + ")");
+      bodies.length = 0;
+      w.drawWorld(g, true);
+      check(g.px[i] !== g.bg[i] && g.gpx[i] !== 0, when + ", the lava is not to be seen where it is: " + [g.px[i], g.bg[i], g.gpx[i]].map(function (v) { return (v >>> 0).toString(16); }).join(" "));
+      var sat = bodies.indexOf(w.P_BODY.sit) >= 0;
+      check(sat === !!g.hand.held, when + ", " + p.name + " is " + (sat ? "" : "not ") + "drawn sitting");
+      g.thermal = 1; w.drawWorld(g, true); g.thermal = 0;
+      check(g.px[i] !== w.thermCol(g.T[i]), when + ", in thermal vision the lava is the colour of the air it is in");
+      calls.length = 0; g.down = 1; w.drawCursor(g, ctx);
+      var drew = calls.filter(function (c) { return c[0] === "drawImage"; });
+      check(drew.length === 1 && drew[0][1] === w.ICONS[palm], when + ", the cursor drew " + drew.length + " images, not the " + palm);
+      var R = w.popRows(g, "peasants");
+      check(R.some(function (r) { return r[0] === "#" && r[1] === "THE HAND"; }), when + ", the village's numbers have no THE HAND: " + JSON.stringify(R.slice(-6)));
+    }
+    look("held", "handShut");
+    h.flick(3, -2); h.up(); h.step(1);
+    check(g.hand.fly && p.ride && d.ride, "(the test wants them in the air with it)");
+    look("thrown", "hand");
+  });
+  test("hand: somebody carried about for 600 ticks with time going is never held as the PEASANT tool holds people, and says nothing; nor is a duck carried with the pond held as a duck in the hand is: it stays on the lump", function () {
+    function way(h, x0, t) { at(h, x0 + Math.round(30 * Math.sin(t / 50)), 110 + Math.round(10 * Math.cos(t / 37))); h.step(1); }
+    var h = H.open({ seed: 6 }), g = h.g, w = h.game, p = g.peasants[0], said = [], off = 0, t, L;
+    var held = spy(h, "pHeld", function (r, gg, q) { return q === p; });
+    lift(h, Math.floor(p.x), Math.floor(p.y) + 2, 6);
+    check(p.ride && p.state === "held", "(the test wants " + p.name + " on the lump: " + p.state + ")");
+    var s0 = p.say;
+    for (t = 0; t < 600; t++) {
+      way(h, 132, t);
+      L = g.hand.held;
+      if (p.say && p.say !== s0 && said.indexOf(p.say) < 0) said.push(p.say);
+      if (Math.abs(p.x - (L.x + p.ride.dx)) > 1e-9 || Math.abs(p.y - (L.y + p.ride.dy)) > 1e-9) off++;
+    }
+    /* (pHeld is the PEASANT tool's: it puts them under the cursor, and two times in a hundred they say so) */
+    check(!held.n && !said.length && !off, p.name + ", carried: through pHeld " + held.n + " times, said " + JSON.stringify(said) + ", off the lump " + off + " ticks");
+    var h2 = H.open({ seed: 6 }), g2 = h2.g, d = g2.ducks[0], quack = [];
+    var dheld = spy(h2, "dHeld", function (r, gg, q) { return q === d; });
+    lift(h2, Math.floor(d.x), Math.floor(d.y) + 1, 5);
+    check(d.ride && d.state === "held", "(the test wants the duck on the lifted pond: " + d.state + ")");
+    for (t = 0, off = 0; t < 600; t++) {
+      way(h2, 115, t);
+      L = g2.hand.held;
+      if (d.say && quack.indexOf(d.say) < 0) quack.push(d.say);
+      if (Math.abs(d.x - (L.x + d.ride.dx)) > 1e-9 || Math.abs(d.y - (L.y + d.ride.dy)) > 1e-9) off++;
+    }
+    check(!dheld.n && !off && !quack.length, "a duck carried: through dHeld " + dheld.n + " times, off the lump " + off + " ticks, said " + JSON.stringify(quack));
+  });
+  test("hand: NEW pressed while holding a house with somebody in it, or with it in the air, forgets the hand: no g.hand, nobody held, and the new valley plays as one made by NEW in a valley nothing was ever lifted in", function () {
+    /* (the same village, the same brush, the cursor moved the same way and the time stopped the same; only one presses on
+       the house and lets go. the dice set the same just before NEW) */
+    function valley(press) {
+      var C = housed(), h = C.h, g = C.g, w = C.w, o = g.peasants[1], i;
+      h.pause(true);
+      o.x = C.box[0] + 2.5; o.y = C.box[3] - 1; o.state = "walk"; o.task = null; o.sleep = 0;
+      h.select("HAND"); g.size = 10; at(h, C.cx, C.cy + 1);
+      if (press) {
+        h.down(0);
+        check(g.hand.held && o.ride, "(the test wants the house in the hand, with " + o.name + " in it)");
+        w.handDeed(g, o, "wrecked");
+        check(g.hand.cruel === 2 && o.feel === -3, "(the test wants a cruelty in the ledger: " + g.hand.cruel + ", " + o.feel + ")");
+      }
+      for (i = 0; i < 10; i++) { at(h, C.cx - i, C.cy - i); h.step(1); }
+      if (press === "fly") { h.flick(2, -1); h.up(); check(g.hand.fly, "(the test wants it in the air)"); }
+      return h;
+    }
+    var none = valley(null), dice = none.rng();
+    none.key("r"); none.up(); none.pause(false); none.step(12000);
+    ["held", "fly"].forEach(function (how) {
+      var h = valley(how), g = h.g;
+      h.setRng(dice);
+      h.key("r"); h.up();
+      check(!("hand" in g), "NEW with the house " + how + ": the hand is still there");
+      check(!g.peasants.some(function (p) { return p.ride || p.state === "held"; }) && !g.ducks.some(function (d) { return d.ride || d.state === "held"; }), "NEW with the house " + how + ": somebody still held");
+      h.pause(false); h.step(12000);
+      check(h.hash() === none.hash() && !("hand" in g), "NEW with the house " + how + ", and 12,000 ticks after it hashes " + h.hash() + ", not " + none.hash());
+    });
+  });
+  test("hand: a bite out of the foundry's mould, carried forty columns along and set down, and 6,000 ticks after: the soak's invariants hold, nobody is held by nothing or stalls, and the foundry is off hold, mended or being mended", function () {
+    /* (pi's flat valley for the foundry, test/heavens.js fValley22, in the harness, so that the hand can be used on it) */
+    var h = H.open({ seed: 2 }), w = h.game, g = h.g, M = w.MAT, x, y, t;
+    w.sandClear(g);
+    for (x = 0; x < g.gw; x++) for (y = x >= 223 ? 96 : 150; y < g.gh; y++) w.sandPlace(g, y * g.gw + x, y >= 150 && y < 158 ? M.SAND : M.STONE);
+    g.arriveT = 1e9; g.ideaT = 1e9; g.helloT = 0; g.wAny = true;
+    g.know = { concrete: "TEST", foundry: "TEST", masonry: "TEST", smelt: "TEST", dig: "TEST", farm: "TEST" };
+    g.peasants.forEach(function (p, i) { p.x = 100.5 + 3 * i; p.y = 149; p.task = null; p.idle = 0; p.hunger = 0; p.bored = 0; p.iron = 0; p.coal = 0; });
+    var gy = []; for (x = 0; x < w.H_FW; x++) gy.push(150);
+    var fit = w.hFoundryFit(g, 150, gy, 150, 150), s = sim.build(w, w.hFoundryAt(g, g.peasants[0], 150, fit.R0, fit.plan));
+    function missing() { return s.plan.filter(function (e) { return !w.bOk(g, e); }).length; }
+    check(s.wonder && s.done && !missing(), "(the test wants a finished foundry)");
+    /* (the plate mould, two deep and five long under the floor at the left tap, its lid and its lining: hFoundryCell) */
+    lift(h, s.xf + 2, s.R0, 3);
+    var bite = g.hand.sites.filter(function (q) { return q.id === s.id; })[0];
+    check(s.handH && bite && bite.n > 10, "(the test wants a bite of the mould in the hand: " + JSON.stringify(bite) + ")");
+    carry(h, s.xf + 2 - 40, 140);
+    check(down(h), "it never came down");
+    var gone = missing();
+    check(!s.handH && gone >= bite.n, "set down, the foundry is " + (s.handH ? "still on hold" : "off hold") + ", " + gone + " of its cells gone");
+    /* (harness/soak.js's invariants, the plain ones, and the playtest's: nobody held by nothing) */
+    h.standardInvariants({ every: 1, temps: 30, grid: 60 });
+    h.invariant("people-state", "g.peasants.every(function (p) { return ['walk','fly','held','space'].indexOf(p.state) >= 0; })");
+    h.invariant("ducks-state", "g.ducks.every(function (d) { return ['walk','fly','held','swim','thrown'].indexOf(d.state) >= 0; })");
+    h.invariant("held", "(g.held === null || (g.peasants.indexOf(g.held) >= 0 && g.held.state === 'held')) && (g.heldDuck === null || g.ducks.indexOf(g.heldDuck) >= 0)");
+    h.invariant("ids", "(function(){var a=g.peasants.map(function(p){return p.id}),d=g.ducks.map(function(q){return q.id}),s=g.sites.map(function(x){return x.id});return new Set(a).size===a.length&&new Set(d).size===d.length&&new Set(s).size===s.length;})()", { every: 30 });
+    h.invariant("sites", "g.sites.every(function (s) { return s.plan && (s.plan.length > 0 || s.kind === 'heap') && s.plan.every(function (e) { return e.i >= 0 && e.i < g.m.length; }) && (!s.stock || Object.keys(s.stock).every(function (k) { return s.stock[k] > -1e-5 && Number.isFinite(s.stock[k]); })); })", { every: 30 });
+    h.invariant("tasks", "g.peasants.every(function (p) { return !p.task || p.task.site == null || g.sites.some(function (s) { return s.id === p.task.site; }) || p.task.kind === 'sow' || p.task.kind === 'till' || p.task.kind === 'water' || p.task.kind === 'fish' || p.task.kind === 'shoo'; })", { every: 30 });
+    h.invariant("feed", "g.feed.length <= 6 && g.banners.length <= 4 && g.ghosts.length < 400 && g.np >= 0 && g.np <= PMAX", { every: 30 });
+    h.invariant("resources", "g.rip >= 0 && (g.iron || 0) >= 0 && (g.barrels || 0) >= 0");
+    h.invariant("loose", "g.peasants.every(function (p) { return p.dead || p.state !== 'held' || p === g.held || (p.ride && g.hand && (g.hand.held || g.hand.fly)); }) && g.ducks.every(function (d) { return d.dead || d.state !== 'held' || d === g.heldDuck || (d.ride && g.hand && (g.hand.held || g.hand.fly)); })");
+    var W = require("../harness/stuck.js").createWatcher(), stop = null;
+    W.sample(h);
+    for (t = 0; t < 6000 && !stop; t += 30) { stop = h.step(30).stopped; W.sample(h); }
+    check(!stop, "an invariant broke: " + JSON.stringify(stop && { id: stop.id, tick: stop.tick }));
+    check(!W.report().length, "stalled: " + JSON.stringify(W.report()));
+    var S = w.bSite(g, s.id);
+    check(!S || (!S.handH && (!missing() || S.repair)), "6,000 ticks after, the foundry is " + (S ? (S.handH ? "on hold" : "neither mended nor being mended, " + missing() + " cells gone") : "gone"));
+  });
+
+  test("hand: a hill dropped from sixty rows over a hollow in the rock, with somebody in it, and over a house, comes down a heap on top: none of it in the hollow or in the room, and nobody buried", function () {
+    /* (the grains of it with no room where they come down are put down on the heap, on what is under them: not in the
+       lowest air in their column, through forty rows of rock or a roof. hand.js handLand) */
+    var h = H.open({ seed: 6 }), g = h.g, w = h.game, M = w.MAT, gw = g.gw, gy = ground(w, g, FLAT) + 1, cy = gy + 45, x, y, t, i;
+    g.peasants.length = 1; g.ducks.length = 0;
+    for (x = 200; x <= 265; x++) for (y = cy; y < cy + 8; y++) w.sandSet(g, y * gw + x, M.EMPTY);
+    var p = g.peasants[0];
+    p.x = 240.5; p.y = cy + 7; p.state = "walk"; p.task = null; p.vx = p.vy = 0; p.falling = false; p.fallY = p.y; p.sleep = 0;
+    function hollow() { var n = 0; for (x = 200; x <= 265; x++) for (y = cy; y < cy + 8; y++) if (g.m[y * gw + x] !== M.EMPTY) n++; return n; }
+    for (t = 0; t < 5; t++) h.step(1);
+    check(!hollow() && !w.pBlocked(g, p.x, p.y), "(the test wants " + p.name + " in an empty hollow: " + hollow() + " cells in it)");
+    var c0 = counts(h);
+    lift(h, FLAT, gy + 14, 16);
+    check(g.hand.held.c.length / 6 > 700, "(the test wants a hill: " + g.hand.held.c.length / 6 + ")");
+    for (i = 1; i <= 20; i++) { at(h, FLAT, gy + 14 - 60 * i / 20); h.step(1); }
+    h.flick(0, 0); h.up();
+    for (t = 0; t < 400; t++) h.step(1);
+    check(!hollow(), "a hill dropped on the ground over a hollow forty-five rows down put " + hollow() + " cells of itself in the hollow");
+    check(!g.hand.fly && !g.np && counts(h) === c0, "over the hollow, the hill came down as " + counts(h) + ", having gone up as " + c0);
+    check(!p.dead && !w.pBlocked(g, p.x, p.y), p.name + ", in the hollow under it, is " + (p.dead ? "dead: " + p.dead : "in something, at " + p.x.toFixed(1) + ", " + p.y.toFixed(1)));
+    /* (and carried seventy rows over a house, and dropped on it) */
+    var C = housed(), hc = C.h, gc = C.g, wc = C.w, room = [];
+    gc.peasants.forEach(function (q) { q.x = 20.5; q.y = ground(wc, gc, 20); q.task = null; });
+    for (x = C.s.ix0; x <= C.s.ix1; x++) for (y = C.s.F - 4; y < C.s.F; y++) if (gc.m[y * gc.gw + x] === C.M.EMPTY) room.push(y * gc.gw + x);   /* (the air in it, over the floor and under the ceiling) */
+    function filled() { return room.filter(function (j) { return gc.m[j] !== C.M.EMPTY; }).length; }
+    check(room.length > 20 && !filled(), "(the test wants the house's room empty: " + filled() + " of " + room.length + ")");
+    var hy = ground(wc, gc, FLAT) + 1;
+    lift(hc, FLAT, hy + 14, 16);
+    carry(hc, C.cx, C.box[2] - 70);
+    hc.up();
+    for (t = 0; t < 600 && (gc.hand.fly || gc.np); t++) hc.step(1);
+    check(!gc.hand.fly && !gc.np && !filled(), "a hill dropped on a house put " + filled() + " cells of itself in its room");
+  });
+
+  test("hand: a house held still over the middle of the pond: its owner goes in after it as far as they can wade, and gives up once they are swimming, not swimming out after it and back for as long as it is held", function () {
+    var C = housed(), h = C.h, g = C.g, w = C.w, p = C.p, px0 = -1, px1 = -1, x, y, t, wet, end = -1, swim = 0, again = 0;
+    for (x = C.box[0]; x > 0; x--) {
+      for (wet = false, y = 40; y < g.gh && !wet; y++) wet = !!w.LIQUID[g.m[y * g.gw + x]];
+      if (wet && px1 < 0) px1 = x;
+      if (!wet && px1 >= 0) { px0 = x + 1; break; }
+    }
+    check(px0 > 60 && px1 - px0 > 20, "(the test wants seed 6's pond left of the house: " + px0 + ".." + px1 + ")");
+    var mid = (px0 + px1) >> 1;
+    lift(h, C.cx, C.cy + 1, 10);
+    check(p.task && p.task.kind === "chase", "(the test wants " + p.name + " after it)");
+    for (t = 0; t < 60; t++) { at(h, Math.round(C.cx + (mid - C.cx) * t / 60), C.cy - 15); h.step(1); }
+    for (t = 60; t < 3000; t++) {
+      h.step(1);
+      var on = p.task && p.task.kind === "chase";
+      if (end < 0 && !on) end = t; else if (end >= 0 && on) again++;
+      if (p.swimming) swim++;
+    }
+    check(g.hand.held && end >= 0 && end < 600 && !again, p.name + "'s chase of a house held over the middle of the pond ended " + end + " ticks after the lift, and was on again " + again + " ticks after that");
+    check(swim < 1500, p.name + " swam " + swim + " ticks of 2,940 with the house held over the middle of the pond");
+  });
+
+  test("hand: a pebble flicked at somebody, or a duckling, toward the edge of the valley, from anywhere up to a dozen and more columns off, knocks them flat against it, not out over it", function () {
+    /* (the reviewers' probe: seed 6, Sue on the ground d columns from a wall, nobody else about, a strip of air cleared
+       over her, and a 5 by 5 of stone 7 columns off flicked at 4 toward the wall. the hop is fifteen columns along, so
+       before the fix every one of these but the two right beside the wall left the village, by air) */
+    [[-1, 4], [-1, 10], [-1, 14], [1, 5], [1, 10], [1, 14], [-1, 8, true], [1, 8, true]].forEach(function (a) {
+      var C = housed(), h = C.h, g = C.g, w = C.w, M = C.M, p = C.p, dir = a[0], X = dir < 0 ? a[1] : g.gw - 1 - a[1], y = ground(w, g, X), i, j, t;
+      var PX = X - dir * 7, PY = y - 4, who, left = 0;
+      g.peasants.forEach(function (o) { if (o !== p) stand(C, o, FLAT); });
+      for (i = Math.min(PX, X) - 3; i <= Math.max(PX, X) + 3; i++) for (j = PY - 6; j <= y; j++) w.sandSet(g, j * g.gw + i, M.EMPTY);
+      y = ground(w, g, X);
+      if (a[2]) { stand(C, p, FLAT); who = w.duckSpawn(g, X + 0.5, y, null, true, true); }
+      else { who = p; p.x = X + 0.5; p.y = y; p.state = "walk"; p.task = null; p.vx = p.vy = 0; p.falling = false; p.fallY = y; p.sleep = 0; }
+      for (i = -2; i <= 2; i++) for (j = -2; j <= 2; j++) w.sandSet(g, (PY + j) * g.gw + PX + i, M.STONE);
+      lift(h, PX, PY, 3);
+      h.flick(4 * dir, 0); h.up();
+      var knocked = false, far = who.x;
+      for (t = 0; t < 300; t++) {
+        h.step(1);
+        if (who.state === "fly" || who.state === "thrown") knocked = true;
+        if (!who.dead) far = dir < 0 ? Math.min(far, who.x) : Math.max(far, who.x);
+      }
+      g.feed.forEach(function (f) { if (/left\. by air|left the village/.test(f.text || "")) left++; });
+      var how = (a[2] ? "a duckling" : p.name) + " " + a[1] + " columns from the " + (dir < 0 ? "left" : "right") + "-hand wall";
+      check(knocked, "(the test wants " + how + " knocked: " + who.state + ")");
+      check(!who.dead && !left && far >= 0 && far <= g.gw, how + ", knocked toward it, went as far as x " + far.toFixed(1) + (who.dead ? ", and is gone" : "") + (left ? " (" + left + " left by air)" : ""));
+    });
   });
 };

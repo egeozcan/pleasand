@@ -636,6 +636,7 @@ function pStep(g, p) {
     if (p.stun > 0) wTale(g, "pack", p);   /* (down hard: that is a tale) */
     p.launch = 0;
   }
+  if (p.shoved && p.state !== "fly") p.shoved = 0;   /* (down again from a knock: hand.js) */
   if (p.state === "held") { if (!(p.ride && g.hand)) pHeld(g, p); return; }   /* (sitting on a lump in the hand: hand.js moves them) */
   if (p.state === "space") {
     /* (aboard a rocket on its pad, not yet gone: no clock running. aboard one that cannot go, or is not there: held, and
@@ -739,6 +740,10 @@ function pStep(g, p) {
   if (swam && !p.swimming) wSwam(g, p);   /* (out of the water, on the bank: counted. wonders.js) */
   if (liquid && g.wAny) wBathe(g, p, fx, fy);   /* (warm water is a bath: wonders.js) */
   p.swimT = p.swimming ? (p.swimT || 0) + 1 : 0;   /* (how long they have been swimming: pSwim) */
+  /* (after their house, and out of their depth: that is as far as they go after it, there and then. pSwim takes them back
+     to the bank, and a chase still on there would walk them straight back in after it, for as long as it is held: its
+     clock, hand.js handTask, does not go round while they swim) */
+  if (p.swimming && p.task && p.task.kind === "chase") iDone(p, true);
   if (p.swimming) { pSwim(g, p, sub); return; }
   if (!ground) { pFall(g, p); return; }
   if (p.falling) pLand(g, p);
@@ -1272,8 +1277,9 @@ function pFly(g, p) {
   n = Math.ceil(spd * 2) || 1;
   for (s = 0; s < n; s++) {
     nx = p.x + p.vx / n; ny = p.y + p.vy / n;
-    /* (on a rocket pack the edge of the world is as good as a wall: they had it pointed at the valley) */
-    if (p.launch && (nx < 1 || nx > gw - 1)) { p.vx = -p.vx * 0.5; nx = p.x; }
+    /* (on a rocket pack the edge of the world is as good as a wall: they had it pointed at the valley. and knocked flat
+       by the hand, too: a shove is not a throw, and not out of the valley. hand.js) */
+    if ((p.launch || p.shoved) && (nx < 1 || nx > gw - 1)) { p.vx = -p.vx * 0.5; nx = p.x; }
     if (nx < -4 || nx > gw + 4 || ny > g.gh + 12) { pLeave(g, p); return; }
     if (ny < -40) { pSpace(g, p); return; }
     if (!pStiffAt(g, nx, ny)) { p.x = nx; p.y = ny; continue; }
@@ -1646,7 +1652,9 @@ function pWalk(g, p, wading) {
        long way to the furnace crosses the edge of a pond, with the water not up to their middle. P_WADE_ON. other work in
        the water, and a village with none, keeps to its old ways) */
     var shallows = wading && g.wAny && p.task && P_WADE_ON[p.task.kind] && !p.swimming && !LIQUID[pCell(g, fx, fy - 4)];
-    if (!scared && !struggling && (!wading || shallows || p.wadeT > 300 || p.hunger > P_HUNGRY || (p.task && (p.task.src || p.task.kind === "tidy" || p.task.kind === "pfill") && !p.swimming))) {
+    /* (nor is running after their house, carried off over a puddle or the edge of the pond: they splash through after it,
+       and give up only once they are swimming. a chase is only ever after a lift: hand.js) */
+    if (!scared && !struggling && (!wading || shallows || p.wadeT > 300 || p.hunger > P_HUNGRY || (p.task && (p.task.src || p.task.kind === "tidy" || p.task.kind === "pfill" || p.task.kind === "chase") && !p.swimming))) {
       /* (starving, and busy with something else: down tools, and look for food first. once: if there is none to be had,
          eatCD keeps them at the job) */
       if (p.task && p.task.kind !== "eat" && p.hunger > P_HUNGRY * 4 && !p.eatCD && !p.climb && !p.rope && (p.anim % 60) === 0) {

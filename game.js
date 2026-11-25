@@ -68,15 +68,16 @@ var TIPS = [
   "tip: MORE, under ERASE: coal, ore, gold, building stone. paint some near a mine",
   "tip: press Y, and pick up the pond"
 ];
-/* and, in a valley wider than the screen, one of these in place of every fourth of those. (a list of their own: g.tip
-   counts round TIPS as it always has, and the village's heap, tidy.js, shares the name) */
+/* and, in a valley wider than the screen, one of these in place of every fourth of those. (a list of their own: g.tipN
+   counts round TIPS, and g.tipW round the two together. g.tip is the village's heap, tidy.js's: the title card's count
+   once shared the name, and a click on it gave the village a heap that was a number) */
 var VALLEY_TIPS = [
   "tip: the valley is four screens wide. swipe sideways, Shift-wheel or \u2190/\u2192 to look along it",
   "tip: the strip under the field is the whole valley. drag it",
   "tip: G takes you back to the village"
 ];
 function tipLine(g) {
-  if (camMax(g) <= 0) return TIPS[g.tip];
+  if (camMax(g) <= 0) return TIPS[g.tipN];
   var k = g.tipW || 0;   /* (a wide valley: its own count, g.tipW; one of the valley's every fourth, starting with one) */
   return k % 4 === 0 ? VALLEY_TIPS[(k >> 2) % VALLEY_TIPS.length] : TIPS[(k - (k >> 2) - 1) % TIPS.length];
 }
@@ -163,7 +164,7 @@ function gameInit(g) {
   g.ducks = []; g.did = 0; g.heldDuck = null;
   g.sites = []; g.sid = 0;
   g.held = null; g.cx = 0; g.cy = 0; g.pcx = 0; g.pcy = 0; g.cvx = 0; g.cvy = 0; g.toolT = 0;
-  g.intro = 0; g.tip = irnd(TIPS.length);
+  g.intro = 0; g.tipN = irnd(TIPS.length);   /* (the dice rolled where they always were: a village that never clicks it plays as it did) */
   gamePicture(g);
   gameSky(g);
   g.sel = FUN_N; g.moreOpen = 0; g.moreLast = -1; g.size = 5; g.paused = 0; g.speed = SPEED_1; g.speedAcc = 0; g.lx = null; g.ax = null;
@@ -645,7 +646,7 @@ function panelDo(g, a) {
   else if (a === "new") gameNew(g);
   else if (a === "thermal") g.thermal = !g.thermal;
   else if (a === "hush") g.hush = !g.hush;
-  else if (a === "tip") { if (camMax(g) <= 0) g.tip = (g.tip + 1) % TIPS.length; else g.tipW = (g.tipW || 0) + 1; }   /* (a wide valley counts its own, clear of the village's heap: tidy.js shares g.tip) */
+  else if (a === "tip") { if (camMax(g) <= 0) g.tipN = ((g.tipN || 0) + 1) % TIPS.length; else g.tipW = (g.tipW || 0) + 1; }   /* (a wide valley counts its own. neither is g.tip, the village's heap: tidy.js) */
 }
 
 /* -------------------------------------------------------------------
@@ -1267,6 +1268,7 @@ function drawMore(g, c) {
     if (k === g.sel) rct(c, x + 2, ry, w - 4, ROWH, "#2a3d5e");
     else if (k === hov) rct(c, x + 2, ry, w - 4, ROWH, "#17202f");
     drawPickRow(c, PICK[k], x, ry, k === g.sel, false);
+    if (PICK[k].key) txt(c, PICK[k].key, x + w - MORE_PAD - 2, ry + 7.5, 7, "#56698a", "right");   /* (its key, as the panel's rows have theirs: HAND's Y) */
   }
 }
 function drawPanel(g, c) {
@@ -1362,7 +1364,7 @@ function drawPanel(g, c) {
   var hp = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null, line;
   var hd = inPlay(g) && !hp ? duckAt(g, g.cx, g.cy, 1) : null;
   if (hp) line = hp.name + "  " + pMood(g, hp);
-  else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd);
+  else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd, g);
   else if (g.my < PLAY_Y && g.mx >= PANEL) line = iSummary(g);   /* over the header: what the village knows */
   else if (overMore && ms < 0) line = "MORE  THE HAND (Y), and coal, iron ore, gold, rock salt, stonework, concrete, firebrick, stained glass, trestle. click to open";
   else if (overMore) line = info.name + "  " + info.desc;

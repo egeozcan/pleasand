@@ -558,51 +558,70 @@ the third), whoever wakes on the ground next thinks of making more ground (`docs
   near: out of the weather, no backache, and no idea about sleeping rough in the morning ("slept like a plank")
 
 And there is the hand. They have always said it looked like one. Pick HAND (under MORE, or press Y) and press:
-whatever is under the brush comes up, ground and all, and anybody standing on it comes too, and sits down. Nothing
+whatever is under the brush comes up, ground and all, and anybody standing on it comes too, and sits down (a duck
+too, feet tucked, as if it were on the pond, until you throw it, when it flaps, for all the good it does). Nothing
 in it cools, ticks or grows while you hold it: a nuke in the hand waits, and a lump of lava keeps its heat to itself
 until it is put down, so you can carry it through the pond and boil nothing. (It is the one thing in the valley that
 does not touch its neighbours, as a grain flung by a bang does not, until it lands.) Let go and it comes down in one
-piece, which is how you move a hill, or a pond (put it in another pond and the water makes room). Let go of it from
-high up over hard ground and it comes down in pieces, and so does anybody sitting on it. Somebody's house in the hand
-is still their house while it is up there: nobody mends the hole it left, or mourns it, until it comes down
-(`docs/the-hand-plan.md` is how, and what comes next).
+piece, which is how you move a hill, or a pond (put it in another pond and the water makes room; let a stone go over
+a lake and it sinks to the bottom, however deep, and the lake comes up round it). Let go of it from high up and it
+comes down in pieces, all of them, on anything but water (or anything else that pours: oil, lava, the sea), and so
+does anybody sitting on it. Sand will do it, or somebody's field: from up there it is all ground. Drop a hill back
+into the hole it came out of and the hole is full again, only untidier. Drop it on a roof and it is a heap on the
+roof, not one in the bedroom, and a mine under it is still a mine. Somebody's house in the hand is still their house
+while it is up there: nobody mends the hole it left, or mourns it, until it comes down (`docs/the-hand-plan.md` is
+how, and what comes next).
 
 Let go of it moving and it carries on, as anything does. A pebble goes as fast as you flick it, a hill hardly at
-all, and a hand that has stopped lets go of it still. Come down moving, it skids a little and stops, which is how you
-miss where you meant to put the house by a few columns. If it hits something hard enough it comes apart, and if it is
-stone it takes the window with it, or the glass; and anybody standing in the way is knocked flat, and, if it was the
-pond, put out. Anybody under it when it comes down gets out from under it if they can, and says so. Throw it at the
-sky and the sky gives it back; throw it at the edge of the valley and the edge is a wall.
+all, and a hand that has stopped lets go of it still. Come down moving, it skids a little and stops, which is how
+you miss where you meant to put the house by a few columns. If it hits something hard enough it comes apart, and if
+it is hard itself, stone or timber or iron, it takes the window with it, or the glass; and anybody standing in the
+way is knocked flat, and, if it was the pond and they were on fire, put out. A knock is a shove, not a throw: onto
+their back, a dozen steps or so along, however hard you threw it, because a pebble is not a catapult, and not over
+the edge of the valley, which they come off as off a wall; and if what knocked them comes down where they are, they
+get up on top of it, not under it. Anybody under it when it comes down gets out from under it if they can, and says
+so. Throw it at the sky and the sky gives it back; throw it at the edge of the
+valley and the edge is a wall. CLEAR the valley while it is up there and it goes with the valley, and whoever was
+riding it falls from the top of the sky: a long way, but not as far as space.
 
-Lift a whole house and the one who lives in it will run along under it, shouting, the whole way ("MY HOUSE", "careful
-with the bed"), unless something is on fire or they are in the middle of something that will not wait (their dinner,
-say). Set it down gently and it is their house, there, now, with its lanterns if they came too: they go home to it
-that night, and the news is that nobody asked them. A scarecrow, a grave or a statue moves the same way, and a
-scarecrow put down by the duck pond scares ducks there. Set a house down in somebody's field, though, or at the bottom
-of the lake, and it is a mess in a field or a wreck in the lake; drop it from a height and it comes down a heap of its
-own planks where it stood. Either way it is not anybody's house any more, and the old place is a ruin. They will put
-it on at the theatre: the time the house flew.
+Lift a whole house and the one who lives in it will run along under it, shouting, the whole way ("MY HOUSE",
+"careful with the bed"), through a puddle if it is in the way and as far into the pond as they can wade (not a
+stroke further: out of their depth, they give it up and swim back), unless something is on fire or they are in the
+middle of something that will not wait (their dinner, say). Hold it still, anywhere, and they stand under it, or as
+near as they can get, and shout at it a good while, and then give up and go back to work: a house that has stopped
+going anywhere is not worth chasing. Set it down gently and it is their house, there, now, with its lanterns and the
+bell on its ridge if they came too: they go home to it that night, and the news is that nobody asked them. A lantern
+or a bell left behind has nothing to hang from, and comes down (the bell's gold with it, and the gold is anybody's);
+the house gets new lanterns where it is now. A lantern carried off on its own is nobody's lantern where it lands,
+and the door it came from gets another. A scarecrow, a grave or a statue moves the same way, and a scarecrow put
+down by the duck pond scares ducks there. Set a house down in somebody's field, though, or at the bottom of the
+lake, and it is a mess in a field or a wreck in the lake; drop it from a height and it comes down a heap of its own
+planks where it lands. Either way it is not anybody's house any more, and the old place is a ruin. They will put it
+on at the theatre: the time the house flew.
 
-They remember, each of them, what it did to them. Give somebody a ride and set them down on their feet and they think
-better of it (take them a hundred columns and it is a tale); move their house and they think worse, and they think a
-good deal worse of it if it was their house that flew, or they were sitting on something that came down in pieces.
-Knock a window out of their house and that is held against it too, and by the third they say so. Knock them flat and
+They remember, each of them, what it did to them. Give somebody a ride and set them down on their feet and they
+think better of it (take them a hundred columns and it is a tale); move their house and they think worse, and they
+think a good deal worse of it if it was their house that flew, or they were sitting on something that came down in
+pieces. Knock a window out of their house and, if they are about, they say so there and then ("i JUST fixed that"),
+and that is held against it too: after one it is "YOU" when you hold anything over them, and after three, with
+nothing kind to set against them, it is "YOU" from anybody who has not made up their own mind. Knock them flat and
 they go indoors when your shadow comes over. (Unless it is their house making the shadow: then they get out from
-under it, there being no indoors to go to. And a fright that cannot get them in wears off, given a long enough hover:
-they get used to it, and get on.) Once they know about the hand, lightning is not weather any more. Whoever
-has not made up their own mind goes by what the village has seen it do, kindnesses against cruelties, and the PEASANTS
-count in the header, clicked, says how that is going. The ground going up is a thing to stop and look at, but not
-every time: lifting their house, or somebody, stops everybody near, and a player moving the sand about, press after
-press, gets a look about once every ten seconds. Hold something over a village that does not mind you and everybody at
-a loose end stops under it once, to look up and say hello.
+under it, there being no indoors to go to. And a fright that cannot get them in wears off, given a long enough
+hover: they get used to it, and get on.) Once they know about the hand, lightning is not weather any more. Whoever
+has not made up their own mind goes by what the village has seen it do, kindnesses against cruelties, and the
+PEASANTS count in the header, clicked, says how that is going. The ground going up is a thing to stop and look at,
+but not every time: lifting their house, or somebody, stops everybody near, and a player moving the sand about,
+press after press, gets a look about once every ten seconds. (The first time, nobody says it is the hand again.
+There has not been an again yet.) Hold something over a village that does not mind you and everybody at a loose end
+stops under it once, to look up and say hello.
 
 And the sky answers. Put a fire out for them, with the pond carried over and put down on it (or thrown at it), or
 with the burning house itself put down in the lake, and the news is that the sky did it. Somebody stood by a fire
 with an empty pail and nowhere this side of it to fill it, who thinks well of the hand, looks up and asks it, arms
-up, once a fire. They remember. Put out a fire for them and they will leave something out for you, beside them where
-the sky can see it: a nugget of gold, or a lump of coal if that is what is in their pocket, and with nothing in it, a
-wave. Pick it up and they are beside themselves. Leave it and it stays, a cell like any other, and over the years a
-little row of them.
+up, once a fire. They remember. Put out a fire for them and they will leave something out for you, somewhere near
+where the sky can see it: a nugget of gold, or a lump of coal if that is what is in their pocket, and with nothing
+in it, a wave. Pick it up and they are beside themselves. Leave it and it stays, a cell like any other, and over the
+years a little row of them.
 
 Cloned out of [funnysite](../funnysite)'s Flash Era portal (`flash.js`, game 2.1)
 and grown from there.
@@ -641,7 +660,7 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
   click one to pick it up, drag and let go to throw
 - **LIGHTNING** (L): click or hold to strike whatever is under the cursor
 - **HEAT** (H) / **COOL** (K): hold to pour heat into things, or draw it out
-- **HAND** (Y, at the bottom of MORE): press to pick up what is under the brush, ground and all, and whoever is
+- **HAND** (Y, at the bottom of MORE, with its Y on its row): press to pick up what is under the brush, ground and all, and whoever is
   standing on it; let go to put it down, or let go moving to throw it. Carried into the edge of the view, it brings
   the view along
 - **B** (or the BUBBLES button) turns the speech bubbles off and on
@@ -726,9 +745,9 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 - Paint a trestle across a gorge and pour sand on it. Then send somebody across
 - Lift the pond. Carry it to the fire
 - Lift a peasant on a hill, take them for a ride, and set them down gently
-- Flick a pebble at a window. Watch who comes out with a ladder
+- Flick a stone at somebody's window while they are watching
 - Move the scarecrow to the duck pond
-- Put out a fire with a pond, then look on the hill
+- Put out a fire with a pond, then look about for what they leave out
 - Lift a burning house and drop it in the lake
 
 ## Files
@@ -752,7 +771,7 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 - `storeys.js`: a crowded valley: flats on top of the houses, their ladders, neighbours, gardyloo and fire, word getting round, going over the hills, roof gardens and washing lines
 - `platforms.js`: when the roofs will take no more: decks on trestle legs over the village, a house on each, the high street, and sleeping under the boards
 - `ducks.js`: the ducks
-- `hand.js`: the hand: a lump of the valley lifted, held, carried and let go, set down whole or come down in pieces, with whoever was standing on it; a house set down whole is their house there, and its owner runs after it; and what the village makes of it: who thinks well of it, who hides, the fire it put out and the coal left on the hill for it
+- `hand.js`: the hand: a lump of the valley lifted, held, carried and let go, set down whole or come down in pieces, with whoever was standing on it; a house set down whole is their house there, and its owner runs after it; and what the village makes of it: who thinks well of it, who hides, the fire it put out and the coal left out for it
 - `save.js`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it
 - `game.js`: rendering, the picker and HUD, input, and the main loop
 - `test/`: the game without a browser (`sim.js`), and some checks that it still works (`run.js`)

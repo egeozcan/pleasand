@@ -120,7 +120,7 @@ var PICK = [
   { m: MAT.STAINED,    name: "STAINED GLASS", key: "", more: "build", desc: "ruby, green and amber, a pane to a grain. glows with a light behind it. melts at 1400." },
   { m: MAT.TRESTLE,    name: "TRESTLE",   key: "", more: "build", desc: "timber legs, cross-braced. peasants walk through it. sand and water do not. it burns." },
   /* (and a tool, last of all, so that every brush above keeps its place: hand.js) */
-  { tool: "hand",      name: "HAND",      key: "Y", more: "hand", desc: "lifts what is under it, ground and all, and whoever is standing on it. let go to set it down. flick it, and it flies." }
+  { tool: "hand",      name: "HAND",      key: "Y", more: "hand", desc: "lifts what is under it, ground, people and all. let go to set it down. flick it, and it flies." }
 ];
 /* how many rows the panel itself has: everything before the first of MORE's */
 var PICK_N = PICK.findIndex(function (p) { return !!p.more; });
@@ -377,12 +377,13 @@ function partInit(g) {
   g.pvx = new Float32Array(PMAX); g.pvy = new Float32Array(PMAX);
   g.pl = new Int16Array(PMAX); g.pk = new Uint8Array(PMAX); g.pm = new Uint8Array(PMAX);
   g.pc = new Uint32Array(PMAX); g.pt = new Float32Array(PMAX); g.ps = new Uint8Array(PMAX);
+  g.ph = new Uint8Array(PMAX);   /* a grain of something the hand threw: it lands in the valley, whatever it comes down on (hand.js handLand) */
 }
 function partAdd(g, kind, x, y, vx, vy, life, col, mat) {
   if (g.np >= PMAX) return -1;
   var q = g.np++;
   g.ppx[q] = x; g.ppy[q] = y; g.pvx[q] = vx; g.pvy[q] = vy;
-  g.pl[q] = life; g.pk[q] = kind; g.pm[q] = mat || 0; g.pc[q] = col; g.ps[q] = irnd(256);
+  g.pl[q] = life; g.pk[q] = kind; g.pm[q] = mat || 0; g.pc[q] = col; g.ps[q] = irnd(256); g.ph[q] = 0;
   /* a grain carries its heat (a spark or a rocket, none to speak of). a new one is at its own temperature */
   g.pt[q] = kind === PK_DEBRIS ? HEAT_C[mat || 0] * (HEAT_T0[mat || 0] - AMBIENT) + heatH0(mat || 0, 0, g.ps[q]) : 0;
   return q;
@@ -391,7 +392,7 @@ function partKill(g, q) {
   var l = --g.np;
   if (q === l) return;
   g.ppx[q] = g.ppx[l]; g.ppy[q] = g.ppy[l]; g.pvx[q] = g.pvx[l]; g.pvy[q] = g.pvy[l];
-  g.pl[q] = g.pl[l]; g.pk[q] = g.pk[l]; g.pm[q] = g.pm[l]; g.pc[q] = g.pc[l]; g.pt[q] = g.pt[l]; g.ps[q] = g.ps[l];
+  g.pl[q] = g.pl[l]; g.pk[q] = g.pk[l]; g.pm[q] = g.pm[l]; g.pc[q] = g.pc[l]; g.pt[q] = g.pt[l]; g.ps[q] = g.ps[l]; g.ph[q] = g.ph[l];
 }
 /* a grain that ends up somewhere other than a free cell to land in leaves its heat in the cell it is in, or the
    nearest one that will take heat (inert will not). off the edge of the room, the heat goes with it. false if
@@ -419,6 +420,12 @@ function partDrop(g, q, x, y) {
     return true;
   }
   return false;
+}
+/* a grain the hand threw, that would be lost (no room where it comes down, its time up, or off the edge of the room): put
+   down in the valley instead, in its column, on what is under where it got to, as hand.js puts down what it throws. a
+   grain of anything else never is */
+function partHand(g, q, x, y) {
+  return handLand(g, g.pm[q], 0, g.ps[q], g.pt[q], Math.floor(x), y);
 }
 /* turn a cell into a flying grain of itself. it takes all its heat with it, and its shade; the air that
    rushes in behind it is room air, with no heat of its own to speak of */
@@ -456,7 +463,7 @@ function partStep(g) {
     k = g.pk[q]; x = g.ppx[q]; y = g.ppy[q]; vx = g.pvx[q]; vy = g.pvy[q];
     if (--g.pl[q] <= 0) {
       if (k === PK_ROCKET) fwBurst(g, x, y);
-      if (partDrop(g, q, x, y)) { partKill(g, q); continue; }
+      if ((g.ph[q] && partHand(g, q, x, y)) || partDrop(g, q, x, y)) { partKill(g, q); continue; }
       g.pl[q] = 1; q++; continue;   /* sealed in inert, for now: it keeps its heat until there is somewhere to put it */
     }
     if (k === PK_DEBRIS) { vy += 0.11; vx *= 0.995; }
@@ -481,7 +488,7 @@ function partStep(g) {
       }
       x = nx; y = ny;
     }
-    if (hit === -2) { partKill(g, q); continue; }   /* off the edge: gone, heat and all */
+    if (hit === -2) { if (g.ph[q]) partHand(g, q, nx, ny); partKill(g, q); continue; }   /* off the edge: gone, heat and all (but the hand's, put down in the valley) */
     if (hit >= 0) {
       if (k === PK_DEBRIS) {
         /* land in the last free cell it passed through */
@@ -495,7 +502,7 @@ function partStep(g) {
           var qa = heatQ(g, j);
           m[j] = g.pm[q]; g.aux[j] = 0; g.sh[j] = g.ps[q]; g.vy[j] = clamp((vy * 3) | 0, 0, SAND_VMAX);
           heatSetQ(g, j, qa + g.pt[q]);
-        } else if (!partDrop(g, q, x, y)) { g.pvx[q] = g.pvy[q] = 0; q++; continue; }
+        } else if (!(g.ph[q] && partHand(g, q, x, y)) && !partDrop(g, q, x, y)) { g.pvx[q] = g.pvy[q] = 0; q++; continue; }
       } else if (k === PK_SPARK) {
         sandIgnite(g, hit);
       } else if (k === PK_GLINT) {
