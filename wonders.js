@@ -309,6 +309,10 @@ function wTold(t) {
     case "idea": return n + " thought of " + t.also;
     case "wonder": return "we finished " + t.also;
     case "stagefire": return "the stage caught fire";
+    case "moved": return "the hand moved " + (t.also || n + "'s house");   /* (hand.js) */
+    case "flew": return (t.also || n + "'s house") + " flew";
+    case "rode": return n + " rode on the hand";
+    case "saved": return "the hand put out the fire at " + (t.also || n + "'s house");
   }
   return n + " did something";
 }
@@ -1437,6 +1441,7 @@ function wStep(g) {
     s = g.sites[k];
     if (s.kind === "quarry" && s.done && !s.benched) { s.benched = true; wBenched(g, s); }
     if (!s.wonder) continue;
+    if (s.handH || s.handD) continue;   /* (in the hand, some of it: looked at when it comes down. hand.js) */
     d = wOf(s.kind);
     /* set at last: finished (bFinish waited for it). or under repair with nothing left to put right, the sand that silted
        it gone again by itself, say: mended (else nobody has anything to do at it, so nobody comes to say so, and it is

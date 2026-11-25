@@ -1,30 +1,31 @@
 # pleasand soak baseline
-# recorded with the code at this commit, after still air stopped rolling dice it could not use
+# recorded at b07c9b4 (platforms), the tree the hand was built on; the hand plays it the same in every column
+# but ms/t (docs/the-hand-plan.md, section 11, phase 6). the one before was recorded at 05a2f0e
 # node harness/soak.js --seeds 1-6 --ticks 12000 [--preset rich|chaos]
 
 PLEASAND soak · plain · 12000 ticks · seeds 1,2,3,4,5,6
-     1  ok                0.98ms/t  8 alive, 12/14 sites, 5 ideas, 0 dead
-     2  ok                0.99ms/t  8 alive, 13/15 sites, 5 ideas, 0 dead
-     3  ok                1.05ms/t  8 alive, 10/11 sites, 5 ideas, 0 dead
-     4  ok                0.99ms/t  8 alive, 12/14 sites, 4 ideas, 0 dead
-     5  ok                1.02ms/t  8 alive, 9/9 sites, 5 ideas, 0 dead
-     6  ok                1.04ms/t  8 alive, 8/8 sites, 5 ideas, 0 dead
-all 6 seeds clean in 73s of cpu
+     1  ok                0.98ms/t  8 alive, 13/14 sites, 5 ideas, 0 dead
+     2  ok                0.97ms/t  8 alive, 13/15 sites, 5 ideas, 0 dead
+     3  ok                1.03ms/t  8 alive, 10/11 sites, 5 ideas, 0 dead
+     4  ok                0.96ms/t  8 alive, 12/14 sites, 4 ideas, 0 dead
+     5  ok                0.98ms/t  8 alive, 9/9 sites, 5 ideas, 0 dead
+     6  ok                1.01ms/t  8 alive, 8/8 sites, 5 ideas, 0 dead
+all 6 seeds clean in 71s of cpu
 
 PLEASAND soak · rich · 12000 ticks · seeds 1,2,3,4,5,6
-     1  ok                1.16ms/t  8 alive, 15/18 sites, 19 ideas, 0 dead
-     2  ok                1.17ms/t  8 alive, 15/18 sites, 19 ideas, 0 dead
-     3  ok                1.17ms/t  8 alive, 12/16 sites, 18 ideas, 0 dead
-     4  ok                1.09ms/t  8 alive, 8/10 sites, 15 ideas, 0 dead
-     5  ok                1.10ms/t  8 alive, 9/15 sites, 17 ideas, 0 dead
-     6  ok                1.40ms/t  8 alive, 12/17 sites, 19 ideas, 0 dead
-all 6 seeds clean in 85s of cpu
+     1  ok                1.02ms/t  8 alive, 14/18 sites, 19 ideas, 0 dead
+     2  ok                1.02ms/t  8 alive, 15/18 sites, 19 ideas, 0 dead
+     3  ok                1.06ms/t  8 alive, 10/13 sites, 19 ideas, 0 dead
+     4  ok                0.95ms/t  8 alive, 8/10 sites, 15 ideas, 0 dead
+     5  ok                0.96ms/t  8 alive, 11/14 sites, 18 ideas, 0 dead
+     6  ok                1.25ms/t  8 alive, 12/17 sites, 19 ideas, 0 dead
+all 6 seeds clean in 75s of cpu
 
 PLEASAND soak · chaos · 12000 ticks · seeds 1,2,3,4,5,6
-     1  ok                1.78ms/t  8 alive, 8/10 sites, 11 ideas, 0 dead
-     2  ok                1.59ms/t  8 alive, 11/13 sites, 11 ideas, 0 dead
-     3  ok                1.89ms/t  8 alive, 10/15 sites, 11 ideas, 0 dead
-     4  ok                1.78ms/t  8 alive, 10/15 sites, 10 ideas, 0 dead
-     5  ok                1.69ms/t  8 alive, 10/13 sites, 11 ideas, 0 dead
-     6  ok                1.76ms/t  8 alive, 8/11 sites, 10 ideas, 0 dead
-all 6 seeds clean in 126s of cpu
+     1  ok                1.60ms/t  8 alive, 8/10 sites, 11 ideas, 0 dead
+     2  ok                1.53ms/t  8 alive, 11/15 sites, 11 ideas, 0 dead
+     3  ok                1.82ms/t  8 alive, 10/15 sites, 11 ideas, 0 dead
+     4  ok                1.59ms/t  8 alive, 10/15 sites, 10 ideas, 0 dead
+     5  ok                1.49ms/t  8 alive, 12/14 sites, 10 ideas, 0 dead
+     6  ok                1.65ms/t  8 alive, 8/11 sites, 10 ideas, 0 dead
+all 6 seeds clean in 116s of cpu

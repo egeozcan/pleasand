@@ -158,6 +158,9 @@ Harness.prototype.hash = function () {
   });
   (g.sites || []).forEach(function (s) { mix(s.id); mix(s.done ? 1 : 0); mix(s.repair ? 1 : 0); });
   mix(g.np); mix(g.rip); mix((g.peasants || []).length); mix((g.ducks || []).length);
+  /* (the hand, once there is one: a lump in it or in the air, off the grid and as much the world as what is on it, and
+     what it remembers. all of it, as it saves: hand.js) */
+  if (g.hand) mixStr(JSON.stringify(g.hand));
   return ("00000000" + h.toString(16)).slice(-8);
 };
 
@@ -976,10 +979,12 @@ Harness.prototype.key = function (k) {
   return this;
 };
 Harness.prototype._doKey = function (k, sel) {
-  var g = this.g, kk = String(k).toLowerCase(), was = g.sel, wasMore = g.moreLast;   /* (and what MORE's row remembered) */
+  var g = this.g, kk = String(k).toLowerCase();
+  this.game.moreNote(g);   /* (as gameKey does first: what was picked since the last tick is remembered) */
+  var was = g.sel, wasMore = g.moreLast;   /* (and what MORE's row remembered) */
   this.game.gameKey(g, kk);
   if (kk !== "arrowup" && kk !== "arrowdown") return this;
-  if (sel != null) this._doSelect(sel);
+  if (sel != null) { g.moreLast = wasMore; this._doSelect(sel); }   /* (and MORE's row remembers what it did then, not where the list's step came to now) */
   else if (this._replaying && this._scPicks) { g.sel = was; g.moreLast = wasMore; if (!this._stepSel(kk === "arrowup" ? -1 : 1)) this.game.gameKey(g, kk); }
   return this;
 };
@@ -992,10 +997,12 @@ Harness.prototype.wheel = function (d) {
   return this;
 };
 Harness.prototype._doWheel = function (d, sel) {
-  var g = this.g, was = g.sel, wasMore = g.moreLast, over = g.mx < this.PANEL || this.game.moreIn(g, g.mx, g.my);
+  var g = this.g, over = g.mx < this.PANEL || this.game.moreIn(g, g.mx, g.my);
+  this.game.moreNote(g);   /* (as gameWheel does first) */
+  var was = g.sel, wasMore = g.moreLast;
   this.game.gameWheel(g, d);
   if (!over) return this;
-  if (sel != null) this._doSelect(sel);
+  if (sel != null) { g.moreLast = wasMore; this._doSelect(sel); }
   else if (this._replaying && this._scPicks) { g.sel = was; g.moreLast = wasMore; if (!this._stepSel(d)) this.game.gameWheel(g, d); }
   return this;
 };
@@ -1018,11 +1025,16 @@ Harness.prototype._press = function (btn, act) {
   var g = this.g;
   if (act == null) act = this._panelAct();
   g.down = 1; g.btn = btn == null ? 0 : btn; g.ptr = 1;
+  /* (as the shell's pointer-down: what the cursor did before the press is not a throw. a scenario from before version 3
+     was recorded with the harness's own press, which kept it) */
+  if (!this._replaying || !(this._scVersion < 3)) { g.samp.length = 0; this.game.cursorSample(g); }
   this.game.gameTap(g, g.mx, g.my, act == null ? undefined : act);
   return act;
 };
 Harness.prototype._release = function () {
   var g = this.g;
+  /* (and as its pointer-up, a sample where the cursor is let go: a hand that stopped before it let go lets go still) */
+  if (!this._replaying || !(this._scVersion < 3)) this.game.cursorSample(g);
   g.down = 0; this.game.sandRelease(g); g.btn = 0; g.ptr = null;
   return this;
 };
@@ -1119,7 +1131,7 @@ Harness.prototype.journalCams = function (rows, origin) {
    11. REPRODUCING: the seed and every hand laid on the world
    ------------------------------------------------------------------- */
 Harness.prototype.scenario = function () {
-  var sc = { version: 2, seed: this.seed, gw: this.gw, ticks: this.ticks, hash: this.hash(), ops: this.ops.slice(), picks: this.pick.map(function (q) { return q.name; }) };
+  var sc = { version: 3, seed: this.seed, gw: this.gw, ticks: this.ticks, hash: this.hash(), ops: this.ops.slice(), picks: this.pick.map(function (q) { return q.name; }) };
   /* a village loaded from a file replays from that file, not from the seed */
   if (this.origin && this.origin.path) sc.from = { path: this.origin.path, keyframe: this.origin.keyframe, atTick: this.origin.ticks };
   return sc;
@@ -1178,7 +1190,8 @@ Harness.prototype.replay = function (sc, opts) {
   var ops = (sc.ops || []).slice().sort(function (a, b) { return a.at - b.at; });
   this.recording = false;
   this._replaying = true;
-  var wasPicks = this._scPicks, wasLayout = this._scLayout;
+  var wasPicks = this._scPicks, wasLayout = this._scLayout, wasVersion = this._scVersion;
+  this._scVersion = sc.version || 1;
   this._scPicks = sc.picks || this.pick.filter(function (q) { return !q.more; }).map(function (q) { return q.name; }).filter(function (n) { return n !== "WET CONCRETE"; });
   /* (a list recorded with MORE's brushes in it: the panel's rows are the ones before them, and MORE's row is under) */
   var more = this.pick.filter(function (q) { return q.more; }).map(function (q) { return q.name; });
@@ -1186,6 +1199,33 @@ Harness.prototype.replay = function (sc, opts) {
   this._scLayout = sc.picks && rows < sc.picks.length ? { n: rows, more: true, SIZE_Y: this.game.SIZE_Y, BTN_Y: this.game.BTN_Y, BTN2_Y: this.game.BTN2_Y, BTN3_Y: this.game.BTN3_Y }
                   : sc.picks ? { n: rows, SIZE_Y: 351, BTN_Y: 363, BTN2_Y: 375, BTN3_Y: 387 }   /* (the panel before MORE) */
                             : { n: this._scPicks.length, SIZE_Y: 341, BTN_Y: 354, BTN2_Y: 367, BTN3_Y: 380 };   /* (master's panel) */
+  /* (a list recorded with fewer of MORE's brushes than there are now: MORE's flyout as tall as it was then, so that a
+     click just over it lands on the field as it did. the brushes are appended, so the rows it had are where they were,
+     and only its top is lower) */
+  var flyout = null;
+  if (sc.picks && rows < sc.picks.length) {
+    var names = sc.picks, PK = this.pick, H0 = this._eval("MORE_TITLE"), gap = this._eval("MORE_GAP"), head = this._eval("MORE_HEAD"), rowh = this._eval("ROWH"), any = false;
+    this._eval("MORE_GROUPS").forEach(function (gr) {
+      var n = PK.filter(function (q) { return q.more === gr[0] && names.indexOf(q.name) >= 0; }).length;
+      if (!n) return;
+      if (any) H0 += gap;
+      any = true; H0 += head + n * rowh;
+    });
+    H0 += this._eval("MORE_PAD");
+    var H1 = this._eval("MORE_H");
+    if (H0 !== H1) {
+      var MR = this._eval("MORE_ROWS");
+      flyout = [this._eval("MORE_TOP"), H1, MR.slice()];
+      this._eval("(function (d) { MORE_TOP += d; MORE_H -= d; })")(H1 - H0);
+      /* (and the rows it did not have are not on it: where a newer brush's row is, there was only the flyout's edge) */
+      var keep = MR.filter(function (r, i) {
+        if (r.k != null) return names.indexOf(PK[r.k].name) >= 0;
+        for (var j = i + 1; j < MR.length && MR[j].k != null; j++) if (names.indexOf(PK[MR[j].k].name) >= 0) return true;
+        return false;
+      });
+      MR.length = 0; keep.forEach(function (r) { MR.push(r); });
+    }
+  }
   try {
     this.setWidth(sc.gw || 272);   /* (a scenario from before there were wide valleys is one screen wide) */
     if (sc.from && sc.from.path) this.load(sc.from.path, { keyframe: sc.from.keyframe, seed: sc.seed });
@@ -1196,7 +1236,13 @@ Harness.prototype.replay = function (sc, opts) {
     }
     var target = opts.ticks == null ? sc.ticks : opts.ticks;
     if (target > this.ticks) this._runTo(target);
-  } finally { this.recording = was; this._replaying = wasReplay; this._scPicks = wasPicks; this._scLayout = wasLayout; }
+  } finally {
+    this.recording = was; this._replaying = wasReplay; this._scPicks = wasPicks; this._scLayout = wasLayout; this._scVersion = wasVersion;
+    if (flyout) {
+      this._eval("(function (t, h) { MORE_TOP = t; MORE_H = h; })")(flyout[0], flyout[1]);
+      var MR2 = this._eval("MORE_ROWS"); MR2.length = 0; flyout[2].forEach(function (r) { MR2.push(r); });
+    }
+  }
   var hash = this.hash();
   return { ticks: this.ticks, hash: hash, expected: sc.hash || null, matches: sc.hash ? hash === sc.hash : null };
 };

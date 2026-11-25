@@ -2,7 +2,8 @@
    PLEASAND  --  test/picker.js
 
    the picker's MORE row, under ERASE, and the flyout it opens: the rock
-   and the building stone you can paint now. required by test/run.js
+   and the building stone you can paint now, and the hand (hand.js).
+   required by test/run.js
    ===================================================================== */
 "use strict";
 var H = require("../harness");
@@ -22,14 +23,15 @@ module.exports = function (test, check) {
     };
     return h;
   }
-  var NEW = ["COAL", "IRON ORE", "GOLD", "ROCK SALT", "STONEWORK", "CONCRETE", "FIREBRICK", "STAINED GLASS", "TRESTLE"];
+  var NEW = ["COAL", "IRON ORE", "GOLD", "ROCK SALT", "STONEWORK", "CONCRETE", "FIREBRICK", "STAINED GLASS", "TRESTLE", "HAND"];
 
   test("picker: the rock and the building stone are in the picker, after ERASE, each with a colour, a name and a description", function () {
     var h = open(), w = h.game, P = h.pick, e = h.idx("ERASE");
     check(e === w.PICK_N - 1, "ERASE is at " + e + ", the panel has " + w.PICK_N + " rows");
     check(P.slice(w.PICK_N).map(function (q) { return q.name; }).join() === NEW.join(), "after ERASE: " + P.slice(w.PICK_N).map(function (q) { return q.name; }));
     P.slice(w.PICK_N).forEach(function (q) {
-      check(q.more && w.SAND_SHADES[q.m] && q.desc && h.matName[q.m] === q.name, q.name + " is missing something");
+      /* (a tool, the hand, has an icon instead of a colour, and is no material) */
+      check(q.more && q.desc && (q.tool ? w.ICONS[q.tool] : w.SAND_SHADES[q.m] && h.matName[q.m] === q.name), q.name + " is missing something");
     });
     check(w.MORE_ROWS.filter(function (r) { return r.k != null; }).length === NEW.length, "the flyout has the wrong rows");
     check(w.MORE_TOP > h.PLAY_Y && w.MORE_Y + w.ROWH <= w.SIZE_Y && w.BTN3_Y + 12 <= h._eval("VH"), "the panel does not fit");
@@ -116,7 +118,7 @@ module.exports = function (test, check) {
     h.wheel(1);
     check(h.pick[g.sel].name === "COAL", "the first step down landed on " + h.pick[g.sel].name);
     h.wheel(-1);
-    check(h.pick[g.sel].name === "TRESTLE", "a step up from COAL went to " + h.pick[g.sel].name);
+    check(h.pick[g.sel].name === "HAND", "a step up from COAL went to " + h.pick[g.sel].name);
     check(g.size === s0 && g.moreOpen, "the wheel changed the brush size, or shut it");
     var cam = g.camX;
     w.gameWheelXY(g, 40, 0, 0, false, 1000, 1);
@@ -124,7 +126,9 @@ module.exports = function (test, check) {
     h.key("escape"); h.select("ERASE"); h.key("arrowdown");
     check(h.pick[g.sel].name === "COAL", "down from ERASE is " + h.pick[g.sel].name);
     h.select("TRESTLE"); h.key("arrowdown");
-    check(h.pick[g.sel].name === "PEASANT", "down from TRESTLE is " + h.pick[g.sel].name);
+    check(h.pick[g.sel].name === "HAND", "down from TRESTLE is " + h.pick[g.sel].name);
+    h.key("arrowdown");
+    check(h.pick[g.sel].name === "PEASANT", "down from HAND is " + h.pick[g.sel].name);
   });
 
   test("picker: painted stained glass comes in its three colours, and a held brush does not shuffle them", function () {

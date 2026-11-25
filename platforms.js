@@ -448,6 +448,7 @@ function plStep(g) {
   plChatter(g);
   for (var k = g.sites.length - 1; k >= 0; k--) {
     var s = g.sites[k];
+    if (s.handH || s.handD) continue;   /* (in the hand, or in the lake and not yet out: looked at when it comes down. hand.js) */
     /* a house on a deck that is gone: gone with it */
     if (s.kind === "house" && s.deck && !bSite(g, s.deck)) {
       var o = bOwner(g, s);

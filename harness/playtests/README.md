@@ -174,3 +174,32 @@ out a little differently from there on:
 
 `coverage.json` preserves the summaries from the broad runs. Temporary
 minimization tools and runtime probes were kept outside the repository.
+
+## The hand (`hand.json`)
+
+The playtest of THE HAND (`docs/the-hand-plan.md`, phase 6): seed 7, played
+through the harness's own input (the picker, the wheel for the brush, the
+mouse, a press, a flick, a let-go, and one match for the fire), then left for
+20,000 ticks. Four things are done to the village:
+
+- tick 8,100: Fern's house (45-55) lifted whole and carried up onto the hill at
+  the valley's left (8-18), Fern running after it: "Fern's house has moved.
+  Fern was not asked";
+- tick 9,000: Hamish's hut set alight, and the duck pond lifted (240 cells, 61
+  of them water) and put down on it: "the sky put out the fire at Hamish's
+  hut", then "the village is fixing Hamish's hut", and, his pocket empty,
+  "HAMISH waved at the sky";
+- tick 10,682: a stone pebble from the rock at the left wall flicked at the
+  gable of Gertrude's house: both panes out, "the village is fixing
+  Gertrude's house", mended 480 ticks later;
+- tick 12,000: Fern's house taken forty rows up with Fern asleep in it and let
+  go: she comes down with it ("OOF"), and "Fern's house is gone".
+
+```sh
+node harness/cli.js replay harness/playtests/hand.json --json
+node test/run.js "hand: the playtest"   # the replay, the stuck observer over the last 20,000 ticks, nobody held by nothing
+```
+
+If a change to the game moves this village, the scenario is recorded again
+(its ops are coordinates in seed 7, and the test checks that the four pieces
+of news above still come out of it).

@@ -490,6 +490,7 @@ function pIgnite(g, p) {
 }
 function pZap(g, p) {
   if (p.zap > 0 || p.dead) return;
+  if (g.hand) handDeed(g, p, "zapped");   /* (once they have seen the hand, lightning is not weather: hand.js) */
   if (p.charred && Math.random() < 0.6) { pDie(g, p, "zap"); return; }
   p.zap = 48; p.charred = 1; p.stun = Math.max(p.stun, 50); p.idle = 0;
   wTale(g, "zap", p);
@@ -608,6 +609,7 @@ function peasantsStep(g) {
   wStep(g);   /* (the great works: wonders.js) */
   if (g.lines && g.lines.length) sFuse(g);   /* (a washing line alight: storeys.js) */
   lTick(g);   /* (snowballs in the air, and fuses burning: leftovers.js) */
+  if (g.hand) handStep(g);   /* (a lump in the hand, or in the air: hand.js) */
   exploreNote(g);
   /* (however they went, died or left the valley by air: what they carried for the great works, kept. wonders.js. pDie has
      done it already for the dead; this is for everybody else, the one way out of the list) */
@@ -634,7 +636,7 @@ function pStep(g, p) {
     if (p.stun > 0) wTale(g, "pack", p);   /* (down hard: that is a tale) */
     p.launch = 0;
   }
-  if (p.state === "held") { pHeld(g, p); return; }
+  if (p.state === "held") { if (!(p.ride && g.hand)) pHeld(g, p); return; }   /* (sitting on a lump in the hand: hand.js moves them) */
   if (p.state === "space") {
     /* (aboard a rocket on its pad, not yet gone: no clock running. aboard one that cannot go, or is not there: held, and
        let out when there is somewhere. heavens.js) */
@@ -791,6 +793,7 @@ function pHeld(g, p) {
   if (p.sayT <= 0 && Math.random() < 0.02) pSay(g, p, "grab");
 }
 function peasantGrab(g, p, fresh) {
+  if (p.ride) delete p.ride;   /* (off a lump in the air, into the other hand: hand.js) */
   p.state = "held"; g.held = p;
   if (!fresh || p.sayT <= 0) pSay(g, p, "grab", true);
 }
@@ -1630,7 +1633,8 @@ function pWalk(g, p, wading) {
       pFireGo(g, p);   /* (on along the way to the water, between looks) */
     }
     /* things going bang: home, if there is one to run to */
-    if (p.panic > 0 && !p.fire && !wading && !iFlee(g, p)) bHide(g, p);   /* (a house on fire is not somewhere to hide: ideas.js) */
+    /* (not from under a lump coming down, though: out from under it, the way they were sent, first. hand.js) */
+    if (p.panic > 0 && !p.fire && !wading && !(p.handOut > g.tick) && !iFlee(g, p)) bHide(g, p);   /* (a house on fire is not somewhere to hide: ideas.js) */
     /* something to do: go there, and do it. (paddling about is no time for it: unless they have been in a good while,
        a pit with something runny in the bottom of it, say, or are hungry, when it is time to be off and find food) */
     /* (struggling in the water, short of breath or in it a long while: nothing matters but the bank. pSwim) */
@@ -1662,7 +1666,7 @@ function pWalk(g, p, wading) {
       if (Math.random() < 0.002) pTrySink(g, p, fx, fy, 20);
       else if (P_SOFT[pCell(g, fx, fy)] && Math.random() < 0.004) { var up = navUp(g, fx, fy); if (up >= 0 && fy - up <= P_JUMP) pTryUp(g, p, fx, fy, up); }
     }
-    var rush = p.task && p.task.kind === "bucket" && p.task.site;   /* (the bucket brigade runs) */
+    var rush = p.task && ((p.task.kind === "bucket" && p.task.site) || p.task.kind === "chase");   /* (the bucket brigade runs. so does somebody after their house: hand.js) */
     var pace = (p.fire ? 0.5 : (p.panic || rush ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1);
     if (p.hold) { if (p.ivx) pGlide(g, p); }
     else if (!wading && pOnIce(g, fx, fy)) pIceStep(g, p, pace);
@@ -1685,7 +1689,9 @@ function pWalk(g, p, wading) {
   if (!scared && --p.chat <= 0) {
     p.chat = 500 + irnd(1200);
     var near = Math.abs(g.cx - p.x) < 14 && Math.abs(g.cy - p.y + 4) < 14 && g.mx > PANEL;
-    pSay(g, p, wading ? "swim" : (near ? "watched" : (p.hunger > P_HUNGRY ? "hungry" : (p.bored > P_BORED_CHOP ? "bored" : "idle"))));
+    /* (and once they know the hand, and have a mind about it, they say what: hand.js) */
+    var hv = near && g.hand ? handView(g, p) : 0;
+    pSay(g, p, wading ? "swim" : (near ? (hv > 0 ? "handLove" : hv < 0 ? "handGrudge" : "watched") : (p.hunger > P_HUNGRY ? "hungry" : (p.bored > P_BORED_CHOP ? "bored" : "idle"))));
   }
 }
 
@@ -2272,7 +2278,7 @@ function peasantsDraw(g) {
     var p = L[k];
     if (p.dead || p.state === "space") continue;
     var body, rot = 0, flip = p.dir < 0, oy = Math.floor(p.y) - 4, fast = (p.anim >> 2) & 1;
-    if (p.state === "held") body = fast ? P_BODY.panicA : P_BODY.panicB;
+    if (p.state === "held") body = p.ride && g.hand && g.hand.held ? P_BODY.sit : (fast ? P_BODY.panicA : P_BODY.panicB);   /* (on a lump in the hand they sit down: hand.js) */
     else if (p.state === "fly") { body = P_BODY.panicA; rot = ((Math.round(p.spin / 1.5708) % 4) + 4) % 4; }
     else if (p.sleep > 0) { body = P_BODY.sleep; rot = flip ? 3 : 1; oy = Math.floor(p.y) - 2; }
     else if (p.stun > 0) { body = P_BODY.stand; rot = flip ? 3 : 1; oy = Math.floor(p.y) - 2; }

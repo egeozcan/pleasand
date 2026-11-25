@@ -2487,6 +2487,8 @@ require("./platforms.js")(test, check, sim);
 require("./valley.js")(test, check, sim);
 /* the picker's MORE row, and its flyout */
 require("./picker.js")(test, check, sim);
+/* and the hand, under MORE: a lump of the valley lifted, carried and put down (hand.js) */
+require("./hand.js")(test, check, sim);
 
 /* one test, its console.log kept rather than printed (so tests side by side do not interleave) */
 function runOne(t) {

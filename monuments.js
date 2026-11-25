@@ -54,6 +54,7 @@ var M_REACT = {
   death: ["*gasp*", "too soon", "poor thing", "*sniff*", "i remember that"],
   space: ["hahaha", "WHEEE", "he went so high", "classic", "*snort*"],
   fire: ["hahaha", "SPLASH", "*gasp*", "the bucket!", "too soon"],
+  flew: ["hahaha", "MY HOUSE", "*gasp*", "i was there", "it flew so far"],
   any: ["hahaha", "*gasp*", "oh no", "boo!", "*giggle*", "i saw that coming", "who wrote this"]
 };
 /* the scripts: a beat at a time, {r (which actor), pose, line, leap (a real one), dx (steps across the stage)} */
@@ -65,11 +66,16 @@ var M_SCRIPTS = {
   death: [{ r: 0, pose: "stand", line: "{line}" }, { r: 0, fall: 1, line: "oh" }, { r: 1, pose: "eatB", line: "we'll remember you, {s}" }],
   ice: [{ r: 0, pose: "walkA", dx: 3, line: "la la la" }, { r: 0, fall: 1, line: "WHOA" }, { r: 1, pose: "eatB", line: "salt. we need salt" }],
   zap: [{ r: 0, pose: "stand", line: "what a lovely sky" }, { r: 1, pose: "fling", line: "*CRACK*" }, { r: 0, fall: 1, line: "ow" }],
+  /* (the hand, played by the second actor: hand.js) */
+  flew: [{ r: 0, pose: "stand", line: "i am {s}. this is my house" }, { r: 1, pose: "fling", line: "*is the hand*" },
+         { r: 0, pose: "panicA", line: "MY HOUSE" }, { r: 1, leap: 1.2, line: "*throws it*" }, { r: 0, fall: 1, line: "oh" }],
+  moved: [{ r: 0, pose: "sleep", line: "zzz" }, { r: 1, dx: 4, pose: "walkA", line: "*is the hand, carrying a house*" },
+          { r: 0, pose: "panicA", line: "this is not where i live" }],
   any: [{ r: 0, pose: "stand", line: "this is the time {t}" }, { r: 1, pose: "eatB", line: "no!" }, { r: 0, pose: "hammerA", line: "yes!" },
         { r: 1, pose: "stand", line: "well i never" }]
 };
 /* how good a tale is for the stage */
-var M_RANK = { space: 9, stagefire: 8, pack: 8, zap: 7, house: 7, nuke: 7, ice: 6, wonder: 4, idea: 2 };
+var M_RANK = { space: 9, stagefire: 8, pack: 8, flew: 8, zap: 7, rode: 7, house: 7, nuke: 7, ice: 6, moved: 6, saved: 6, wonder: 4, idea: 2 };
 /* a tale, as a title: "the time gary went to space" */
 function mTitle(t) { return "the time " + wTold(t).replace(/^we /, "they "); }
 

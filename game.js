@@ -65,7 +65,8 @@ var TIPS = [
   "tip: the peasants pick up what is left over: ash, salt, lumps of glass. hover over one to see their pockets",
   "tip: COOL a field and the wheat stops growing. a village that makes glass knows what to do about that",
   "tip: coal, salt and ash, ground fine, go bang. the peasants will work that out. eventually",
-  "tip: MORE, under ERASE: coal, ore, gold, building stone. paint some near a mine"
+  "tip: MORE, under ERASE: coal, ore, gold, building stone. paint some near a mine",
+  "tip: press Y, and pick up the pond"
 ];
 /* and, in a valley wider than the screen, one of these in place of every fourth of those. (a list of their own: g.tip
    counts round TIPS as it always has, and the village's heap, tidy.js, shares the name) */
@@ -119,7 +120,10 @@ var ICONS = {
   cool: iconCanvas(["...b....", ".b.b.b..", "..bbb...", "bbbwbbb.", "..bbb...", ".b.b.b..", "...b....", "........"],
                    { b: "#8ad8ff", w: "#ffffff" }),
   nuke: iconCanvas(["......y.", ".....y..", "...kkk..", "..kgkkk.", ".kgkkkkk", ".kkkkkkk", ".kkkkkkk", "..kkkkk."],
-                   { y: "#ffd040", k: "#3a3a2a", g: "#c8ff3a" })
+                   { y: "#ffd040", k: "#3a3a2a", g: "#c8ff3a" }),
+  /* the hand: open, in the peasants' own skin. and shut, holding something (the cursor's: hand.js) */
+  hand: iconCanvas(["...s.s..", ".s.s.s..", ".s.s.s.s", ".sssss.s", ".ssssss.", ".sssss..", "..ssss..", "..ssss.."], { s: "#f1c7a0" }),
+  handShut: iconCanvas(["........", "........", "..ssss..", ".ssssss.", ".ssssss.", ".sssss..", "..ssss..", "..ssss.."], { s: "#f1c7a0" })
 };
 
 /* the sparkle on a cell of inert */
@@ -330,7 +334,7 @@ function camDragging(g) {
   if (!g.down || g.stripDrag || g.eaten || g.moreOpen) return false;
   /* (something actually going on in the field: a stroke under way, a ruled line, somebody held. a press on the picker,
      or an eyedrop, is not) */
-  return !!(g.held || g.heldDuck || g.ax != null || g.lx != null);
+  return !!(g.held || g.heldDuck || g.ax != null || g.lx != null || (g.hand && g.hand.held));   /* (and a lump in the hand: hand.js) */
 }
 /* which side of the field the hand is carrying the view to, and how hard: past the left or right side (corners too), or
    in the edge of the field beside it, within the field's rows. dragged up into the header, or down into the bar, it is
@@ -517,6 +521,10 @@ function sandRelease(g) {
   saveInput(g, "up", { x: saveR(g.cx), y: saveR(g.cy), pick: curPick(g).name, held: g.held ? g.held.name : undefined });
   if (g.held) peasantThrow(g, g.held);
   if (g.heldDuck) duckThrow(g, g.heldDuck);
+  if (g.hand && g.hand.held) {   /* (from where the hand is now, between updates or not, and flicked, it flies: hand.js) */
+    g.cx = (g.mx - PANEL) / CELL + (g.camI || 0); g.cy = (g.my - PLAY_Y) / CELL;
+    handRide(g); handLetGo(g, cursorVel(g));
+  }
   if (g.ax == null) return;
   var p = sandCell(g);
   sandStroke(g, g.ax, g.ay, p.x, p.y, g.av, true);
@@ -561,7 +569,7 @@ function rowAt(x, y, n) {
    flyout open, Esc, or a click anywhere else closes it (that click going on to do what it does: it paints, in the
    field). a press on the flyout is used up, all of it: nothing paints till it is let go */
 var MORE_Y = rowY(PICK_N), MORE_W = 98, MORE_PAD = 4, MORE_TITLE = 15, MORE_HEAD = 9, MORE_GAP = 3;
-var MORE_GROUPS = [["rock", "FROM THE ROCK"], ["build", "BUILDING"]];
+var MORE_GROUPS = [["rock", "FROM THE ROCK"], ["build", "BUILDING"], ["hand", "THE HAND"]];
 /* the flyout's rows, top to bottom: {k: the brush, y}, and its sub-headers, {head, y}; and how tall it is. its bottom is
    the MORE row's, so the two read as one */
 var MORE_ROWS = [], MORE_H = (function () {
@@ -680,6 +688,7 @@ function gameUpdate1(g, dt) {
   if (!steps) {
     if (g.held) pHeld(g, g.held);
     if (g.heldDuck) dHeld(g, g.heldDuck);
+    if (g.hand) handRide(g);   /* (time stopped: the lump goes where the hand goes, and nothing else happens. hand.js) */
   }
   for (var k = g.feed.length - 1; k >= 0; k--) if ((g.feed[k].t += dt) > 7) g.feed.splice(k, 1);
   if (g.banners.length && (g.banners[0].t += dt) > 3.5) g.banners.shift();
@@ -921,6 +930,7 @@ function drawWorld(g, all) {
   hot += lDraw(g);
   hot += wDraw(g);   /* (the great works: wonders.js) */
   tDraw(g);
+  if (g.hand) hot += handDraw(g, X0, X1);   /* (a lump in the hand, or in the air, and anybody on it over it: hand.js) */
   ducksDraw(g);
   peasantsDraw(g);
   mDrawOver(g);
@@ -956,6 +966,7 @@ function drawThermal(g, X0, X1) {
     if (x < 0 || y < 0 || x >= g.gw || y >= g.gh || g.ppx[k] < 0 || g.ppy[k] < 0) continue;
     px[y * g.gw + x] = g.pk[k] === PK_DEBRIS && g.pm[k] !== MAT.FIRE ? thermCol(AMBIENT) : thermCol(900);
   }
+  if (g.hand) handDraw(g, X0, X1, true);
   ducksDraw(g);
   peasantsDraw(g);
   return 0;
@@ -1139,6 +1150,16 @@ function drawCursor(g, c) {
       c.beginPath(); c.moveTo(cx - 3, cy); c.lineTo(cx + 3, cy); c.moveTo(cx, cy - 3); c.lineTo(cx, cy + 3); c.stroke();
       c.globalAlpha = 1;
     }
+  } else if (pk.tool === "hand") {
+    /* the brush's ring, and the palm: open, or shut on what it is holding */
+    var hh2 = !!(g.hand && g.hand.held);
+    c.strokeStyle = hh2 ? "rgba(241,199,160,0.9)" : "rgba(241,199,160,0.55)";
+    if (hh2) c.setLineDash([3, 2]);
+    c.beginPath(); c.arc(cx, cy, (g.size + 0.5) * CELL, 0, 6.2832); c.stroke();
+    c.setLineDash([]);
+    c.imageSmoothingEnabled = false;
+    c.drawImage(ICONS[hh2 ? "handShut" : "hand"], cx - 4, cy - 4, 8, 8);
+    c.imageSmoothingEnabled = true;
   } else if (pk.tool === "lightning") {
     c.strokeStyle = "rgba(255,232,96,0.25)";
     c.setLineDash([2, 4]);
@@ -1232,7 +1253,7 @@ function drawMore(g, c) {
   rct(c, PANEL - 1, MORE_Y + 1, x - PANEL + 2, ROWH - 2, lit);
   rct(c, PANEL - 1, MORE_Y, x - PANEL + 2, 1, "#3a4e72");
   rct(c, PANEL - 1, MORE_Y + ROWH - 1, x - PANEL + 2, 1, "#3a4e72");
-  txt(c, "MORE MATERIALS", x + MORE_PAD + 1, y + 11, 8, "#ffd94a", "left", true);
+  txt(c, "MORE", x + MORE_PAD + 1, y + 11, 8, "#ffd94a", "left", true);
   c.font = "bold 6px " + UI_FONT;
   for (r = 0; r < MORE_ROWS.length; r++) {
     var R = MORE_ROWS[r], ry = y + R.y;
@@ -1343,9 +1364,9 @@ function drawPanel(g, c) {
   if (hp) line = hp.name + "  " + pMood(g, hp);
   else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd);
   else if (g.my < PLAY_Y && g.mx >= PANEL) line = iSummary(g);   /* over the header: what the village knows */
-  else if (overMore && ms < 0) line = "MORE  coal, iron ore, gold, rock salt, stonework, concrete, firebrick, stained glass. click to open";
+  else if (overMore && ms < 0) line = "MORE  THE HAND (Y), and coal, iron ore, gold, rock salt, stonework, concrete, firebrick, stained glass, trestle. click to open";
   else if (overMore) line = info.name + "  " + info.desc;
-  else if (inMore && mh < 0) line = "MORE MATERIALS  pick one. a click anywhere else, or Esc, closes it";
+  else if (inMore && mh < 0) line = "MORE  pick one. a click anywhere else, or Esc, closes it";
   else if (g.mx < PANEL && hov < 0) line = tipLine(g);
   else if (g.camNote > g.t) line = "G  nobody lives here. this is the middle of the valley";
   else if (g.mx >= PANEL && ((g.my >= MAP_Y && g.my < BAR_Y) || g.stripDrag)) line = "THE VALLEY  drag to look along it. swipe sideways, Shift-wheel or \u2190/\u2192. G goes home";
@@ -1363,7 +1384,12 @@ function drawPanel(g, c) {
 }
 /* how a peasant is doing, in a word or six */
 function pMood(g, p) {
-  if (p.state === "held") return "is being held. does not like it";
+  if (p.state === "held") {
+    if (!(p.ride && g.hand)) return "is being held. does not like it";
+    if (!g.hand.held) return "is flying, with the ground they were standing on";
+    var hv = handView(g, p);   /* (hand.js) */
+    return "is sitting on a lump of the valley, " + (hv > 0 ? "enjoying the view" : hv < 0 ? "holding on" : "being carried");
+  }
   if (p.state === "fly") return "is airborne";
   if (p.fire) return "is on fire";
   if (p.acid > 0) return "is dissolving, a bit";
@@ -1384,6 +1410,8 @@ function pMood(g, p) {
   if (p.cold > 60) return "is chilly";
   if (p.panic > 0) return "is panicking";
   if (p.warm > 0) return "is too warm";
+  if (p.ask > 0) return p.asks ? "is asking the sky for water. arms up" : "is waving at the sky";   /* (hand.js) */
+  if (p.task && p.task.kind === "thank") return "is going to leave something out for the hand";
   var im = iMood(g, p);
   if (im) return im;
   if (p.task && p.task.kind === "build") {
@@ -1475,6 +1503,17 @@ function popRows(g, key) {
     if (king || th.n) R.push(["#", "NOTABLES"]);
     if (king) R.push(["the king", pTitle(king.name), "#ffd94a"]);
     if (th.n) R.push(["the great thinker", pTitle(th.name) + " (" + th.n + ")", "#ffd94a"]);
+    /* (what they make of the hand, once there is one: hand.js) */
+    if (g.hand) {
+      var trust = 0, fear = 0, hk = g.hand.kind, hc = g.hand.cruel;
+      for (k = 0; k < L.length; k++) { var hv = handView(g, L[k]); if (hv > 0) trust++; else if (hv < 0) fear++; }
+      R.push(["#", "THE HAND"]);
+      if (trust) R.push(["trusted by", String(trust), "#a8e08a"]);
+      if (fear) R.push(["feared by", String(fear), "#ff9a8a"]);
+      if (n - trust - fear) R.push(["not sure", String(n - trust - fear), "#c8d0dc"]);
+      R.push(["=", "kindnesses", hk, hk + hc, "#a8e08a"]);
+      R.push(["=", "cruelties", hc, hk + hc, "#ff7a3a"]);
+    }
   } else if (key === "rip") {
     R.push(["died, all told", String(g.rip), "#ffffff"]);
     var cs = [], most = 0;
@@ -1757,6 +1796,7 @@ function gameTap(g, x, y, act) {
       else if (Math.random() < 0.2) duckFamily(g, clamp(g.cx, 3, g.gw - 4), clamp(g.cy + 2, 4, g.gh - 1));
       else duckSpawn(g, clamp(g.cx, 3, g.gw - 4), clamp(g.cy + 2, 4, g.gh - 1));
     } else if (pk.tool === "lightning") g.toolT = 0;
+    else if (pk.tool === "hand") handLift(g);
     else if (pk.m === MAT.NUKE) {
       var c = sandCell(g), j = Math.round(c.y) * g.gw + Math.round(c.x);
       sandPlace(g, j, MAT.NUKE);

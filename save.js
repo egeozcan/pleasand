@@ -493,6 +493,8 @@ function saveApplyState(g, state, keepPointer) {
   saveScratchReset();
   if (g.pmark) { g.pmark.fill(0); g.pgen = 0; }
   if (g.zmark) g.zmark.fill(0);
+  /* (and a lump that was in the hand is let go where it was, still: nobody is holding it now. hand.js) */
+  if (g.hand && g.hand.held) handLetGo(g, [0, 0]);
   return g;
 }
 

@@ -235,7 +235,12 @@ const sc = h.scenario();       // { seed, ticks, hash, ops: [{at, op, args}] }
 h.replay(sc);                  // resets, replays, compares hashes
 ```
 Every harness action that changes the world (paint, heat, spawn, input,
-`set`) is recorded with the tick it happened on. Note: raw mutations through
+`set`) is recorded with the tick it happened on. A scenario is version 3: a
+press clears the cursor's recent samples and a let-go takes one, as the
+browser's pointer does, so a hand that stopped before it let go lets go
+still. One recorded before that replays with the harness's press and let-go
+as they were then. Once there is a hand (`hand.js`), the hash takes all of it
+too, a lump in it or in the air as well as what it remembers. Note: raw mutations through
 `h.eval` or `h.game.*` are *not* recorded, so keep a scenario honest by
 doing things through the harness when you want it replayable.
 
@@ -309,4 +314,4 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 - `saveinfo.js` — what is in a save file, read without loading the game (`save-info`)
 - `soak.js` — many seeds, long runs, presets, invariants and stuck-unit reports
 - `stuck.js` — sampled work/behavior progress and short-cycle detection for peasants and ducks
-- `playtests/` — duck escape/timeout regressions, replayable scenarios and the playtest report
+- `playtests/` — duck escape/timeout regressions, replayable scenarios and the playtest report, and the hand's playtest (`hand.json`)

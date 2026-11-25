@@ -118,7 +118,9 @@ var PICK = [
   { m: MAT.CONCRETE,   name: "CONCRETE",  key: "", more: "build", desc: "set hard: what WET CONCRETE becomes. grey and board-marked. stands to 1500." },
   { m: MAT.FIREBRICK,  name: "FIREBRICK", key: "", more: "build", desc: "a pale brick that stands a furnace. carries heat badly, and lasts to 2000." },
   { m: MAT.STAINED,    name: "STAINED GLASS", key: "", more: "build", desc: "ruby, green and amber, a pane to a grain. glows with a light behind it. melts at 1400." },
-  { m: MAT.TRESTLE,    name: "TRESTLE",   key: "", more: "build", desc: "timber legs, cross-braced. peasants walk through it. sand and water do not. it burns." }
+  { m: MAT.TRESTLE,    name: "TRESTLE",   key: "", more: "build", desc: "timber legs, cross-braced. peasants walk through it. sand and water do not. it burns." },
+  /* (and a tool, last of all, so that every brush above keeps its place: hand.js) */
+  { tool: "hand",      name: "HAND",      key: "Y", more: "hand", desc: "lifts what is under it, ground and all, and whoever is standing on it. let go to set it down. flick it, and it flies." }
 ];
 /* how many rows the panel itself has: everything before the first of MORE's */
 var PICK_N = PICK.findIndex(function (p) { return !!p.more; });
@@ -1259,6 +1261,8 @@ function sandClear(g) {
   if (typeof lClearWorld === "function") lClearWorld(g);
   /* and the great works' things in the air or due in it: a rocket going up, a flag due on the moon (wonders.js) */
   if (typeof wClearWorld === "function") wClearWorld(g);
+  /* and a lump in the air: gone with the valley it came from. one in the hand is kept (hand.js) */
+  if (g.hand) handClear(g);
 }
 
 /* no dip in the land for a pond (or the only one is under a hut): dig a small deep one, somewhere out of the huts' way

@@ -1040,6 +1040,7 @@ function bBusy(g, s) {
    earth blown out of a field is not put back (it is tilled where it lies, never brought), but it counts towards a ruin */
 function bInspect(g, s, idx) {
   var gw = g.gw, n = 0, gone = 0, broken = 0, crops = 0, silt = 0, k, e, x, y;
+  if (s.handH || s.handD) return;   /* (in the hand, or sunk with its fire and not yet seen to be out: not a ruin, and nothing to mend here, until then. hand.js) */
   if (s.melts) return;   /* (the ice palace melts, and is mourned, not mended: pleasures.js) */
   mSpotSilt(g, s);   /* (sand slid over the place to stand at a furnace, or a pump: mines.js) */
   for (y = s.y0; y <= s.y1; y++) for (x = s.x0; x <= s.x1; x++) {
@@ -1057,14 +1058,17 @@ function bInspect(g, s, idx) {
     if (lost || (e.v === MAT.SOIL && !bOk(g, e))) broken++;
   }
   /* (nor a floor with a flat on it: what is over it stands, and the floor is mended under it. storeys.js) */
-  if (broken > n * 0.6 && !s.mine && !(g.know.storey && sDwelling(s) && sOver(g, s)) && !(g.know.deck && plCarries(g, s))) {   /* (a mine is a hole in the ground: there is no knocking that down. nor a platform with a house on it: platforms.js) */
+  if ((broken > n * 0.6 || s.handX) && !s.mine && !(g.know.storey && sDwelling(s) && sOver(g, s)) && !(g.know.deck && plCarries(g, s))) {   /* (a mine is a hole in the ground: there is no knocking that down. nor a platform with a house on it: platforms.js) */
     var o = bOwner(g, s);
+    if (s.handWet && !iFlames(g, s).length) handSky(g, s);   /* (out, all round it, and gone at once: the sky put it out before it went. hand.js) */
+    var flew = s.handT != null && g.tick - s.handT < H_LONG && handRuined(g, s, o);   /* (it flew, and came down in pieces, or somewhere it could not be a house: hand.js) */
     feed(g, bLabel(s).charAt(0).toUpperCase() + bLabel(s).slice(1) + " is gone", "#ff9a8a", "fix" + s.id);
     if (o && sDwelling(s)) { o.home = 0; pSay(g, o, "lostHome", true); }
-    if (s.kind === "house") { achieve(g, "ruin"); wTale(g, "house", o, bLabel(s), s.cx, s.y1); }
+    if (s.kind === "house") { achieve(g, "ruin"); if (!flew) wTale(g, "house", o, bLabel(s), s.cx, s.y1); }
     bRemove(g, idx);
     return;
   }
+  if (s.handX) delete s.handX;   /* (a flat stands on it, or a house on it: mended, then. hand.js) */
   if (silt > 4) {
     s.done = false; s.repair = true; s.last = g.tick; s.helped = {};
     /* (the same site cleared out again so soon is not news) */
@@ -1258,6 +1262,7 @@ function bGoHome(g, p, h) {
 function bHide(g, p) {
   var h = bHome(g, p);
   if (!h || Math.abs(h.cx - p.x) > 120 || Math.abs(h.F - p.y) > 40) return mHide(g, p);   /* (far from home: the cathedral, monuments.js) */
+  if (h.handH && handAway(g, h)) return mHide(g, p);   /* (home is up in the hand: not somewhere to be. hand.js) */
   if (g.know.bucket && iBlazeOf(g, h.id)) return false;   /* (not into a house that is on fire) */
   if (bInside(h, p)) {
     p.panic = 0; p.idle = 400 + irnd(400); p.hid = g.tick;

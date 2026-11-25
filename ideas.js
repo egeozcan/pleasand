@@ -238,6 +238,7 @@ var IDEAS = [
    ------------------------------------------------------------------- */
 /* a new village knows nothing yet. (clearing the world does not make them forget: it does lose them the graveyard) */
 function ideasReset(g) {
+  delete g.hand;   /* (a new valley, and nothing in the hand: hand.js) */
   g.know = {}; g.dug = 0; g.dead = []; g.blaze = []; g.burnt = false; g.fwStage = null; g.raids = 0; g.raidT = 0; g.festT = 0; g.ideaT = 0; g.blankT = 0;
   /* when each idea first could have been thought of (the longer something has been on their minds, the likelier it is
      to be next), and how often somebody has gone for wood and found no tree */
@@ -395,6 +396,7 @@ function iEureka(g, p) {
 function iPick(g, p) {
   var K = g.know, hungry = p.hunger > P_HUNGRY, s;
   if ((p.muse || 0) >= I_MUSE && iEureka(g, p)) return true;
+  if (p.thank && handThank(g, p)) return true;   /* (the sky put their fire out: something left out for it. hand.js) */
   /* a duck in the wheat comes before anything */
   if (K.farm && !hungry && iGoShoo(g, p)) return true;
   /* a field wants hands, not wood: anybody will do */
@@ -483,7 +485,11 @@ function iUrgent(g, p) {
   if (!best || p.dryT > g.tick) return false;
   /* no water this side of the fire: nothing they can do but watch (and they will not be asked again for a bit) */
   var w = p.pail ? null : iFindWater(g, p, 160, iBlazeOf(g, best.id));
-  if (!w && !p.pail) { p.dryT = g.tick + 600; if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, "nowater"); return false; }
+  if (!w && !p.pail) {
+    p.dryT = g.tick + 600; if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, "nowater");
+    if (g.hand) handWish(g, p, best);   /* (or ask the sky for some: hand.js) */
+    return false;
+  }
   p.task = { kind: "bucket", site: best.id, t: 0, act: 0, w: w };
   if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, "brigade");
   return true;
@@ -504,6 +510,8 @@ function iTask(g, p, k) {
   r = lTask(g, p, k);
   if (r !== undefined) return r;
   r = tTask(g, p, k);
+  if (r !== undefined) return r;
+  r = handTask(g, p, k);   /* (running after their house, or going to leave something out for the hand: hand.js) */
   if (r !== undefined) return r;
   return oTask(g, p, k);
 }
@@ -530,7 +538,7 @@ var I_FUN = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, light: 1, lookou
 /* once a third of a second or so: what is on fire */
 var I_IDLE = { explore: 1, chop: 1, plant: 1, fish: 1, visit: 1, watch: 1, light: 1, festival: 1, build: 1, camp: 1, shoo: 1, lookout: 1, smelt: 1, forge: 1, pump: 1, pack: 1, refuel: 1, launch: 1, admire: 1,
   gather: 1, snowball: 1, snowman: 1, skate: 1, grit: 1, potash: 1, grind: 1, bombfish: 1, glassblow: 1, store: 1, brine: 1, tidy: 1,
-  audience: 1, act: 1, bathe: 1, haul: 1, quarry: 1, kiln: 1, stoke: 1 };   /* (wonders.js) */
+  audience: 1, act: 1, bathe: 1, haul: 1, quarry: 1, kiln: 1, stoke: 1, chase: 1, thank: 1 };   /* (wonders.js. chase, thank: hand.js) */
 /* what somebody will drop when the alarm goes up: anything they are only doing for fun, or that can wait (a snack, a
    chat round the campfire, a bit of hammering) */
 function iCanWait(p, k) {
@@ -554,8 +562,10 @@ function ideasStep(g) {
     /* (a fire on a stage, in the middle of a play, is part of it. for a little while: wonders.js) */
     if (f.length && s.wonder && wPartOfIt(g, s, f)) continue;
     if (!f.length) {
-      /* (the brigade takes the credit if it got a few bucketfuls on before it went out) */
-      if (s.burning && s.doused >= 3) { feed(g, "the bucket brigade put out the fire at " + bLabel(s), "#9ad0ff", "blaze" + s.id); achieve(g, "brigade"); }
+      if (s.handH || s.handD) continue;   /* (what is alight of it is in the hand, if any is, or in the lake: not put out until it comes down, or is seen to be out. hand.js) */
+      /* (the brigade takes the credit if it got a few bucketfuls on before it went out. unless the sky put it out) */
+      if (s.handWet && handSky(g, s)) { /* (the sky put it out: hand.js) */ }
+      else if (s.burning && s.doused >= 3) { feed(g, "the bucket brigade put out the fire at " + bLabel(s), "#9ad0ff", "blaze" + s.id); achieve(g, "brigade"); }
       s.burning = 0; s.doused = 0;
       continue;
     }

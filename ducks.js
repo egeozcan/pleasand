@@ -240,6 +240,7 @@ function ducksZapMarked(g) {
   }
 }
 function duckGrab(g, d) {
+  if (d.ride) delete d.ride;   /* (hand.js) */
   d.state = "held"; g.heldDuck = d;
   dSay(g, d, "quack", true);
 }
@@ -292,7 +293,7 @@ function ducksStep(g) {
 function dStep(g, d) {
   d.anim++;
   if (d.sayT > 0) d.sayT--;
-  if (d.state === "held") { dHeld(g, d); return; }
+  if (d.state === "held") { if (!(d.ride && g.hand)) dHeld(g, d); return; }   /* (on a lump in the hand: hand.js) */
   if (d.baby && ++d.t >= D_GROW) { d.baby = false; d.lead = null; dSay(g, d, "quack", true); }
   /* the one in front is gone: follow whoever it was following */
   while (d.lead && d.lead.dead) d.lead = d.lead.lead;
