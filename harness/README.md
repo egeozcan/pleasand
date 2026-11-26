@@ -170,6 +170,25 @@ the run the time goes) and `hash()` at the end. On the dev laptop, quiet,
 0580e71 takes 12.8-13.2 ms median and 13.8-14.4 ms p95; two runs agree to
 about 1.5%.
 
+**And after a long while?** The 20 000 ticks are an early valley. A valley that
+has played on warms through (heat leaves only at the room's edges; lanterns,
+campfires, the furnace, fire and lava keep adding it), and what passes by a cold
+row stops applying. Every run reports its `lateWindow` apart from the whole: the
+frames from `--window-from` sand ticks into the run (half way by default) to the
+end, so `--ticks 80000` gives the whole run and ticks 40 000-80 000 on their own.
+That takes 20 minutes a seed on 0580e71; for A/B, start from saves instead:
+```bash
+node harness/bench.js --dir ../base --ticks 60000 --save-out warm/seed{seed}-60k.json   # once, from the reference tree
+node harness/bench.js --late warm                          # seeds 3, 7, 14, each 8 000 ticks on from its save
+node harness/bench.js --late warm --phases                 # where a warmed valley's time goes
+node harness/bench.js --late warm --ab ../base ../wip --lockstep --rounds 3
+node harness/bench.js --load save.json --ticks 4000        # any one save
+```
+`--save-out` saves the village where the run ends (`{seed}` becomes the seed; the
+result gives the file, its `hash()` and its `stateHash`). A save loaded plays on
+exactly as the village would have without it. `--late` with no directory looks in
+`$PLEASAND_WARM`, then `harness/warm`.
+
 **Is it faster than that one?** On a busy machine one run says little: under
 load a seed's median moves by a third. `--ab` takes two checkouts in turns,
 seed by seed (A B, then B A), for several rounds, and reports B/A for each
@@ -212,7 +231,20 @@ are played to that checkpoint and the first values that differ are named:
 paintable material in heaps, mixed, with fire, lava, lightning, the heat and cool
 brushes, nukes and fireworks through the real input path (272, and 1088 at 4x);
 `playtests/hand.json` replayed; and a village saved at tick 8 000, loaded into a
-fresh game and played on (272, and 1088 at 4x). `--ignore k1,k2` leaves keys of
+fresh game and played on (272, and 1088 at 4x).
+
+`--set long` is the late game, where the valley has warmed through (record it
+into a file of its own; about 10 minutes, all at once, on 0580e71): seeds 3, 7,
+14 at 1088 to 80 000 ticks (a fingerprint every 2 000); each warm save
+(`bench.js --save-out`, tick 60 000, made by the reference tree, found in `--warm
+DIR`, `$PLEASAND_WARM` or `harness/warm`) loaded and played 10 000 ticks (every
+240); a valley warmed hard, the rich preset with lava pools, wood fires, firebrick
+furnaces of burning coal and the HEAT brush in patches across the width, then
+left 30 000 ticks (every 240); and the chaos and rich presets at 1088 to 60 000.
+```bash
+node harness/same.js --record long-ref.json --set long --dir ../base --warm warm --jobs 9
+node harness/same.js --check long-ref.json --warm warm     # every scenario in the file, unless --only or --set
+``` `--ignore k1,k2` leaves keys of
 `g` out, for scratch a tree has put on `g` on purpose; say so where it is
 reviewed, since an ignored key is not checked.
 
@@ -375,7 +407,7 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 - `args.js` — the argument parser the cli and soak runner share
 - `saveinfo.js` — what is in a save file, read without loading the game (`save-info`)
 - `soak.js` — many seeds, long runs, presets, invariants and stuck-unit reports
-- `bench.js` — the frame budget at 4x, 1088 wide, per seed; `--ab` for two checkouts against each other
-- `same.js` — the same-world oracle: whole-state fingerprints, recorded and compared
+- `bench.js` — the frame budget at 4x, 1088 wide, per seed, with the late window apart; `--ab` for two checkouts against each other; `--late` from warm saves
+- `same.js` — the same-world oracle: whole-state fingerprints, recorded and compared; `--set long` for the warmed late game
 - `stuck.js` — sampled work/behavior progress and short-cycle detection for peasants and ducks
 - `playtests/` — duck escape/timeout regressions, replayable scenarios and the playtest report, and the hand's playtest (`hand.json`)

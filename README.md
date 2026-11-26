@@ -671,7 +671,9 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 - **Shift-drag** draws a straight line
 - **Middle-click / Alt-click** picks up the material under the cursor
 - **1–0** pick materials, **F** firework, **E** erase, **↑/↓** cycle, **[ ]** brush size
-- **Space / P** pause, **.** single step while paused, **S** / **A** slower / faster (1/4x to 4x)
+- **Space / P** pause, **.** single step while paused, **S** / **A** slower / faster (1/4x to 4x;
+  a wide valley that has played a long while, and warmed through, may not quite keep up at 4x: the world goes slower,
+  the picture stays smooth)
 - **C** clear, **R** new village, **M** mute, **`** fps
 - **SAVE** / **LOAD** (top right, or **Ctrl/Cmd-S** / **Ctrl/Cmd-O**) keep the village in a
   `.json` file and bring it back; dropping a save on the game loads it too. A save also

@@ -36,6 +36,24 @@
                       nukes and fireworks, through the real input path
      hand             playtests/hand.json replayed
      save-*           saved at tick 8 000, loaded into a fresh game, on
+
+   and a second set, --set long (or --set all), for the late game, where
+   the valley has warmed through and the rules that pass by a cold row
+   or a still word stop applying:
+     long-3/7/14      the spec's villages, 80 000 ticks, a fingerprint every 2 000
+     warm-3/7/14      a warm save (bench.js --save-out, tick 60 000 of
+                      the spec's village, made by the reference tree)
+                      loaded and played 10 000 ticks, every 240
+     hot-w11          the rich village warmed hard: lava pools, wood fires,
+                      a firebrick furnace of burning coal, the HEAT brush
+                      in patches the width of the valley, then left
+                      30 000 ticks, every 240
+     chaos-L12, rich-L8   the presets at 1088, to 60 000 ticks
+   the warm saves are found in --warm DIR (or $PLEASAND_WARM, or
+   harness/warm). the fingerprint taken as one is loaded is compared
+   like any other, so a different save shows at once.
+   with --check and neither --set nor --only, every scenario in the
+   reference file is played.
    ===================================================================== */
 "use strict";
 var fs = require("fs"), path = require("path"), cp = require("child_process"), os = require("os");
@@ -62,6 +80,12 @@ sc({ name: "materials-w9", seed: 9, gw: 1088, speed: 4, ticks: 20000, script: "m
 sc({ name: "hand", replay: "playtests/hand.json" });
 sc({ name: "save-6", seed: 6, gw: 272, speed: 2, ticks: 28000, preset: "rich", saveAt: 8000 });
 sc({ name: "save-w14", seed: 14, gw: 1088, speed: 4, ticks: 28000, saveAt: 8000 });
+/* the late game (--set long) */
+[3, 7, 14].forEach(function (s) { sc({ set: "long", name: "long-" + s, seed: s, gw: 1088, speed: 4, ticks: 80000, every: 2000 }); });
+[3, 7, 14].forEach(function (s) { sc({ set: "long", name: "warm-" + s, seed: s, gw: 1088, speed: 4, ticks: 10000, every: 240, load: "seed" + s + "-60k.json" }); });
+sc({ set: "long", name: "hot-w11", seed: 11, gw: 1088, speed: 4, ticks: 36000, every: 240, preset: "rich", script: "hot" });
+sc({ set: "long", name: "chaos-L12", seed: 12, gw: 1088, speed: 4, ticks: 60000, every: 2000, preset: "chaos" });
+sc({ set: "long", name: "rich-L8", seed: 8, gw: 1088, speed: 4, ticks: 60000, every: 2000, preset: "rich" });
 
 /* every paintable material, in heaps across the valley, each with a smaller heap of another on its shoulder, dropped
    from the sky so they land on one another and mix. then, through the real input path, at sand ticks: fire, lightning,
@@ -93,6 +117,39 @@ function materials(h) {
     { at: 12000, fn: function () { h.select("NUKE"); h.tap(q1, 12); } },
     { at: 15000, fn: function () { h.select("LIGHTNING"); h.drag(mid - 20, 10, mid + 20, 10, { ticks: 60 }); h.select("GUNPOWDER"); h.drag(q3, 20, q3 + 6, 20, { ticks: 6 }); h.ignite(q3 + 3, 22); } }
   ];
+}
+
+/* a valley warmed hard: on the ground, across the whole width, pools of lava, heaps of wood set alight, a furnace (a
+   firebrick box of coal, lit), and the HEAT brush through the real input path in patches from the sky to the ground,
+   again and again for the first 6 000 ticks. then it is left be (the scenario's ticks run on 30 000 past the last) */
+function hot(h) {
+  var g = h.g, gw = g.gw, k;
+  function ground(x) { return h.eval("mGround(g, " + x + ")"); }
+  var cx = Math.floor(h.eval("g.peasants.length ? g.peasants[0].x : g.gw / 2"));
+  var spots = [];
+  for (k = 0; k < 12; k++) spots.push(20 + Math.floor((k + 0.5) * (gw - 40) / 12));
+  for (k = 0; k < spots.length; k++) {
+    var x = spots[k], G = ground(x);
+    if (Math.abs(x - cx) < 40) continue;   /* (not on the village's own doorstep) */
+    if (k % 3 === 0) h.paintDisc(x, G - 3, 4, "LAVA");
+    else if (k % 3 === 1) { h.fill(x - 5, G - 6, 11, 5, "WOOD"); h.ignite(x, G - 7); }
+    else {
+      /* the furnace: firebrick walls and floor, coal inside, a match to it */
+      h.fill(x - 6, G - 10, 13, 10, "FIREBRICK");
+      h.fill(x - 4, G - 8, 9, 7, "COAL");
+      h.erase(x - 4, G - 10, 9, 2);
+      h.ignite(x, G - 9);
+    }
+  }
+  var ops = [];
+  [0, 1500, 3000, 4500, 6000].forEach(function (at, r) {
+    ops.push({ at: at, fn: function () {
+      h.select("HEAT");
+      for (var j = r % 2; j < spots.length; j += 2) h.drag(spots[j] + 7, 14, spots[j] + 7, Math.max(20, ground(spots[j] + 7) - 2), { ticks: 12 });
+    } });
+  });
+  ops.push({ at: 2000, fn: function () { h.paintDisc(Math.floor(gw / 2) + 60, ground(Math.floor(gw / 2) + 60) - 4, 5, "LAVA"); } });
+  return ops;
 }
 
 /* -------------------------------------------------------------------
@@ -140,16 +197,22 @@ function play(spec, o) {
       return { entries: entries, h: h };
     }
     h = lib.open({ seed: spec.seed, gw: spec.gw, root: o.root });
-    var per = h.eval("SPEEDS")[spec.speed];
-    every = Math.round(EVERY / per);
-    var total = Math.round(spec.ticks / per);
+    /* (a warm save: loaded, and played on from there. everything after counts from where it was saved) */
+    if (spec.load) {
+      var file = path.join(o.warm || warmDir(), spec.load);
+      if (!fs.existsSync(file)) throw new Error("no warm save " + file + " (see bench.js --save-out, and --warm)");
+      h.load(file);
+    }
+    var per = h.eval("SPEEDS")[spec.speed], u0 = h.ticks;
+    every = Math.round((spec.every || EVERY) / per);
+    var total = u0 + Math.round(spec.ticks / per);
     if (spec.preset) require("./soak.js").applyPreset(h, spec.preset);
-    var ops = spec.script === "materials" ? materials(h) : [];
+    var ops = spec.script === "materials" ? materials(h) : spec.script === "hot" ? hot(h) : [];
     h.speed(spec.speed);
     hook(h);
     take(h, "start");
     var saveU = spec.saveAt ? Math.round(spec.saveAt / per) : -1, i = 0;
-    ops.forEach(function (op) { op.u = Math.round(op.at / per); });
+    ops.forEach(function (op) { op.u = u0 + Math.round(op.at / per); });
     while (h.ticks < total) {
       while (i < ops.length && ops[i].u <= h.ticks) ops[i++].fn();   /* (a drag plays ticks of its own) */
       var next = total;
@@ -239,9 +302,9 @@ function deepDiff(a, b, where, out, gw, max) {
 }
 
 /* play both trees to the checkpoint that differs, and say where */
-function explain(spec, refDir, dir, d, ignore) {
-  var A = play(spec, { root: refDir, ignore: ignore, stopAt: d.index });
-  var B = play(spec, { root: dir, ignore: ignore, stopAt: d.index });
+function explain(spec, refDir, dir, d, ignore, warm) {
+  var A = play(spec, { root: refDir, ignore: ignore, stopAt: d.index, warm: warm });
+  var B = play(spec, { root: dir, ignore: ignore, stopAt: d.index, warm: warm });
   var lines = [];
   if (!A.h || !B.h) return ["(could not play both to the checkpoint)"];
   var exA = extras(A.h), exB = extras(B.h);
@@ -257,11 +320,14 @@ function explain(spec, refDir, dir, d, ignore) {
 /* -------------------------------------------------------------------
    the command line: scenarios side by side, one process each
    ------------------------------------------------------------------- */
-function pick(only) {
+/* --only names (or the start of names) among them all; else --set: "short" (the default), "long" or "all" */
+function pick(only, set) {
   var want = args.list(only).join(",").split(",").filter(Boolean);
-  if (!want.length) return SCENARIOS;
+  if (!want.length) return SCENARIOS.filter(function (s) { return set === "all" || (s.set || "short") === (set || "short"); });
   return SCENARIOS.filter(function (s) { return want.some(function (w) { return s.name === w || s.name.indexOf(w + "-") === 0 || s.name.indexOf(w) === 0; }); });
 }
+
+function warmDir() { return path.resolve(process.env.PLEASAND_WARM || path.join(__dirname, "warm")); }
 
 function ignoreSet(v) { return new Set(args.list(v).join(",").split(",").filter(Boolean)); }
 
@@ -274,7 +340,7 @@ function runAll(list, o, done) {
     while (running < jobs && i < order.length) {
       (function (s) {
         running++;
-        var child = cp.spawn(process.execPath, [__filename, "--worker", s.name, "--root", o.root, "--ignore", Array.from(o.ignore).join(",") || ","], { stdio: ["ignore", "pipe", "inherit"] });
+        var child = cp.spawn(process.execPath, [__filename, "--worker", s.name, "--root", o.root, "--warm", o.warm, "--ignore", Array.from(o.ignore).join(",") || ","], { stdio: ["ignore", "pipe", "inherit"] });
         var buf = [];
         child.stdout.on("data", function (c) { buf.push(c); });
         child.on("close", function (code) {
@@ -307,17 +373,19 @@ function main() {
   if (o.worker) {
     var spec = SCENARIOS.filter(function (s) { return s.name === o.worker; })[0];
     if (!spec) throw new Error("no scenario called " + o.worker);
-    var t0 = Date.now(), r = play(spec, { root: o.root, ignore: ignoreSet(o.ignore) });
+    var t0 = Date.now(), r = play(spec, { root: o.root, ignore: ignoreSet(o.ignore), warm: typeof o.warm === "string" ? o.warm : null });
     process.stdout.write(JSON.stringify({ name: spec.name, spec: spec, entries: r.entries, error: r.error || null, ms: Date.now() - t0 }));
     return;
   }
-  if (o.list) { SCENARIOS.forEach(function (s) { console.log(s.name.padEnd(14) + JSON.stringify(s)); }); return; }
+  if (o.list) { SCENARIOS.forEach(function (s) { console.log(s.name.padEnd(14) + (s.set || "short").padEnd(7) + JSON.stringify(s)); }); return; }
   if (o.help || (!o.record && !o.check)) {
-    console.log("node harness/same.js --record FILE | --check FILE [--dir CHECKOUT] [--ref-dir CHECKOUT] [--only a,b] [--jobs N] [--ignore k1,k2] [--list]");
+    console.log("node harness/same.js --record FILE | --check FILE [--dir CHECKOUT] [--ref-dir CHECKOUT] [--only a,b] [--set short|long|all] [--warm DIR] [--jobs N] [--ignore k1,k2] [--list]");
     process.exit(o.help ? 0 : 2);
   }
   var root = path.resolve(o.dir ? String(o.dir) : path.join(__dirname, ".."));
-  var list = pick(o.only), ignore = ignoreSet(o.ignore);
+  var set = typeof o.set === "string" ? o.set : null;
+  var list = pick(o.only, o.check && !set ? "all" : set), ignore = ignoreSet(o.ignore);
+  var warm = path.resolve(typeof o.warm === "string" ? o.warm : warmDir());
   var jobs = args.num(o.jobs, Math.max(1, Math.min(8, os.cpus().length - 2)));
   var ref = null;
   if (o.check) {
@@ -326,11 +394,12 @@ function main() {
     if (!list.length) { console.error("same: none of those scenarios is in " + o.check); process.exit(2); }
   }
   process.stderr.write("same: " + list.length + " scenarios, " + jobs + " at a time, " + root + "\n");
-  runAll(list, { root: root, ignore: ignore, jobs: jobs }, function (results, wall) {
+  runAll(list, { root: root, ignore: ignore, jobs: jobs, warm: warm }, function (results, wall) {
     var bad = 0, threw = 0;
     if (o.record) {
       var out = { format: "pleasand-same", version: 1, every: EVERY, commit: commitOf(root), node: process.version, made: new Date().toISOString(),
                   ignore: Array.from(ignore), scenarios: {} };
+      if (list.some(function (s) { return s.load; })) out.warm = warm;
       list.forEach(function (s) { var r = results[s.name]; out.scenarios[s.name] = { spec: s, error: r.error, entries: r.entries }; if (r.error) threw++; });
       fs.writeFileSync(String(o.record), JSON.stringify(out));
       console.log("same: recorded " + list.length + " scenarios (" + list.reduce(function (n, s) { return n + results[s.name].entries.length; }, 0) + " checkpoints) from " + (out.commit || root) + " to " + o.record + " in " + wall + " s" + (threw ? "; " + threw + " THREW (see above)" : ""));
@@ -353,7 +422,7 @@ function main() {
       var refDir = path.resolve(String(o["ref-dir"]));
       reports.slice(0, args.num(o.explain, 2)).forEach(function (x) {
         console.log("   " + x.spec.name + ", at update " + x.d.u + ", reference (" + refDir + ") vs this:");
-        explain(x.spec, refDir, root, x.d, ignore).forEach(function (l) { console.log("      " + l); });
+        explain(x.spec, refDir, root, x.d, ignore, warm).forEach(function (l) { console.log("      " + l); });
       });
     }
     console.log(bad ? "same: " + bad + " of " + list.length + " scenarios DIFFER from " + (ref.commit || o.check) : "same: all " + list.length + " scenarios identical to " + (ref.commit || o.check) + " (" + wall + " s)");

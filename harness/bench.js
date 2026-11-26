@@ -9,6 +9,11 @@
      node harness/bench.js --phases                 # and where the time goes
      node harness/bench.js --dir ../other-checkout  # that tree's game, this harness
      node harness/bench.js --ab ../a ../b --rounds 4 --ticks 8000
+     node harness/bench.js --ticks 80000            # the long run: whole run, and the late window (40 000-80 000)
+     node harness/bench.js --late WARM_DIR          # from the warm saves: 8 000 ticks each from tick 60 000
+     node harness/bench.js --late WARM_DIR --ab ../a ../b --lockstep --rounds 3
+     node harness/bench.js --load save.json --ticks 4000
+     node harness/bench.js --dir ../base --ticks 60000 --save-out WARM_DIR/seed{seed}-60k.json   # making them
 
    the game is run as the browser runs it at 4x: gameUpdate, once a
    frame, four world ticks inside it, nobody touching anything. each
@@ -23,6 +28,20 @@
    round, and B/A for each round (paired, so the load of the moment
    cancels), with its median and spread. the world each comes to is
    compared too (harness.js hash): a pure speed-up comes to the same one.
+
+   the late window: each seed also reports the frames from --window-from
+   sand ticks into the run (by default half way) to its end on their own,
+   so that an 80 000-tick run says what the warmed valley of its second
+   half costs, apart from the cold one of its first.
+
+   --load SAVE: the village is a save (save.js, as the harness writes
+   one), loaded into a fresh game, and played on from there at 4x.
+   --late DIR: the late game, fast: seeds 3, 7, 14 each from
+   DIR/seed<N>-60k.json (a valley 60 000 ticks old, warmed through),
+   8 000 ticks each unless --ticks says otherwise. both go with --ab and
+   --lockstep. --save-out PATH ({seed} in it becomes the seed) saves the
+   village where the run ends: that is how the warm saves are made, from
+   the tree the world is measured against.
 
    everything comes out as JSON, on stdout. progress goes to stderr.
    ===================================================================== */
@@ -65,25 +84,34 @@ function village(o, dir) {
   var lib = require("./harness.js");
   var h = lib.open({ seed: o.seed, gw: o.gw, root: dir });
   if (o.journal) h.eval("SAVE_J.on = true");
+  if (o.load) h.load(o.load);
   /* (warming up: a village played and thrown away, so the compiler has seen the code. the one measured is fresh) */
   if (o.warm > 0) {
     h.speed(o.speed);
     for (var w = 0; w < o.warm; w++) h._tick();
-    h.reset(o.seed);
+    if (o.load) h.load(o.load); else h.reset(o.seed);
   }
   h.speed(o.speed);
+  h._t0 = h.g.tick;
   return h;
 }
 
 function stats(o, h, ms) {
-  var n = ms.length, sum = 0, i;
+  var n = ms.length, sum = 0, i, per = h.eval("SPEEDS")[o.speed];
   for (i = 0; i < n; i++) sum += ms[i];
   var s = Array.prototype.slice.call(ms).sort(function (a, b) { return a - b; });
   var out = {
-    seed: o.seed, updates: n, sandTicks: h.g.tick,
+    seed: o.seed, updates: n, fromTick: h._t0, sandTicks: h.g.tick,
     median: r3(pct(s, 0.5)), p95: r3(pct(s, 0.95)), p99: r3(pct(s, 0.99)), max: r3(s[s.length - 1]),
     mean: r3(sum / n), totalMs: Math.round(sum), hash: h.hash()
   };
+  if (o.load) out.loaded = o.load;
+  /* the late window: from windowFrom sand ticks into the run (half way, unless told) to the end */
+  var wf = o.windowFrom != null ? o.windowFrom : Math.round(o.ticks / 2), a0 = Math.min(n - 1, Math.max(0, Math.round(wf / per)));
+  var ws = Array.prototype.slice.call(ms, a0).sort(function (a, b) { return a - b; }), wsum = 0;
+  for (i = 0; i < ws.length; i++) wsum += ws[i];
+  out.lateWindow = { fromTick: h._t0 + Math.round(a0 * per), toTick: h.g.tick, updates: ws.length,
+    median: r3(pct(ws, 0.5)), p95: r3(pct(ws, 0.95)), p99: r3(pct(ws, 0.99)), max: r3(ws[ws.length - 1]), mean: r3(wsum / ws.length) };
   /* the mean of each tenth of the run, in order (where in the run the time goes) */
   out.tenths = [];
   for (var k = 0; k < 10; k++) {
@@ -114,6 +142,12 @@ function one(o) {
     if (ph.heatStep && ph.sandStep) ph.sandStepWithoutHeat = { ms: r3(ph.sandStep.ms - ph.heatStep.ms), perUpdate: r3((ph.sandStep.ms - ph.heatStep.ms) / n), share: r3((ph.sandStep.ms - ph.heatStep.ms) / sum) };
     out.phases = ph;
     out.phasesNote = "shares of the timed gameUpdate total; heatStep runs inside sandStep (sandStepWithoutHeat is the rest); timings taken with the profiler's wrappers on";
+  }
+  if (o.saveOut) {
+    if (o.phases) h.profiler(false);
+    var file = String(o.saveOut).replace(/\{seed\}/g, String(o.seed));
+    var sv = h.save(file, { keyframes: 0 });
+    out.saved = { path: file, bytes: sv.bytes, updates: h.ticks, sandTick: h.g.tick, hash: out.hash, stateHash: require("./same.js").fingerprint(h, null).hash };
   }
   return out;
 }
@@ -150,26 +184,38 @@ function note(s) { process.stderr.write(s + "\n"); }
    ------------------------------------------------------------------- */
 function bench(opts) {
   var dir = path.resolve(opts.dir ? String(opts.dir) : path.join(__dirname, ".."));
-  var base = { dir: dir, gw: opts.gw, ticks: opts.ticks, speed: opts.speed, warm: opts.warm, phases: !!opts.phases, journal: !!opts.journal };
+  var base = { dir: dir, gw: opts.gw, ticks: opts.ticks, speed: opts.speed, warm: opts.warm, phases: !!opts.phases, journal: !!opts.journal,
+               windowFrom: opts.windowFrom, saveOut: opts.saveOut };
   var runs = [], t0 = Date.now(), load0 = os.loadavg()[0];
   for (var r = 0; r < opts.runs; r++) {
     opts.seeds.forEach(function (seed) {
-      var o = Object.assign({}, base, { seed: seed });
+      var o = Object.assign({}, base, { seed: seed, load: loadFor(opts, seed) });
       var res = runChild(o);
-      note("  seed " + seed + (opts.runs > 1 ? " run " + (r + 1) : "") + ": median " + res.median + " ms, p95 " + res.p95 + " ms, p99 " + res.p99 + ", max " + res.max + "  (" + res.updates + " updates, " + (res.totalMs / 1000).toFixed(1) + " s)");
+      var lw = res.lateWindow;
+      note("  seed " + seed + (opts.runs > 1 ? " run " + (r + 1) : "") + ": median " + res.median + " ms, p95 " + res.p95 + " ms, p99 " + res.p99 + ", max " + res.max + "  (" + res.updates + " updates, " + (res.totalMs / 1000).toFixed(1) + " s)" +
+        "; ticks " + lw.fromTick + "-" + lw.toTick + ": median " + lw.median + ", p95 " + lw.p95 + (res.saved ? "; saved " + res.saved.path + " (hash " + res.saved.hash + ")" : ""));
       res.run = r + 1;
       runs.push(res);
     });
   }
-  var worst = { median: Math.max.apply(null, runs.map(function (x) { return x.median; })), p95: Math.max.apply(null, runs.map(function (x) { return x.p95; })) };
+  function worstOf(f) { return { median: Math.max.apply(null, runs.map(function (x) { return f(x).median; })), p95: Math.max.apply(null, runs.map(function (x) { return f(x).p95; })) }; }
+  var worst = worstOf(function (x) { return x; }), lw = worstOf(function (x) { return x.lateWindow; });
   return {
-    what: "gameUpdate ms at speed " + opts.speedName + ", " + opts.gw + " wide, " + opts.ticks + " sand ticks per seed",
+    what: "gameUpdate ms at speed " + opts.speedName + ", " + opts.gw + " wide, " + opts.ticks + " sand ticks per seed" + (opts.late ? ", from the warm saves in " + opts.late : opts.load ? ", from " + opts.load : ""),
     dir: dir, commit: commitOf(dir), node: process.version, cpus: os.cpus().length,
     loadavg: [r3(load0), r3(os.loadavg()[0])], wallS: Math.round((Date.now() - t0) / 1000),
     seeds: runs,
     worst: worst,
-    budget: { median: BUDGET.median, p95: BUDGET.p95, ok: worst.median <= BUDGET.median && worst.p95 <= BUDGET.p95 }
+    budget: { median: BUDGET.median, p95: BUDGET.p95, ok: worst.median <= BUDGET.median && worst.p95 <= BUDGET.p95 },
+    lateWindow: { worst: lw, ok: lw.median <= BUDGET.median && lw.p95 <= BUDGET.p95,
+      note: "each seed's frames from lateWindow.fromTick to its end only (by default the run's second half; --window-from sets it)" }
   };
+}
+
+/* the save a seed starts from: --late DIR's seed<N>-60k.json, or --load's file */
+function loadFor(opts, seed) {
+  if (opts.late) return path.join(opts.late, "seed" + seed + "-60k.json");
+  return opts.load || null;
 }
 
 /* -------------------------------------------------------------------
@@ -182,12 +228,13 @@ function spread(list) {
 
 function ab(opts, A, B) {
   var dirs = [path.resolve(A), path.resolve(B)], t0 = Date.now(), load0 = os.loadavg()[0];
-  var base = { gw: opts.gw, ticks: opts.ticks, speed: opts.speed, warm: opts.warm, phases: false, journal: !!opts.journal };
+  var base = { gw: opts.gw, ticks: opts.ticks, speed: opts.speed, warm: opts.warm, phases: false, journal: !!opts.journal, windowFrom: opts.windowFrom };
   var got = {};   /* got[seed] = [{a, b}, ...] round by round */
   var k = 0;
   for (var r = 0; r < opts.rounds; r++) {
     opts.seeds.forEach(function (seed) {
       var order = k++ % 2 ? [1, 0] : [0, 1], two = {};
+      base.load = loadFor(opts, seed);
       if (opts.lockstep) {
         two = runChild(Object.assign({}, base, { seed: seed, dir: dirs[order[0]], dirB: dirs[order[1]] }));
         if (order[0]) two = { a: two.b, b: two.a };
@@ -201,7 +248,8 @@ function ab(opts, A, B) {
     });
   }
   var out = {
-    what: "A/B, gameUpdate ms at speed " + opts.speedName + ", " + opts.gw + " wide, " + opts.ticks + " sand ticks per run, " + opts.rounds + " rounds, " +
+    what: "A/B, gameUpdate ms at speed " + opts.speedName + ", " + opts.gw + " wide, " + opts.ticks + " sand ticks per run" +
+      (opts.late ? " from the warm saves in " + opts.late : opts.load ? " from " + opts.load : "") + ", " + opts.rounds + " rounds, " +
       (opts.lockstep ? "in lockstep (one process, update by update)" : "taken in turns seed by seed"),
     A: { dir: dirs[0], commit: commitOf(dirs[0]) }, B: { dir: dirs[1], commit: commitOf(dirs[1]) },
     node: process.version, loadavg: [r3(load0), r3(os.loadavg()[0])], wallS: Math.round((Date.now() - t0) / 1000),
@@ -213,6 +261,10 @@ function ab(opts, A, B) {
     var row = { seed: seed, A: {}, B: {}, ratio: {} };
     ["median", "p95"].forEach(function (q) {
       var a = rows.map(function (p) { return p.a[q]; }), b = rows.map(function (p) { return p.b[q]; });
+      /* (the late window too, alongside: the frames of each run's second half, or from --window-from) */
+      var la = rows.map(function (p) { return p.a.lateWindow[q]; }), lb = rows.map(function (p) { return p.b.lateWindow[q]; });
+      row.lateWindow = row.lateWindow || { fromTick: rows[0].a.lateWindow.fromTick };
+      row.lateWindow[q] = { A: r3(median(la)), B: r3(median(lb)), ratio: r3(median(rows.map(function (p) { return p.b.lateWindow[q] / p.a.lateWindow[q]; }))) };
       row.A[q] = { rounds: a, median: r3(median(a)), min: r3(Math.min.apply(null, a)) };
       row.B[q] = { rounds: b, median: r3(median(b)), min: r3(Math.min.apply(null, b)) };
       var rat = rows.map(function (p) { return p.b[q] / p.a[q]; });
@@ -247,15 +299,30 @@ function main() {
   var o = args.parseArgs(argv);
   if (o.help || o._[0] === "help") {
     process.stdout.write("node harness/bench.js [--seeds 3,7,14] [--ticks 20000] [--gw 1088] [--speed 4] [--warm N] [--phases] [--runs N] [--journal] [--dir CHECKOUT]\n" +
-      "node harness/bench.js --ab DIR_A DIR_B [--rounds 4] [--lockstep] [--seeds ...] [--ticks ...]\n");
+      "                      [--window-from TICKS] [--load SAVE | --late WARM_DIR] [--save-out PATH_WITH_{seed}]\n" +
+      "node harness/bench.js --ab DIR_A DIR_B [--rounds 4] [--lockstep] [--seeds ...] [--ticks ...] [--load SAVE | --late WARM_DIR]\n");
     return;
   }
   var opts = {
     seeds: o.seeds != null ? seedList(o.seeds) : [3, 7, 14],
     ticks: args.num(o.ticks, 20000), gw: args.num(o.gw, 1088), speed: args.num(o.speed, 4),
     warm: args.num(o.warm, 0), runs: Math.max(1, args.num(o.runs, 1)), rounds: Math.max(1, args.num(o.rounds, 4)),
-    phases: !!o.phases, journal: !!o.journal, dir: o.dir, lockstep: !!o.lockstep
+    phases: !!o.phases, journal: !!o.journal, dir: o.dir, lockstep: !!o.lockstep,
+    windowFrom: o["window-from"] != null ? args.num(o["window-from"], null) : null,
+    saveOut: typeof o["save-out"] === "string" ? o["save-out"] : null,
+    load: typeof o.load === "string" ? path.resolve(o.load) : null, late: null
   };
+  if (o.late != null) {
+    opts.late = path.resolve(typeof o.late === "string" ? o.late : process.env.PLEASAND_WARM || path.join(__dirname, "warm"));
+    if (o.ticks == null) opts.ticks = 8000;
+    opts.seeds.forEach(function (seed) {
+      var f = loadFor(opts, seed);
+      if (!require("fs").existsSync(f)) throw new Error("--late: no " + f + " (make it with: node harness/bench.js --dir BASE --seeds " + seed + " --ticks 60000 --save-out " + path.join(opts.late, "seed{seed}-60k.json") + ")");
+    });
+  } else if (opts.load) {
+    /* (one save, one village: its own seed, for the label) */
+    if (o.seeds == null) { var meta = (JSON.parse(require("fs").readFileSync(opts.load, "utf8")).meta || {}); opts.seeds = [meta.seed != null ? meta.seed : 0]; }
+  }
   opts.speedName = ["1/4", "1/2", "1x", "2x", "4x"][opts.speed] || String(opts.speed);
   var res;
   if (abDirs) {
