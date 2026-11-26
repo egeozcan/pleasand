@@ -266,6 +266,19 @@ var WET = new Uint8Array(NMAT); WET[MAT.WATER] = WET[MAT.SALTWATER] = 1;
    them. two piles of grains never trade places, whatever they weigh: gunpowder poured on sand sits on it */
 var FLUID = new Uint8Array(NMAT);
 [MAT.WATER, MAT.OIL, MAT.ACID, MAT.LAVA, MAT.SALTWATER, MAT.STEAM, MAT.SMOKE, MAT.GAS, MAT.FIRE].forEach(function (v) { FLUID[v] = 1; });
+/* the same rules, worked out once for every pair, so a thing at rest can see it is at rest without asking (indexed
+   (v << 6) | t, v the thing and t its neighbour: NMAT is 64). CANT: v cannot go into t, whatever has had its turn or is
+   held (sandCan). NOFLOAT: t over v does not float up past it (sandFloat), before any die. NOFLOW: a liquid v does not
+   flow into t (sandFlows) */
+var SAND_CANT = new Uint8Array(NMAT * NMAT), SAND_NOFLOAT = new Uint8Array(NMAT * NMAT), SAND_NOFLOW = new Uint8Array(NMAT * NMAT);
+(function () {
+  for (var v = 0; v < NMAT; v++) for (var t = 0; t < NMAT; t++) {
+    var k = (v << 6) | t;
+    SAND_CANT[k] = t !== MAT.EMPTY && !(SAND_FREE[t] === 1 && SAND_DENS[t] < SAND_DENS[v] && (FLUID[t] || FLUID[v])) ? 1 : 0;
+    SAND_NOFLOAT[k] = !(SAND_FREE[t] === 1 && SAND_DENS[t] > SAND_DENS[v] && (FLUID[t] || FLUID[v])) ? 1 : 0;
+    SAND_NOFLOW[k] = t !== MAT.EMPTY && (LIQUID[t] || SAND_CANT[k]) ? 1 : 0;
+  }
+})();
 
 /* -------------------------------------------------------------------
    2. CELL PLUMBING
@@ -906,7 +919,7 @@ function sandPressureCandidate(g, i) {
   else { n = irnd(n); if (n < PRESS_TRIES) g.pressList[n] = i; }
 }
 function sandPressure(g, i) {
-  var gw = g.gw, gh = g.gh, m = g.m, v = m[i], x = i % gw, y = (i / gw) | 0;
+  var gw = g.gw, gh = g.gh, m = g.m, vy = g.vy, v = m[i], x = i % gw, y = (i / gw) | 0;
   var mark = g.pmark, stack = g.pstack, gen = ++g.pgen, sp = 0, seen = 0, j, jx, jy, k, nb, t;
   /* left or right first is decided once per search, so it sweeps instead of wandering */
   var side = Math.random() < 0.5 ? -1 : 1;
@@ -923,8 +936,8 @@ function sandPressure(g, i) {
       if (nb < 0 || mark[nb] === gen) continue;
       mark[nb] = gen;
       t = m[nb];
-      if (t === v) { if (!g.vy[nb]) stack[sp++] = nb; }
-      else if (t === MAT.EMPTY && ((nb / gw) | 0) > y && (nb + gw >= m.length || !AIRY[m[nb + gw]])) {
+      if (t === v) { if (!vy[nb]) stack[sp++] = nb; }
+      else if (t === MAT.EMPTY && jy + (k === 0 ? -1 : (k === 3 ? 1 : 0)) > y && (nb + gw >= m.length || !AIRY[m[nb + gw]])) {
         sandSwap(g, i, nb); g.vy[nb] = 0; return true;
       }
     }
@@ -944,7 +957,16 @@ function sandFloat(g, i, x, y) {
 
 /* sand, ash, gunpowder, salt, seeds, fireworks, nukes: fall, slide off piles, sink */
 function sandPowder(g, i, x, y) {
-  var m = g.m, v = m[i], j, t, nx, ny, dd, sp;
+  var m = g.m, v = m[i], j, t, nx, ny, dd, sp, gw, r;
+  /* a heap at rest, which is most of the valley: nothing under it, or under it to either side, that it could go into,
+     and nothing over it that floats. it stops, and rolls for which side to try first, as it would the long way round */
+  if ((v === MAT.SAND || v === MAT.ASH || v === MAT.SNOW) && y + 1 < g.gh) {
+    gw = g.gw; r = v << 6; j = i + gw;
+    if (SAND_CANT[r | m[j]] && (y === 0 || SAND_NOFLOAT[r | m[i - gw]]) &&
+        (x === 0 || SAND_CANT[r | m[j - 1]]) && (x === gw - 1 || SAND_CANT[r | m[j + 1]])) {
+      g.vy[i] = 0; Math.random(); return;
+    }
+  }
   if (v === MAT.GUNPOWDER) {
     if (sandHotNb(g, x, y) >= 0) { sandBoom(g, i); return; }
   } else if (v === MAT.FIREWORK) {
@@ -994,7 +1016,19 @@ function sandPowder(g, i, x, y) {
 /* water, oil, acid, lava: fall, float, then spread sideways into empty air. lava does it slowly.
    liquids never shove each other sideways: that would starve the lighter one of its turn to rise. */
 function sandLiquid(g, i, x, y) {
-  var m = g.m, v = m[i], j, k, t, r, p, gone = false;
+  var m = g.m, v = m[i], j, k, t, r, p, gone = false, gw;
+  /* a pond at rest: nothing it can sink into, nothing floating up through it, nowhere to slide or spread. it rolls
+     what it would have rolled finding that out (the slide's side, the spread's side and reach), and may feel for pressure */
+  if ((v === MAT.WATER || v === MAT.OIL) && y + 1 < g.gh) {
+    gw = g.gw; r = v << 6; j = i + gw;
+    if (SAND_CANT[r | m[j]] && (y === 0 || SAND_NOFLOAT[r | m[i - gw]]) &&
+        (x === 0 || (SAND_NOFLOW[r | m[j - 1]] && SAND_NOFLOW[r | m[i - 1]])) &&
+        (x === gw - 1 || (SAND_NOFLOW[r | m[j + 1]] && SAND_NOFLOW[r | m[i + 1]]))) {
+      g.vy[i] = 0; Math.random(); Math.random(); Math.random();
+      if (y > 0 && m[i - gw] === MAT.EMPTY) sandPressureCandidate(g, i);
+      return;
+    }
+  }
   /* water freezing, boiling, and melting ice is all heat now: see heat.js */
   if (v === MAT.SALTWATER) {
     /* salt spreads through fresh water, slowly, a swap at a time */
@@ -1113,6 +1147,9 @@ function sandStatic(g, i, x, y) {
   var m = g.m, v = m[i], j, k, t, r;
   if (v === MAT.PLANT) {
     if (g.aux[i]) { if (Math.random() < 0.15) sandGrow(g, i, x, y, g.aux[i]); return; }
+    /* no water of either kind touching it: nothing to drink, nothing to kill it */
+    if (!((y > 0 && WET[m[i - g.gw]]) || (y < g.gh - 1 && WET[m[i + g.gw]]) ||
+          (x > 0 && WET[m[i - 1]]) || (x < g.gw - 1 && WET[m[i + 1]]))) return;
     /* salt water does not feed a plant. it kills it */
     if (sandHas(g, x, y, MAT.SALTWATER) >= 0 && Math.random() < 0.01) { m[i] = MAT.EMPTY; return; }
     j = sandHas(g, x, y, MAT.WATER);
