@@ -27,7 +27,9 @@
    on both alike. reported: each one's median and p95 per seed, round by
    round, and B/A for each round (paired, so the load of the moment
    cancels), with its median and spread. the world each comes to is
-   compared too (harness.js hash): a pure speed-up comes to the same one.
+   compared too (harness.js hash and snapshot.js stateHash, which sees
+   what FNV-1a's hash misses, an even number of sign flips): a pure
+   speed-up comes to the same one.
 
    the late window: each seed also reports the frames from --window-from
    sand ticks into the run (by default half way) to its end on their own,
@@ -103,7 +105,10 @@ function stats(o, h, ms) {
   var out = {
     seed: o.seed, updates: n, fromTick: h._t0, sandTicks: h.g.tick,
     median: r3(pct(s, 0.5)), p95: r3(pct(s, 0.95)), p99: r3(pct(s, 0.99)), max: r3(s[s.length - 1]),
-    mean: r3(sum / n), totalMs: Math.round(sum), hash: h.hash()
+    mean: r3(sum / n), totalMs: Math.round(sum), hash: h.hash(),
+    /* (and the whole state, every word avalanched: harness.js hash is FNV-1a, which an even number of sign flips, two
+       -0s for +0s, two negated temperatures, passes by without a trace. sameWorld goes by both) */
+    stateHash: require("./same.js").fingerprint(h, null).hash
   };
   if (o.load) out.loaded = o.load;
   /* the late window: from windowFrom sand ticks into the run (half way, unless told) to the end */
@@ -273,8 +278,9 @@ function ab(opts, A, B) {
       gm[q] += Math.log(median(rat));
     });
     n++;
-    row.sameWorld = rows.every(function (p) { return p.a.hash === p.b.hash; });
+    row.sameWorld = rows.every(function (p) { return p.a.hash === p.b.hash && p.a.stateHash === p.b.stateHash; });
     row.hash = { A: rows[0].a.hash, B: rows[0].b.hash };
+    row.stateHash = { A: rows[0].a.stateHash, B: rows[0].b.stateHash };
     if (!row.sameWorld) out.sameWorld = false;
     out.seeds.push(row);
   });

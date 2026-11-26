@@ -200,7 +200,10 @@ node harness/bench.js --ab ../base ../wip --rounds 3 --ticks 4000 --lockstep   #
 `ratio` is per seed the median of the rounds' ratios (below 1, B is faster),
 with their spread, and `ofMins` (B's best round over A's best); the top-level
 `ratio` is their geometric mean. `sameWorld` says whether the two came to the
-same `hash()`: a speed-up that does not is not one. `--lockstep` plays both
+same `hash()` and the same `stateHash` (`same.js`'s fingerprint, taken once at
+the end): a speed-up that does not is not one. `hash()` alone is FNV-1a over the
+words, and a sign flip changes only its top bit, so two of them, two `-0`s for
+`+0`s or two negated temperatures, leave it as it was; `stateHash` sees them. `--lockstep` plays both
 villages in one process, an update of A then an update of B, so a burst of
 load lands on both within milliseconds; they share a heap and caches, alike.
 Measured A against A (0580e71 twice, 4000 ticks, 3 rounds) with twelve wide
@@ -384,7 +387,7 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 | `h.ticks` | updates since reset (one per `gameUpdate`) |
 | `h.g.tick` | sand ticks (does not move while paused) |
 | `h.g.t` | game seconds |
-| `h.hash()` | fingerprint of grid, people, dice and clock (~3 ms) |
+| `h.hash()` | fingerprint of grid, people, dice and clock (~3 ms; FNV-1a, so an even number of sign flips cancels: `same.js` `fingerprint` for the exact check) |
 
 - `open({seed})` / `h.reset(seed)` — same seed, same village, byte for byte.
   Reset replays the scripts' own load-time dice (256 draws, for the smoke
