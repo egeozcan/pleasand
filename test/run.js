@@ -294,6 +294,176 @@ test("a lift carries them up a tower a good deal faster than the ladder", functi
   check(g.got.lift, "nobody noticed riding the lift");
 });
 
+/* navEdges as it was at 74a8b7a, before its quick looks (paths.js navSidesQ) and the lifts' list for a search (navLift):
+   every way on from a place, by the slow looks alone */
+var NAV_EDGES_WAS = "(function (g, x, y, add) {\n" +
+"  var s, nx, k, d, dy, ny, j, top, c;\n" +
+"  for (s = -1; s <= 1; s += 2) {\n" +
+"    nx = x + s;\n" +
+"    if (nx < 1 || nx > g.gw - 2) continue;\n" +
+"    k = pStepUp(g, nx, y);\n" +
+"    if (k <= 3) {\n" +
+"      ny = y - k;\n" +
+"      if (!pGround(g, nx, ny)) for (d = 1; d <= 2; d++) if (pGround(g, nx, ny + d) && pRoom(g, nx, ny + d)) { ny += d; break; }\n" +
+"      c = navStand(g, nx, ny);\n" +
+"      if (c) { add(nx, ny, c === 2 ? 3 : 1, NAV_WALK); continue; }\n" +
+"      for (d = 1; d <= 76; d++) {\n" +
+"        if (ny + d >= g.gh || pBody(g, nx, ny + d - 1)) { d = 99; break; }\n" +
+"        if (navStand(g, nx, ny + d)) break;\n" +
+"      }\n" +
+"      if (d <= 76) {\n" +
+"        if (d <= 6) add(nx, ny + d, 1 + d * 0.2, NAV_WALK);\n" +
+"        else add(nx, ny + d, 3 + d * 0.25 + (d > 34 ? 40 : 0), NAV_DROP);\n" +
+"      }\n" +
+"      if (d > 6 && !NAV_NOLEAP && navCanLeap(g, x, y)) {\n" +
+"        for (j = 3; j <= P_GAP; j++) {\n" +
+"          var lx = x + s * j, hit = false;\n" +
+"          if (lx < 1 || lx > g.gw - 2 || pBody(g, lx, y - 9) || pBody(g, lx, y - 12)) break;\n" +
+"          for (dy = -3; dy <= 3; dy++) if (pGround(g, lx, y + dy) && pRoom(g, lx, y + dy)) {\n" +
+"            if (navStand(g, lx, y + dy)) add(lx, y + dy, 3 + j, NAV_LEAP);\n" +
+"            hit = true; break;\n" +
+"          }\n" +
+"          if (hit) break;\n" +
+"        }\n" +
+"      }\n" +
+"      continue;\n" +
+"    }\n" +
+"    var dn = pDuckUnder(g, nx, y);\n" +
+"    if (dn && navStand(g, nx, y + dn)) { add(nx, y + dn, 1 + dn * 0.2, NAV_WALK); continue; }\n" +
+"    var room = true;\n" +
+"    for (j = 9; j < 12; j++) if (pBody(g, x, y - j)) room = false;\n" +
+"    if (room) for (k = 4; k <= P_JUMP; k++) {\n" +
+"      if (pBody(g, x, y - k - 8)) break;\n" +
+"      if (pRoom(g, nx, y - k)) { if (navStand(g, nx, y - k)) add(nx, y - k, 4, NAV_JUMP); break; }\n" +
+"    }\n" +
+"    for (k = 4; k <= P_ROPE; k++) if (pRoom(g, nx, y - k)) break;\n" +
+"    if (k > P_JUMP && k <= P_ROPE) {\n" +
+"      for (j = 9; j <= k + 9 && !pBody(g, x, y - j); j++);\n" +
+"      top = y - k + 1;\n" +
+"      if (!NAV_NOROPE && j > k + 9 && pSolid(g, nx, top) && pCell(g, nx, top) !== MAT.INERT && navStand(g, nx, y - k)) add(nx, y - k, 25 + k * 0.6, NAV_ROPE);\n" +
+"    }\n" +
+"  }\n" +
+"  for (s = -1; s <= 1 && !NAV_NOROPE; s += 2) {\n" +
+"    var hk = pHookGeom(g, x, y, s);\n" +
+"    if (hk && navStand(g, x + s, hk.stand)) add(x + s, hk.stand, 25 + hk.h * 0.6, NAV_HOOK);\n" +
+"  }\n" +
+"  var up = navUp(g, x, y);\n" +
+"  if (up >= 0 && (y - up <= P_JUMP || !NAV_NOROPE)) add(x, up, y - up <= P_JUMP ? 4 + (y - up) * 0.3 : 25 + (y - up) * 0.6, NAV_UP);\n" +
+"  var dn = navSink(g, x, y);\n" +
+"  if (dn >= 0) add(x, dn, 2 + (dn - y) * 0.25 + (dn - y > 34 ? 40 : 0), NAV_DOWN);\n" +
+"  var cx = NAV_NOLEAP ? -1 : bLadderNear(g, x, y);\n" +
+"  if (cx >= 0 && NAV_LADNO && NAV_LADNO[cx] > g.tick) cx = -1;\n" +
+"  if (cx >= 0 && g.know.storey && sOnLadder(g, cx, y) && sLadderHot(g, cx)) cx = -1;\n" +
+"  if (cx >= 0) {\n" +
+"    for (j = y; j > 0 && pCell(g, cx, j) === MAT.LADDER && !pBody(g, cx, j - 9); j--);\n" +
+"    if (pCell(g, cx, j) === MAT.LADDER) j = y;\n" +
+"    var rate = mLiftAt(g, cx, y) ? 0.3 : 1.2;\n" +
+"    for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * rate, NAV_LADDER, cx);\n" +
+"  }\n" +
+"  for (s = -1; s <= 1 && !NAV_NOLEAP; s += 2) {\n" +
+"    cx = bLadderMid(g, x + s, y + 1);\n" +
+"    if (cx < 0 || (NAV_LADNO && NAV_LADNO[cx] > g.tick)) continue;\n" +
+"    for (j = y; pCell(g, cx, j + 1) === MAT.LADDER && j < g.gh; j++);\n" +
+"    if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * (mLiftAt(g, cx, j) ? 0.3 : 1.2), NAV_LADDER, cx);\n" +
+"  }\n" +
+"})";
+
+test("a route's quick looks, either side of a place and down a ladder beside it, are the slow ones, place by place", function () {
+  /* a village with a patch of everything a route looks at scattered at random over half the valley, ladders and all,
+     looked at from every place in it (the world is not run after: nothing need make sense, only be looked at), with
+     and without great works and the rope and the leap, against navEdges as it was */
+  var w = sim.load(5), g = w.g, gw = g.gw, gh = g.gh, M = w.MAT, r = 12345, x, y, i, k;
+  sim.step(w, 300);
+  var mats = [M.EMPTY, M.EMPTY, M.EMPTY, M.EMPTY, M.EMPTY, M.EMPTY, M.EMPTY, M.EMPTY, M.SAND, M.STONE, M.WATER, M.PLANT,
+              M.WOOD, M.SAPLING, M.LADDER, M.LADDER, M.DOOR, M.PLANK, M.INERT, M.BRICK, M.FLOWER, M.WHEAT, M.FIRE, M.ACID];
+  function rnd(n) { r = (r * 1664525 + 1013904223) >>> 0; return r % n; }
+  know(g, ["farm", "masonry", "lift"]);
+  var p = g.peasants[0];
+  check(w.mPlanTower(g, p), "nowhere for a tower");
+  var T = sim.build(w, sites(g, "tower")[0]);
+  p.iron = 10; p.planCD = 0;
+  check(w.mPlanLift(g, p), "could not plan a lift on the tower");
+  sim.build(w, sites(g, "lift")[0]);
+  for (y = 0; y < gh; y++) for (x = 0; x < (gw >> 1); x++) {
+    if (rnd(3) || Math.abs(x - T.lad) < 16) continue;   /* (two in three cells as they were, and the tower as it is) */
+    i = y * gw + x; g.m[i] = mats[rnd(mats.length)]; g.aux[i] = rnd(6);
+  }
+  /* (and whole ladders in it, three wide, with air either side of the top of each) */
+  for (x = 6; x < (gw >> 1) - 6; x += 9) {
+    if (Math.abs(x - T.lad) < 20) continue;
+    var y0 = 20 + rnd(gh - 80), h = 5 + rnd(40);
+    for (y = y0; y < y0 + h && y < gh - 2; y++) for (k = -1; k <= 1; k++) { g.m[y * gw + x + k] = M.LADDER; g.aux[y * gw + x + k] = k + 1; }
+    for (y = y0 - 10; y < y0; y++) for (k = -3; k <= 3; k++) g.m[y * gw + x + k] = M.EMPTY;
+    g.m[y0 * gw + x - 2] = g.m[y0 * gw + x + 2] = M.STONE;
+  }
+  var was = w.eval(NAV_EDGES_WAS), now = w.navEdges, P_SINK = w.P_SINK, looked = 0, climbs = 0, lifts = 0;
+  check(!P_SINK && !w.NAV_SG, "(the test wants nobody sinking, and no search going on)");
+  function edges(f, x, y) {
+    var out = [];
+    f(g, x, y, function (a, b, c, m, lc) {
+      out.push(a, b, c, m, lc == null ? -9 : lc);
+      if (f === now && m === w.NAV_LADDER) { climbs++; if (lc === T.lad && c < 2 + Math.abs(b - y) * 1.2 - 1e-9) lifts++; }
+    });
+    return out.join(",");
+  }
+  [[false, false, false], [true, false, false], [false, true, false], [false, false, true]].forEach(function (v) {
+    w.eval("NAV_NOROPE = " + v[0] + "; NAV_NOLEAP = " + v[1]);
+    g.wAny = v[2];
+    if (v[2]) w.pGrate(g, 0);   /* (great works, and no grates: pGrate's cache good and empty for the tick) */
+    check(w.pNoGr(g), "(the test wants no grates)");
+    for (y = 0; y < gh; y++) for (x = 0; x < gw; x++) {
+      var a = edges(was, x, y), b = edges(now, x, y);
+      if (a !== b) throw new Error("at " + x + "," + y + " " + JSON.stringify(v) + ": was " + a + ", now " + b);
+      if (a) looked++;
+    }
+  });
+  w.eval("NAV_NOROPE = false; NAV_NOLEAP = false");
+  check(looked > 5000, "only " + looked + " places had a way on from them");
+  check(climbs > 100 && lifts > 4, "only " + climbs + " ways up or down a ladder, " + lifts + " of them by the lift");
+});
+
+test("a route up a ladder knows a lift is on it for as long as it is, from one search to the next in the same tick", function () {
+  var w = sim.load(1), g = w.g;
+  know(g, ["farm", "dig", "mine", "masonry", "lift"]);
+  var p = g.peasants[0];
+  check(w.mPlanTower(g, p), "nowhere for a tower");
+  var T = sim.build(w, sites(g, "tower")[0]), gw = g.gw;
+  function cost() {
+    var path = w.navFind(g, T.lad - 3, T.F - 1, function (x, y) { return y === T.T - 1; }, T.lad, T.T - 1, 20000);
+    check(path && path.length, "no route up the tower");
+    var e = path[path.length - 1];
+    return g.navCost[e.y * gw + e.x];
+  }
+  /* (navLift against mLiftAt, row by row up the ladder and past both ends of it, in a search and out of one) */
+  function same(what) {
+    var bad = [], asked = 0;
+    function look(x, inside) {
+      for (var y = T.T - 4; y <= T.F + 4; y++) if (w.navLift(g, x, y) !== !!w.mLiftAt(g, x, y)) bad.push((inside ? "in " : "out ") + x + "," + y);
+    }
+    look(T.lad, false); look(T.lad + 1, false);
+    w.navFind(g, T.lad - 3, T.F - 1, function () { asked++; look(T.lad, true); look(T.lad + 1, true); return true; }, T.lad, T.T - 1);
+    check(asked === 1 && !bad.length, what + ": navLift and mLiftAt disagree at " + bad.slice(0, 6).join(" "));
+  }
+  var climb = cost();
+  same("no lift");
+  p.iron = 10; p.planCD = 0;
+  check(w.mPlanLift(g, p), "could not plan a lift on the tower");
+  var L = sites(g, "lift")[0], tick = g.tick;
+  check(cost() === climb, "a lift not yet built made the climb cheaper");
+  sim.build(w, L);
+  var ride = cost();
+  same("a lift");
+  check(ride < climb, "the route up costs " + ride + " with a lift, " + climb + " without");
+  L.done = false;
+  check(cost() === climb, "a lift no longer standing still made the climb cheaper (" + climb + " without one)");
+  same("a lift taken down");
+  L.done = true;
+  check(cost() === ride, "the lift put back did not make it cheaper again");
+  g.sites.splice(g.sites.indexOf(L), 1);
+  check(cost() === climb, "a lift gone from the sites still made the climb cheaper");
+  check(g.tick === tick, "(the test wants every search in the one tick)");
+});
+
 test("the bell wakes the whole valley for a fire, buckets or no buckets", function () {
   var w = sim.load(1), g = w.g;
   know(g, ["farm", "dig", "mine", "masonry", "bell"]);

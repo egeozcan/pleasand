@@ -89,6 +89,150 @@ function navHazard(g, x, y) {
 
 /* every way on from (x, y), as add(x, y, cost, move) */
 function navEdges(g, x, y, add) {
+  var s, j;
+  /* (no grates (pNoGr), nobody sinking (as in a search: navFind), and every row the ways either side look at in the grid,
+     but for the rope's, which navSidesQ sees to: the same looks, cell by cell straight off it. no grates now is no grates
+     to the end of the search, which changes nothing; and with grates, or a cache from before, the slow looks fill it as
+     they always did) */
+  if (!P_SINK && x >= 1 && x <= g.gw - 2 && y >= P_JUMP + 8 && y + 4 < g.gh && pNoGr(g)) navSidesQ(g, x, y, add);
+  else navSides(g, x, y, add);
+  /* the end of a ledge overhead: hook it and climb up past it (pTryHook) */
+  for (s = -1; s <= 1 && !NAV_NOROPE; s += 2) {
+    var hk = pHookGeom(g, x, y, s);
+    if (hk && navStand(g, x + s, hk.stand)) add(x + s, hk.stand, 25 + hk.h * 0.6, NAV_HOOK);
+  }
+  /* up through a bush or a tree overhead, onto the top of it (pTryUp), and down through the one underfoot (pTrySink) */
+  var up = navUp(g, x, y);
+  if (up >= 0 && (y - up <= P_JUMP || !NAV_NOROPE)) add(x, up, y - up <= P_JUMP ? 4 + (y - up) * 0.3 : 25 + (y - up) * 0.6, NAV_UP);   /* (higher than a jump: the rope) */
+  var dn = navSink(g, x, y);
+  if (dn >= 0) add(x, dn, 2 + (dn - y) * 0.25 + (dn - y > 34 ? 40 : 0), NAV_DOWN);
+  /* a ladder, up from the foot of it to wherever it lets them off at the top. (not burning: they would let go of it.
+     build.js bClimbStep) */
+  var cx = NAV_NOLEAP ? -1 : bLadderNear(g, x, y);
+  if (cx >= 0 && NAV_LADNO && NAV_LADNO[cx] > g.tick) cx = -1;   /* (a ladder that would not have them on it, a while ago) */
+  if (cx >= 0 && g.know.storey && sOnLadder(g, cx, y) && sLadderHot(g, cx)) cx = -1;   /* (a flat's ladder, with a fire at it: storeys.js) */
+  if (cx >= 0) {
+    for (j = y; j > 0 && pCell(g, cx, j) === MAT.LADDER && !pBody(g, cx, j - 9); j--);
+    if (pCell(g, cx, j) === MAT.LADDER) j = y;   /* something overhead: the climber would stop under it (bClimbStep) */
+    /* (a ladder with a lift on it is a good deal quicker: mines.js) */
+    var rate = navLift(g, cx, y) ? 0.3 : 1.2;
+    for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * rate, NAV_LADDER, cx);
+  }
+  /* and down one, from beside the top of it */
+  for (s = -1; s <= 1 && !NAV_NOLEAP; s += 2) {
+    /* (bLadderMid, straight off the grid when the cell is in it) */
+    if (x + s >= 0 && x + s < g.gw && y + 1 >= 0 && y + 1 < g.gh) { j = (y + 1) * g.gw + x + s; cx = g.m[j] === MAT.LADDER ? x + s - (g.aux[j] - 1) : -1; }
+    else cx = bLadderMid(g, x + s, y + 1);
+    if (cx < 0 || (NAV_LADNO && NAV_LADNO[cx] > g.tick)) continue;
+    for (j = y; pCell(g, cx, j + 1) === MAT.LADDER && j < g.gh; j++);
+    if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * (navLift(g, cx, j) ? 0.3 : 1.2), NAV_LADDER, cx);
+  }
+}
+/* the lifts there are, for a search: mLiftAt's answer, from a list of the lifts built and standing, made at the first
+   ladder the search comes to, in the order of the sites. a search changes nothing, so the sites and the lifts' columns
+   and rows are as they were when it began; the list goes when it ends (navFind), and the next search makes its own.
+   outside a search, mLiftAt itself */
+var NAV_LIFTS = null;
+function navLift(g, cx, y) {
+  if (!NAV_SG || NAV_SGG !== g) return !!mLiftAt(g, cx, y);
+  var L = NAV_LIFTS, k;
+  if (L === null) {
+    L = NAV_LIFTS = [];
+    for (k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.kind === "lift" && s.done) L.push(s.col, s.top, s.bot); }
+  }
+  for (k = 0; k < L.length; k += 3) if (L[k] === cx && y >= L[k + 1] - 1 && y <= L[k + 2] + 1) return true;
+  return false;
+}
+/* (pFoot's look at the material under their feet, with nobody sinking and no grates: 1 something to stand on, 2 something
+   soft, which holds them up only with their feet out of anything soft, 0 nothing) */
+var NAV_FOOTM = (function () {
+  var t = new Uint8Array(NMAT);
+  for (var c = 0; c < NMAT; c++) t[c] = SOLID[c] === 1 && !P_PASS[c] ? (P_SOFT[c] ? 2 : 1) : 0;
+  return t;
+})();
+/* pRoom, pFoot and pGround with their feet at cell j, for navSidesQ: no grates, nobody sinking, and the rows in the grid */
+function navRoomQ(m, gw, j) { return !P_BODYM[m[j]] && !P_BODYM[m[j - 3 * gw]] && !P_BODYM[m[j - 6 * gw]] && !P_BODYM[m[j - 8 * gw]]; }
+function navFootQ(m, gw, j) { var f = NAV_FOOTM[m[j + gw]]; return f === 1 || (f === 2 && !P_SOFT[m[j]]); }
+function navGroundQ(m, gw, j) { return navFootQ(m, gw, j) || navFootQ(m, gw, j - 1) || navFootQ(m, gw, j + 1); }
+/* navSides, with no grates (pNoGr), nobody sinking, 1 <= x <= gw - 2 and rows y - 18 to y + 4 in the grid (navEdges): the
+   same looks in the same order, pStepUp's, pDuckUnder's, pBody's, pRoom's, pGround's and pSolid's straight off the grid.
+   the rope looks up to 54 rows over their feet: straight off the grid too when those are in it, and as before when not */
+function navSidesQ(g, x, y, add) {
+  var m = g.m, gw = g.gw, gh = g.gh, s, nx, k, f, d, dy, ny, j, jj, top, c, lx, hit, dn, room;
+  for (s = -1; s <= 1; s += 2) {
+    nx = x + s;
+    if (nx < 1 || nx > gw - 2) continue;
+    /* along: up to three up (pStepUp) */
+    for (k = 0, f = -1; k <= 3; k++) {
+      j = (y - k) * gw + nx;
+      if (!navRoomQ(m, gw, j)) continue;
+      if (f < 0) f = k;
+      if (!P_SOFT[m[j]] || navFootQ(m, gw, j)) break;
+    }
+    if (k > 3) k = f < 0 ? 4 : f;
+    if (k <= 3) {
+      ny = y - k;
+      if (!navGroundQ(m, gw, ny * gw + nx)) for (d = 1; d <= 2; d++) { j = (ny + d) * gw + nx; if (navGroundQ(m, gw, j) && navRoomQ(m, gw, j)) { ny += d; break; } }
+      c = navStand(g, nx, ny);
+      if (c) { add(nx, ny, c === 2 ? 3 : 1, NAV_WALK); continue; }
+      /* off the edge (pBody(nx, ny + d - 1): a row in the grid, as ny + d is) */
+      for (d = 1, j = ny * gw + nx; d <= 76; d++, j += gw) {
+        if (ny + d >= gh || P_BODYM[m[j]]) { d = 99; break; }
+        if (navStand(g, nx, ny + d)) break;
+      }
+      if (d <= 76) {
+        if (d <= 6) add(nx, ny + d, 1 + d * 0.2, NAV_WALK);
+        else add(nx, ny + d, 3 + d * 0.25 + (d > 34 ? 40 : 0), NAV_DROP);
+      }
+      /* or leap it (navCanLeap: rows y - 9 to y - 17 of their own column) */
+      if (d > 6 && !NAV_NOLEAP) {
+        for (k = 0, jj = (y - 9) * gw + x; k <= 8 && !P_BODYM[m[jj]]; k++, jj -= gw);
+        if (k > 8) for (j = 3; j <= P_GAP; j++) {
+          lx = x + s * j; hit = false;
+          if (lx < 1 || lx > gw - 2 || P_BODYM[m[(y - 9) * gw + lx]] || P_BODYM[m[(y - 12) * gw + lx]]) break;
+          for (dy = -3; dy <= 3; dy++) {
+            jj = (y + dy) * gw + lx;
+            if (navGroundQ(m, gw, jj) && navRoomQ(m, gw, jj)) {
+              if (navStand(g, lx, y + dy)) add(lx, y + dy, 3 + j, NAV_LEAP);
+              hit = true; break;
+            }
+          }
+          if (hit) break;
+        }
+      }
+      continue;
+    }
+    /* a lintel, or a low overhang (pDuckUnder) */
+    dn = 0;
+    for (d = 1; d <= 2; d++) { j = (y + d) * gw + nx; if (navRoomQ(m, gw, j) && navGroundQ(m, gw, j) && !navHazard(g, nx, y + d)) { dn = d; break; } }
+    if (dn && navStand(g, nx, y + dn)) { add(nx, y + dn, 1 + dn * 0.2, NAV_WALK); continue; }
+    /* a wall: jump it */
+    jj = y * gw + x;
+    room = !P_BODYM[m[jj - 9 * gw]] && !P_BODYM[m[jj - 10 * gw]] && !P_BODYM[m[jj - 11 * gw]];
+    if (room) for (k = 4; k <= P_JUMP; k++) {
+      if (P_BODYM[m[jj - (k + 8) * gw]]) break;
+      if (navRoomQ(m, gw, (y - k) * gw + nx)) { if (navStand(g, nx, y - k)) add(nx, y - k, 4, NAV_JUMP); break; }
+    }
+    /* or rope up it */
+    if (y >= P_ROPE + 9) {
+      for (k = 4; k <= P_ROPE; k++) if (navRoomQ(m, gw, (y - k) * gw + nx)) break;
+      if (k > P_JUMP && k <= P_ROPE) {
+        for (j = 9; j <= k + 9 && !P_BODYM[m[jj - j * gw]]; j++);
+        top = y - k + 1; c = m[top * gw + nx];
+        if (!NAV_NOROPE && j > k + 9 && SOLID[c] === 1 && !P_PASS[c] && c !== MAT.INERT && navStand(g, nx, y - k)) add(nx, y - k, 25 + k * 0.6, NAV_ROPE);
+      }
+    } else {
+      for (k = 4; k <= P_ROPE; k++) if (pRoom(g, nx, y - k)) break;
+      if (k > P_JUMP && k <= P_ROPE) {
+        for (j = 9; j <= k + 9 && !pBody(g, x, y - j); j++);
+        top = y - k + 1;
+        if (!NAV_NOROPE && j > k + 9 && pSolid(g, nx, top) && pCell(g, nx, top) !== MAT.INERT && navStand(g, nx, y - k)) add(nx, y - k, 25 + k * 0.6, NAV_ROPE);
+      }
+    }
+  }
+}
+/* the ways along, off the edge, over a gap, under a lintel, over a wall and up it, either side of (x, y) (navEdges) */
+function navSides(g, x, y, add) {
   var s, nx, k, d, dy, ny, j, top, c;
   for (s = -1; s <= 1; s += 2) {
     nx = x + s;
@@ -141,35 +285,6 @@ function navEdges(g, x, y, add) {
       top = y - k + 1;
       if (!NAV_NOROPE && j > k + 9 && pSolid(g, nx, top) && pCell(g, nx, top) !== MAT.INERT && navStand(g, nx, y - k)) add(nx, y - k, 25 + k * 0.6, NAV_ROPE);
     }
-  }
-  /* the end of a ledge overhead: hook it and climb up past it (pTryHook) */
-  for (s = -1; s <= 1 && !NAV_NOROPE; s += 2) {
-    var hk = pHookGeom(g, x, y, s);
-    if (hk && navStand(g, x + s, hk.stand)) add(x + s, hk.stand, 25 + hk.h * 0.6, NAV_HOOK);
-  }
-  /* up through a bush or a tree overhead, onto the top of it (pTryUp), and down through the one underfoot (pTrySink) */
-  var up = navUp(g, x, y);
-  if (up >= 0 && (y - up <= P_JUMP || !NAV_NOROPE)) add(x, up, y - up <= P_JUMP ? 4 + (y - up) * 0.3 : 25 + (y - up) * 0.6, NAV_UP);   /* (higher than a jump: the rope) */
-  var dn = navSink(g, x, y);
-  if (dn >= 0) add(x, dn, 2 + (dn - y) * 0.25 + (dn - y > 34 ? 40 : 0), NAV_DOWN);
-  /* a ladder, up from the foot of it to wherever it lets them off at the top. (not burning: they would let go of it.
-     build.js bClimbStep) */
-  var cx = NAV_NOLEAP ? -1 : bLadderNear(g, x, y);
-  if (cx >= 0 && NAV_LADNO && NAV_LADNO[cx] > g.tick) cx = -1;   /* (a ladder that would not have them on it, a while ago) */
-  if (cx >= 0 && g.know.storey && sOnLadder(g, cx, y) && sLadderHot(g, cx)) cx = -1;   /* (a flat's ladder, with a fire at it: storeys.js) */
-  if (cx >= 0) {
-    for (j = y; j > 0 && pCell(g, cx, j) === MAT.LADDER && !pBody(g, cx, j - 9); j--);
-    if (pCell(g, cx, j) === MAT.LADDER) j = y;   /* something overhead: the climber would stop under it (bClimbStep) */
-    /* (a ladder with a lift on it is a good deal quicker: mines.js) */
-    var rate = mLiftAt(g, cx, y) ? 0.3 : 1.2;
-    for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * rate, NAV_LADDER, cx);
-  }
-  /* and down one, from beside the top of it */
-  for (s = -1; s <= 1 && !NAV_NOLEAP; s += 2) {
-    cx = bLadderMid(g, x + s, y + 1);
-    if (cx < 0 || (NAV_LADNO && NAV_LADNO[cx] > g.tick)) continue;
-    for (j = y; pCell(g, cx, j + 1) === MAT.LADDER && j < g.gh; j++);
-    if (j > y + 3 && navStand(g, cx, j)) add(cx, j, 2 + (j - y) * (mLiftAt(g, cx, j) ? 0.3 : 1.2), NAV_LADDER, cx);
   }
 }
 /* the top of the soft stuff overhead (feet out of it, standing on it), with the way up clear of anything hard: its row,
@@ -236,15 +351,15 @@ function navFind(g, sx, sy, goal, tx, ty, cap) {
      has dug, or built, or set fire to something) */
   if (!NAV_SM || NAV_SM.length !== n) NAV_SM = new Uint32Array(n);
   if (++NAV_SN >= 0x40000000) { NAV_SN = 1; NAV_SM.fill(0); }
-  NAV_SG = NAV_SN; NAV_SGG = g; NAV_SHOT = NAV_HOTOK;
+  NAV_SG = NAV_SN; NAV_SGG = g; NAV_SHOT = NAV_HOTOK; NAV_LIFTS = null;   /* (and of the lifts: navLift) */
   try { r = navFind1(g, sx, sy, goal, tx, ty, cap); }
-  finally { NAV_SG = sg; NAV_SGG = sgg; NAV_SHOT = shot; }
+  finally { NAV_SG = sg; NAV_SGG = sgg; NAV_SHOT = shot; NAV_LIFTS = null; }
   P_SINK = sink;
   return r;
 }
 function navFind1(g, sx, sy, goal, tx, ty, cap) {
   cap = cap || NAV_CAP;
-  var n = g.gw * g.gh, gw = g.gw;
+  var n = g.gw * g.gh, gw = g.gw, gh = g.gh, far = tx == null;
   if (!g.navSeen || g.navSeen.length !== n) {
     g.navSeen = new Uint32Array(n); g.navShut = new Uint32Array(n); g.navCost = new Float32Array(n);
     g.navFrom = new Int32Array(n); g.navHow = new Int8Array(n);
@@ -271,18 +386,22 @@ function navFind1(g, sx, sy, goal, tx, ty, cap) {
     HI[k] = li; HF[k] = lf;
     return top;
   }
-  function h(x, y) { return tx == null ? 0 : Math.abs(x - tx) + Math.abs(y - ty) * 0.5; }
+  /* (the guess at what is left, h: nothing with nowhere to aim for (far), else the steps across plus half the rows) */
   seen[start] = gen; cost[start] = 0; from[start] = -1; how[start] = 0;
-  push(start, h(sx, sy));
+  push(start, far ? 0 : Math.abs(sx - tx) + Math.abs(sy - ty) * 0.5);
   var cur, cx, cy, base;
   function add(x, y, c, m, lc) {
-    if (x < 0 || y < 0 || x >= gw || y >= g.gh) return;
+    if (x < 0 || y < 0 || x >= gw || y >= gh) return;
     var i = y * gw + x, nc = base + c;
     if (shut[i] === gen) return;
     if (seen[i] === gen && cost[i] <= nc) return;
     seen[i] = gen; cost[i] = nc; from[i] = cur; how[i] = m;
     if (lad) lad[i] = lc == null ? -1 : lc;   /* (which ladder it is, for a ladder: pathGo climbs that one) */
-    push(i, nc + h(x, y));
+    /* (push, with f = nc + h(x, y)) */
+    if (hn >= HI.length) return;
+    var f = far ? nc + 0 : nc + (Math.abs(x - tx) + Math.abs(y - ty) * 0.5), k = hn++, up;
+    while (k > 0) { up = (k - 1) >> 1; if (HF[up] <= f) break; HI[k] = HI[up]; HF[k] = HF[up]; k = up; }
+    HI[k] = i; HF[k] = f;
   }
   while (hn > 0 && looked < cap) {
     cur = pop();
