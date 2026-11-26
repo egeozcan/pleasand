@@ -765,7 +765,11 @@ function drawWorld(g, all) {
   var haze = g.haze;
   for (y = 0; y < gh; y++) haze[y] = Math.sin(y * 0.9 + t * 9) > 0 ? 1 : -1;
   var flick = (t * 8) | 0;
-  for (y = 0; y < gh; y++) {
+  /* each cell its colour: by the WebAssembly module where it can (simwasm.js simDraw: this loop, the same colours, die for
+     die), else here */
+  var wh = simDraw(g, X0, X1, t, flick);
+  if (wh >= 0) hot += wh;
+  else for (y = 0; y < gh; y++) {
     row = y * gw;
     for (x = X0; x < X1; x++) {
       i = row + x; v = m[i]; tc = T[i];
@@ -1303,10 +1307,91 @@ function drawMore(g, c) {
     if (PICK[k].key) txt(c, PICK[k].key, x + w - MORE_PAD - 2, ry + 7.5, 7, "#56698a", "right");   /* (its key, as the panel's rows have theirs: HAND's Y) */
   }
 }
+/* a part of the 2D picture that changes only now and then (the panel, the header, the bar): drawn into a canvas of its
+   own when what it shows changes, sig, and copied onto the picture, pixel for pixel, every frame otherwise. (text is the
+   dear part of a frame's drawing, and the canvas is up to four times the game's size.) where c is not a canvas of the
+   page's (the harness's, the tests'), drawn straight onto it, as before */
+var UI_CACHE = {};
+function uiCached(c, key, sig, x, y, w, h, draw) {
+  var el = c.canvas;
+  if (!el || !(el.width > 0) || typeof HTMLCanvasElement === "undefined" || !(el instanceof HTMLCanvasElement)) { draw(c); return; }
+  var sx = el.width / VW, sy = el.height / VH, X0 = Math.floor(x * sx), Y0 = Math.floor(y * sy);
+  var W = Math.ceil((x + w) * sx) - X0, H = Math.ceil((y + h) * sy) - Y0, e = UI_CACHE[key];
+  if (!e || e.W !== W || e.H !== H || e.sx !== sx || e.sy !== sy) {
+    e = UI_CACHE[key] = { cv: document.createElement("canvas"), c: null, sig: null, W: W, H: H, sx: sx, sy: sy };
+    e.cv.width = W; e.cv.height = H; e.c = e.cv.getContext("2d");
+  }
+  if (e.sig !== sig) {
+    var o = e.c;
+    o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, W, H);
+    /* (the same transform as the picture's, moved by whole pixels: the part comes out as it would have on the picture) */
+    o.setTransform(sx, 0, 0, sy, -X0, -Y0);
+    draw(o);
+    e.sig = sig;
+  }
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(e.cv, X0, Y0); c.restore();
+}
+
 function drawPanel(g, c) {
   var hov = rowAt(g.mx, g.my), k;
   var overMore = g.mx >= 0 && g.mx < PANEL && g.my >= MORE_Y && g.my < MORE_Y + ROWH;
   var mh = moreAt(g, g.mx, g.my), inMore = moreIn(g, g.mx, g.my);
+  /* the picker, size and the buttons: what it shows is what is picked, hovered and set (and, over the buttons, where the
+     pointer is exactly: they light up under it) */
+  var btns = g.mx >= 0 && g.mx < PANEL && g.my >= SIZE_Y ? g.mx + ":" + g.my : "";
+  var psig = [g.sel, hov, overMore ? 1 : 0, g.moreOpen ? 1 : 0, moreSlot(g), g.size, g.paused ? 1 : 0, g.speed, g.thermal ? 1 : 0,
+              g.hush ? 1 : 0, btns].join(",");
+  uiCached(c, "panel", psig, 0, PLAY_Y, PANEL, VH - PLAY_Y, function (c) { drawPanelPicker(g, c, hov, overMore); });
+
+  /* header: the counts, each its own button (click it for a popup of the numbers behind it) */
+  var alive = 0, space = 0;
+  for (k = 0; k < g.peasants.length; k++) { if (g.peasants[k].state === "space") space++; else alive++; }
+  var nd = 0;
+  for (k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead) nd++;
+  var nh = 0;
+  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done) nh++;
+  var ni = iKnown(g, true);   /* (the plain ideas: the great works are counted on their own. wonders.js) */
+  var segs = [["peasants", "PEASANTS " + alive], ["rip", "RIP " + g.rip]];
+  if (nh) segs.push(["houses", "HOUSES " + nh]);
+  if (ni) segs.push(["ideas", "IDEAS " + ni + "/" + iPlain()]);
+  if (g.wAny) segs.push(["wonders", "WONDERS " + wCount(g) + "/" + W_TOTAL]);
+  if (nd) segs.push(["ducks", "DUCKS " + nd]);
+  if (space) segs.push(["peasants", "IN SPACE " + space]);
+  var hsig = segs.map(function (s) { return s[1]; }).join("|") + "|" + MUTED + "|" + g.pop + "|" + (g.my < PLAY_Y ? g.mx : "-");
+  /* (g.hdrHit, where the counts are for a click, is made with the header: made again if it is not the one made with it) */
+  var hc = UI_CACHE.header;
+  if (hc && hc.hit !== g.hdrHit) hc.sig = null;
+  uiCached(c, "header", hsig, 0, 0, VW, PLAY_Y, function (c) { drawHeader(g, c, segs); });
+  if (UI_CACHE.header) UI_CACHE.header.hit = g.hdrHit;
+  var hot = null;
+  if (g.my < PLAY_Y) for (k = 0; k < g.hdrHit.length; k++) if (g.mx >= g.hdrHit[k].x0 && g.mx < g.hdrHit[k].x1) hot = g.hdrHit[k].key;
+  var handle = camMax(g) > 0 && g.mx >= PANEL && g.my >= MAP_Y;
+  if (typeof cv !== "undefined" && cv && cv.style) {
+    var want = g.stripDrag ? "grabbing" : (hot || mh >= 0 || feedTabAt(g, g.mx, g.my) ? "pointer" : (inMore ? "default" : (handle ? "grab" : "crosshair")));
+    if (cv.style.cursor !== want) cv.style.cursor = want;
+  }
+
+  /* description bar */
+  var ms = moreSlot(g);
+  var info = hov >= 0 ? PICK[hov] : (mh >= 0 ? PICK[mh] : (overMore && ms >= 0 ? PICK[ms] : curPick(g)));
+  var hp = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null, line;
+  var hd = inPlay(g) && !hp ? duckAt(g, g.cx, g.cy, 1) : null;
+  if (hp) line = hp.name + "  " + pMood(g, hp);
+  else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd, g);
+  else if (g.my < PLAY_Y && g.mx >= PANEL) line = iSummary(g);   /* over the header: what the village knows */
+  else if (overMore && ms < 0) line = "MORE  THE HAND (Y), and coal, iron ore, gold, rock salt, stonework, concrete, firebrick, stained glass, trestle. click to open";
+  else if (overMore) line = info.name + "  " + info.desc;
+  else if (inMore && mh < 0) line = "MORE  pick one. a click anywhere else, or Esc, closes it";
+  else if (g.mx < PANEL && hov < 0) line = tipLine(g);
+  else if (g.camNote > g.t) line = "G  nobody lives here. this is the middle of the valley";
+  else if (g.mx >= PANEL && ((g.my >= MAP_Y && g.my < BAR_Y) || g.stripDrag)) line = "THE VALLEY  drag to look along it. swipe sideways, Shift-wheel or \u2190/\u2192. G goes home";
+  else line = info.name + "  " + info.desc;
+  /* what is under the cursor, and how hot it is, on the right (over the strip: what is along there) */
+  var rd = inPlay(g) && !hp && !hd ? cellReadout(g, cellAt(g)) : (g.mx >= PANEL && g.my >= MAP_Y && g.my < BAR_Y ? stripReadout(g, stripCol(g, g.mx)) : "");
+  uiCached(c, "bar", line + "\u0001" + rd, PANEL, BAR_Y, VW - PANEL, BAR_H, function (c) { drawBar(c, line, rd); });
+}
+function drawPanelPicker(g, c, hov, overMore) {
+  var k;
   rct(c, 0, PLAY_Y, PANEL - 1, VH - PLAY_Y, "#0a0d16");
   rct(c, PANEL - 1, PLAY_Y, 1, VH - PLAY_Y, "#26344e");
   rct(c, 4, rowY(FUN_N) - 3, PANEL - 9, 1, "#26344e");
@@ -1334,27 +1419,14 @@ function drawPanel(g, c) {
   var r3 = g.my >= BTN3_Y && g.my < BTN3_Y + 12 && g.mx < PANEL;
   button(c, 4, BTN3_Y, 42, "THERMAL", g.thermal, r3 && g.mx < 48);
   button(c, 48, BTN3_Y, 42, "BUBBLES", !g.hush, r3 && g.mx >= 48);
-
-  /* header */
+}
+/* the header: the name, the counts (segs: [key, label]), SAVE, LOAD and the sound. makes g.hdrHit, where each is */
+function drawHeader(g, c, segs) {
+  var k;
   rct(c, 0, 0, VW, PLAY_Y, "#0a0d16");
   rct(c, 0, PLAY_Y - 1, VW, 1, "#26344e");
   txt(c, "PLEASAND", 5, 10, 9, "#ffd94a", "left", true);
-  var alive = 0, space = 0;
-  for (k = 0; k < g.peasants.length; k++) { if (g.peasants[k].state === "space") space++; else alive++; }
-  var nd = 0;
-  for (k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead) nd++;
-  var nh = 0;
-  for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house" && g.sites[k].done) nh++;
-  var ni = iKnown(g, true);   /* (the plain ideas: the great works are counted on their own. wonders.js) */
-  /* each count is its own button: click it for a popup of the numbers behind it */
-  var segs = [["peasants", "PEASANTS " + alive], ["rip", "RIP " + g.rip]];
-  if (nh) segs.push(["houses", "HOUSES " + nh]);
-  if (ni) segs.push(["ideas", "IDEAS " + ni + "/" + iPlain()]);
-  if (g.wAny) segs.push(["wonders", "WONDERS " + wCount(g) + "/" + W_TOTAL]);
-  if (nd) segs.push(["ducks", "DUCKS " + nd]);
-  if (space) segs.push(["peasants", "IN SPACE " + space]);
   g.hdrHit = [];
-  var hot = null;
   txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
   /* SAVE and LOAD, left of the sound: a file to keep, a file to open (or drop one on the game) */
   c.font = "7px " + UI_FONT;
@@ -1362,7 +1434,7 @@ function drawPanel(g, c) {
   ["LOAD", "SAVE"].forEach(function (lb) {
     c.font = "bold 7px " + UI_FONT;
     var w = c.measureText(lb).width, x0 = fx - w, over = g.my < PLAY_Y && g.mx >= x0 - 3 && g.mx < fx + 3;
-    if (over) { rct(c, x0 - 3, 2, w + 6, PLAY_Y - 4, "#17202f"); hot = lb; }
+    if (over) rct(c, x0 - 3, 2, w + 6, PLAY_Y - 4, "#17202f");
     txt(c, lb, x0, 10, 7, over ? "#ffffff" : "#8892a8", "left", true);
     g.hdrHit.push({ key: lb.toLowerCase(), x0: x0 - 3, x1: fx + 3 });
     fx = x0 - 10;
@@ -1376,37 +1448,17 @@ function drawPanel(g, c) {
   for (k = 0; k < segs.length; k++) {
     var sw = c.measureText(segs[k][1]).width, on = g.pop === segs[k][0];
     var over = g.my < PLAY_Y && g.mx >= hx - 3 && g.mx < hx + sw + 3;
-    if (over) hot = segs[k][0];
     if (on || over) rct(c, hx - 3, 2, sw + 6, PLAY_Y - 4, on ? "#2a3d5e" : "#17202f");
     txt(c, segs[k][1], hx, 10, 8, on ? "#ffd94a" : (over ? "#ffffff" : "#d8dde6"), "left", true);
     g.hdrHit.push({ key: segs[k][0], x0: hx - 3, x1: hx + sw + 3 });
     hx += sw + gap;
   }
-  var handle = camMax(g) > 0 && g.mx >= PANEL && g.my >= MAP_Y;
-  if (typeof cv !== "undefined" && cv && cv.style) {
-    var want = g.stripDrag ? "grabbing" : (hot || mh >= 0 || feedTabAt(g, g.mx, g.my) ? "pointer" : (inMore ? "default" : (handle ? "grab" : "crosshair")));
-    if (cv.style.cursor !== want) cv.style.cursor = want;
-  }
-
-  /* description bar */
-  var ms = moreSlot(g);
-  var info = hov >= 0 ? PICK[hov] : (mh >= 0 ? PICK[mh] : (overMore && ms >= 0 ? PICK[ms] : curPick(g))), by = BAR_Y;
+}
+/* the description bar: line on the left (cut short if it must be), rd on the right */
+function drawBar(c, line, rd) {
+  var by = BAR_Y;
   rct(c, PANEL, by, VW - PANEL, BAR_H, "#0a0d16");
   rct(c, PANEL, by, VW - PANEL, 1, "#26344e");
-  var hp = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null, line;
-  var hd = inPlay(g) && !hp ? duckAt(g, g.cx, g.cy, 1) : null;
-  if (hp) line = hp.name + "  " + pMood(g, hp);
-  else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd, g);
-  else if (g.my < PLAY_Y && g.mx >= PANEL) line = iSummary(g);   /* over the header: what the village knows */
-  else if (overMore && ms < 0) line = "MORE  THE HAND (Y), and coal, iron ore, gold, rock salt, stonework, concrete, firebrick, stained glass, trestle. click to open";
-  else if (overMore) line = info.name + "  " + info.desc;
-  else if (inMore && mh < 0) line = "MORE  pick one. a click anywhere else, or Esc, closes it";
-  else if (g.mx < PANEL && hov < 0) line = tipLine(g);
-  else if (g.camNote > g.t) line = "G  nobody lives here. this is the middle of the valley";
-  else if (g.mx >= PANEL && ((g.my >= MAP_Y && g.my < BAR_Y) || g.stripDrag)) line = "THE VALLEY  drag to look along it. swipe sideways, Shift-wheel or \u2190/\u2192. G goes home";
-  else line = info.name + "  " + info.desc;
-  /* what is under the cursor, and how hot it is, on the right (over the strip: what is along there) */
-  var rd = inPlay(g) && !hp && !hd ? cellReadout(g, cellAt(g)) : (g.mx >= PANEL && g.my >= MAP_Y && g.my < BAR_Y ? stripReadout(g, stripCol(g, g.mx)) : "");
   c.font = "7px " + UI_FONT;
   var rw = rd ? c.measureText(rd).width + 12 : 0, room = VW - PANEL - 10 - rw;
   if (c.measureText(line).width > room) {
@@ -2047,23 +2099,33 @@ function newGame() {
            ptr: null, samp: [], score: 0 };
 }
 
+/* how long an update and a frame's drawing have been taking (ms, smoothed), and how much of a frame they may have */
+var UPD_MS = 0, DRAW_MS = 0, FRAME_BUDGET_MS = 12;
 function frame(ts) {
   requestAnimationFrame(frame);
   if (!last) last = ts;
   var dt = Math.min(0.1, (ts - last) / 1000);
   last = ts;
   if (dt > 0) g.fps = lerp(g.fps, 1 / dt, 0.05);
-  var t0 = performance.now();
-  /* a fixed 60hz accumulator, so the sand does not care what your monitor is */
+  var t0 = performance.now(), u0, d0;
+  /* a fixed 60hz accumulator, so the sand does not care what your monitor is. a frame that is behind catches up with a
+     second update, or a third, only while they and the drawing still fit in a frame: on a machine too slow to keep up,
+     catching up would make this frame late too, and the next one further behind, and so on. there the world goes a
+     little slower instead, and the frames keep coming */
   acc += dt;
-  var steps = 0;
+  var steps = 0, behind = false;
   while (acc >= 1 / 60 && steps < 3) {
+    if (steps > 0 && performance.now() - t0 + UPD_MS + DRAW_MS > FRAME_BUDGET_MS) { behind = true; break; }
     acc -= 1 / 60; steps++;
+    u0 = performance.now();
     try { gameUpdate(g, 1 / 60); } catch (e) { console.error(e); saveError(g, e, "update"); }
+    UPD_MS = lerp(UPD_MS, performance.now() - u0, 0.25);
   }
-  if (acc > 1 / 30) acc = 0;
+  if (behind || acc > 1 / 30) acc = 0;
+  d0 = performance.now();
   try { gameDrawSide(g, ctx); } catch (e) { txt(ctx, "it fell over: " + e.message, PANEL + 10, 40, 10, "#f66"); console.error(e); saveError(g, e, "draw"); }
   drawChrome();
+  DRAW_MS = lerp(DRAW_MS, performance.now() - d0, 0.25);
   g.ms = lerp(g.ms, performance.now() - t0, 0.1);
 }
 

@@ -18,6 +18,9 @@
    place (simBind). everything else in the game reads and writes them as
    it always has. nothing new goes on g.
 
+   it colours the cells in view, too (simDraw: game.js drawWorld's loop, the same colours to the bit, the picture's own
+   dice): its px and gp are copied onto the picture, and JS draws everything else over them as before.
+
    the dice: when the game's Math.random is a mulberry32 whose state can
    be read (rng.js RNG in a browser, the harness's own), the module rolls
    it itself and hands the state back before anything of JS's rolls; when
@@ -33,7 +36,7 @@ var SIM_WASM = !(typeof location !== "undefined" && location && /[?&]js(&|=|$)/.
 /* (the module, compiled once; the instance and its views, made at the first step that wants them) */
 var SIM_MOD = null, SIM = null, SIM_DEAD = false;
 /* how many kinds of thing the Rust knows the rules of: a MAT it does not know, and the JS plays the world */
-var SIM_ABI = 1;
+var SIM_ABI = 2;
 
 function simBytes(s) {
   if (typeof atob === "function") {
@@ -71,7 +74,10 @@ function simGet() {
       js_boom: function (j) { simOut(S); sandBoom(S.g, j); simIn(S); },
       js_launch: function (j) { simOut(S); sandLaunch(S.g, j); simIn(S); },
       js_nuke: function (j) { simOut(S); sandNuke(S.g, j); simIn(S); },
-      js_bloom: function (x, y) { simOut(S); sandBloom(S.g, x, y); simIn(S); }
+      js_bloom: function (x, y) { simOut(S); sandBloom(S.g, x, y); simIn(S); },
+      /* (the picture's) */
+      js_sin: Math.sin,
+      js_lit: function (x, y) { return wLitGlass(S.g, x, y) ? 1 : 0; }
     } });
     S.ex = inst.exports; S.mem = S.ex.memory;
     if (S.ex.sim_abi() !== SIM_ABI) throw new Error("simwasm-bin.js is not the build this simwasm.js was written for");
@@ -120,33 +126,51 @@ function simTables(S) {
   if (HEAT_BQ2 !== null) put(Uint8Array, 37, HEAT_BQ2, 65536);
   ex.sim_heat_consts(HEAT_BQ2 !== null ? 1 : 0, HEAT_BAND_HI32 | 0, HEAT_AIRW ? 1 : 0, HEAT_AMB32 | 0);
   ex.sim_consts(AMBIENT, T_MAX, T_MIN, HEAT_FAST, SAND_CLEAN, SAND_VMAX, PRESS_TRIES, PRESS_SCAN, W_SET, W_DRAUGHT);
+  /* the picture's: every thing's shades, lit and not, wet sand, pools by depth, mushroom smoke, the glow's ramp, what is
+     leafy to a peasant, and the colours game.js drawWorld names */
+  var pal = new Uint32Array(buf, ex.sim_tab(50), 64 * 256), lit = new Uint32Array(buf, ex.sim_tab(51), 64 * 256);
+  for (v = 0; v < NMAT && v < SAND_PAL.length; v++) { pal.set(SAND_PAL[v], v << 8); lit.set(SAND_LIT[v], v << 8); }
+  put(Uint32Array, 52, SAND_WET, 256);
+  var deep = new Uint32Array(buf, ex.sim_tab(53), 4 * 17 * 256), slot = new Uint8Array(buf, ex.sim_tab(54), 256), ns = 0;
+  for (v = 0; v < SAND_DEEP.length; v++) if (SAND_DEEP[v]) { deep.set(SAND_DEEP[v], ns * 17 * 256); slot[v] = ++ns; }
+  put(Uint32Array, 55, MUSH_PAL, 256);
+  put(Uint32Array, 56, GLOW_PAL, Math.min(1024, GLOW_PAL.length));
+  put(Uint8Array, 57, P_LEAF, NMAT);
+  put(Uint32Array, 58, [HAZE_TINT, CHILL_TINT, COLD_TINT, WIN_DARK, DOOR_KNOB, P_SKIN32, INERT_GLINT, LAVA_COOL, LAVA_WARM,
+                        LAVA_HOT, LAVA_GLASS, LAVA_METAL], 12);
+  ex.sim_draw_consts(GLOW_PAL.length, GLOW_T0, GLOW_STEP);
 }
 
 /* the grid's arrays, and their types. (dmask comes and goes: wonders.js) */
 var SIM_ARRS = [["m", Uint8Array], ["stamp", Uint32Array], ["aux", Uint8Array], ["sh", Uint8Array], ["vy", Uint8Array],
                 ["T", Float32Array], ["lat", Float32Array], ["hm", Uint8Array], ["ha", Uint8Array], ["hs", Uint8Array],
-                ["pmark", Uint32Array], ["pstack", Int32Array], ["fastList", Int32Array], ["dmask", Uint8Array]];
-/* room in the module's memory for a valley gw wide, and views of it. (a new width gets new room: the old is not given
-   back, but a valley changes width only on a NEW or a load) */
+                ["pmark", Uint32Array], ["pstack", Int32Array], ["fastList", Int32Array], ["dmask", Uint8Array],
+                ["bg", Uint32Array]];
+/* (the ones a valley may be without: wonders.js makes dmask only for the bellows, and the sky, bg, is the picture's) */
+var SIM_OPT = { dmask: 1, bg: 1 };
+/* room in the module's memory for a valley gw wide, and views of it: the grid's arrays (SIM_ARRS), the pressure step's
+   tries, the heat step's scratch, and the picture's own (px and gp, the waves, the haze, the pools' depth). (a new width
+   gets new room: the old is not given back, but a valley changes width only on a NEW or a load) */
 function simLayout(S, g) {
-  var gw = g.gw, gh = g.gh, n = gw * gh, k, at, views = {}, list = [], need;
-  var bytes = SIM_ARRS.map(function (a) { return a[1].BYTES_PER_ELEMENT * n; });
-  bytes.push(4 * PRESS_TRIES, S.ex.sim_scratch_bytes(gw, gh));
-  need = 0;
-  for (k = 0; k < bytes.length; k++) need += (bytes[k] + 15) & ~15;
+  var gw = g.gw, gh = g.gh, n = gw * gh, k, at, need = 0, views = {}, ptr = {};
+  var parts = SIM_ARRS.map(function (a) { return [a[0], a[1].BYTES_PER_ELEMENT * n]; });
+  parts.push(["pressList", 4 * PRESS_TRIES], ["scratch", S.ex.sim_scratch_bytes(gw, gh)],
+             ["px", 4 * n], ["gp", 4 * n], ["wave", gw], ["haze", gh], ["dep", gw]);
+  for (k = 0; k < parts.length; k++) need += (parts[k][1] + 15) & ~15;
   if (S.g !== null) simEvict(S);
   at = (S.mem.buffer.byteLength + 15) & ~15;
   var pages = Math.ceil((at + need - S.mem.buffer.byteLength) / 65536);
   if (pages > 0) S.mem.grow(pages);
   simViews(S);
+  for (k = 0; k < parts.length; k++) { ptr[parts[k][0]] = at; at += (parts[k][1] + 15) & ~15; }
   var buf = S.mem.buffer;
-  for (k = 0; k < SIM_ARRS.length; k++) {
-    views[SIM_ARRS[k][0]] = new SIM_ARRS[k][1](buf, at, n);
-    list.push(at); at += (bytes[k] + 15) & ~15;
-  }
-  views.pressList = new Int32Array(buf, at, PRESS_TRIES); list.push(at); at += (bytes[k] + 15) & ~15;
-  list.push(at);
-  S.ex.sim_bind.apply(null, list.concat([gw, gh]));
+  for (k = 0; k < SIM_ARRS.length; k++) views[SIM_ARRS[k][0]] = new SIM_ARRS[k][1](buf, ptr[SIM_ARRS[k][0]], n);
+  views.pressList = new Int32Array(buf, ptr.pressList, PRESS_TRIES);
+  views.px = new Uint32Array(buf, ptr.px, n); views.gp = new Uint32Array(buf, ptr.gp, n);
+  views.wave = new Uint8Array(buf, ptr.wave, gw); views.haze = new Int8Array(buf, ptr.haze, gh);
+  S.ex.sim_bind(ptr.m, ptr.stamp, ptr.aux, ptr.sh, ptr.vy, ptr.T, ptr.lat, ptr.hm, ptr.ha, ptr.hs, ptr.pmark, ptr.pstack,
+                ptr.fastList, ptr.dmask, ptr.pressList, ptr.scratch, gw, gh);
+  S.ex.sim_bind_draw(ptr.px, ptr.gp, ptr.bg, ptr.wave, ptr.haze, ptr.dep, gw, gh);
   S.views = views; S.n = n; S.gw = gw;
 }
 /* the valley that was bound before a new one is given copies of its arrays to keep: the memory is the new one's now */
@@ -169,7 +193,7 @@ function simBind(S, g) {
   for (k = 0; k < SIM_ARRS.length; k++) {
     nm = SIM_ARRS[k][0]; a = g[nm]; v = V[nm];
     if (a === v) continue;
-    if (!a) { if (nm === "dmask") continue; throw new Error("simwasm: g." + nm + " is missing"); }
+    if (!a) { if (SIM_OPT[nm]) continue; throw new Error("simwasm: g." + nm + " is missing"); }
     if (a.length !== n) throw new Error("simwasm: g." + nm + " is " + a.length + " long, not " + n);
     v.set(a); g[nm] = v;
   }
@@ -239,5 +263,29 @@ function heatStep(g) {
   if (S === null) return heatStepJs(g);
   simRun(S, g, true);
 }
+/* the picture of the cells in columns X0 to X1 (game.js drawWorld), coloured by the module into g.px and g.gpx: how many
+   are hot. -1 if the module is not to do it (then drawWorld does it itself) */
+function simDraw(g, X0, X1, t, flick) {
+  if (!SIM_WASM || g.thermal || !g.bg || !g.px || !g.gpx) return -1;
+  var S = SIM !== null ? SIM : simGet();
+  if (S === null || (g.gw & 3) !== 0 || g.gw < 8 || g.gh < 3 || g.bg.length !== g.gw * g.gh || g.px.length !== g.bg.length) return -1;
+  simBind(S, g);
+  var V = S.views, gw = g.gw, y, a, b;
+  V.wave.set(g.wave); V.haze.set(g.haze);
+  /* (a hot cell lights the glow a column either side: in the columns just past those worked out, that lands on what the
+     glow there already was, as it does in JS) */
+  var e0 = X0 > 0 ? X0 - 1 : X0, e1 = X1 < gw ? X1 + 1 : X1;
+  for (y = 0; y < g.gh; y++) { if (e0 < X0) V.gp[y * gw + e0] = g.gpx[y * gw + e0]; if (e1 > X1) V.gp[y * gw + X1] = g.gpx[y * gw + X1]; }
+  var hot = S.ex.sim_draw(X0, X1, t, flick);
+  if (hot < 0) return -1;
+  /* (the columns in view onto the picture JS draws everything else over) */
+  if (X0 === 0 && X1 === gw) { g.px.set(V.px); g.gpx.set(V.gp); }
+  else for (y = 0; y < g.gh; y++) {
+    a = y * gw + X0; b = y * gw + X1;
+    g.px.set(V.px.subarray(a, b), a); g.gpx.set(V.gp.subarray(y * gw + e0, y * gw + e1), y * gw + e0);
+  }
+  return hot;
+}
+
 /* which one is playing g (for the debug overlay, and the tests) */
 function simWho(g) { return SIM_WASM && SIM !== null && g && (g.gw & 3) === 0 && SIM.g === g ? "wasm" : "js"; }

@@ -650,9 +650,11 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 
 Two things are faster than they look. The sand step's walk over the valley and the heat step run as
 WebAssembly (`wasm/src/lib.rs`, a port of `world.js` `sandStepJs` and `heat.js` `heatStepJs`, statement for
-statement), about twice as fast, and play the very same world, die for die. And where there is WebGL2 on a GPU, the field, its glow and
+statement), about twice as fast, and play the very same world, die for die; so does the colouring of the cells in view
+(`drawWorld`'s loop), to the pixel. And where there is WebGL2 on a GPU, the field, its glow and
 the bangs are put on the screen by the GPU (`glr.js`); with none, or only a software one, the 2D canvas does it, as
-it always did. `?js` in the address plays the JS step, `?2d` draws with the 2D canvas, and the backquote's line says
+it always did. The panel, the header and the bar are drawn only when what they show changes, and a machine too slow
+to keep up at 4x plays the world a little slower rather than drop frames. `?js` in the address plays the JS step, `?2d` draws with the 2D canvas, and the backquote's line says
 which ones are on.
 
 Changing a rule of the sand or the heat means changing it twice: in the JS and in `wasm/src/lib.rs`. Then

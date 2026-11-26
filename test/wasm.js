@@ -79,6 +79,44 @@ module.exports = function (test, check) {
     });
   });
 
+  test("wasm: the picture of the valley is the one the JS draws, colour for colour and die for die", function () {
+    [272, 1088].forEach(function (gw) {
+      var h = lib.open({ seed: 9, gw: gw });
+      require("../harness/soak.js").applyPreset(h, "rich");
+      h.step(1200);
+      /* every thing there is, in every state its colour depends on: in a band across the sky, a column each, with aux
+         from the list (a window, a door's knob, a cloner's memory, a shirt, a mushroom cloud), from frozen to white hot,
+         some of the water at the boil. and lava and fire, which roll the picture's dice */
+      h.eval("(function () {" +
+        "  var AUX = [0, 1, 2, 5, 6, 3, 200, 180, 255, MAT.SAND, MAT.GLASS, MAT.METAL], TS = [-120, -30, 20, 20, 60, 300, 500, 600, 900, 1300], k = 0;" +
+        "  for (var y = 20; y < 60; y++) for (var x = 4; x < g.gw - 4; x++, k++) {" +
+        "    var i = y * g.gw + x, v = ((x >> 1) + (y >> 3)) % 55;" +
+        "    g.m[i] = v; g.sh[i] = (k * 37) & 255; g.aux[i] = AUX[(k * 7 + y) % AUX.length];" +
+        /* (only what each can hold: a cloner remembers a thing or a peasant, a shirt is 0 to 6) */
+        "    if (v === MAT.CLONER && g.aux[i] >= MAT.PLANK && g.aux[i] !== CLONE_PEASANT) g.aux[i] = MAT.SAND;" +
+        "    if (v === MAT.LINEN) g.aux[i] %= 7;" +
+        "    g.T[i] = TS[(x * 3 + y) % TS.length]; g.lat[i] = v === MAT.WATER && (k & 3) === 0 ? 5 : 0;" +
+        "  }" +
+        "})()");
+      [0.5, 3.25, 17.9].forEach(function (t) {
+        var pics = [false, true].map(function (w) {
+          return h.eval("(function () {" +
+            "  var keep = Math.random; Math.random = RNG_SIDE.random; RNG_SIDE.state = 4321; SIM_WASM = " + w + "; g.t = " + t + ";" +
+            "  try { var hot = drawWorld(g, true), hot2 = drawWorld(g); }" +
+            "  finally { Math.random = keep; SIM_WASM = true; }" +
+            "  return { hot: hot, hot2: hot2, px: g.px.slice(), gp: g.gpx.slice(), side: RNG_SIDE.state };" +
+            "})()");
+        });
+        var a = pics[0], b = pics[1], i, n = a.px.length;
+        for (i = 0; i < n; i++) if (a.px[i] !== b.px[i] || a.gp[i] !== b.gp[i]) break;
+        if (i < n) check(false, gw + " wide, t " + t + ": the picture differs at " + (i % gw) + "," + ((i / gw) | 0) + " (cell " + h.g.m[i] + "): " +
+              a.px[i].toString(16) + " / " + b.px[i].toString(16) + ", glow " + a.gp[i].toString(16) + " / " + b.gp[i].toString(16));
+        check(a.hot === b.hot && a.hot2 === b.hot2, gw + " wide, t " + t + ": hot " + a.hot + " / " + b.hot);
+        check(a.side === b.side, gw + " wide, t " + t + ": the picture's dice differ");
+      });
+    });
+  });
+
   test("wasm: a snapshot put back, a save loaded and a valley made wider play as the JS does", function () {
     var p = pair(6, 272), sa, sb;
     both(p, function (h) { require("../harness/soak.js").applyPreset(h, "rich"); });

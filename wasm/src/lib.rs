@@ -94,9 +94,14 @@ const STAINED: u8 = 50;
 const FIREBRICK: u8 = 51;
 const MOONROCK: u8 = 52;
 const TRESTLE: u8 = 54;
+const WHEAT: u8 = 39;
+const LAMP: u8 = 40;
+const GOLD: u8 = 43;
+const LINEN: u8 = 53;
+
 /* how many kinds of thing this port knows the rules of */
 const KNOWN_MATS: i32 = 55;
-const ABI: i32 = 1;
+const ABI: i32 = 2;
 
 /* -------------------------------------------------------------------
    WHAT JS LENDS US
@@ -109,6 +114,9 @@ extern "C" {
     fn js_launch(j: i32);
     fn js_nuke(j: i32);
     fn js_bloom(x: i32, y: i32);
+    /* (for the picture: Math.sin, and wonders.js wLitGlass) */
+    fn js_sin(x: f64) -> f64;
+    fn js_lit(x: i32, y: i32) -> i32;
 }
 
 /* -------------------------------------------------------------------
@@ -2381,6 +2389,384 @@ fn sand_step(g: &G, parity: i32) {
 }
 
 /* -------------------------------------------------------------------
+   THE PICTURE (game.js drawWorld: the loop over the cells in view, each
+   given its colour, and the glow under the hot ones). the same colours,
+   from the same tables, with the same sums and the same side dice, as
+   JS: the picture is drawing only, but a picture that is the JS's to the
+   bit is one test/wasm.js can check. everything drawn over the cells
+   (particles, the village, its works) is still JS's
+   ------------------------------------------------------------------- */
+static mut PAL: [u32; 16384] = [0; 16384];
+static mut LIT: [u32; 16384] = [0; 16384];
+static mut WETS: [u32; 256] = [0; 256];
+static mut DEEP: [u32; 4 * 17 * 256] = [0; 4 * 17 * 256];
+static mut DEEP_SLOT: [u8; 256] = [0; 256];
+static mut MUSH: [u32; 256] = [0; 256];
+static mut GLOWP: [u32; 1024] = [0; 1024];
+static mut LEAF: [u8; 256] = [0; 256];
+/* the colours: HAZE_TINT, CHILL_TINT, COLD_TINT, WIN_DARK, DOOR_KNOB, P_SKIN32, INERT_GLINT, LAVA_COOL, LAVA_WARM,
+   LAVA_HOT, LAVA_GLASS, LAVA_METAL; and GLOW_PAL's length, GLOW_T0 and GLOW_STEP (sim.js simTables) */
+static mut COLS: [u32; 16] = [0; 16];
+static mut GLOW_N: i32 = 1;
+static mut GLOW_T0: f64 = 400.0;
+static mut GLOW_STEP: f64 = 10.0;
+const K_HAZE: usize = 0;
+const K_CHILL: usize = 1;
+const K_COLD: usize = 2;
+const K_WIN: usize = 3;
+const K_KNOB: usize = 4;
+const K_SKIN: usize = 5;
+const K_GLINT: usize = 6;
+const K_LCOOL: usize = 7;
+const K_LWARM: usize = 8;
+const K_LHOT: usize = 9;
+const K_LGLASS: usize = 10;
+const K_LMETAL: usize = 11;
+const CLONE_PEASANT: u8 = 255;
+const BLACK: u32 = 0xff000000;
+
+#[derive(Clone, Copy)]
+struct D {
+    px: P<u32>,
+    gp: P<u32>,
+    bg: P<u32>,
+    wave: P<u8>,
+    haze: P<i8>,
+    dep: P<u8>,
+}
+static mut DGRID: Option<D> = None;
+
+#[inline(always)]
+fn col(k: usize) -> u32 {
+    unsafe { COLS[k] }
+}
+#[inline(always)]
+fn pal(v: u8, s: i32) -> u32 {
+    unsafe { *PAL.get_unchecked((((v as usize) << 8) | (s as usize & 255)) & 16383) }
+}
+#[inline(always)]
+fn lit(v: u8, s: i32) -> u32 {
+    unsafe { *LIT.get_unchecked((((v as usize) << 8) | (s as usize & 255)) & 16383) }
+}
+/* heat.js blend32: each channel a + (b - a) * f, as JS truncates it (ToInt32, then & 255) */
+#[inline(always)]
+fn blend32(a: u32, b: u32, f: f64) -> u32 {
+    let ar = (a & 255) as f64;
+    let ag = ((a >> 8) & 255) as f64;
+    let ab = ((a >> 16) & 255) as f64;
+    let r = ar + (((b & 255) as f64) - ar) * f;
+    let gg = ag + ((((b >> 8) & 255) as f64) - ag) * f;
+    let bb = ab + ((((b >> 16) & 255) as f64) - ab) * f;
+    0xff000000 | ((((bb as i32) & 255) as u32) << 16) | ((((gg as i32) & 255) as u32) << 8) | (((r as i32) & 255) as u32)
+}
+#[inline(always)]
+fn clampf(v: f64, a: f64, b: f64) -> f64 {
+    if v < a {
+        a
+    } else if v > b {
+        b
+    } else {
+        v
+    }
+}
+fn glow_col(t: f64) -> u32 {
+    unsafe {
+        let mut k = ((t - GLOW_T0) / GLOW_STEP) as i32;
+        if k < 0 {
+            k = 0;
+        } else if k > GLOW_N - 1 {
+            k = GLOW_N - 1;
+        }
+        GLOWP[k as usize & 1023]
+    }
+}
+fn glow_mix(t: f64) -> f64 {
+    if t < 450.0 {
+        0.0
+    } else {
+        let f = (t - 450.0) / 650.0;
+        /* (Math.min(0.85, f): a NaN stays a NaN) */
+        if f > 0.85 {
+            0.85
+        } else {
+            f
+        }
+    }
+}
+/* game.js lavaCol */
+fn lava_col(t: f64, a: u8, flick: u32) -> u32 {
+    let mut c = if t < 1250.0 {
+        blend32(col(K_LCOOL), col(K_LWARM), clampf((t - 900.0) / 350.0, 0.0, 1.0))
+    } else {
+        blend32(col(K_LWARM), col(K_LHOT), clampf((t - 1250.0) / 600.0, 0.0, 1.0))
+    };
+    c = blend32(c, flick, 0.25);
+    if a == GLASS {
+        c = blend32(c, col(K_LGLASS), 0.35);
+    } else if a == METAL {
+        c = blend32(c, col(K_LMETAL), 0.3);
+    }
+    c
+}
+
+fn draw(g: &G, d: &D, x0: i32, x1: i32, t: f64, flick: i32) -> i32 {
+    let m = g.m;
+    let sh = g.sh;
+    let aux = g.aux;
+    let tt = g.t;
+    let gw = g.gw;
+    let gh = g.gh;
+    let n = g.n;
+    let px = d.px;
+    let gp = d.gp;
+    let bg = d.bg;
+    let airy = unsafe { &AIRY };
+    let mut hot = 0;
+    /* (the glow is made afresh each frame, for the columns in view) */
+    for y in 0..gh {
+        for x in x0..x1 {
+            gp.s(y * gw + x, 0);
+        }
+    }
+    /* (gp's plus-signs reach a cell either side, and the rows over and under: JS lets a write off the end go by) */
+    let gps = |j: i32, c: u32| {
+        if j >= 0 && j < n {
+            gp.s(j, c);
+        }
+    };
+    for y in 0..gh {
+        let row = y * gw;
+        for x in x0..x1 {
+            let i = row + x;
+            let v = m.g(i);
+            let tc = tt.g(i) as f64;
+            if v == EMPTY {
+                /* hot air shimmers and glows a little; cold air has a blue chill to it */
+                if tc > 45.0 {
+                    let j = if tc > 70.0 && x > 0 && x < gw - 1 { i + d.haze.g(y) as i32 } else { i };
+                    px.s(i, blend32(bg.g(j), col(K_HAZE), if tc > 545.0 { 0.33 } else { (tc - 45.0) * 0.00066 }));
+                } else if tc < 5.0 {
+                    px.s(i, blend32(bg.g(i), col(K_CHILL), if tc < -45.0 { 0.3 } else { (5.0 - tc) * 0.006 }));
+                } else {
+                    px.s(i, bg.g(i));
+                }
+                continue;
+            }
+            let s = sh.g(i) as i32;
+            let slot = unsafe { DEEP_SLOT[v as usize] };
+            if slot != 0 {
+                /* how far down into this pool are we */
+                let dd = if y > 0 && m.g(i - gw) == v {
+                    let q = d.dep.g(x) as i32 + 1;
+                    if q < 15 {
+                        q
+                    } else {
+                        15
+                    }
+                } else {
+                    0
+                };
+                d.dep.s(x, dd as u8);
+                let glint = (dd == 0 && d.wave.g(x) != 0) || (g.lat.g(i) as f64 > 0.0 && rnd() < 0.3);
+                let k = (if glint { 16 << 8 } else { dd << 8 }) | s;
+                let c = unsafe { *DEEP.get_unchecked((slot as usize - 1) * 17 * 256 + k as usize) };   /* (slot 1 to 4, k under 17 * 256) */
+                px.s(i, c);
+                if v == ACID && dd < 2 {
+                    gp.s(i, c);
+                }
+            } else if v == LAVA {
+                let fl = pal(v, (rnd() * 256.0) as i32);
+                let c = lava_col(tc, aux.g(i), fl);
+                px.s(i, c);
+                gp.s(i, c);
+                gps(i - gw, c);
+                gps(i + gw, c);
+                if x > 0 {
+                    gp.s(i - 1, c);
+                }
+                if x < gw - 1 {
+                    gp.s(i + 1, c);
+                }
+                hot += 1;
+                continue;
+            } else if v == FIRE || v == EMBER {
+                /* the glow gets a little plus-sign per hot cell, so a lone spark still shows */
+                let c = pal(v, (rnd() * 256.0) as i32);
+                px.s(i, c);
+                gp.s(i, c);
+                gps(i - gw, c);
+                gps(i + gw, c);
+                if x > 0 {
+                    gp.s(i - 1, c);
+                }
+                if x < gw - 1 {
+                    gp.s(i + 1, c);
+                }
+                hot += 1;
+            } else if v == SAND
+                && ((y > 0 && m.g(i - gw) == WATER)
+                    || (y < gh - 1 && m.g(i + gw) == WATER)
+                    || (x > 0 && m.g(i - 1) == WATER)
+                    || (x < gw - 1 && m.g(i + 1) == WATER))
+            {
+                px.s(i, unsafe { WETS[s as usize] });
+            } else if v == CLONER {
+                let a = aux.g(i);
+                px.s(
+                    i,
+                    if a != 0 && ((x + y + flick) & 1) != 0 {
+                        if a == CLONE_PEASANT {
+                            col(K_SKIN)
+                        } else {
+                            pal(a, s)
+                        }
+                    } else {
+                        pal(v, (x + y) & 1)
+                    },
+                );
+            } else if v == NUKE {
+                let on = (if aux.g(i) > 200 { (t * 12.0) as i32 } else { (t * 3.0) as i32 }) & 1;
+                let c = pal(v, if on != 0 { 0 } else { 1 });
+                px.s(i, c);
+                if on != 0 {
+                    gp.s(i, c);
+                    hot += 1;
+                }
+            } else if v == SMOKE && aux.g(i) != 0 {
+                let a = aux.g(i);
+                let c = unsafe { MUSH[a as usize] };
+                px.s(i, c);
+                if a > 170 {
+                    gp.s(i, c);
+                    hot += 1;
+                }
+            } else if v == FIREWORK {
+                px.s(i, pal(v, (y + (s & 1)) & 3));
+            } else if v == PLANK {
+                if aux.g(i) == 1 {
+                    px.s(i, col(K_WIN));
+                } else {
+                    let f = if y > 0 && m.g(i - gw) == EMPTY { lit(v, s) } else { pal(v, s) };
+                    px.s(i, if y % 3 == 0 || (x + (y / 3) * 5) % 7 == 0 { blend32(f, BLACK, 0.22) } else { f });
+                }
+            } else if v == DOOR {
+                let a = aux.g(i);
+                px.s(
+                    i,
+                    if a == 5 {
+                        col(K_KNOB)
+                    } else if a == 1 {
+                        blend32(pal(v, s), BLACK, 0.35)
+                    } else {
+                        pal(v, s)
+                    },
+                );
+            } else if v == LADDER {
+                let a = aux.g(i);
+                px.s(
+                    i,
+                    if a != 1 {
+                        pal(v, s)
+                    } else if y % 3 == 0 {
+                        lit(v, s)
+                    } else {
+                        blend32(bg.g(i), BLACK, 0.3)
+                    },
+                );
+            } else if v == SOIL {
+                let f = if y > 0 && (tb(airy, m.g(i - gw)) || tb(unsafe { &LEAF }, m.g(i - gw))) { lit(v, s) } else { pal(v, s) };
+                px.s(i, if (x & 1) != 0 { f } else { blend32(f, BLACK, 0.2) });
+            } else if v == WHEAT {
+                /* the ear at the top of the stalk, nodding in the breeze */
+                if y > 0 && !tb(unsafe { &LEAFY }, m.g(i - gw)) {
+                    let a = unsafe { js_sin(x as f64 * 0.7 + t * 1.8) } > 0.55;
+                    px.s(i, if a { lit(v, 3) } else { pal(v, 3) });
+                    if m.g(i - gw) == EMPTY {
+                        px.s(i - gw, blend32(px.g(i - gw), lit(v, 2), if a { 0.75 } else { 0.5 }));
+                    }
+                } else {
+                    px.s(i, pal(v, s % 3));
+                }
+            } else if v == LAMP {
+                let c = pal(v, (s + flick) & 255);
+                px.s(i, c);
+                gp.s(i, c);
+                hot += 1;
+            } else if v == BRICK {
+                let f = if y > 0 && tb(airy, m.g(i - gw)) { lit(v, s) } else { pal(v, s) };
+                let a = y % 3 == 0
+                    || (x > 0 && x < gw - 1 && m.g(i - 1) == v && m.g(i + 1) == v && (x + (y / 3) * 2) % 4 == 0);
+                px.s(i, if a { blend32(f, BLACK, 0.25) } else { f });
+            } else if v == FIREBRICK {
+                let f = if y > 0 && tb(airy, m.g(i - gw)) { lit(v, s) } else { pal(v, s) };
+                let a = (y & 1) == 0 || ((x + (y >> 1) * 2) % 3 == 0);
+                px.s(i, if a { blend32(f, BLACK, 0.18) } else { f });
+            } else if v == CONCRETE {
+                let f = if y > 0 && tb(airy, m.g(i - gw)) { lit(v, s) } else { pal(v, s) };
+                px.s(i, if y % 4 == 0 { blend32(f, BLACK, 0.12) } else { f });
+            } else if v == STAINED {
+                let a = aux.g(i) as i32 % 3;
+                px.s(i, blend32(pal(v, a), bg.g(i), 0.25));
+                if unsafe { js_lit(x, y) } != 0 {
+                    let c = blend32(pal(v, a), 0xffffffff, 0.2);
+                    px.s(i, c);
+                    gp.s(i, c);
+                    hot += 1;
+                }
+            } else if v == LINEN {
+                let a = aux.g(i) as i32;
+                px.s(i, pal(v, (if a == 6 { 0 } else if a != 0 { a } else { 1 + ((s >> 5) % 5) }) + 6 * ((s >> 3) & 7)));
+            } else if v == MOONROCK {
+                let w = (unsafe { js_sin(x as f64 * 0.31 + y as f64 * 0.23 + t * 0.9) } * 20.0) as i32;
+                px.s(i, pal(v, (s + w) & 255));
+                if ((x * 5 + y * 11) % 7) == 0 {
+                    px.s(i, blend32(px.g(i), BLACK, 0.3));
+                }
+            } else if v == TRESTLE {
+                /* (JS reads past the ends of the grid as undefined: not the trestle) */
+                let a = (i == 0 || m.g(i - 1) != v) || (i + 1 >= n || m.g(i + 1) != v) || ((x + y) & 3) == 0 || ((x - y + 400) & 3) == 0;
+                px.s(i, if a { pal(v, s) } else { blend32(bg.g(i), BLACK, 0.4) });
+            } else if v == GIRDER {
+                let a = ((x + y) % 3 == 0) || ((x - y + 300) % 3 == 0);
+                px.s(i, if a { pal(v, s) } else { blend32(bg.g(i), BLACK, 0.35) });
+            } else if v == GOLD || v == COAL {
+                px.s(i, if y > 0 && tb(airy, m.g(i - gw)) { lit(v, s) } else { pal(v, s) });
+                if ((x * 7 + y * 13 + flick) % (if v == GOLD { 23 } else { 97 })) == 0 {
+                    px.s(i, if v == GOLD { col(K_GLINT) } else { pal(v, 3) });
+                }
+            } else if v == INERT {
+                let w = (unsafe { js_sin(x as f64 * 0.21 + y as f64 * 0.17 + t * 1.6) } * 40.0) as i32;
+                px.s(i, pal(v, (s + w) & 255));
+                if ((x * 7 + y * 13 + flick) % 89) == 0 {
+                    px.s(i, col(K_GLINT));
+                }
+            } else {
+                px.s(i, if y > 0 && m.g(i - gw) == EMPTY { lit(v, s) } else { pal(v, s) });
+                if v == TORCH && y > 0 {
+                    gp.s(i, pal(FIRE, 1));
+                    hot += 1;
+                }
+            }
+            /* anything hot enough glows: dull red, cherry, orange, yellow, white. anything well below freezing frosts over */
+            if tc > 450.0 {
+                if v != FIRE && v != EMBER && v != TORCH && !tb(airy, v) {
+                    let f = glow_mix(tc);
+                    let c = blend32(px.g(i), glow_col(tc), f);
+                    px.s(i, c);
+                    if tc > 560.0 {
+                        gp.s(i, blend32(BLACK, c, f));
+                        hot += 1;
+                    }
+                }
+            } else if tc < -5.0 && !tb(airy, v) {
+                px.s(i, blend32(px.g(i), col(K_COLD), if tc < -80.0 { 0.45 } else { (-5.0 - tc) * 0.006 }));
+            }
+        }
+    }
+    hot
+}
+
+/* -------------------------------------------------------------------
    THE DOOR (what sim.js calls)
    ------------------------------------------------------------------- */
 #[no_mangle]
@@ -2428,6 +2814,15 @@ pub extern "C" fn sim_tab(k: i32) -> i32 {
             35 => AQ2.as_mut_ptr() as usize,
             36 => IQ2.as_mut_ptr() as usize,
             37 => BQ2.as_mut_ptr() as usize,
+            50 => PAL.as_mut_ptr() as usize,
+            51 => LIT.as_mut_ptr() as usize,
+            52 => WETS.as_mut_ptr() as usize,
+            53 => DEEP.as_mut_ptr() as usize,
+            54 => DEEP_SLOT.as_mut_ptr() as usize,
+            55 => MUSH.as_mut_ptr() as usize,
+            56 => GLOWP.as_mut_ptr() as usize,
+            57 => LEAF.as_mut_ptr() as usize,
+            58 => COLS.as_mut_ptr() as usize,
             40 => (&raw mut RNG_STATE) as usize,
             41 => CNT.as_mut_ptr() as usize,
             _ => 0,
@@ -2555,6 +2950,39 @@ pub extern "C" fn sim_bind(
             tick: 0,
             has_dmask: false,
         });
+    }
+}
+#[no_mangle]
+pub extern "C" fn sim_draw_consts(glow_n: i32, glow_t0: f64, glow_step: f64) {
+    unsafe {
+        GLOW_N = if glow_n < 1 { 1 } else if glow_n > 1024 { 1024 } else { glow_n };
+        GLOW_T0 = glow_t0;
+        GLOW_STEP = glow_step;
+    }
+}
+/* the picture's arrays (sim.js simLayout): px and gp, the cells' colours and the glow's, as wide as the grid; the sky; the
+   frame's waves (a byte a column) and heat haze (a byte a row); a column's depth into a pool, scratch */
+#[no_mangle]
+pub extern "C" fn sim_bind_draw(px: i32, gp: i32, bg: i32, wave: i32, haze: i32, dep: i32, gw: i32, gh: i32) {
+    let n = gw * gh;
+    unsafe {
+        DGRID = Some(D {
+            px: mk(px, n),
+            gp: mk(gp, n),
+            bg: mk(bg, n),
+            wave: mk(wave, gw),
+            haze: mk(haze, gh),
+            dep: mk(dep, gw),
+        });
+    }
+}
+/* the cells in columns x0 to x1, coloured into px and gp: how many are hot. the dice are JS's (the picture's own) */
+#[no_mangle]
+pub extern "C" fn sim_draw(x0: i32, x1: i32, t: f64, flick: i32) -> i32 {
+    unsafe {
+        let (Some(g), Some(d)) = (GRID, DGRID) else { return -1 };
+        RNG_INTERNAL = false;
+        draw(&g, &d, x0, x1, t, flick)
     }
 }
 #[no_mangle]
