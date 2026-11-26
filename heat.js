@@ -347,6 +347,58 @@ function heatDown(g, i, v) {
   return paid;
 }
 
+/* -------------------------------------------------------------------
+   COLD ROWS. most of the valley, most ticks, is a row of things at the
+   room's temperature, with nothing soaked up, nothing burning, and
+   nothing out of its range. a heat step does nothing there: no heat
+   moves (no difference), no air rises (no dice: the dice are only rolled
+   for air warmer or cooler than its neighbour), nothing changes. so a row
+   is passed by when it and the rows either side of it are like that, as
+   they stand when the step comes to it. it is read off the world, every
+   time, never remembered from the tick before: a brush, a bang, a bolt or
+   a save can warm any cell at any moment
+   ------------------------------------------------------------------- */
+/* quiet: not burning, not metal (metal pairs go on the fast list whatever their heat), not lava (it sets where its aux
+   says), and room temperature is inside its range. HEAT_AQ2: two cells at once, as they lie in a pair of bytes */
+var HEAT_AQ = null, HEAT_AQ2 = null, HEAT_AMB32 = new Int32Array(new Float32Array([AMBIENT]).buffer)[0];
+/* (the world's arrays, seen four bytes at a time, and which rows the step passed by. kept here, not on g: a save carries
+   g, and these are nobody's business but the step's. made again whenever the world's arrays are new ones) */
+var heatT32 = null, heatL32 = null, heatM32 = null, heatSkip = null;
+function heatQuietTables() {
+  HEAT_AQ = new Uint8Array(256); HEAT_AQ2 = new Uint8Array(65536);
+  for (var v = 0; v < NMAT; v++)
+    HEAT_AQ[v] = !HEAT_SRC[v] && v !== MAT.METAL && v !== MAT.LAVA && HEAT_LO[v] <= AMBIENT && HEAT_HI[v] >= AMBIENT ? 1 : 0;
+  for (var a = 0; a < 256; a++) for (var b = 0; b < 256; b++) HEAT_AQ2[a | (b << 8)] = HEAT_AQ[a] & HEAT_AQ[b];
+}
+function heatViews(g) {
+  var m = g.m, T = g.T, lat = g.lat, n = m.length;
+  if (heatT32 === null || heatT32.buffer !== T.buffer || heatT32.byteOffset !== T.byteOffset || heatT32.length !== T.length)
+    heatT32 = new Int32Array(T.buffer, T.byteOffset, T.length);
+  if (heatL32 === null || heatL32.buffer !== lat.buffer || heatL32.byteOffset !== lat.byteOffset || heatL32.length !== lat.length)
+    heatL32 = new Int32Array(lat.buffer, lat.byteOffset, lat.length);
+  /* (the materials four at a time only when every row starts on a word) */
+  if ((g.gw & 3) !== 0 || (m.byteOffset & 3) !== 0) heatM32 = null;
+  else if (heatM32 === null || heatM32.buffer !== m.buffer || heatM32.byteOffset !== m.byteOffset || heatM32.length !== n >> 2)
+    heatM32 = new Uint32Array(m.buffer, m.byteOffset, n >> 2);
+  if (heatSkip === null || heatSkip.length !== g.gh) heatSkip = new Uint8Array(g.gh);
+}
+/* 1 if cells a..b-1 are all quiet, at exactly room temperature (its bits: a NaN or a hair off is not), with exactly
+   nothing soaked up (+0, bit for bit), else 0 */
+function heatColdRow(m, a, b) {
+  var T32 = heatT32, L32 = heatL32, M32 = heatM32, AQ = HEAT_AQ, AQ2 = HEAT_AQ2, AB = HEAT_AMB32, i, w;
+  if (M32 !== null) {
+    for (i = a; i < b; i += 4) {
+      w = M32[i >> 2];
+      if (AQ2[w & 0xffff] === 0 || AQ2[w >>> 16] === 0) return 0;
+      if (((T32[i] ^ AB) | (T32[i + 1] ^ AB) | (T32[i + 2] ^ AB) | (T32[i + 3] ^ AB)) !== 0) return 0;
+      if ((L32[i] | L32[i + 1] | L32[i + 2] | L32[i + 3]) !== 0) return 0;
+    }
+    return 1;
+  }
+  for (i = a; i < b; i++) if (AQ[m[i]] === 0 || T32[i] !== AB || L32[i] !== 0) return 0;
+  return 1;
+}
+
 function heatStep(g) {
   var m = g.m, T = g.T, lat = g.lat, gw = g.gw, gh = g.gh, KP = HEAT_KP, IC = HEAT_IC, SRC = HEAT_SRC, POW = HEAT_POW, BK = HEAT_BK, C = HEAT_C;
   var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL, hm = g.hm;
@@ -369,8 +421,23 @@ function heatStep(g) {
   for (; i < n; i++) if (m[i] !== hm[i]) heatRecount(g, i);
 
   /* 1. make heat, lose heat, move heat */
+  /* (a row is passed by when it, the row over it and the row under it are all cold: see heatColdRow. a row worked writes
+     only into itself and the rows either side of it, so a row passed by leaves what is known about the next two as it
+     was; a row worked, not. cA, cB, cC: the rows over, at and under this one; 1 cold, 0 not, -1 not looked at yet) */
+  if (HEAT_AQ === null) heatQuietTables();
+  heatViews(g);
+  var skip = heatSkip, cA = 1, cB = -1, cC = -1;
   for (y = 0; y < gh; y++) {
     row = y * gw;
+    if (cB < 0) cB = heatColdRow(m, row, row + gw);
+    if (cB === 1) {
+      if (cA < 0) cA = heatColdRow(m, row - gw, row);
+      if (cA === 1) {
+        if (cC < 0) cC = y === gh1 ? 1 : heatColdRow(m, row + gw, row + 2 * gw);
+        if (cC === 1) { skip[y] = 1; cA = 1; cB = 1; cC = -1; continue; }
+      }
+    }
+    skip[y] = 0; cA = -1; cB = -1; cC = -1;
     for (x = 0; x < gw; x++) {
       i = row + x; v = m[i]; t = T[i];
       if (SRC[v]) {
@@ -442,42 +509,50 @@ function heatStep(g) {
 
   /* 2. anything out of its range changes, once it has soaked up (or given up) enough */
   var HI = HEAT_HI, LO = HEAT_LO, HL = HEAT_HI_L, LL = HEAT_LO_L, aux = g.aux, e, lo, hi, L, q, paid, POWDER = MAT.GUNPOWDER, NUKE = MAT.NUKE;
-  for (i = 0; i < n; i++) {
-    v = m[i]; t = T[i]; e = lat[i];
-    hi = HI[v]; lo = LO[v];
-    if (v === LAVA) { w = aux[i] & 31; lo = LAVA_LO[w]; }
-    if (t > hi) {
-      L = HL[v];
-      if (L <= 0) {
-        /* catches, sinters, fizzes off: all at once, and the new thing has the old one's heat. a bang
-           counts its own */
-        q = heatQ(g, i); heatUp(g, i, v);
-        if (m[i] !== v && v !== POWDER && v !== NUKE) heatSetQ(g, i, q);
-        continue;
+  /* (a row passed by in step 1, with the row under it passed by too, has had nothing written into it since: it is still
+     cold, and nothing in it changes. until something does change: a thing that changes can push steam, salt or a bang
+     into any cell, so from then on every row is looked at) */
+  var still = true, end;
+  for (y = 0, i = 0; y < gh; y++) {
+    end = i + gw;
+    if (still && skip[y] === 1 && (y === gh1 || skip[y + 1] === 1)) { i = end; continue; }
+    for (; i < end; i++) {
+      v = m[i]; t = T[i];
+      hi = HI[v]; lo = LO[v];
+      if (v === LAVA) { w = aux[i] & 31; lo = LAVA_LO[w]; }
+      if (t > hi) {
+        L = HL[v];
+        if (L <= 0) {
+          /* catches, sinters, fizzes off: all at once, and the new thing has the old one's heat. a bang
+             counts its own */
+          still = false; q = heatQ(g, i); heatUp(g, i, v);
+          if (m[i] !== v && v !== POWDER && v !== NUKE) heatSetQ(g, i, q);
+          continue;
+        }
+        e = lat[i] + (t - hi) * C[v]; T[i] = hi;
+        if (e >= heatLat(g, i, L)) {
+          /* soaked up enough: changes. the books carry it all over, including any it soaked up past what it took */
+          still = false; lat[i] = e; q = heatQ(g, i);
+          paid = heatUp(g, i, v); heatSetQ(g, i, q - paid);
+        } else lat[i] = e;
+      } else if (t < lo) {
+        L = v === LAVA ? HL[w || MAT.STONE] : LL[v];
+        if (L <= 0) { still = false; q = heatQ(g, i); heatDown(g, i, v); if (m[i] !== v) heatSetQ(g, i, q); continue; }
+        e = lat[i] - (lo - t) * C[v]; T[i] = lo;
+        if (-e >= heatLat(g, i, L)) {
+          still = false; lat[i] = e; q = heatQ(g, i);
+          paid = heatDown(g, i, v); heatSetQ(g, i, q - paid);
+        } else lat[i] = e;
+      } else if ((e = lat[i]) > 0) {
+        /* was partway to melting, and is cooling off again: it gives back what it took first */
+        if (HL[v] > 0 && t < hi) { e -= (hi - t) * C[v]; if (e < 0) { T[i] = hi + e * IC[v]; e = 0; } else T[i] = hi; }
+        else if (!(HL[v] > 0)) { T[i] = t + e * IC[v]; e = 0; }   /* turned into something that does not melt: it is just heat now */
+        lat[i] = e;
+      } else if (e < 0) {
+        if (LL[v] > 0 && t > lo) { e += (t - lo) * C[v]; if (e > 0) { T[i] = lo + e * IC[v]; e = 0; } else T[i] = lo; }
+        else if (!(LL[v] > 0)) { T[i] = t + e * IC[v]; e = 0; }
+        lat[i] = e;
       }
-      e += (t - hi) * C[v]; T[i] = hi;
-      if (e >= heatLat(g, i, L)) {
-        /* soaked up enough: changes. the books carry it all over, including any it soaked up past what it took */
-        lat[i] = e; q = heatQ(g, i);
-        paid = heatUp(g, i, v); heatSetQ(g, i, q - paid);
-      } else lat[i] = e;
-    } else if (t < lo) {
-      L = v === LAVA ? HL[w || MAT.STONE] : LL[v];
-      if (L <= 0) { q = heatQ(g, i); heatDown(g, i, v); if (m[i] !== v) heatSetQ(g, i, q); continue; }
-      e -= (lo - t) * C[v]; T[i] = lo;
-      if (-e >= heatLat(g, i, L)) {
-        lat[i] = e; q = heatQ(g, i);
-        paid = heatDown(g, i, v); heatSetQ(g, i, q - paid);
-      } else lat[i] = e;
-    } else if (e > 0) {
-      /* was partway to melting, and is cooling off again: it gives back what it took first */
-      if (HL[v] > 0 && t < hi) { e -= (hi - t) * C[v]; if (e < 0) { T[i] = hi + e * IC[v]; e = 0; } else T[i] = hi; }
-      else if (!(HL[v] > 0)) { T[i] = t + e * IC[v]; e = 0; }   /* turned into something that does not melt: it is just heat now */
-      lat[i] = e;
-    } else if (e < 0) {
-      if (LL[v] > 0 && t > lo) { e += (t - lo) * C[v]; if (e > 0) { T[i] = lo + e * IC[v]; e = 0; } else T[i] = lo; }
-      else if (!(LL[v] > 0)) { T[i] = t + e * IC[v]; e = 0; }
-      lat[i] = e;
     }
   }
 }
