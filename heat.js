@@ -397,7 +397,9 @@ function heatViews(g) {
     nw = g.gw >> 2; NB = (nw + 31) >> 5;
     if (heatBits === null || heatBits.nw !== nw)
       heatBits = { nw: nw, NB: NB, pad: (nw & 31) === 0 ? 0 : -1 << (nw & 31),
-                   a: new Int32Array(NB), b: new Int32Array(NB), c: new Int32Array(NB), d: new Int32Array(NB), e: new Int32Array(NB) };
+                   a: new Int32Array(NB), b: new Int32Array(NB), c: new Int32Array(NB), d: new Int32Array(NB), e: new Int32Array(NB),
+                   f: new Int32Array(NB), k: new Int32Array(NB), cp: null, dn: null };
+    if (heatBits.cp === null || heatBits.cp.length !== g.gh * NB) { heatBits.cp = new Int32Array(g.gh * NB); heatBits.dn = new Int32Array(g.gh * NB); }
   }
   if (heatSkip === null || heatSkip.length !== g.gh) heatSkip = new Uint8Array(g.gh);
 }
@@ -523,6 +525,19 @@ function heatSteadyScan(T32, L32, M32, BQ2, BH, i, end) {
   }
   return end;
 }
+/* the same, but passing over without a look the words whose bit is set in K (k: the word's place in its row, from the
+   row's first cell r): words known to be cold and untouched since step 1 passed them by (see STEADY WORDS, in heatStep) */
+function heatSteadyScanK(T32, L32, M32, BQ2, BH, i, end, K, r) {
+  var w, k;
+  for (; i < end; i += 4) {
+    k = (i - r) >> 2;
+    if (((K[k >> 5] >>> (k & 31)) & 1) !== 0) continue;
+    w = M32[i >> 2];
+    if ((BQ2[w & 0xffff] & BQ2[w >>> 16]) === 0 || (L32[i] | L32[i + 1] | L32[i + 2] | L32[i + 3]) !== 0 ||
+        (T32[i] >>> 0) > BH || (T32[i + 1] >>> 0) > BH || (T32[i + 2] >>> 0) > BH || (T32[i + 3] >>> 0) > BH) return i;
+  }
+  return end;
+}
 
 /* -------------------------------------------------------------------
    IDLE WORDS. a warmed village is full of words that are not cold (a
@@ -608,10 +623,13 @@ function heatStep(g) {
   if (HEAT_IQ2 === null) heatIdleTables();
   var IQ2 = HEAT_IQ2;
   var M32 = heatM32, T32 = heatT32, T64 = heatT64, AQ2 = HEAT_AQ2, AB = HEAT_AMB32, A64 = HEAT_AMB64;
-  var nw = gw >> 2, NB = 0, PAD = 0, Cc = null, Cn = null, Sp = null, Sc = null, Aw = null, sw, bb, kw, bw, ow, bits, run, prevS = 0, lo2, hi2, i2, wq;
+  /* (and for step 2, kept a row at a time: CP, the words of the row passed by cold, and with nothing soaked up as its bits
+     were read; DN, the words that did nothing, cold or idle (Ic)) */
+  var nw = gw >> 2, NB = 0, PAD = 0, Cc = null, Cn = null, Sp = null, Sc = null, Aw = null, Ic = null, CP = null, DN = null;
+  var sw, bb, kw, bw, ow, bits, run, prevS = 0, lo2, hi2, i2, wq;
   if (WS) {
     NB = heatBits.NB; PAD = heatBits.pad;
-    Cc = heatBits.a; Cn = heatBits.b; Sp = heatBits.c; Sc = heatBits.d; Aw = heatBits.e;
+    Cc = heatBits.a; Cn = heatBits.b; Sp = heatBits.c; Sc = heatBits.d; Aw = heatBits.e; Ic = heatBits.f; CP = heatBits.cp; DN = heatBits.dn;
     Sp.fill(-1);
     heatSnapBits(Cc, 0, nw);
   }
@@ -631,7 +649,7 @@ function heatStep(g) {
         bits = Sp[bb] & ((Sp[bb] << 1) | lo2) & ((Sp[bb] >>> 1) | hi2);
         hi2 = bb + 1 < NB ? Cc[bb + 1] << 31 : -2147483648;
         Aw[bb] = bits & Cc[bb] & ((Cc[bb] >>> 1) | hi2) & Cn[bb];
-        Sc[bb] = 0;
+        Sc[bb] = 0; Ic[bb] = 0;
       }
       Sc[NB - 1] = PAD;
       prevS = 1;
@@ -671,7 +689,7 @@ function heatStep(g) {
         prevS = 0;
         /* not cold: but idle? (see IDLE WORDS) */
         if (x > 0 && x + 4 < gw && y > 0 && y < gh1 && IQ2[wq & 0xffff] !== 0 && IQ2[wq >>> 16] !== 0 && heatIdleWord(m, T, i, gw, LIQ) === 1) {
-          prevS = 1; x += 3; continue;
+          Ic[bw] |= 1 << ow; prevS = 1; x += 3; continue;
         }
       }
       v = m[i]; t = T[i];
@@ -728,7 +746,10 @@ function heatStep(g) {
       if (x === 0 || x === gw1 || y === 0 || y === gh1) t += BK[v] * (AMBIENT - t) * IC[v];
       T[i] = t;
     }
-    if (WS) { sw = Sp; Sp = Sc; Sc = sw; sw = Cc; Cc = Cn; Cn = sw; }
+    if (WS) {
+      for (bb = 0, kw = y * NB; bb < NB; bb++, kw++) { CP[kw] = Sc[bb] & Cc[bb]; DN[kw] = Sc[bb] | Ic[bb]; }
+      sw = Sp; Sp = Sc; Sc = sw; sw = Cc; Cc = Cn; Cn = sw;
+    }
   }
   /* metal gets a few more goes, between metal only, so a bar carries heat end to end */
   if (nf) {
@@ -753,11 +774,33 @@ function heatStep(g) {
      starts on a word) */
   if (!heatBandMade) heatRangeBand();
   var BQ2 = heatM32 !== null ? HEAT_BQ2 : null, BH = HEAT_BAND_HI32, L32 = heatL32;   /* (T32 and M32: step 1's) */
+  /* STEADY WORDS. while still, a word of a row looked at is passed over without a look when step 1 passed it by cold (CP),
+     with nothing soaked up as its bits were read, and the three words under it did nothing (DN). nothing has been
+     written into it since: not by its own row (a cell writes only into itself, the one to its right and the rows either
+     side), not by the row under it (those three wrote nothing), nor by the metal (it has none), nor, while still, by
+     step 2 (a cell that does not change writes only into itself). so it is still cold, and each of its cells does
+     nothing here. a row step 1 passed by whole is all cold, and did nothing: its bits are all ones, and so are the bits
+     under the last row */
+  var S2 = WS && BQ2 !== null, K = S2 ? heatBits.k : null, r2, o2, sy, sn, cp, dn, dl, dr;
   for (y = 0, i = 0; y < gh; y++) {
     end = i + gw;
     if (still && skip[y] === 1 && (y === gh1 || skip[y + 1] === 1)) { i = end; continue; }
+    if (S2 && still) {
+      r2 = y * NB; o2 = r2 + NB; sy = skip[y] === 1; sn = y === gh1 || skip[y + 1] === 1;
+      for (bb = 0; bb < NB; bb++) {
+        cp = sy ? -1 : CP[r2 + bb];
+        if (sn) { K[bb] = cp; continue; }
+        dn = DN[o2 + bb];
+        dl = bb > 0 ? DN[o2 + bb - 1] >>> 31 : 1;
+        dr = bb + 1 < NB ? DN[o2 + bb + 1] << 31 : -2147483648;
+        K[bb] = cp & dn & ((dn << 1) | dl) & ((dn >>> 1) | dr);
+      }
+    }
     for (; i < end; i++) {
-      if ((i & 3) === 0 && BQ2 !== null) { i = heatSteadyScan(T32, L32, M32, BQ2, BH, i, end); if (i >= end) break; }
+      if ((i & 3) === 0 && BQ2 !== null) {
+        i = still && S2 ? heatSteadyScanK(T32, L32, M32, BQ2, BH, i, end, K, end - gw) : heatSteadyScan(T32, L32, M32, BQ2, BH, i, end);
+        if (i >= end) break;
+      }
       v = m[i]; t = T[i];
       hi = HI[v]; lo = LO[v];
       if (v === LAVA) { w = aux[i] & 31; lo = LAVA_LO[w]; }

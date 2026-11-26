@@ -44,6 +44,28 @@ module.exports = function (test, check, sim) {
     return ra === rb ? null : "the dice: " + ra + " / " + rb;
   }
 
+  test("heat: a word that looks cold but has something soaked up is not passed over in step 2, and a cold word a liquid under it churns into is looked at again", function () {
+    var p = pair(272), M = p.a.MAT, x, k, sites = [];
+    /* stone at room temperature, with here and there a cell of it partway to melting at 20: its own word and all round it
+       are at 20, so step 1 passes it by, but step 2 has heat to give back */
+    /* and pools of oil, two deep, at 20: the lower row's cells with heat soaked up, and hot stone to the left of the lower
+       row. step 1 passes the upper row by cold; the hot stone warms the lower row's first cell, which churns up into it */
+    for (k = 0; k < 20; k++) sites.push(12 * k + 12);
+    fill(p, function (x, y) {
+      var c = { v: M.STONE, t: 20 };
+      if (y === 30 && x % 16 === 9) c.l = 40;
+      if ((y === 60 || y === 61) && sites.indexOf(x & ~3) >= 0) { c.v = M.OIL; if (y === 61) c.l = 50; }
+      if (y === 61 && sites.indexOf(x + 1) >= 0) c.t = 600;
+      return c;
+    });
+    for (var s = 0; s < 3; s++) { var d = stepBoth(p); check(d === null, "step " + s + ": the walks part at " + d); }
+    /* (and the cases were there: the soaked-up stone gave its heat back, and oil churned up into a word passed by cold) */
+    var gb = p.b.g, gw = gb.gw, churned = 0;
+    check(gb.lat[30 * gw + 9] === 0 && gb.T[30 * gw + 9] !== 20, "the soaked-up stone did not give its heat back");
+    for (k = 0; k < sites.length; k++) for (x = sites[k]; x < sites[k] + 4; x++) if (gb.T[60 * gw + x] !== 20) churned++;
+    check(churned > 0, "no oil churned up into the row over it");
+  });
+
   test("heat: the walk by words and the walk by cells come to the same valley, on terraces of heat a hair either side of every threshold", function () {
     [272, 1088].forEach(function (gw) {
       var p = pair(gw), M = p.a.MAT, s = 99, f32 = new Float32Array(1), i32 = new Int32Array(f32.buffer);
