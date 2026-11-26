@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  peasants.js
+   PLEASAND  --  peasants.ts
 
    the villagers. they are not on the grid: each one is a little bag of
    numbers that walks over the grid, reads the cells it is standing in,
@@ -14,6 +14,35 @@
    (x, y); only the middle column collides, which is plenty.
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps in g) */
+interface Game {
+  pid?: number; rip?: number; astronauts?: number; burnt?: boolean; hadPeasants?: boolean; sTalk?: number;
+  emptyNoted?: boolean; slips?: any; slipT?: number;
+}
+
+/* a villager: a little bag of numbers (peasantSpawn makes one). each file says here what it keeps on one */
+interface Peasant {
+  id?: number; short?: string; boards?: number; home?: number; y?: number; x?: number; logs?: number; dir?: number;
+  task?: Task; name?: string; sayT?: number; fire?: number; cold?: number; planCD?: number; taskCD?: number;
+  taskDone?: boolean; climb?: any; pose?: string; tired?: number; wantPlant?: boolean; bored?: number;
+  exploreCD?: number; sleep?: number; panic?: number; acid?: number; breath?: number; idle?: number;
+  jumping?: boolean; falling?: boolean; fallY?: number; vy?: number; state?: string; ride?: any; zap?: number;
+  stun?: number; slip?: number; ivx?: number; rope?: any; chute?: any; swimming?: boolean; warm?: number;
+  calmT?: number; hunger?: number; charred?: number; dead?: any; spaceT?: number; vx?: number; spaceX?: number;
+  fromSpace?: number; anim?: number; plantCD?: number; hold?: boolean; say?: string; wade?: number; mineCD?: number;
+  launch?: number; pack?: number; oilCD?: number; avoidX?: number; avoidT?: number; flyT?: number; immune?: number;
+  spin?: number; ropeCD?: number; sink?: number; navMove?: string; hat?: Hat; pal?: Uint32Array; voice?: number;
+  shoved?: number; lava?: number; fireTo?: any; ropeTries?: number; catchCD?: number; chuteCD?: number;
+  chopCD?: number; eatCD?: number; sinkT?: number; buried?: number; swimT?: any; byFire?: boolean; airDir?: number;
+  airX?: number; airStuck?: number; airNo?: number; jx?: number; wet?: number; pins?: number; born?: number;
+  wadeT?: any; handOut?: any; chat?: number; noField?: any; seed?: number;
+}
+/* what a villager is doing: kind says what, the rest is that job's own */
+interface Task {
+  kind: string;
+  [k: string]: any;
+}
 
 var P_MAX = 120, P_BREATH = 300;
 /* jumping: gravity per tick, the tallest ledge a peasant can jump up, the widest gap it will leap */
@@ -37,8 +66,8 @@ var P_HARD = new Uint8Array(NMAT);
 var P_PASS = new Uint8Array(NMAT); P_PASS[MAT.DOOR] = P_PASS[MAT.LADDER] = 1;
 P_PASS[MAT.LAMP] = 1;   /* (and lanterns, hung over doorways: they duck) */
 P_PASS[MAT.GIRDER] = 1;   /* (and the iron lattice of a lift's headframe: they step through it) */
-P_PASS[MAT.LINEN] = 1;    /* (and washing on a line: they duck under it. storeys.js) */
-P_PASS[MAT.TRESTLE] = 1;  /* (and a platform's timber legs: through the bracing. platforms.js) */
+P_PASS[MAT.LINEN] = 1;    /* (and washing on a line: they duck under it. storeys.ts) */
+P_PASS[MAT.TRESTLE] = 1;  /* (and a platform's timber legs: through the bracing. platforms.ts) */
 /* how warm a peasant likes it. above P_SWEAT they complain, above P_SCALD they run, above
    P_IGNITE they are on fire. below P_CHILL they get colder and colder until they are ice */
 var P_SWEAT = 50, P_SCALD = 90, P_IGNITE = 230, P_CHILL = -8, P_FREEZE = 900;
@@ -53,7 +82,7 @@ var P_NAMES = ["GARY", "DOUG", "BARB", "KEVIN", "BRENDA", "OTTO", "PIP", "GUNTHE
 var P_SUFFIX = [" JR", " THE BRAVE", " THE WISE", " THE 3RD", " THE DAMP", " THE UNLUCKY", " THE IMMORTAL", " SR"];
 
 /* what they say. {n} is somebody else's name */
-var P_SAY = {
+var P_SAY: Record<string, string[]> = {
   idle: ["nice weather", "i love sand", "lovely day for it", "what's a pixel", "my back hurts", "taxes again",
          "i should start a farm", "hm", "*whistles*", "i'm hungry", "anyone seen my goat", "the king smells",
          "sand gets everywhere", "la la la", "where's everyone going", "i forgot why i came here", "today's a good day",
@@ -165,7 +194,7 @@ var P_MILESTONES = {
    the hat, rows 3-8 the rest. drawn facing right; mirrored for left.
    ------------------------------------------------------------------- */
 var P_KEY = { h: 0, H: 1, s: 2, e: 3, c: 4, C: 5, p: 6, f: 7, m: 8, w: 9 };
-function pParse(rows, y0) {
+function pParse(rows: string[], y0: number) {
   var out = [];
   for (var r = 0; r < rows.length; r++) for (var c = 0; c < rows[r].length; c++) {
     var ch = rows[r][c];
@@ -173,7 +202,9 @@ function pParse(rows, y0) {
   }
   return new Int8Array(out);
 }
-var P_HATS = [
+/* a hat: how common, its rows of pixels (h, H: the hat and its trim, s: skin), its colours, a title it gives its wearer */
+interface Hat { w: number; rows: string[]; cols: string[]; trim?: string; title?: string; spr?: Int8Array; }
+var P_HATS: Hat[] = [
   /* name,  weight, rows, colours, title */
   { w: 22, rows: [".....", ".hhh.", ".hhhH"], cols: ["#7a4a22", "#2f5a2a", "#a8322a", "#2a4a8a", "#6a3a8a", "#6a6a6a"] },   /* cap */
   { w: 16, rows: ["..h..", ".hhh.", "hhhhh"], cols: ["#5a4a3a", "#3a5a3a", "#7a2a2a", "#4a4a6a"] },                         /* hood */
@@ -184,7 +215,7 @@ var P_HATS = [
   { w: 3, rows: [".....", "h.h.h", "hHhHh"], cols: ["#ffd040"], trim: "#e83a4a", title: "KING " }                             /* crown */
 ];
 P_HATS.forEach(function (h) { h.spr = pParse(h.rows, 0); });
-var P_BODY = {
+var P_BODY: Record<string, Int8Array> = {
   stand:  pParse([".sse.", ".sss.", "scccs", ".cCc.", ".p.p.", ".f.f."], 3),
   walkA:  pParse([".sse.", ".sss.", "scccs", ".cCc.", ".p.p.", "f...f"], 3),
   walkB:  pParse([".sse.", ".sss.", ".ccc.", "scCcs", "..p..", "..ff."], 3),
@@ -218,15 +249,15 @@ var P_WHITE = hex32("#f4f8ff"), P_GHOSTEYE = hex32("#202a40"), P_FROST = hex32("
 /* -------------------------------------------------------------------
    THE WORLD, AS A PEASANT SEES IT
    ------------------------------------------------------------------- */
-function pCell(g, x, y) {
+function pCell(g: Game, x: number, y: number) {
   if (x < 0 || x >= g.gw || y < 0) return 0;
   if (y >= g.gh) return MAT.STONE;   /* the bottom of the world is a floor */
   return g.m[y * g.gw + x];
 }
-function pSolid(g, x, y) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
-/* an empty cell that is a grate to a peasant, though not to steam: an organ's valves and pipe tops (pleasures.js pGrate).
+function pSolid(g: Game, x: number, y: number) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
+/* an empty cell that is a grate to a peasant, though not to steam: an organ's valves and pipe tops (pleasures.ts pGrate).
    only where there are great works */
-function pGr(g, x, y) {
+function pGr(g: Game, x: number, y: number) {
   if (!g.wAny) return false;
   /* (the cache good for this tick: its map, straight. else pGrate, which fills it, as it always did) */
   var c = P_GRATE;
@@ -238,24 +269,24 @@ function pGr(g, x, y) {
    cell without looking again. then pGr is false wherever it is asked. it never fills the cache itself: a cache from
    another tick, before another load or with another count of sites is not good, and the slow looks fill it as before.
    pNoGr: nothing is a grate, great works or none, and pBody is P_BODYM straight off the grid) */
-function pGrNone(g) { var c = P_GRATE; return c.j === null && c.g === g && c.t === g.tick && c.n === g.sites.length && c.gen === SAVE_GEN; }
-function pNoGr(g) { return !g.wAny || pGrNone(g); }
+function pGrNone(g: Game) { var c = P_GRATE; return c.j === null && c.g === g && c.t === g.tick && c.n === g.sites.length && c.gen === SAVE_GEN; }
+function pNoGr(g: Game) { return !g.wAny || pGrNone(g); }
 /* (pNoGrCol: no grate in column x, as pGrate already knows for this tick, so pBody is P_BODYM straight off the grid down
    that column. x in the grid. it never fills the cache: with it stale, the slow looks run, and the first of them on air
    fills it, where it always was filled) */
-function pNoGrCol(g, x) {
+function pNoGrCol(g: Game, x: number) {
   var c = P_GRATE;
   return !g.wAny || (c.g === g && c.t === g.tick && c.n === g.sites.length && c.gen === SAVE_GEN && (c.j === null || c.c[x] !== 1));
 }
 /* (pGrate's cache is good for this tick, grates or none: a look at the grates changes nothing. a quick look that passes by
    the slow looks' pBody calls without pNoGr must have this, or it would leave the cache to be filled later in the tick,
    by another look, after an organ may have been finished or a site taken away and another put in its place) */
-function pGrFresh(g) { var c = P_GRATE; return c.g === g && c.t === g.tick && c.n === g.sites.length && c.gen === SAVE_GEN; }
+function pGrFresh(g: Game) { var c = P_GRATE; return c.g === g && c.t === g.tick && c.n === g.sites.length && c.gen === SAVE_GEN; }
 /* what a peasant pushes through, on its own two feet: leaves and flowers (P_LEAF, which nothing stops for, not even a
    peasant flying through the air), and wood and saplings (P_SOFT: a tree trunk, a log, a wooden wall somebody drew).
    it can stand on top of any of it, but not in the middle of it: a soft thing holds them up only with their feet out
    of it. so they walk through a tree at the bottom, or along the top of it, and when they want to they go down through
-   it (P_SINK, while they are sinking into it) or up (a jump, or the rope, straight up through it: paths.js) */
+   it (P_SINK, while they are sinking into it) or up (a jump, or the rope, straight up through it: paths.ts) */
 var P_LEAF = new Uint8Array(NMAT); P_LEAF[MAT.PLANT] = P_LEAF[MAT.FLOWER] = P_LEAF[MAT.CROP] = P_LEAF[MAT.WHEAT] = 1;
 var P_SOFT = new Uint8Array(NMAT); P_SOFT[MAT.PLANT] = P_SOFT[MAT.FLOWER] = P_SOFT[MAT.WOOD] = P_SOFT[MAT.SAPLING] = 1;
 P_SOFT[MAT.CROP] = P_SOFT[MAT.WHEAT] = 1;   /* (a field of wheat is walked through, like a bush) */
@@ -264,11 +295,11 @@ var P_SINK = false;
    the water under it (pTryDive) */
 var P_THIN = new Uint8Array(NMAT); P_THIN[MAT.PLANK] = 1;
 /* buried: feet in something solid that is not a ladder or a door (P_PASS), not soft wood or leaves they walk through
-   (P_SOFT), nor the planks they are diving through (P_SINK, P_THIN). pStep; and wonders.js wEvict goes by what it
+   (P_SOFT), nor the planks they are diving through (P_SINK, P_THIN). pStep; and wonders.ts wEvict goes by what it
    counted (p.buried) */
-function pBuriedIn(cf) { return SOLID[cf] && !P_PASS[cf] && !P_SOFT[cf] && !(P_SINK && P_THIN[cf]); }
+function pBuriedIn(cf: number) { return SOLID[cf] && !P_PASS[cf] && !P_SOFT[cf] && !(P_SINK && P_THIN[cf]); }
 /* is there something to stand on, under feet at row y: in this column (pFoot), or one either side (pGround) */
-function pFoot(g, x, y) {
+function pFoot(g: Game, x: number, y: number) {
   var c;
   /* (both rows in the grid, and no grate in the column, pNoGrCol: the same looks, straight off the grid) */
   if (x >= 0 && x < g.gw && y >= 0 && y < g.gh - 1 && pNoGrCol(g, x)) {
@@ -279,7 +310,7 @@ function pFoot(g, x, y) {
   c = pCell(g, x, y + 1);
   return (SOLID[c] === 1 && !P_PASS[c] && !(P_SOFT[c] && (P_SINK || P_SOFT[pCell(g, x, y)])) && !(P_SINK && P_THIN[c])) || (c === MAT.EMPTY && pGr(g, x, y + 1));
 }
-function pGround(g, x, y) {
+function pGround(g: Game, x: number, y: number) {
   /* (not sinking, and all three columns and both rows in the grid: pFoot's looks, straight off the grid, in the same
      order, and pGr asked of the same empty cells. P_FOOTM: 1 something to stand on, 2 something soft, which holds them up
      unless they are in it) */
@@ -297,7 +328,7 @@ function pGround(g, x, y) {
 /* could a peasant with its feet here stand up straight (pBody: is this cell in the way of a walking one). pStiff: in the
    way of one that is not walking but flying, which goes through leaves but not through a tree */
 /* (P_BODYM: pBody's look at the material, SOLID and not P_PASS and not P_SOFT, by material. with no grates (pNoGr) that is
-   all there is to pBody, and the looks a route takes read it straight off the grid: pRoom, pHookGeom, paths.js) */
+   all there is to pBody, and the looks a route takes read it straight off the grid: pRoom, pHookGeom, paths.ts) */
 var P_BODYM = (function () {
   var t = new Uint8Array(NMAT);
   for (var c = 0; c < NMAT; c++) t[c] = SOLID[c] === 1 && !P_PASS[c] && !P_SOFT[c] ? 1 : 0;
@@ -308,13 +339,13 @@ var P_FOOTM = (function () {
   for (var c = 0; c < NMAT; c++) t[c] = SOLID[c] === 1 && !P_PASS[c] ? (P_SOFT[c] ? 2 : 1) : 0;
   return t;
 })();
-function pBody(g, x, y) { var c = pCell(g, x, y); return P_BODYM[c] === 1 || (c === MAT.EMPTY && pGr(g, x, y)); }
-function pStiff(g, x, y) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c] && !P_LEAF[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
-function pStiffAt(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pStiff(g, fx, fy) || pStiff(g, fx, fy - 4) || pStiff(g, fx, fy - 7); }
+function pBody(g: Game, x: number, y: number) { var c = pCell(g, x, y); return P_BODYM[c] === 1 || (c === MAT.EMPTY && pGr(g, x, y)); }
+function pStiff(g: Game, x: number, y: number) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c] && !P_LEAF[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
+function pStiffAt(g: Game, x: number, y: number) { var fx = Math.floor(x), fy = Math.floor(y); return pStiff(g, fx, fy) || pStiff(g, fx, fy - 4) || pStiff(g, fx, fy - 7); }
 /* the next step along, into column x from feet at row y: how far up it is (0 to 3; 4 or more is a wall). the first
    height with room for them, and with their feet clear of anything soft, or held up in it: walking into a bush, they go
    through it along the ground; walking along the top of one, they keep to the top, up its bumps */
-function pStepUp(g, x, y) {
+function pStepUp(g: Game, x: number, y: number) {
   var k, f = -1;
   for (k = 0; k <= 3; k++) {
     if (!pRoom(g, x, y - k)) continue;
@@ -323,16 +354,16 @@ function pStepUp(g, x, y) {
   }
   return f < 0 ? 4 : f;   /* (no proper step: into it, then, and down through it) */
 }
-function pRoom(g, x, y) {
+function pRoom(g: Game, x: number, y: number) {
   if (x >= 0 && x < g.gw && y >= 8 && y < g.gh && pNoGrCol(g, x)) {   /* (all four in the grid, and no grates in the column: the cells alone) */
     var m = g.m, gw = g.gw, j = y * gw + x;
     return !P_BODYM[m[j]] && !P_BODYM[m[j - 3 * gw]] && !P_BODYM[m[j - 6 * gw]] && !P_BODYM[m[j - 8 * gw]];
   }
   return !pBody(g, x, y) && !pBody(g, x, y - 3) && !pBody(g, x, y - 6) && !pBody(g, x, y - 8);
 }
-function pBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pBody(g, fx, fy) || pBody(g, fx, fy - 4) || pBody(g, fx, fy - 7); }
+function pBlocked(g: Game, x: number, y: number) { var fx = Math.floor(x), fy = Math.floor(y); return pBody(g, fx, fy) || pBody(g, fx, fy - 4) || pBody(g, fx, fy - 7); }
 
-function peasantAt(g, x, y, pad) {
+function peasantAt(g: Game, x: number, y: number, pad?: number) {
   pad = pad || 0;
   var P = g.peasants, best = null, bd = 1e9;
   for (var k = 0; k < P.length; k++) {
@@ -356,7 +387,7 @@ function pWeighted(list) {
   for (k = 0; k < list.length; k++) { r -= list[k].w; if (r < 0) return list[k]; }
   return list[0];
 }
-function peasantSpawn(g, x, y, quiet) {
+function peasantSpawn(g: Game, x: number, y: number, quiet?: boolean) {
   if (g.peasants.length >= P_MAX) { if (!quiet) { feed(g, "the village is full. it is a small village", "#ffd94a"); achieve(g, "full"); } return null; }
   var hat = pWeighted(P_HATS);
   /* there is only ever one king */
@@ -365,7 +396,7 @@ function peasantSpawn(g, x, y, quiet) {
   var short = pick(P_NAMES), name = (hat.title || "") + short + (Math.random() < 0.08 ? pick(P_SUFFIX) : "");
   var cols = [hc, hat.trim || hexDarken(hc), skin, "#101010", pick(P_SHIRTS), "#3a2a1a", pick(P_PANTS), "#2a1a10", "#401010", "#ffffff"];
   if (hat === P_HATS[4]) cols[0] = skin;
-  var p = {
+  var p: Peasant = {
     id: ++g.pid, name: name, short: short, x: x, y: y, vx: 0, vy: 0, dir: Math.random() < 0.5 ? -1 : 1,
     state: "walk", stun: 0, idle: 0, panic: 0, fire: 0, lava: 0, acid: 0, breath: P_BREATH, cold: 0, warm: 0,
     charred: 0, zap: 0, falling: false, fallY: y, anim: irnd(100), spin: 0, buried: 0, flyT: 0, immune: 0,
@@ -379,14 +410,14 @@ function peasantSpawn(g, x, y, quiet) {
   g.hadPeasants = true;
   return p;
 }
-function pKing(g) {
+function pKing(g: Game) {
   for (var k = 0; k < g.peasants.length; k++) if (g.peasants[k].hat === P_HATS[6] && !g.peasants[k].dead) return g.peasants[k];
   return null;
 }
 /* what a factory remembers about the peasant that touched it: enough to make more */
-function pRecipe(p) { return { short: p.short, hat: p.hat, pal: p.pal.slice(), voice: p.voice }; }
+function pRecipe(p: Peasant) { return { short: p.short, hat: p.hat, pal: p.pal.slice(), voice: p.voice }; }
 /* a copy of somebody, from a peasant factory */
-function peasantClone(g, src, x, y) {
+function peasantClone(g: Game, src, x: number, y: number) {
   var p = peasantSpawn(g, x, y, true);
   if (!p) return null;
   g.cloneN[src.short] = (g.cloneN[src.short] || 1) + 1;
@@ -398,7 +429,7 @@ function peasantClone(g, src, x, y) {
 }
 function hexDarken(h) { var c = hexRGB(h); return "#" + c.map(function (v) { return ("0" + Math.round(v * 0.6).toString(16)).slice(-2); }).join(""); }
 
-function pOther(g, p, near) {
+function pOther(g: Game, p: Peasant, near: number) {
   var P = g.peasants, best = null, bd = near * near;
   for (var k = 0; k < P.length; k++) {
     var q = P[k];
@@ -408,14 +439,14 @@ function pOther(g, p, near) {
   }
   return best;
 }
-function pTalking(g) {
+function pTalking(g: Game) {
   var n = 0, P = g.peasants;
   for (var k = 0; k < P.length; k++) if (P[k].sayT > 0) n++;
   return n;
 }
 function pTitle(name) { return name.charAt(0) + name.slice(1).toLowerCase(); }
 /* say a random line from a list. force: interrupt whatever they were saying */
-function pSay(g, p, kind, force, other) {
+function pSay(g: Game, p: Peasant, kind: string, force?: boolean, other?) {
   if (p.dead) return;
   if (!force && (p.sayT > 0 || pTalking(g) >= 6)) return;
   var s = pick(P_SAY[kind] || [kind]);
@@ -429,19 +460,21 @@ function pSay(g, p, kind, force, other) {
   if (g.t - (g.sTalk || 0) > 0.12) {
     g.sTalk = g.t;
     /* (how often this is, is down to the clock, not the ticks: in a village with great works in it, the side dice, so that
-       it comes out the same at any speed. game.js sandSounds) */
+       it comes out the same at any speed. game.ts sandSounds) */
     if (/AAA|WAAA|HOT HOT|FIRE!|IT BURNS|MUMMY/.test(s)) SFX.scream(p.voice, 0.6 + (g.wAny ? RNG_SIDE.random() : Math.random()) * 0.3);
     else SFX.babble(p.voice, clamp(Math.ceil(s.length / 4), 2, 7));
   }
 }
 
 /* (at: where it happened, if it happened somewhere: a column, a peasant, a duck or a site. kept as plain numbers, so a
-   click on the line's arrow can take you there: game.js) */
+   click on the line's arrow can take you there: game.ts) */
 var FEED_SITE = /^(plan|fix|blaze|flood|level|charge|potash|foretell|play|tomb|niche|glaze|crypt|serv|laid|gild|organ|boycott|light|found|bell|fuel|count|crew|boom)\d+$/;
-function feed(g, text, col, key, at) {
+/* a line in the feed: x (a column), did or pid (a duck's or a peasant's id): where it happened, to go and look */
+interface FeedLine { text: string; col: string; t: number; key: string; x?: number; did?: number; pid?: number; }
+function feed(g: Game, text: string, col?: string, key?: string, at?: any) {
   /* a line with a key replaces the last line with the same key, instead of stacking */
   if (key) for (var k = 0; k < g.feed.length; k++) if (g.feed[k].key === key) { g.feed.splice(k, 1); break; }
-  var f = { text: text, col: col || "#c8d0dc", t: 0, key: key };
+  var f: FeedLine = { text: text, col: col || "#c8d0dc", t: 0, key: key };
   if (at != null) {
     if (typeof at === "number") f.x = at;
     else if (at.x0 != null && at.x1 != null) f.x = (at.x0 + at.x1) / 2;
@@ -454,12 +487,12 @@ function feed(g, text, col, key, at) {
   g.feed.push(f);
   if (g.feed.length > 6) g.feed.shift();
 }
-function banner(g, title, sub) {
+function banner(g: Game, title, sub) {
   if (g.banners.length < 4) g.banners.push({ title: title, sub: sub, t: 0 });
   g.fx.fanfare++;
 }
 /* one-off discoveries, once per visit */
-var P_ACHIEVE = {
+var P_ACHIEVE: Record<string, string[]> = {
   space: ["ONE SMALL STEP", "for a peasant. one giant leap for peasantkind"],
   strike: ["STRIKE!", "peasant bowling is now a recognised sport"],
   factory: ["PEASANT FACTORY", "this seems ethically questionable"],
@@ -474,25 +507,25 @@ var P_ACHIEVE = {
   arson: ["BORED NOW", "a peasant got bored and found the matches"],
   camp: ["CAMPFIRE", "chopped it, stacked it, lit it"]
 };
-function achieve(g, k) {
+function achieve(g: Game, k) {
   if (g.got[k]) return;
   g.got[k] = 1;
   banner(g, P_ACHIEVE[k][0], P_ACHIEVE[k][1]);
 }
 
-function pDie(g, p, cause) {
+function pDie(g: Game, p: Peasant, cause: string) {
   if (p.dead) return;
   p.dead = 1;
   if (cause === "splat" && p.fromSpace > 0) cause = "reentry";
   g.rip++;
   if (g.causes) g.causes[cause] = (g.causes[cause] || 0) + 1;
-  iSpill(g, p, true);   /* a bucket of water they were carrying (ideas.js) goes where they fell */
-  wDropAll(g, p);       /* and a pail of wet concrete, or a lump of it gone off (wonders.js) */
-  tCarry(g, p);         /* and an armful of sand off somebody's roof (tidy.js) */
+  iSpill(g, p, true);   /* a bucket of water they were carrying (ideas.ts) goes where they fell */
+  wDropAll(g, p);       /* and a pail of wet concrete, or a lump of it gone off (wonders.ts) */
+  tCarry(g, p);         /* and an armful of sand off somebody's roof (tidy.ts) */
   var line = pick(P_DEATH[cause]);
   feed(g, line.replace("{n}", p.name), "#ff9a8a", null, p);
-  iMourn(g, p, line);   /* remembered, for a grave (ideas.js) */
-  wTale(g, "death", p, cause);   /* (and as a tale, for telling: wonders.js) */
+  iMourn(g, p, line);   /* remembered, for a grave (ideas.ts) */
+  wTale(g, "death", p, cause);   /* (and as a tale, for telling: wonders.ts) */
   var talking = 0;
   for (k = 0; k < g.ghosts.length; k++) if (g.ghosts[k].say && g.ghosts[k].t < 170) talking++;
   var gl = (talking < 2 && Math.random() < 0.5) ? pick(P_SAY.ghost) : "";
@@ -531,7 +564,7 @@ function pDie(g, p, cause) {
   pSucceed(g, p, "THE KING IS DEAD");
 }
 /* the king is gone. long live the king */
-function pSucceed(g, p, title) {
+function pSucceed(g: Game, p: Peasant, title: string) {
   if (p.hat !== P_HATS[6]) return;
   var heir = pOther(g, p, 9999);
   if (heir) {
@@ -539,21 +572,21 @@ function pSucceed(g, p, title) {
     heir.name = "KING " + heir.short;
     banner(g, title, "long live " + heir.name);
     pSay(g, heir, "crowned", true);
-    wCrowned(g, p, heir);   /* (the king is dead: something BIG. wonders.js) */
+    wCrowned(g, p, heir);   /* (the king is dead: something BIG. wonders.ts) */
   } else banner(g, title, "and there is nobody left to be king");
 }
 
 /* -------------------------------------------------------------------
    THINGS THAT HAPPEN TO PEASANTS
    ------------------------------------------------------------------- */
-function pIgnite(g, p) {
+function pIgnite(g: Game, p: Peasant) {
   if (p.fire || p.dead) return;
   p.fire = 1; p.idle = 0;
   pSay(g, p, "fire", true);
 }
-function pZap(g, p) {
+function pZap(g: Game, p: Peasant) {
   if (p.zap > 0 || p.dead) return;
-  if (g.hand) handDeed(g, p, "zapped");   /* (once they have seen the hand, lightning is not weather: hand.js) */
+  if (g.hand) handDeed(g, p, "zapped");   /* (once they have seen the hand, lightning is not weather: hand.ts) */
   if (p.charred && Math.random() < 0.6) { pDie(g, p, "zap"); return; }
   p.zap = 48; p.charred = 1; p.stun = Math.max(p.stun, 50); p.idle = 0;
   wTale(g, "zap", p);
@@ -561,7 +594,7 @@ function pZap(g, p) {
   else pSay(g, p, "zap", true);
   g.fx.zap++;
 }
-function peasantsZapNear(g, x, y, r) {
+function peasantsZapNear(g: Game, x: number, y: number, r: number) {
   var P = g.peasants;
   for (var k = 0; k < P.length; k++) {
     var p = P[k];
@@ -570,7 +603,7 @@ function peasantsZapNear(g, x, y, r) {
     if (dx * dx + dy * dy < (r + 4) * (r + 4)) pZap(g, p);
   }
 }
-function peasantsZapMarked(g) {
+function peasantsZapMarked(g: Game) {
   var P = g.peasants, gw = g.gw, n = 0;
   for (var k = 0; k < P.length; k++) {
     var p = P[k], fx = Math.floor(p.x), fy = Math.floor(p.y);
@@ -583,7 +616,7 @@ function peasantsZapMarked(g) {
   if (n >= 3) achieve(g, "shock");
 }
 /* an explosion: close ones are thrown, very close ones to a big one are gone, far ones panic */
-function peasantsBlast(g, cx, cy, R, P) {
+function peasantsBlast(g: Game, cx: number, cy: number, R: number, P: number) {
   var L = g.peasants, reach = R * 2.4, big = R >= 12;
   for (var k = 0; k < L.length; k++) {
     var p = L[k];
@@ -605,7 +638,7 @@ function peasantsBlast(g, cx, cy, R, P) {
     }
   }
 }
-function peasantsReact(g, kind, x, y) {
+function peasantsReact(g: Game, kind: string, x: number, y: number) {
   var L = g.peasants;
   for (var k = 0; k < L.length; k++) {
     var p = L[k];
@@ -620,11 +653,11 @@ function peasantsReact(g, kind, x, y) {
 /* -------------------------------------------------------------------
    THE PEASANT, ONE TICK AT A TIME
    ------------------------------------------------------------------- */
-function peasantsStep(g) {
+function peasantsStep(g: Game) {
   var L = g.peasants, k, p, q;
   for (k = 0; k < L.length; k++) if (!L[k].dead) {
     P_SINK = !!L[k].sink; pStep(g, L[k]); P_SINK = false;
-    iThink(g, L[k]);   /* and a full stomach, whatever it is up to, has time to think (ideas.js) */
+    iThink(g, L[k]);   /* and a full stomach, whatever it is up to, has time to think (ideas.ts) */
   }
   if ((g.tick % 60) === 0) pLife(g);
   /* fire is contagious; neighbours say hello */
@@ -669,12 +702,12 @@ function peasantsStep(g) {
   if (burning >= 3) achieve(g, "roast");
   buildStep(g);
   ideasStep(g);
-  wStep(g);   /* (the great works: wonders.js) */
-  if (g.lines && g.lines.length) sFuse(g);   /* (a washing line alight: storeys.js) */
-  lTick(g);   /* (snowballs in the air, and fuses burning: leftovers.js) */
-  if (g.hand) handStep(g);   /* (a lump in the hand, or in the air: hand.js) */
+  wStep(g);   /* (the great works: wonders.ts) */
+  if (g.lines && g.lines.length) sFuse(g);   /* (a washing line alight: storeys.ts) */
+  lTick(g);   /* (snowballs in the air, and fuses burning: leftovers.ts) */
+  if (g.hand) handStep(g);   /* (a lump in the hand, or in the air: hand.ts) */
   exploreNote(g);
-  /* (however they went, died or left the valley by air: what they carried for the great works, kept. wonders.js. pDie has
+  /* (however they went, died or left the valley by air: what they carried for the great works, kept. wonders.ts. pDie has
      done it already for the dead; this is for everybody else, the one way out of the list) */
   for (k = L.length - 1; k >= 0; k--) if (L[k].dead) { wDropAll(g, L[k]); L.splice(k, 1); }
   if (g.hadPeasants && !L.length && !g.emptyNoted) { g.emptyNoted = true; banner(g, "THE VILLAGE IS EMPTY", "press V and click for more. you monster"); }
@@ -688,7 +721,7 @@ function peasantsStep(g) {
   }
 }
 
-function pStep(g, p) {
+function pStep(g: Game, p: Peasant) {
   if (p.sayT > 0) p.sayT--;
   if (p.zap > 0) p.zap--;
   if (p.immune > 0) p.immune--;
@@ -699,14 +732,14 @@ function pStep(g, p) {
     if (p.stun > 0) wTale(g, "pack", p);   /* (down hard: that is a tale) */
     p.launch = 0;
   }
-  if (p.shoved && p.state !== "fly") p.shoved = 0;   /* (down again from a knock: hand.js) */
-  if (p.state === "held") { if (!(p.ride && g.hand)) pHeld(g, p); return; }   /* (sitting on a lump in the hand: hand.js moves them) */
+  if (p.shoved && p.state !== "fly") p.shoved = 0;   /* (down again from a knock: hand.ts) */
+  if (p.state === "held") { if (!(p.ride && g.hand)) pHeld(g, p); return; }   /* (sitting on a lump in the hand: hand.ts moves them) */
   if (p.state === "space") {
     /* (aboard a rocket on its pad, not yet gone: no clock running. aboard one that cannot go, or is not there: held, and
-       let out when there is somewhere. heavens.js) */
+       let out when there is somewhere. heavens.ts) */
     if (p.aboard) { if (!hAboardOf(g, p)) hHeld(g, p); return; }
     if (--p.spaceT <= 0) {
-      /* (back from the moon: over the pad they went up from. heavens.js) */
+      /* (back from the moon: over the pad they went up from. heavens.ts) */
       var sx = p.spaceX; p.spaceX = null;
       /* (from the moon, straight down onto it, kept in the world: no drift sideways to carry them off the edge of it from a
          pad at the edge. the dice rolled all the same) */
@@ -722,12 +755,12 @@ function pStep(g, p) {
   var cf = pCell(g, fx, fy), cm = pCell(g, fx, fy - 4), ch = pCell(g, fx, fy - 7), cb = pCell(g, fx, fy + 1);
 
   /* the dangers of the world, in order of how quickly they ruin your day */
-  if (navDrainAt(g, fx, fy)) { pDie(g, p, "drain"); return; }   /* (paths.js: the same as a rocket's crew are let out clear of) */
+  if (navDrainAt(g, fx, fy)) { pDie(g, p, "drain"); return; }   /* (paths.ts: the same as a rocket's crew are let out clear of) */
   if (cf === MAT.LAVA || cm === MAT.LAVA || cb === MAT.LAVA) {
     pIgnite(g, p);
     if (++p.lava > 30) { pDie(g, p, "lava"); return; }
-  } else if ((HOT[cf] || HOT[cm] || HOT[ch]) && !(p.task && p.task.brave)) pIgnite(g, p);   /* (a leather apron, at a furnace: heavens.js) */
-  /* (at work for a great work: too hot here, or a step on, and they turn back before the heat can take them. wonders.js) */
+  } else if ((HOT[cf] || HOT[cm] || HOT[ch]) && !(p.task && p.task.brave)) pIgnite(g, p);   /* (a leather apron, at a furnace: heavens.ts) */
+  /* (at work for a great work: too hot here, or a step on, and they turn back before the heat can take them. wonders.ts) */
   if (g.wAny) wHeatGuard(g, p);
   if (pHeat(g, p, fx, fy)) return;
   if (cf === MAT.ACID || cm === MAT.ACID || ch === MAT.ACID || cb === MAT.ACID) {
@@ -800,12 +833,12 @@ function pStep(g, p) {
   /* in deep water, or standing on the bottom with your head under: swim */
   var swam = p.swimming;
   p.swimming = liquid && (!ground || sub);
-  if (swam && !p.swimming) wSwam(g, p);   /* (out of the water, on the bank: counted. wonders.js) */
-  if (liquid && g.wAny) wBathe(g, p, fx, fy);   /* (warm water is a bath: wonders.js) */
+  if (swam && !p.swimming) wSwam(g, p);   /* (out of the water, on the bank: counted. wonders.ts) */
+  if (liquid && g.wAny) wBathe(g, p, fx, fy);   /* (warm water is a bath: wonders.ts) */
   p.swimT = p.swimming ? (p.swimT || 0) + 1 : 0;   /* (how long they have been swimming: pSwim) */
   /* (after their house, and out of their depth: that is as far as they go after it, there and then. pSwim takes them back
      to the bank, and a chase still on there would walk them straight back in after it, for as long as it is held: its
-     clock, hand.js handTask, does not go round while they swim) */
+     clock, hand.ts handTask, does not go round while they swim) */
   if (p.swimming && p.task && p.task.kind === "chase") iDone(p, true);
   if (p.swimming) { pSwim(g, p, sub); return; }
   if (!ground) { pFall(g, p); return; }
@@ -815,7 +848,7 @@ function pStep(g, p) {
 }
 
 /* how warm it is where they are standing, and what they do about it. true if it killed them */
-function pHeat(g, p, fx, fy) {
+function pHeat(g: Game, p: Peasant, fx: number, fy: number) {
   if (fx < 0 || fx >= g.gw) return false;
   var T = g.T, gw = g.gw, gh = g.gh, hi = -1e9, lo = 1e9, t, k, y;
   for (k = 0; k < 3; k++) {
@@ -831,7 +864,7 @@ function pHeat(g, p, fx, fy) {
   if (feet < AMBIENT) lo = Math.min(lo, AMBIENT + (feet - AMBIENT) * 0.5);
   /* too hot */
   if (hi > P_IGNITE * (p.task && p.task.brave ? 2 : 1) || feet > P_IGNITE + 120) pIgnite(g, p);
-  else if (!p.fire && !(p.task && p.task.brave) && (hi > P_SCALD || (feet > P_SCALD && SOLID[g.m[(fy + 1) * gw + fx]]))) {   /* (used to it, at work at a furnace: heavens.js) */
+  else if (!p.fire && !(p.task && p.task.brave) && (hi > P_SCALD || (feet > P_SCALD && SOLID[g.m[(fy + 1) * gw + fx]]))) {   /* (used to it, at work at a furnace: heavens.ts) */
     p.panic = Math.max(p.panic, 30); p.idle = 0;
     if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "scald", true);
     /* hot ground: a little hop, as you would */
@@ -852,7 +885,7 @@ function pHeat(g, p, fx, fy) {
   return false;
 }
 
-function pHeld(g, p) {
+function pHeld(g: Game, p: Peasant) {
   p.rope = null; p.jumping = false; p.chute = null; p.task = null; p.bored = 0; p.climb = null; p.sleep = 0;
   p.x = clamp((g.mx - PANEL) / CELL + (g.camI || 0), 1, g.gw - 2);
   p.y = clamp((g.my - PLAY_Y) / CELL + 8, 9, g.gh - 1);
@@ -860,12 +893,12 @@ function pHeld(g, p) {
   p.idle = 0; p.stun = 0;
   if (p.sayT <= 0 && Math.random() < 0.02) pSay(g, p, "grab");
 }
-function peasantGrab(g, p, fresh) {
-  if (p.ride) delete p.ride;   /* (off a lump in the air, into the other hand: hand.js) */
+function peasantGrab(g: Game, p: Peasant, fresh: boolean) {
+  if (p.ride) delete p.ride;   /* (off a lump in the air, into the other hand: hand.ts) */
   p.state = "held"; g.held = p;
   if (!fresh || p.sayT <= 0) pSay(g, p, "grab", true);
 }
-function peasantThrow(g, p) {
+function peasantThrow(g: Game, p: Peasant) {
   g.held = null;
   if (p.dead) return;
   /* where the hand actually let go, and how fast it was going */
@@ -876,7 +909,7 @@ function peasantThrow(g, p) {
   if (Math.abs(p.vx) + Math.abs(p.vy) > 1.5) { pSay(g, p, "thrown", true); g.fx.whee++; }
 }
 
-function pFall(g, p) {
+function pFall(g: Game, p: Peasant) {
   if (!p.falling) { p.falling = true; p.fallY = p.y; p.vy = 0; }
   p.vy = Math.min(p.vy + 0.09, 3);
   var fx = Math.floor(p.x), target = p.y + p.vy, cy = Math.floor(p.y);
@@ -888,14 +921,14 @@ function pFall(g, p) {
   if (p.y - p.fallY > 25 && Math.random() < 0.08 && pTryCatch(g, p)) return;
   if (p.y - p.fallY > 30 && p.sayT <= 0) pSay(g, p, "fall", true);
 }
-function pLand(g, p, cause) {
+function pLand(g: Game, p: Peasant, cause?: string) {
   var drop = p.y - p.fallY;
   p.falling = false; p.vy = 0; p.fallY = p.y;
   if (drop > 85 && !p.immune) { pDie(g, p, p.fromSpace ? "reentry" : (cause || "fall")); return; }
   if (drop > 34) { p.stun = 70; pSay(g, p, "oof", true); g.fx.thud++; g.shake = Math.min(6, g.shake + 1); }
 }
 /* swimming: kick up to the surface, keep your head out, paddle for the shore and climb out */
-function pSwim(g, p, sub) {
+function pSwim(g: Game, p: Peasant, sub: boolean) {
   p.falling = false; p.fallY = p.y; p.stun = 0; p.idle = 0;
   var fx = Math.floor(p.x), fy = Math.floor(p.y), depth = 0;
   while (depth < 10 && LIQUID[pCell(g, fx, fy - depth)]) depth++;
@@ -930,7 +963,7 @@ function pSwim(g, p, sub) {
       if (near && ((near > 0 && l) || (near < 0 && r))) far = -near;
     }
     if (near) p.dir = other && far ? far : near;
-    var lh = hBeacon(g, p);   /* (a lighthouse lit, within sight: that way. heavens.js) */
+    var lh = hBeacon(g, p);   /* (a lighthouse lit, within sight: that way. heavens.ts) */
     if (lh) p.dir = lh;
   }
   if (sub) target = burns ? -0.5 : -0.3;              /* head under: swim for the air. faster, if it stings */
@@ -950,15 +983,15 @@ function pSwim(g, p, sub) {
 /* ticks of paddling at one bank before trying the other, when there is no way out that a route can find */
 var P_SWIM_TRY = 1800;
 /* a route's goal: somewhere to stand on something solid, out of the water, head and all */
-function pDryGoal(g) {
+function pDryGoal(g: Game) {
   return function (x, y) { return navStand(g, x, y) === 1 && !WET[pCell(g, x, y)] && !WET[pCell(g, x, y - 4)]; };
 }
 /* leave the ground on purpose: up at vy, sideways at jx */
-function pLeap(p, vy, jx) {
+function pLeap(p: Peasant, vy: number, jx: number) {
   p.jumping = true; p.vy = -vy; p.jx = jx; p.falling = false; p.fallY = p.y; p.idle = 0;
 }
 /* in the air on purpose. the same gravity as falling, but you keep going the way you jumped */
-function pJump(g, p) {
+function pJump(g: Game, p: Peasant) {
   var fx = Math.floor(p.x), target, cy;
   if (p.vy < 0) {
     if (pBody(g, fx, Math.floor(p.y + p.vy) - 9)) p.vy = 0;   /* bumped your head (on anything but leaves) */
@@ -983,7 +1016,7 @@ function pJump(g, p) {
   if (p.y - p.fallY > 30 && p.sayT <= 0) pSay(g, p, "fall", true);
 }
 /* a wall too tall to step up: jump it, if it is not too tall to jump and there is room overhead */
-function pTryJump(g, p, fx, fy) {
+function pTryJump(g: Game, p: Peasant, fx: number, fy: number) {
   if (p.cold > 400) return false;
   var nfx = fx + p.dir, k, j;
   for (j = 9; j < 12; j++) if (pBody(g, fx, fy - j)) return false;
@@ -997,7 +1030,7 @@ function pTryJump(g, p, fx, fy) {
   return true;
 }
 /* the ground ends and the drop is a long one: leap to the other side, if there is one close enough */
-function pTryGap(g, p, fx, fy) {
+function pTryGap(g: Game, p: Peasant, fx: number, fy: number) {
   if (p.fire || p.cold > 400) return false;   /* burning peasants want to land in the pond, not over it */
   var d;
   for (d = 1; d <= 6; d++) if (pGround(g, fx + p.dir, fy + d)) return false;   /* only a little drop: just walk off */
@@ -1008,7 +1041,7 @@ function pTryGap(g, p, fx, fy) {
   if (!p.ropeCD && Math.random() < 0.8 && pTrySwing(g, p, fx, fy)) return true;
   return pTryAbseil(g, p, fx, fy);
 }
-function pTryLeap(g, p, fx, fy) {
+function pTryLeap(g: Game, p: Peasant, fx: number, fy: number) {
   if (p.fire || p.cold > 400) return false;   /* (as pTryGap: and a route that says leap does not change that) */
   var dir = p.dir, d, dy, x, k;
   for (k = 0; k <= 8; k++) if (pBody(g, fx, fy - 9 - k)) return false;    /* no room to jump */
@@ -1035,13 +1068,13 @@ function pTryLeap(g, p, fx, fy) {
    the hands hang on a line of length len from the anchor; the line can go
    slack but never stretch. climbing reels it in, abseiling pays it out.
    ------------------------------------------------------------------- */
-function pHands(p) { return p.y - 6; }
+function pHands(p: Peasant) { return p.y - 6; }
 /* something to stand on that is a floor, not just the foot of a wall they are hanging beside */
-function pFloor(g, x, y) {
+function pFloor(g: Game, x: number, y: number) {
   return pFoot(g, x, y) || (pFoot(g, x - 1, y) && !pSolid(g, x - 1, y)) || (pFoot(g, x + 1, y) && !pSolid(g, x + 1, y));
 }
 /* along (dx, dy) from (x0, y0): the last free point before the first solid cell, or null */
-function pHookCast(g, x0, y0, dx, dy, max) {
+function pHookCast(g: Game, x0: number, y0: number, dx: number, dy: number, max: number) {
   for (var s = 1; s <= max * 2; s++) {
     var x = x0 + dx * s * 0.5, y = y0 + dy * s * 0.5, cx = Math.floor(x), cy = Math.floor(y);
     if (cy < 0 || cx < 0 || cx >= g.gw) return null;
@@ -1053,7 +1086,7 @@ function pHookCast(g, x0, y0, dx, dy, max) {
   return null;
 }
 /* throw the hook at (ax, ay), which sits on solid cell (cx, cy). it bites when it gets there */
-function pRopeThrow(g, p, mode, ax, ay, cx, cy, goal, now) {
+function pRopeThrow(g: Game, p: Peasant, mode: string, ax, ay, cx: number, cy: number, goal: number, now?: boolean) {
   var dx = ax - p.x, dy = ay - pHands(p);
   p.rope = { mode: mode, ax: ax, ay: ay, cx: cx, cy: cy, goal: goal, x0: p.x, t: 0,
              dist: Math.sqrt(dx * dx + dy * dy), hook: now ? 1e9 : 0, len: 0, on: false };
@@ -1062,7 +1095,7 @@ function pRopeThrow(g, p, mode, ax, ay, cx, cy, goal, now) {
   else g.fx.whee++;
   achieve(g, "ninja");
 }
-function pRopeBite(g, p) {
+function pRopeBite(g: Game, p: Peasant) {
   var r = p.rope, dx = p.x - r.ax, dy = pHands(p) - r.ay;
   r.on = true; r.len = Math.max(1.5, Math.sqrt(dx * dx + dy * dy));
   if (pGround(g, Math.floor(p.x), Math.floor(p.y))) {
@@ -1072,13 +1105,13 @@ function pRopeBite(g, p) {
   p.falling = false; p.fallY = p.y;
 }
 /* let go. whatever speed they had, they keep, and come down where it takes them */
-function pRopeDrop(g, p, snapped) {
+function pRopeDrop(g: Game, p: Peasant, snapped?: boolean) {
   p.rope = null; p.ropeCD = 90;
   p.jumping = true; p.jx = clamp(p.vx || 0, -1.2, 1.2); p.vy = clamp(p.vy || 0, -2, 3); p.fallY = p.y;
   if (snapped) pSay(g, p, "snap", true);
 }
 /* a wall too tall to jump: hook the top of it and climb */
-function pTryClimb(g, p, fx, fy) {
+function pTryClimb(g: Game, p: Peasant, fx: number, fy: number) {
   if (p.cold > 400 || p.fire) return false;
   var dir = p.dir, nfx = fx + dir, k, j;
   for (k = 4; k <= P_ROPE; k++) if (pRoom(g, nfx, fy - k)) break;
@@ -1094,7 +1127,7 @@ function pTryClimb(g, p, fx, fy) {
 /* a ledge hanging out overhead, to one side (s), with nothing under its end: hook the top of its edge and climb straight
    up past the end of it, onto it. how a peasant gets onto a floating island. {top: its top solid row, stand: where their
    feet will be up there, h: how far up}, or null */
-function pHookGeom(g, x, y, s) {
+function pHookGeom(g: Game, x: number, y: number, s: number) {
   var cx = x + s, k, bottom = -1, top;
   if (cx < 1 || cx > g.gw - 2) return null;
   /* (no grates in columns cx and x (pNoGrCol), and their feet in the grid: the same looks, cell by cell off the grid. over
@@ -1115,7 +1148,7 @@ function pHookGeom(g, x, y, s) {
   if (!pRoom(g, cx, stand) || pCell(g, cx, top) === MAT.INERT) return null;
   return { top: top, stand: stand, h: h };
 }
-function pTryHook(g, p, fx, fy, s) {
+function pTryHook(g: Game, p: Peasant, fx: number, fy: number, s: number) {
   if (p.cold > 400 || p.fire || p.ropeCD) return false;
   var r = pHookGeom(g, fx, fy, s), cx = fx + s;
   if (!r) return false;
@@ -1126,7 +1159,7 @@ function pTryHook(g, p, fx, fy, s) {
 }
 /* up through something soft overhead (a bush, a tree) onto the top of it, its feet at row ty: a jump if it is low
    enough, else the rope, hooked into the top of it, and up they go, straight through it */
-function pTryUp(g, p, fx, fy, ty) {
+function pTryUp(g: Game, p: Peasant, fx: number, fy: number, ty: number) {
   var h = fy - ty;
   if (p.cold > 400 || h < 1) return false;
   p.hold = true; p.dir = p.dir || 1;
@@ -1138,14 +1171,14 @@ function pTryUp(g, p, fx, fy, ty) {
   return true;
 }
 /* down through the bush or the tree they are standing on, onto whatever is under it, if that is no more than max down */
-function pTrySink(g, p, fx, fy, max) {
+function pTrySink(g: Game, p: Peasant, fx: number, fy: number, max: number) {
   var d = navSink(g, fx, fy);
   if (d < 0 || d - fy > max) return false;
   p.sink = fy + 1; p.sinkT = 60; p.hold = true;
   return true;
 }
 /* burning, on a plank deck (a bridge) with water not far under it: straight down through the planks and into the water */
-function pTryDive(g, p, fx, fy) {
+function pTryDive(g: Game, p: Peasant, fx: number, fy: number) {
   if (p.climb || p.rope || p.jumping || p.sink || p.state !== "walk" || pCell(g, fx, fy + 1) !== MAT.PLANK) return false;
   for (var d = 2; d <= 16; d++) {
     var c = pCell(g, fx, fy + d);
@@ -1155,7 +1188,7 @@ function pTryDive(g, p, fx, fy) {
   return false;
 }
 /* a gap too wide to leap: hook something up and ahead, and swing over, if there is a far side to land on */
-function pTrySwing(g, p, fx, fy) {
+function pTrySwing(g: Game, p: Peasant, fx: number, fy: number) {
   var dir = p.dir, hy = pHands(p), a, h = null, c, rad, d, dy, x;
   /* the farthest hook out over the gap swings the farthest */
   for (a = 15; a <= 65; a += 5) {
@@ -1185,7 +1218,7 @@ function pTrySwing(g, p, fx, fy) {
 }
 /* a long drop: tie the rope to the edge and let yourself down it. unless the bottom is lava, or acid:
    then it is time to find another way */
-function pTryAbseil(g, p, fx, fy) {
+function pTryAbseil(g: Game, p: Peasant, fx: number, fy: number) {
   var dir = p.dir, nfx = fx + dir, d, c, k;
   for (d = 7; d <= 30; d++) if (pGround(g, nfx, fy + d)) return false;   /* not that far: just drop */
   if (pNasty(g, nfx, fy)) { p.dir = -dir; pSay(g, p, "nope"); return true; }
@@ -1202,7 +1235,7 @@ function pTryAbseil(g, p, fx, fy) {
   return false;
 }
 /* falling, a long way: fling the hook up at anything at all, and hope */
-function pTryCatch(g, p) {
+function pTryCatch(g: Game, p: Peasant) {
   if (p.rope || p.catchCD || p.fire || p.cold > 400) return false;
   var hy = pHands(p), best = null, a, h;
   for (a = -40; a <= 40; a += 10) {
@@ -1216,16 +1249,16 @@ function pTryCatch(g, p) {
 }
 
 /* acid and lava: no place to hang about in */
-function pBad(c) { return c === MAT.ACID || c === MAT.LAVA; }
+function pBad(c: number) { return c === MAT.ACID || c === MAT.LAVA; }
 /* climb the rope to wherever it is anchored, and get on top of that */
-function pRopeUp(g, p) {
+function pRopeUp(g: Game, p: Peasant) {
   var r = p.rope, y = r.cy;
   while (y > 0 && pSolid(g, r.cx, y - 1)) y--;
   r.mode = "climb"; r.goal = y - 1;
   if (Math.abs(r.ax - p.x) > 0.5) p.dir = r.ax > p.x ? 1 : -1;
 }
 /* which way to swing to get clear of something nasty below: towards the nearer side that is not */
-function pEscapeDir(g, p) {
+function pEscapeDir(g: Game, p: Peasant) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y);
   for (var d = 3; d <= 60; d += 3) {
     if (!pNasty(g, fx + d, fy)) { p.dir = 1; return; }
@@ -1233,7 +1266,7 @@ function pEscapeDir(g, p) {
   }
 }
 /* one tick on the rope. true if that was their whole tick */
-function pRopeStep(g, p) {
+function pRopeStep(g: Game, p: Peasant) {
   var r = p.rope, fx = Math.floor(p.x), fy = Math.floor(p.y);
   r.t++;
   /* the anchor burned, melted, got eaten or erased: the rope goes with it. and fire eats rope */
@@ -1327,7 +1360,7 @@ function pRopeStep(g, p) {
   return true;
 }
 
-function pFly(g, p) {
+function pFly(g: Game, p: Peasant) {
   var gw = g.gw, n, s, nx, ny, spd, hx, vt;
   p.flyT++;
   p.vy += 0.1; p.vx *= 0.995;
@@ -1349,7 +1382,7 @@ function pFly(g, p) {
   for (s = 0; s < n; s++) {
     nx = p.x + p.vx / n; ny = p.y + p.vy / n;
     /* (on a rocket pack the edge of the world is as good as a wall: they had it pointed at the valley. and knocked flat
-       by the hand, too: a shove is not a throw, and not out of the valley. hand.js) */
+       by the hand, too: a shove is not a throw, and not out of the valley. hand.ts) */
     if ((p.launch || p.shoved) && (nx < 1 || nx > gw - 1)) { p.vx = -p.vx * 0.5; nx = p.x; }
     if (nx < -4 || nx > gw + 4 || ny > g.gh + 12) { pLeave(g, p); return; }
     if (ny < -40) { pSpace(g, p); return; }
@@ -1389,13 +1422,13 @@ function pFly(g, p) {
 var P_CHUTE_COLS = ["#e84a4a", "#3a7ae0", "#f0c040", "#4ab84a", "#e070c8", "#f08a30"].map(function (h) { return hex32(h); });
 var P_CHUTE_WHITE = hex32("#f4f4ec"), P_CHUTE_LINE = hex32("#c8c8c0");
 /* how far below their feet the first thing they would land on is */
-function pDropBelow(g, x, y, max) {
+function pDropBelow(g: Game, x: number, y: number, max: number) {
   for (var d = 1; d <= max; d++) if (!AIRY[pCell(g, x, y + d)]) return d;
   return max;
 }
 /* is what is under column x, below row y, somewhere a peasant would rather not land. a pond counts, if there is
    acid or lava lying under the water close enough to the top to reach: you cannot see it from above, but they know */
-function pNasty(g, x, y) {
+function pNasty(g: Game, x: number, y: number) {
   var d, c, wet = 0;
   for (d = 1; d <= 200; d++) {
     c = pCell(g, x, y + d);
@@ -1407,7 +1440,7 @@ function pNasty(g, x, y) {
   }
   return false;
 }
-function pTryChute(g, p) {
+function pTryChute(g: Game, p: Peasant) {
   if (p.x < 1 || p.x > g.gw - 1) return false;   /* off the side of the world: leave that to the flying */
   if (p.chute || p.chuteCD || p.rope || p.fire || p.cold > 400 || p.vy <= 0.2) return false;
   if (p.vy > P_CHUTE_V || Math.abs(p.vx || 0) > 2) return false;   /* too fast: it would never open */
@@ -1423,7 +1456,7 @@ function pTryChute(g, p) {
   if (!fail) achieve(g, "chute");
   return true;
 }
-function pChute(g, p) {
+function pChute(g: Game, p: Peasant) {
   var c = p.chute, fx = Math.floor(p.x), fy = Math.floor(p.y), tvx = 0;
   c.t++;
   if (p.x < 0 || p.x > g.gw || p.y > g.gh + 12) { p.chute = null; pLeave(g, p); return; }
@@ -1495,9 +1528,9 @@ var P_LIFE = 84000;         /* ticks a peasant lives, at the least */
 var P_LIFE_MORE = 30000;    /* and up to this many more */
 var P_ARRIVE = 2400;        /* ticks between newcomers, at the least */
 /* (how old they are, and how long they have, is in their voice: rolled when they were made, so no two villages alike) */
-function pAge(g, p) { if (p.born == null) p.born = (g.tick || 0) - ((p.voice * 7919) | 0) % P_AGE0; return g.tick - p.born; }
-function pLifespan(p) { return P_LIFE + ((p.voice * 104729) | 0) % P_LIFE_MORE; }
-function pLife(g) {
+function pAge(g: Game, p: Peasant) { if (p.born == null) p.born = (g.tick || 0) - ((p.voice * 7919) | 0) % P_AGE0; return g.tick - p.born; }
+function pLifespan(p: Peasant) { return P_LIFE + ((p.voice * 104729) | 0) % P_LIFE_MORE; }
+function pLife(g: Game) {
   var L = g.peasants, k, p, alive = 0;
   for (k = 0; k < L.length; k++) {
     p = L[k];
@@ -1517,14 +1550,14 @@ function pLife(g) {
   for (var t = 0; t < 400; t++) {
     /* (in from one edge, or the other, as far as there is somewhere to stand: on the ground the village lives on, and
        if there is none of that near either edge, the first ground there is) */
-    var u = t % 200, side = (u & 1) === ((g.tick / P_ARRIVE | 0) % 2) ? 1 : -1, x = side > 0 ? rLo(g, 4) + (u >> 1) : rHi(g, 5) - (u >> 1);   /* (the edges of the village's range: world.js) */
+    var u = t % 200, side = (u & 1) === ((g.tick / P_ARRIVE | 0) % 2) ? 1 : -1, x = side > 0 ? rLo(g, 4) + (u >> 1) : rHi(g, 5) - (u >> 1);   /* (the edges of the village's range: world.ts) */
     var y = t < 200 ? pArriveY(g, x) : mGround(g, x);
     if (y < 10 || !pRoom(g, x, y - 1)) continue;
     var q = peasantSpawn(g, x + 0.5, y - 1, true);
     if (!q) return;
     q.born = g.tick - 20000 - ((q.voice * 7919) | 0) % 15000;   /* (grown up, and not yet old) */
     q.dir = x < rMid(g) ? 1 : -1;
-    var word = g.wordDue && sArrived(g, q);   /* (word got round: storeys.js) */
+    var word = g.wordDue && sArrived(g, q);   /* (word got round: storeys.ts) */
     feed(g, q.name + " has moved to the valley" + (word ? " (word got round)" : ""), "#a8e08a", "arrive", q);
     if (!word) pSay(g, q, "arrive", true);
     if (!g.got.arrive) achieve(g, "arrive");
@@ -1537,7 +1570,7 @@ function pLife(g) {
    shelf drawn in the sky, or a pond up there, while the houses are all down below. with nothing built yet, or no
    such ground at all: the first ground from the top, as it always was) */
 var P_ARRIVE_LEVEL = 24;    /* how far above or below that ground a building still counts as on it */
-function pArriveY(g, x) {
+function pArriveY(g: Game, x: number) {
   var gw = g.gw, y, c, open = true, best = -1, most = 0, k, n, s;
   for (y = 0; y < g.gh; y++) {
     c = g.m[y * gw + x];
@@ -1555,14 +1588,14 @@ function pArriveY(g, x) {
   for (k = 0; k < g.sites.length; k++) if (g.sites[k].done) return -1;
   return mGround(g, x);
 }
-function pSpace(g, p) {
+function pSpace(g: Game, p: Peasant) {
   p.state = "space"; p.spaceT = 200 + irnd(300);
   feed(g, p.name + " has gone to space", "#9ad0ff");
   g.astronauts++;
   wTale(g, "space", p);
   achieve(g, "space");
 }
-function pLeave(g, p) {
+function pLeave(g: Game, p: Peasant) {
   p.dead = 1;
   feed(g, p.name + " left the village. by air", "#c8d0dc");
   pSucceed(g, p, "THE KING HAS ABDICATED. AT SPEED");
@@ -1570,14 +1603,14 @@ function pLeave(g, p) {
 }
 
 /* too hot to walk into */
-function pHotAt(g, x, y) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.T[y * g.gw + x] > P_SCALD; }
+function pHotAt(g: Game, x: number, y: number) { return x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.T[y * g.gw + x] > P_SCALD; }
 
 /* walking. a few cells of step up, a couple of step down, jump what is taller or wider, turn at the rest */
 /* into column x from feet at row y, with no room at that height (pStepUp said a wall): room a step or two lower, and
    ground to stand on there. how far down (1 or 2), or 0 */
 /* under water at (fx, fy): which way the nearest column is with air over the water, straight up, that nothing hard
    is in the way of: 1 or -1, 2 if it is right overhead, 0 if there is none near */
-function pAirDir(g, fx, fy, no) {
+function pAirDir(g: Game, fx: number, fy: number, no: number) {
   var open = { "-1": no !== -1, "1": no !== 1 };   /* (no: a way they found blocked) */   /* (a side is given up at the first wall across the way: no swimming through it) */
   for (var bd = 0; bd <= 40; bd++) for (var sd = -1; sd <= 1; sd += 2) {
     if (!bd && sd > 0) continue;
@@ -1591,7 +1624,7 @@ function pAirDir(g, fx, fy, no) {
   return 0;
 }
 /* can p get to within a bucket's throw of q, walking (no wall between them, glass or otherwise) */
-function pCanMeet(g, p, q) {
+function pCanMeet(g: Game, p: Peasant, q) {
   var h = navHere(g, p), qx = Math.floor(q.x), qy = Math.floor(q.y);
   if (!h) return false;
   NAV_NOROPE = NAV_NOLEAP = true;
@@ -1599,30 +1632,30 @@ function pCanMeet(g, p, q) {
   NAV_NOROPE = NAV_NOLEAP = false;
   return !!P;
 }
-/* burning, and running for the water at p.fireTo: a step along the way there (paths.js). how far is left, or -1 if there
+/* burning, and running for the water at p.fireTo: a step along the way there (paths.ts). how far is left, or -1 if there
    is no way */
-function pFireGo(g, p) {
+function pFireGo(g: Game, p: Peasant) {
   var t = p.fireTo;
   /* (anywhere they would be standing in it, or right at the edge of it: whichever pool that turns out to be. one look
      for all of them, the nearest towards t) */
   return pathGo(g, p, "wet" + t.k, t.x, t.y, function (x, y) { return Math.abs(x - t.cx) <= t.r && (WET[pCell(g, x, y + 1)] || WET[pCell(g, x, y)] || WET[pCell(g, x, y - 4)]); });
 }
-function pDuckUnder(g, x, y) {
+function pDuckUnder(g: Game, x: number, y: number) {
   for (var d = 1; d <= 2; d++) if (pRoom(g, x, y + d) && pGround(g, x, y + d) && !navHazard(g, x, y + d)) return d;   /* (not onto a drain, or into a fire) */
   return 0;
 }
-function pStepX(g, p, sp, swim) {
+function pStepX(g: Game, p: Peasant, sp: number, swim?: boolean) {
   var nx = p.x + p.dir * sp, nfx = Math.floor(nx), fx = Math.floor(p.x), fy = Math.floor(p.y), k;
   if (nx < 1 || nx > g.gw - 1) { p.dir = -p.dir; return false; }
   if (nfx !== fx) {
     k = pStepUp(g, nfx, fy);
     /* (a lintel, or a low overhang, at head height: and room under it, a step or two down. ducking under it, down
-       they go: as a route expects, paths.js navEdges) */
+       they go: as a route expects, paths.ts navEdges) */
     if (k > 3 && !swim) { var dn = pDuckUnder(g, nfx, fy); if (dn) { p.y = fy + dn; p.x = nx; return true; } }
     if (k > 3) {
       /* a ladder up it: that is what it is for */
       if (!swim && !p.fire && bLadderUp(g, p, fx, fy)) return false;   /* (not burning: they would only let go of it) */
-      /* on a route, do what the route says (see paths.js). swimmers always try to climb out; walkers sometimes just
+      /* on a route, do what the route says (see paths.ts). swimmers always try to climb out; walkers sometimes just
          turn round */
       var nm = p.navMove;
       if ((swim || nm === "jump" || (!nm && Math.random() < 0.7)) && pTryJump(g, p, fx, fy)) return false;
@@ -1650,9 +1683,9 @@ function pStepX(g, p, sp, swim) {
   p.x = nx;
   return true;
 }
-function pWalk(g, p, wading) {
-  iPail(g, p);   /* (a full bucket and nothing to throw it at: it gets put down. ideas.js) */
-  tCarry(g, p);  /* (and an armful of sweepings, the same: tidy.js) */
+function pWalk(g: Game, p: Peasant, wading: number) {
+  iPail(g, p);   /* (a full bucket and nothing to throw it at: it gets put down. ideas.ts) */
+  tCarry(g, p);  /* (and an armful of sweepings, the same: tidy.ts) */
   if (p.stun > 0) { p.stun--; return; }
   if (p.sleep > 0 && bSleeping(g, p)) return;
   /* down on the ice: sliding along on their back until they stop, then up again */
@@ -1669,8 +1702,8 @@ function pWalk(g, p, wading) {
     /* look where you are going */
     if (!p.fire) {
       /* (a bucket in hand makes them braver: only flames a couple of steps ahead turn them back, not hot air. they
-         keep themselves out of that: see iSafe in ideas.js) */
-      var brave = p.task && (p.task.kind === "bucket" || p.task.brave);   /* (or at work at something hot on purpose: heavens.js) */
+         keep themselves out of that: see iSafe in ideas.ts) */
+      var brave = p.task && (p.task.kind === "bucket" || p.task.brave);   /* (or at work at something hot on purpose: heavens.ts) */
       var ax = fx + p.dir * (brave ? 2 : 4), a0 = pCell(g, ax, fy), a1 = pCell(g, ax, fy - 3), a2 = pCell(g, ax, fy + 1), a3 = pCell(g, ax, fy - 7);
       if (HOT[a0] || HOT[a1] || HOT[a2] || HOT[a3] || a2 === MAT.ACID || a0 === MAT.ACID || (!brave && (pHotAt(g, ax, fy + 1) || pHotAt(g, ax, fy - 3))) ||
           (!p.fire && !SOLID[a2] && pNasty(g, ax, fy))) {
@@ -1680,7 +1713,7 @@ function pWalk(g, p, wading) {
       }
     } else if ((p.anim % 12) === 0) {
       /* burning: run for the nearest water, if there is any, else run about. a village that knows about buckets runs
-         for the nearest bucket too, and looks further (ideas.js) */
+         for the nearest bucket too, and looks further (ideas.ts) */
       var best = 999, reach = g.know.bucket ? 120 : 50;
       if (pTryDive(g, p, fx, fy)) return;   /* (on a bridge: the water is right under them) */
       /* (on a bush over a pond: down through it, into the water) */
@@ -1710,21 +1743,21 @@ function pWalk(g, p, wading) {
       pFireGo(g, p);   /* (on along the way to the water, between looks) */
     }
     /* things going bang: home, if there is one to run to */
-    /* (not from under a lump coming down, though: out from under it, the way they were sent, first. hand.js) */
-    if (p.panic > 0 && !p.fire && !wading && !(p.handOut > g.tick) && !iFlee(g, p)) bHide(g, p);   /* (a house on fire is not somewhere to hide: ideas.js) */
+    /* (not from under a lump coming down, though: out from under it, the way they were sent, first. hand.ts) */
+    if (p.panic > 0 && !p.fire && !wading && !(p.handOut > g.tick) && !iFlee(g, p)) bHide(g, p);   /* (a house on fire is not somewhere to hide: ideas.ts) */
     /* something to do: go there, and do it. (paddling about is no time for it: unless they have been in a good while,
        a pit with something runny in the bottom of it, say, or are hungry, when it is time to be off and find food) */
     /* (struggling in the water, short of breath or in it a long while: nothing matters but the bank. pSwim) */
     var struggling = wading && (p.wadeT > 900 || p.breath < P_BREATH - 60);
-    /* (paddling in a puddle on purpose, to bail it out, or across a wet floor to sweep a roof, is not wading: tidy.js. nor
+    /* (paddling in a puddle on purpose, to bail it out, or across a wet floor to sweep a roof, is not wading: tidy.ts. nor
        is a bucket fetched for a wonder's pool or tank, through the shallows on the way to the water, like any other
-       bucket: pleasures.js pTaskFill) */
+       bucket: pleasures.ts pTaskFill) */
     /* (nor is splashing through a puddle or the shallows on the way to work, in a village with great works going on: the
        long way to the furnace crosses the edge of a pond, with the water not up to their middle. P_WADE_ON. other work in
        the water, and a village with none, keeps to its old ways) */
     var shallows = wading && g.wAny && p.task && P_WADE_ON[p.task.kind] && !p.swimming && !LIQUID[pCell(g, fx, fy - 4)];
     /* (nor is running after their house, carried off over a puddle or the edge of the pond: they splash through after it,
-       and give up only once they are swimming. a chase is only ever after a lift: hand.js) */
+       and give up only once they are swimming. a chase is only ever after a lift: hand.ts) */
     if (!scared && !struggling && (!wading || shallows || p.wadeT > 300 || p.hunger > P_HUNGRY || (p.task && (p.task.src || p.task.kind === "tidy" || p.task.kind === "pfill" || p.task.kind === "chase") && !p.swimming))) {
       /* (starving, and busy with something else: down tools, and look for food first. once: if there is none to be had,
          eatCD keeps them at the job) */
@@ -1745,12 +1778,12 @@ function pWalk(g, p, wading) {
       if (Math.random() < 0.002) pTrySink(g, p, fx, fy, 20);
       else if (P_SOFT[pCell(g, fx, fy)] && Math.random() < 0.004) { var up = navUp(g, fx, fy); if (up >= 0 && fy - up <= P_JUMP) pTryUp(g, p, fx, fy, up); }
     }
-    var rush = p.task && ((p.task.kind === "bucket" && p.task.site) || p.task.kind === "chase");   /* (the bucket brigade runs. so does somebody after their house: hand.js) */
+    var rush = p.task && ((p.task.kind === "bucket" && p.task.site) || p.task.kind === "chase");   /* (the bucket brigade runs. so does somebody after their house: hand.ts) */
     var pace = (p.fire ? 0.5 : (p.panic || rush ? 0.4 : (wading ? 0.12 : 0.18))) * (p.cold > 200 ? 0.5 : 1);
     if (p.hold) { if (p.ivx) pGlide(g, p); }
     else if (!wading && pOnIce(g, fx, fy)) pIceStep(g, p, pace);
     /* (never a step into what a great work has made hot, for anybody: the other way, or, hot both ways, stay put till it
-       cools. wonders.js wHotWork) */
+       cools. wonders.ts wHotWork) */
     else if (g.wAny && wHotWork(g, fx + p.dir, fy, p)) { p.dir = -p.dir; if (!wHotWork(g, fx + p.dir, fy, p)) pStepX(g, p, pace); }
     else pStepX(g, p, pace);
     if (!scared && !p.task) {
@@ -1768,7 +1801,7 @@ function pWalk(g, p, wading) {
   if (!scared && --p.chat <= 0) {
     p.chat = 500 + irnd(1200);
     var near = Math.abs(g.cx - p.x) < 14 && Math.abs(g.cy - p.y + 4) < 14 && g.mx > PANEL;
-    /* (and once they know the hand, and have a mind about it, they say what: hand.js) */
+    /* (and once they know the hand, and have a mind about it, they say what: hand.ts) */
     var hv = near && g.hand ? handView(g, p) : 0;
     pSay(g, p, wading ? "swim" : (near ? (hv > 0 ? "handLove" : hv < 0 ? "handGrudge" : "watched") : (p.hunger > P_HUNGRY ? "hungry" : (p.bored > P_BORED_CHOP ? "bored" : "idle"))));
   }
@@ -1788,9 +1821,9 @@ P_SAY.slipped = ["ow", "my bum", "who put ice here", "i meant to do that", "ice.
   "ouch", "nobody saw that", "my dignity"];
 P_SAY.skid = ["whoa whoa whoa", "stop stop stop", "brakes!", "slippy", "*windmills*", "i can't stop"];
 P_ACHIEVE.slip = ["ON THIN ICE", "a peasant slipped over. it was not dignified"];
-function pOnIce(g, x, y) { return pCell(g, x, y + 1) === MAT.ICE; }
+function pOnIce(g: Game, x: number, y: number) { return pCell(g, x, y + 1) === MAT.ICE; }
 /* a step, on ice: they push the way they want to go, and go the way they are going */
-function pIceStep(g, p, sp) {
+function pIceStep(g: Game, p: Peasant, sp: number) {
   var v = p.ivx || 0, d = p.dir;
   v += clamp(d * sp - v, -P_ICE_GRIP, P_ICE_GRIP);
   p.ivx = v;
@@ -1806,7 +1839,7 @@ function pIceStep(g, p, sp) {
   if (p.dir === (v < 0 ? -1 : 1)) p.dir = d;   /* (still facing where they wanted to go, unless a wall turned them) */
 }
 /* not stepping (standing about, busy at something): on ice, still going, a little slower every tick */
-function pGlide(g, p) {
+function pGlide(g: Game, p: Peasant) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), v = (p.ivx || 0) * 0.985, d = p.dir;
   if (!pOnIce(g, fx, fy) || Math.abs(v) < 0.02 || p.climb || p.rope || p.jumping) { p.ivx = 0; return; }
   p.ivx = v; p.dir = v < 0 ? -1 : 1;
@@ -1814,19 +1847,19 @@ function pGlide(g, p) {
   if (p.dir === (v < 0 ? -1 : 1)) p.dir = d;
 }
 /* feet out from under them, going at v: down they go */
-function pSlip(g, p, v) {
+function pSlip(g: Game, p: Peasant, v: number) {
   p.slip = 45 + irnd(45); p.ivx = clamp((v || 0) * 1.3, -0.9, 0.9); p.idle = 0; p.jumping = false; p.pose = null;
   if (p.pail) iSpill(g, p);   /* (a full bucket goes everywhere) */
   pSay(g, p, "slip", true); g.fx.thud++;
   g.slips = (g.slips || 0) + 1;
   wTale(g, "ice", p);
-  lSlipped(g, p);   /* (somewhere to put salt, and an idea: leftovers.js) */
+  lSlipped(g, p);   /* (somewhere to put salt, and an idea: leftovers.ts) */
   achieve(g, "slip");
   if (g.tick > (g.slipT || 0)) { g.slipT = g.tick + 2400; feed(g, p.name + " slipped on the ice", "#cfeaff", "slip"); }
 }
 /* on their back, sliding: over the smallest of bumps, off any edge, back off a wall, and into anybody standing about
    on the ice, who goes down too. then, once they have stopped and got their breath back, up again */
-function pSlide(g, p) {
+function pSlide(g: Game, p: Peasant) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), v = p.ivx || 0, k, q;
   p.idle = 0; p.pose = null;
   v *= pOnIce(g, fx, fy) ? 0.993 : 0.8;
@@ -1877,7 +1910,7 @@ var P_TINDER = new Uint8Array(NMAT); P_TINDER[MAT.WOOD] = P_TINDER[MAT.PLANT] = 
 /* the nearest cell of a kind they could reach from about where they stand: from their feet to just over their
    head (or, given far, that much further up and down: somewhere to walk to, over hills). ok, if given, has the last
    word on whether a cell will do */
-function pFind(g, p, set, R, ok, far) {
+function pFind(g: Game, p: Peasant, set, R: number, ok?, far?: number) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), d, s, x, y, low, hi;
   far = far || 0;
   for (d = 0; d <= R; d++) for (s = 0; s < 2; s++) {
@@ -1895,12 +1928,12 @@ function pFind(g, p, set, R, ok, far) {
 /* the nearest ripe wheat in any field, however far: where the really hungry go (a field is what it is there for, and
    somebody got to it to sow it), rather than a bush up a cliff somewhere they cannot get to */
 /* is (x, y) in a field p has lately found it cannot get to (pFieldFood, pGiveUp) */
-function pNoField(g, p, x, y) {
+function pNoField(g: Game, p: Peasant, x: number, y: number) {
   if (!p.noField || !P_FOOD[pCell(g, x, y)]) return false;
   var f = bSiteAround(g, x, y, "farm", 1);
   return !!f && p.noField[f.id] > g.tick;
 }
-function pFieldFood(g, p) {
+function pFieldFood(g: Game, p: Peasant) {
   var E = [], byX = {}, ids = {}, k, j, s, e, x, y, d, near = null, h = navHere(g, p);
   if (!p.noField) p.noField = {};
   for (k in p.noField) if (p.noField[k] <= g.tick) delete p.noField[k];   /* (forgotten, in time) */
@@ -1943,7 +1976,7 @@ function pFieldFood(g, p) {
 /* food is what grows up out of the ground: follow it down, through more of itself, to soil. a roof (it ends in wood)
    and a tree's crown (it ends in air) are not food. and leave a few of every patch, so it can grow back. (not wheat:
    wheat is grown to be eaten, all of it, and the field is sown again) */
-function pEdible(g, x, y) {
+function pEdible(g: Game, x: number, y: number) {
   var d, c, n = 0, dx, dy;
   for (d = 1; d <= 40; d++) {
     c = pCell(g, x, y + d);
@@ -1958,7 +1991,7 @@ function pEdible(g, x, y) {
 }
 /* is this wood part of something somebody built: a run of wood six wide, well up off the bottom of it, with nothing
    under most of it (a ceiling, a floor, a bridge). a trunk, a pile of logs or a solid lump is fair game; a hut is not */
-function pBuilt(g, x0, y0) {
+function pBuilt(g: Game, x0: number, y0: number) {
   var gw = g.gw, gh = g.gh, m = g.m, seen = {}, list = [y0 * gw + x0], n = 0, i, x, y, k, j, bottom = y0;
   seen[list[0]] = 1;
   while (n < list.length) {
@@ -1980,9 +2013,9 @@ function pBuilt(g, x0, y0) {
   }
   return false;
 }
-function pChoppable(g, x, y) { return !bMarked(g, x, y) && !pBuilt(g, x, y) && !pGrowing(g, x, y); }
+function pChoppable(g: Game, x: number, y: number) { return !bMarked(g, x, y) && !pBuilt(g, x, y) && !pGrowing(g, x, y); }
 /* a tree still growing: its trunk goes up into a live sapling tip. nobody chops one of those (it was planted for later) */
-function pGrowing(g, x, y) {
+function pGrowing(g: Game, x: number, y: number) {
   for (var k = 0; k < 16 && y - k >= 0; k++) {
     var c = g.m[(y - k) * g.gw + x];
     if (c === MAT.SAPLING) return true;
@@ -1991,7 +2024,7 @@ function pGrowing(g, x, y) {
   return false;
 }
 /* the next stroke of a cut: wood near the last stroke on the same row, else the lowest near it */
-function pFindCut(g, p, cx, row) {
+function pFindCut(g: Game, p: Peasant, cx: number, row) {
   var fy = Math.floor(p.y), fx = Math.floor(p.x), best = null, x, y;
   for (x = cx - 4; x <= cx + 4; x++) for (y = Math.abs(x - fx) > 2 ? fy + 1 : fy; y >= fy - 10; y--) {
     if (pCell(g, x, y) !== MAT.WOOD || !pChoppable(g, x, y)) continue;
@@ -2001,7 +2034,7 @@ function pFindCut(g, p, cx, row) {
   return best;
 }
 /* chopped through: if what is above no longer stands on anything, down it comes */
-function pFell(g, p, x0, y0) {
+function pFell(g: Game, p: Peasant, x0: number, y0: number) {
   var gw = g.gw, m = g.m, seen = {}, k, j;
   function tree(c) { return c === MAT.WOOD || c === MAT.PLANT || c === MAT.FLOWER; }
   /* every piece that touched the cut, separately: a stump left standing does not hold up the top */
@@ -2010,7 +2043,7 @@ function pFell(g, p, x0, y0) {
     if (j >= 0 && tree(m[j]) && !seen[j]) pFellPiece(g, p, x0, y0, j, seen, tree);
   }
 }
-function pFellPiece(g, p, x0, y0, start, seen, tree) {
+function pFellPiece(g: Game, p: Peasant, x0: number, y0: number, start, seen, tree) {
   var gw = g.gw, gh = g.gh, m = g.m, list = [start], n = 0, i, x, y, k, j, c, held = false;
   seen[start] = 1;
   while (n < list.length) {
@@ -2037,7 +2070,7 @@ function pFellPiece(g, p, x0, y0, start, seen, tree) {
   pSay(g, p, "timber", true);
 }
 /* a few chips or leaves off whatever they are working at. only for show: these light nothing */
-function pChips(g, x, y, n, cols) {
+function pChips(g: Game, x: number, y: number, n: number, cols) {
   for (var k = 0; k < n; k++) {
     var a = Math.random() * 6.2832, s = 0.2 + Math.random() * 0.4;
     partAdd(g, PK_GLINT, x, y, Math.cos(a) * s, Math.sin(a) * s - 0.2, 8 + irnd(8), pick(cols));
@@ -2047,7 +2080,7 @@ function pChips(g, x, y, n, cols) {
    anything within two cells as part of it) must be small, explosive-free, and have nothing flammable above it
    for the hot air to find, and nobody near it: the one lighting it included, who must be standing well clear of
    it, off to one side. returns the patch's bounds, or null */
-function pSafeToLight(g, p, x0, y0) {
+function pSafeToLight(g: Game, p: Peasant, x0: number, y0: number) {
   var gw = g.gw, gh = g.gh, m = g.m, seen = {}, list = [y0 * gw + x0], n = 0, i, x, y, dx, dy, j;
   var x1 = x0, x2 = x0, y1 = y0, y2 = y0;
   seen[list[0]] = 1;
@@ -2088,12 +2121,12 @@ function pSafeToLight(g, p, x0, y0) {
   return { x1: x1, x2: x2, y1: y1, y2: y2 };
 }
 /* how far they are standing from the side of a patch: 0 if they are over it */
-function pClear(p, b) { return p.x < b.x1 ? b.x1 - p.x : (p.x > b.x2 + 1 ? p.x - b.x2 - 1 : 0); }
+function pClear(p: Peasant, b) { return p.x < b.x1 ? b.x1 - p.x : (p.x > b.x2 + 1 ? p.x - b.x2 - 1 : 0); }
 /* somewhere they could build a campfire at x: flat ground, open sky over it, nothing flammable near, nobody else
    close, and them a few cells off to one side of it */
 /* what a campfire is built of: logs, or coal out of the mine */
 function pFuel(c) { return c === MAT.WOOD || c === MAT.COAL; }
-function pCampOk(g, p, x, fy, stacked) {
+function pCampOk(g: Game, p: Peasant, x: number, fy: number, stacked?: boolean) {
   var k, y, c, clear = pClear(p, { x1: x - 1, x2: x + 1 });
   if (clear < 2.5 || clear > 5 || Math.abs(p.y - fy) > 1.5) return false;
   if (bSiteAround(g, x, fy, null, 3)) return false;   /* not on somebody's field, or by their cross: the bucket brigade would only put it out */
@@ -2115,9 +2148,9 @@ function pCampOk(g, p, x, fy, stacked) {
 /* something to eat, if they are hungry and there is some to be had: an eat task, and true. (a peasant who went looking
    for food and found none gets on with other things for a while. really hungry: further, and further up and down, out
    of a mine to the fields, ripe wheat first. starving: anywhere at all) */
-function pFoodTask(g, p) {
-  if (lSnack(g, p)) return true;   /* (a salt fish out of their pocket: leftovers.js) */
-  var t = null, edible = function (g2, x, y) { return !pAvoid(g2, p, x) && pEdible(g2, x, y) && !pNoField(g2, p, x, y); };
+function pFoodTask(g: Game, p: Peasant) {
+  if (lSnack(g, p)) return true;   /* (a salt fish out of their pocket: leftovers.ts) */
+  var t = null, edible = function (g2, x: number, y: number) { return !pAvoid(g2, p, x) && pEdible(g2, x, y) && !pNoField(g2, p, x, y); };
   if (p.hunger > P_HUNGRY && !p.eatCD) {
     var vh = p.hunger > P_HUNGRY * 2;
     t = (vh && pFieldFood(g, p)) || pFind(g, p, P_FOOD, p.hunger > P_HUNGRY * 4 ? g.gw : (vh ? 220 : 60), edible, vh ? 90 : 40);
@@ -2128,19 +2161,19 @@ function pFoodTask(g, p) {
   p.task = { kind: "eat", x: t.x, y: t.y, t: 0, act: 0, n: 0, want: p.hunger > P_HUNGRY * 2 };   /* (a long walk, for the really hungry) */
   return true;
 }
-function pPickTask(g, p) {
+function pPickTask(g: Game, p: Peasant) {
   var t = null, b;
-  /* the village is on fire, and they know about buckets: that comes before anything (ideas.js) */
+  /* the village is on fire, and they know about buckets: that comes before anything (ideas.ts) */
   if (iUrgent(g, p)) return;
   /* really hungry: food comes before rocket packs and building (pFoodTask again, below, for the merely peckish) */
   if (p.hunger > P_HUNGRY * 2 && pFoodTask(g, p)) return;
-  /* iron in their pocket and oil in a tank: a rocket pack (oil.js) */
+  /* iron in their pocket and oil in a tank: a rocket pack (oil.ts) */
   if (oFirst(g, p)) return;
   /* wood in hand and something to build with it: that comes before lunch */
   if (bCarries(p) && p.cold <= 80 && p.hunger <= P_HUNGRY * 2) {   /* (unless they are really hungry) */ var bs = bNearestSite(g, p, 170); if (bs) { bJoin(g, p, bs); return; } }
-  var choppable = function (g2, x, y) { return !pAvoid(g2, p, x) && pChoppable(g2, x, y); };
+  var choppable = function (g2, x: number, y: number) { return !pAvoid(g2, p, x) && pChoppable(g2, x, y); };
   if (pFoodTask(g, p)) return;
-  /* bed, warmth, building, planting: see build.js. bright ideas, and what came of them: ideas.js */
+  /* bed, warmth, building, planting: see build.ts. bright ideas, and what came of them: ideas.ts */
   if (bPick(g, p)) return;
   if (iPick(g, p)) return;
   if (p.bored > P_BORED_FIRE && Math.random() < 0.25) {
@@ -2157,13 +2190,13 @@ function pPickTask(g, p) {
     t = pFind(g, p, P_WOOD, want ? 140 : (p.bored > P_BORED_CHOP ? 40 : 3), choppable, want ? 60 : 0);
     if (t) { p.task = { kind: "chop", x: t.x, y: t.y, t: 0, act: 0, n: 0, want: want }; return; }
     /* wood wanted, and not a tree left standing: somebody had better plant some */
-    if (want) iTreeless(g, p);   /* (and somebody had better think about that: ideas.js) */
+    if (want) iTreeless(g, p);   /* (and somebody had better think about that: ideas.ts) */
     if (want && !p.plantCD) { p.wantPlant = true; p.plantCD = 2400; }
   }
 }
 /* walking somewhere for a job, d away from it: true once they have gone a good while without getting any closer
    (a wall in the way, a house with its door round the other side). they cannot see round corners */
-function pStuck(p, k, d) {
+function pStuck(p: Peasant, k: Task, d: number) {
   if (k.best == null || d < k.best - 1) { k.best = d; k.since = 0; return false; }
   return ++k.since > 320;
 }
@@ -2171,11 +2204,11 @@ function pStuck(p, k, d) {
 var P_WADE_ON = { kiln: 1, glassblow: 1, smelt: 1, forge: 1, store: 1, brine: 1 };
 /* a job walked in legs (for sand, then to the furnace; to a pile, then to the furnace, then to the site): each leg's
    closest yet starts afresh, or the next leg, never closer than the last one got, reads as stuck and is given up partway */
-function pLeg(k, leg) { if (k.leg !== leg) { k.leg = leg; k.best = null; k.since = 0; } }
+function pLeg(k: Task, leg: string) { if (k.leg !== leg) { k.leg = leg; k.best = null; k.since = 0; } }
 /* give up on a job they could not get to, and steer clear of that spot for a while */
-function pGiveUp(g, p, x) {
+function pGiveUp(g: Game, p: Peasant, x: number) {
   /* (a great work they could not get to, or the salvage, or the moon rock's spot: let be a while, and the next one tried.
-     wonders.js wBackoff) */
+     wonders.ts wBackoff) */
   if (p.task && typeof W_KINDS !== "undefined" && typeof W_AWAY !== "undefined") {
     var gs = p.task.site != null ? bSite(g, p.task.site) : null, wk = W_KINDS[p.task.kind];
     /* (not a job whose walk is somewhere else, snow to scoop or water to fetch: that place, not the site, was the trouble) */
@@ -2190,10 +2223,10 @@ function pGiveUp(g, p, x) {
   }
   p.avoidX = x; p.avoidT = g.tick + 2400; p.task = null; p.taskCD = 120;
 }
-function pAvoid(g, p, x) { return p.avoidT > g.tick && Math.abs(x - p.avoidX) < 10; }
+function pAvoid(g: Game, p: Peasant, x: number) { return p.avoidT > g.tick && Math.abs(x - p.avoidX) < 10; }
 /* one tick of a task. true if they spent it working; false to keep walking (towards the job, or away from it) */
-function pTask(g, p) {
-  var k = p.task, b = bTask(g, p, k);
+function pTask(g: Game, p: Peasant) {
+  var k = p.task, b: any = bTask(g, p, k);
   if (b !== undefined) return b;
   var gw = g.gw, fx = Math.floor(p.x), fy = Math.floor(p.y), j = k.y * gw + k.x, c, set, more, ok;
   if (++k.t > (k.want ? 2400 : 900)) { if (k.kind === "eat") pGiveUp(g, p, k.x); else p.task = null; return false; }   /* (food they never got to: let be) */
@@ -2235,12 +2268,12 @@ function pTask(g, p) {
   }
   k.act++;
   if (k.kind === "chop") {
-    var cb = p.tools ? 14 : 24;   /* (an iron axe bites deeper: mines.js) */
+    var cb = p.tools ? 14 : 24;   /* (an iron axe bites deeper: mines.ts) */
     p.pose = (k.act % cb) < (cb >> 1) ? "chopA" : "chopB";
     if (k.act % cb === (cb >> 1)) {
       mWear(g, p);
       if (pBuilt(g, k.x, k.y)) { p.task = null; return true; }   /* on second thoughts, somebody lives in that */
-      heatVacate(g, j); g.fx.thud++;   /* (the air keeps the heat the wood had, in a plain village: heat.js heatVacate) */
+      heatVacate(g, j); g.fx.thud++;   /* (the air keeps the heat the wood had, in a plain village: heat.ts heatVacate) */
       pChips(g, k.x + 0.5, k.y + 0.5, 5, [SAND_PAL[MAT.WOOD][40], SAND_PAL[MAT.WOOD][200]]);
       p.logs = (p.logs || 0) + 1; p.bored = Math.max(0, p.bored - 300); k.n++;
       if (k.n === 1 && (p.sayT <= 0 || Math.random() < 0.3)) pSay(g, p, "chop");
@@ -2260,7 +2293,7 @@ function pTask(g, p) {
       pChips(g, k.x + 0.5, k.y + 0.5, 3, [SAND_PAL[MAT.PLANT][0], SAND_PAL[MAT.PLANT][100]]);
       p.hunger = Math.max(0, p.hunger - (c === MAT.FLOWER ? 1000 : (c === MAT.WHEAT ? 900 : 700)) - lSeason(g, p)); p.bored = Math.max(0, p.bored - 100); k.n++;
       if (c === MAT.WHEAT) achieve(g, "harvest");
-      if (c === MAT.WHEAT && g.wDuckPalace) p.seed = Math.min(3, (p.seed || 0) + 1);   /* (a handful kept, for the duck palace: pleasures.js) */
+      if (c === MAT.WHEAT && g.wDuckPalace) p.seed = Math.min(3, (p.seed || 0) + 1);   /* (a handful kept, for the duck palace: pleasures.ts) */
       if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, c === MAT.FLOWER && Math.random() < 0.5 ? "flower" : (c === MAT.WHEAT && Math.random() < 0.6 ? "wheat" : "eat"));
       more = p.hunger > 300 && k.n < P_BITES ? pFind(g, p, P_FOOD, 3, pEdible) : null;
       if (more) { k.x = more.x; k.y = more.y; } else p.task = null; p.taskDone = true;
@@ -2269,7 +2302,7 @@ function pTask(g, p) {
     if (k.act % 6 === 0) pChips(g, p.x + p.dir * 2, p.y - 4, 1, SPARK_HOT);
     if (k.act === 40) {
       /* one last look, from where they are standing now, then strike a light at the near edge of it */
-      var b = pSafeToLight(g, p, k.x, k.y);
+      var b: any = pSafeToLight(g, p, k.x, k.y);
       if (!b || pClear(p, b) < 2.5 || pClear(p, b) > 5) { p.task = null; return false; }
       var tx = p.x < (b.x1 + b.x2 + 1) / 2 ? b.x1 : b.x2, ty, best = -1;
       for (ty = b.y2; ty >= b.y1 && best < 0; ty--) for (var sx = 0; sx <= b.x2 - b.x1 && best < 0; sx++) {
@@ -2280,7 +2313,7 @@ function pTask(g, p) {
       pIgniteCell(g, best);
       feed(g, p.name + " got bored and lit a fire", "#ffb070", null, p);
       achieve(g, "arson");
-      g.burnt = true;   /* (and somebody, somewhere, starts thinking about buckets: ideas.js) */
+      g.burnt = true;   /* (and somebody, somewhere, starts thinking about buckets: ideas.ts) */
       pSay(g, p, "light", true);
       p.bored = 0; p.calmT = 400; p.task = null; p.taskDone = true; p.dir = -p.dir; p.idle = 0;
     }
@@ -2314,13 +2347,13 @@ function pTask(g, p) {
   return true;
 }
 /* set a cell alight: wood smoulders into embers, everything else just burns */
-function pIgniteCell(g, j, spread) {
+function pIgniteCell(g: Game, j: number, spread?: boolean) {
   var v = g.m[j], gw = g.gw, x = j % gw, y = (j / gw) | 0, k, n;
   /* a match: no heat to speak of. the burning makes the heat. the cell keeps exactly the heat it had */
   heatSync(g, j);
   var q = heatQ(g, j);
   if (v === MAT.WOOD) { g.m[j] = MAT.EMBER; g.aux[j] = 0; }
-  else if (v === MAT.COAL) { g.m[j] = MAT.EMBER; g.aux[j] = 1; }   /* (coal smoulders a long while: heat.js) */
+  else if (v === MAT.COAL) { g.m[j] = MAT.EMBER; g.aux[j] = 1; }   /* (coal smoulders a long while: heat.ts) */
   else { g.m[j] = MAT.FIRE; g.sh[j] = irnd(128); g.aux[j] = 0; }
   heatSetQ(g, j, q);
   g.fx.whoosh++;
@@ -2335,7 +2368,7 @@ function pIgniteCell(g, j, spread) {
    DRAWING: straight into the pixel buffer
    ------------------------------------------------------------------- */
 var P_TMP = new Uint32Array(10);
-function pBlit(g, spr, ox, oy, flip, rot, pal, glow) {
+function pBlit(g: Game, spr, ox: number, oy: number, flip: boolean, rot: number, pal: Uint32Array, glow: boolean) {
   var px = g.px, gp = g.gpx, m = g.m, gw = g.gw, gh = g.gh;
   for (var k = 0; k < spr.length; k += 3) {
     var sx = spr[k], sy = spr[k + 1], dx = (flip ? 4 - sx : sx) - 2, dy = sy - 4, rx, ry;
@@ -2351,13 +2384,13 @@ function pBlit(g, spr, ox, oy, flip, rot, pal, glow) {
     if (glow) gp[i] = col;
   }
 }
-function peasantsDraw(g) {
+function peasantsDraw(g: Game) {
   var L = g.peasants, pal = P_TMP, k, c;
   for (k = 0; k < L.length; k++) {
     var p = L[k];
     if (p.dead || p.state === "space") continue;
     var body, rot = 0, flip = p.dir < 0, oy = Math.floor(p.y) - 4, fast = (p.anim >> 2) & 1;
-    if (p.state === "held") body = p.ride && g.hand && g.hand.held ? P_BODY.sit : (fast ? P_BODY.panicA : P_BODY.panicB);   /* (on a lump in the hand they sit down: hand.js) */
+    if (p.state === "held") body = p.ride && g.hand && g.hand.held ? P_BODY.sit : (fast ? P_BODY.panicA : P_BODY.panicB);   /* (on a lump in the hand they sit down: hand.ts) */
     else if (p.state === "fly") { body = P_BODY.panicA; rot = ((Math.round(p.spin / 1.5708) % 4) + 4) % 4; }
     else if (p.sleep > 0) { body = P_BODY.sleep; rot = flip ? 3 : 1; oy = Math.floor(p.y) - 2; }
     else if (p.stun > 0) { body = P_BODY.stand; rot = flip ? 3 : 1; oy = Math.floor(p.y) - 2; }
@@ -2395,14 +2428,14 @@ function peasantsDraw(g) {
         if (ox + c >= 0 && ox + c < g.gw && SOLID[g.m[si]]) g.px[si] = mix32(g.px[si], c === -2 || c === 2 ? g.px[si] : 0xff000000);
       }
     }
-    if (body === P_BODY.sit) oy += 2;   /* (sitting down: on a tier, or a bench. wonders.js) */
+    if (body === P_BODY.sit) oy += 2;   /* (sitting down: on a tier, or a bench. wonders.ts) */
     if (p.rope && p.state === "walk") pDrawRope(g, p, ox);
     if (p.chute && p.state === "walk") pDrawChute(g, p, ox);
     pBlit(g, p.hat.spr, ox, oy, flip, rot, pal, p.fire > 0);
     pBlit(g, body, ox, oy, flip, rot, pal, p.fire > 0);
-    if (rot === 0 && !g.thermal) iDrawGear(g, p, ox, oy);   /* a bucket, a fishing rod, a bright idea (ideas.js) */
-    if (p.task && p.task.kind === "leave" && rot === 0 && !g.thermal) sDrawBundle(g, p, ox, oy);   /* (over the hills: storeys.js) */
-    if (p.pack && rot === 0 && !g.thermal) pDrawPack(g, p, ox, oy);   /* (oil.js) */
+    if (rot === 0 && !g.thermal) iDrawGear(g, p, ox, oy);   /* a bucket, a fishing rod, a bright idea (ideas.ts) */
+    if (p.task && p.task.kind === "leave" && rot === 0 && !g.thermal) sDrawBundle(g, p, ox, oy);   /* (over the hills: storeys.ts) */
+    if (p.pack && rot === 0 && !g.thermal) pDrawPack(g, p, ox, oy);   /* (oil.ts) */
     if (p.launch) pDrawFlame(g, p, ox, oy);
   }
   /* ghosts: half see-through, which is the least a ghost can do */
@@ -2422,7 +2455,7 @@ function peasantsDraw(g) {
 
 /* the rope: from their hands to the hook, or to wherever the hook has got to so far */
 var P_ROPE32 = [hex32("#d8c090"), hex32("#b0905c")], P_HOOK32 = hex32("#c8ccd4");
-function pDrawRope(g, p, ox) {
+function pDrawRope(g: Game, p: Peasant, ox: number) {
   var r = p.rope, x0 = ox + 0.5, y0 = Math.floor(p.y) - 6, x1 = r.ax, y1 = r.ay;
   if (!r.on) { var f = Math.min(1, r.hook / (r.dist || 1)); x1 = x0 + (r.ax - x0) * f; y1 = y0 + (r.ay - y0) * f; }
   var dx = x1 - x0, dy = y1 - y0, n = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))) || 1, px = g.px, gw = g.gw, gh = g.gh;
@@ -2436,7 +2469,7 @@ function pDrawRope(g, p, ox) {
 }
 
 /* a canopy over their head on two lines, opening out over its first few ticks. or a sorry, flapping streamer */
-function pDrawChute(g, p, ox) {
+function pDrawChute(g: Game, p: Peasant, ox: number) {
   var c = p.chute, px = g.px, gw = g.gw, gh = g.gh, fy = Math.floor(p.y), k, x, y, X, Y;
   function put(X, Y, col) { if (X >= 0 && Y >= 0 && X < gw && Y < gh) px[Y * gw + X] = col; }
   if (c.fail) {
@@ -2464,7 +2497,7 @@ function pDrawChute(g, p, ox) {
 }
 
 /* speech bubbles and name tags, on the real canvas, over the top of everything */
-function peasantsBubbles(g, c, sx0, sy0) {
+function peasantsBubbles(g: Game, c, sx0: number, sy0: number) {
   var L = g.peasants, k, hover = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null;
   c.font = "bold 7px " + UI_FONT;
   c.textBaseline = "alphabetic";

@@ -21,10 +21,10 @@ v2, what changed (the review history is §15):
   goes first, then stone, then brick, then iron (§0.3).
 - **The organ, measured.** The organ cannot boil itself dry as the village runs it: a concert peaks at P 2.2, and its
   coals left alone die at 99°. v1 had the organist leave for the fire bell, but they never do, because "organ" is not in
-  `I_IDLE` (ideas.js:531). So the organ goes up only when a player puts a torch in its firebox. Then its weakest wall
+  `I_IDLE` (ideas.ts:531). So the organ goes up only when a player puts a torch in its firebox. Then its weakest wall
   is the right-hand side of the tank, settled by a rule rather than by flood order (§2.2). The repair builders put a
   SAFETY VALVE where it blew (§5.1).
-- **Water does not level in under steam.** The U-bend rule (`sandPressure`, world.js:899) was undoing every push. A
+- **Water does not level in under steam.** The U-bend rule (`sandPressure`, world.ts:899) was undoing every push. A
   state-derived hold stops it (§2.6). It needs no saved state and rolls no dice.
 - **V counts only the chamber's water**, so a basin of any size leaves P alone. The push also takes water from above
   and beside the pocket, which lets steam drive the water up a pipe (§2.5). Measured: a steam fountain that plays for as
@@ -37,7 +37,7 @@ v2, what changed (the review history is §15):
   faucet inside it whistles until you stop it. Pitch comes from the vessel's size, so a chord is a matter of pot sizes.
 - **Peasants come to watch a fountain** (the fireworks' `watch` task), and watching one long enough puts the baths in
   their heads (§5.2).
-- Grounding fixes: `bHide` (build.js:1258), `TIPS` (game.js:18-69), the save check at save.js:274 (§8).
+- Grounding fixes: `bHide` (build.ts:1258), `TIPS` (game.ts:18-69), the save check at save.ts:274 (§8).
 
 ---
 
@@ -46,7 +46,7 @@ v2, what changed (the review history is §15):
 ### 0.1 Where steam is, in a village left alone
 
 A read-only probe stepped each village and counted every STEAM cell every 10 ticks. It flood-filled the air around
-each one (8-connected through `AIRY`, world.js:262, capped at 400 cells, open at row 0). The valley was 272 wide.
+each one (8-connected through `AIRY`, world.ts:262, capped at 400 cells, open at row 0). The valley was 272 wide.
 
 | villages | ticks | steam cells seen | sealed pockets with ≥ 4 steam |
 |---|---|---|---|
@@ -57,15 +57,15 @@ each one (8-connected through `AIRY`, world.js:262, capped at 400 cells, open at
 | chaos (painted lava and water), seeds 1-6 (v1) | 12,000 each | 4 seeds | 1 (seed 3, tick 610: 14 steam in 27 cells under rock) |
 
 No village boils anything. The brigade's water puts fires out without boiling (`sandFire` turns the flame to SMOKE,
-world.js:739). The brine is boiled in the abstract. The bombfish charge (leftovers.js:1052) boils a cell here and
+world.ts:739). The brine is boiled in the abstract. The bombfish charge (leftovers.ts:1052) boils a cell here and
 there inside open water. That cell is a pocket of one, below `PR_NMIN`, and bubbles straight out. In 80,000 ticks the
 great-works villages built an observatory once and an organ never, so §0.2 covers the organ directly.
 
 ### 0.2 The steam organ
 
 The probe uses `organ(k)` exactly as test/pleasures.js:247 sets it up (seed 1, a full tank). The tank is iron, inside
-u 2..10, rows L0+1..L0+4 (pleasures.js:894-896). The gutter column u = 12 beside it is air, dug out by the organ's own
-plan down to the apron (pleasures.js:871) and open sky above.
+u 2..10, rows L0+1..L0+4 (pleasures.ts:894-896). The gutter column u = 12 beside it is air, dug out by the organ's own
+plan down to the apron (pleasures.ts:871) and open sky above.
 
 | case | result |
 |---|---|
@@ -143,7 +143,7 @@ for the bulb (§13).
 ### 2.1 Pockets and pressure
 
 A **pocket** is the set of `AIRY` cells (EMPTY, FIRE, SMOKE, STEAM, GAS) 8-connected to a seed cell. Steam slips up
-the diagonals (`sandSteam`, world.js:779-799), so a pocket sealed only four ways is not sealed. A pocket is **open** if
+the diagonals (`sandSteam`, world.ts:779-799), so a pocket sealed only four ways is not sealed. A pocket is **open** if
 any cell of it is on row 0, or if it has more than `PR_CAP` = 400 cells. Then nothing happens. The world's sides and
 floor are walls, as they are to steam now.
 
@@ -177,7 +177,7 @@ The pocket's **weakest wall** is the least R. Ties go by direction (up, then lef
 they go to the cell nearest the middle of the pocket, across d (its bounding box, so a lid goes in the middle as a lid
 does), and then to the lowest index. Nothing depends on flood order.
 
-On the organ, measured: the valves have R 9 + 1 (rack bricks either side of each pipe, pleasures.js:900-903), the left
+On the organ, measured: the valves have R 9 + 1 (rack bricks either side of each pipe, pleasures.ts:900-903), the left
 wall R 12 (iron, then the ladder), and the right wall R 9 with the dug gutter column beyond it. The right wall goes.
 
 ### 2.3 Rattle, strain, burst
@@ -195,38 +195,38 @@ at the second look running. A transient, such as air in a pipe beside a chamber 
 
 **prBurst**, at b along d:
 
-- If `g.np >= PMAX - 400` (the test `sandBoom` makes, world.js:519), nothing happens. The strain stays at `PR_HOLD`,
+- If `g.np >= PMAX - 400` (the test `sandBoom` makes, world.ts:519), nothing happens. The strain stays at `PR_HOLD`,
   and the burst comes at the first scan with room in the air.
 - over = P - R, and `hw = min(2, floor(over / 4))`. The hole is b's line, plus each cell up to hw to either side of b
   (across d) whose own R along d is at most P. A neighbour that could not have gone on its own stays. On the organ that
   means the wall cells above and below b, R 9 each: 3 cells.
 - Each cell in the hole is `sandFling`ed at `d * sp`, -0.3 up, with jitter. `sp = clamp(0.8 + 0.25 * over + n / 40,
-  0.8, 4)`. The piece takes all its heat (world.js:427), and it is marked as a burst piece (§2.4).
+  0.8, 4)`. The piece takes all its heat (world.ts:427), and it is marked as a burst piece (§2.4).
 - A white `PK_GLINT` puff (lights nothing). Then `peasantsBlast(g, bx, by, Rb, Pb, true)` and `ducksBlast(..., true)`,
   with Rb = `2 + min(6, n / 6)` and Pb = `min(3, 0.5 + over * 0.2)`. The new `cold` argument skips the rolls that set
-  bodies alight (peasants.js:535, ducks.js:223).
-- `g.booms.push({x, y, R: Rb, t, steam: true})`. A snowman counts it as rough handling (`lRough`, leftovers.js:1543),
+  bodies alight (peasants.ts:535, ducks.ts:223).
+- `g.booms.push({x, y, R: Rb, t, steam: true})`. A snowman counts it as rough handling (`lRough`, leftovers.ts:1543),
   and the organ looks for it (§5.1). At P >= 10 there is a ring and a shake (up to 4), with the ring on the side dice in
   a great-works village as `sandBoom` does. `g.fx.boom` at P >= 10, else `g.fx.pop`. `achieve(g, "pressure")`.
 
-After that the pocket is open, and the steam leaves by the existing rules, rising and raining (heat.js:115).
+After that the pocket is open, and the steam leaves by the existing rules, rising and raining (heat.ts:115).
 
 ### 2.4 Burst pieces
 
-`sandFling` gives debris a life of 240, and no other debris gets more (iThrow, ideas.js:1082; the salt toss,
-leftovers.js:682; `sandBoom`'s 80). prBurst sets its pieces' life to `PR_LIFE` 600, and in `partStep`'s landing
-branch (world.js:483-497) a piece with life over 240 that is not `SAND_FREE` is handled like this:
+`sandFling` gives debris a life of 240, and no other debris gets more (iThrow, ideas.ts:1082; the salt toss,
+leftovers.ts:682; `sandBoom`'s 80). prBurst sets its pieces' life to `PR_LIFE` 600, and in `partStep`'s landing
+branch (world.ts:483-497) a piece with life over 240 that is not `SAND_FREE` is handled like this:
 
 - With AIRY under its landing cell, it is not set there. Its velocity is set to (0, 0.3) and it falls on. A piece of
   iron thrown at a ceiling comes back down to the floor, and one thrown at a cliff slides down it.
 - With liquid under it, it lands and then `sandSwap`s down through the liquid, at most 12 cells, the liquid rising past
-  it, as `bPlace` shoves water aside (build.js:844). Iron sinks. Timber (`WOODY`) stays on top.
+  it, as `bPlace` shoves water aside (build.ts:844). Iron sinks. Timber (`WOODY`) stays on top.
 
-Felled timber (peasants.js:1949) and a broken-up rocket (heavens.js:1968) keep landing as they do now. Their life is
+Felled timber (peasants.ts:1949) and a broken-up rocket (heavens.ts:1968) keep landing as they do now. Their life is
 240.
 
 What is left lies about. Iron is scrap that gatherers pick up at 0.2 of a bar a cell (`L_LOOSE`, `L_TAKE`,
-leftovers.js:50-54). Small glass goes the same way. Stone and brick lie where they fell, as anything off a cliff does.
+leftovers.ts:50-54). Small glass goes the same way. Stone and brick lie where they fell, as anything off a cliff does.
 
 ### 2.5 The push
 
@@ -240,11 +240,11 @@ the lowest outlet (greatest y, first found breadth-first, so the one nearest the
 If P > need, then `k = min(PR_PUSHMAX 6, floor(P - need))` times, pairing inlets highest-first with outlets
 lowest-first:
 
-- `sandSwap(inlet, outlet)`. Water and air trade places, heat and all. This is `sandPressure`'s own move (world.js:919)
+- `sandSwap(inlet, outlet)`. Water and air trade places, heat and all. This is `sandPressure`'s own move (world.ts:919)
   run the other way, by steam. The pocket gains the cell.
 - If `P - need >= 2` and the cell over the outlet is EMPTY, `sandFling(outlet, jitter, -min(4.5, 0.6 * (P - need)))`.
   The water leaves the mouth as a jet. At -4.5 it climbs about 90 rows, since debris falls 0.11 faster each tick
-  (world.js:460).
+  (world.ts:460).
 
 Highest-first means the chamber empties from the top, then the steam takes the pipe, a cell at a time, as it drives
 the water column up and out. When the pocket reaches the open air it is open, and the steam goes. What falls back seals
@@ -253,8 +253,8 @@ once a scan.
 
 ### 2.6 Water does not level in under steam
 
-`sandPressure` (world.js:899-925) moves a resting surface cell to the first EMPTY cell lower down along its pool's
-edge that has something under it. One condition is added before the swap at world.js:919: the target is refused (the
+`sandPressure` (world.ts:899-925) moves a resting surface cell to the first EMPTY cell lower down along its pool's
+edge that has something under it. One condition is added before the swap at world.ts:919: the target is refused (the
 search goes on) if, walking up from it through AIRY cells (at most 16), a STEAM cell is met in its column or either
 column beside it. Steam holds the water down.
 
@@ -278,16 +278,16 @@ holds its note. Pots of 30, 48 and 68 cells sing close to a major chord (1, 1.26
 ### 2.8 When it looks
 
 - `PR_EVERY` = 4. `sandStep` sets the module variable `PR_ON = (T % 4 === 0)` next to `g.pressN = 0`
-  (world.js:1215), and sets `PR_N = 0`.
+  (world.ts:1215), and sets `PR_N = 0`.
 - **Candidates** are taken only on `PR_ON` ticks, and with no dice. A candidate is a STEAM cell below row 0 that ends
-  `sandSteam` without having moved up: it moved sideways (the second loop, world.js:792-797), or it did not move at all
+  `sandSteam` without having moved up: it moved sideways (the second loop, world.ts:792-797), or it did not move at all
   (the fall-through at :798). Steam rising freely never asks. `prNote(i)` keeps the first `PR_CANDS` 16 in a module
   `Int32Array`.
-- `prStep(g)` runs after the pressure tries and before `heatStep` (between world.js:1241 and 1243) when `PR_N > 0`. It
+- `prStep(g)` runs after the pressure tries and before `heatStep` (between world.ts:1241 and 1243) when `PR_N > 0`. It
   takes up to `PR_SCANS` 2 candidates that are still steam and not already in a pocket flooded this tick. For each it
   floods, vents, pushes and checks walls, in that order.
-- The floods reuse `g.pmark`/`g.pstack` with `++g.pgen`, as `sandPressure` does (world.js:900-903). These are already
-  in `SAVE_SKIP` (save.js:39), and the scan runs after the last `sandPressure` of the tick. A module `PR_LIST`
+- The floods reuse `g.pmark`/`g.pstack` with `++g.pgen`, as `sandPressure` does (world.ts:900-903). These are already
+  in `SAVE_SKIP` (save.ts:39), and the scan runs after the last `sandPressure` of the tick. A module `PR_LIST`
   (`Int32Array(PR_CAP + PR_LCAP + 8)`) holds the cells found.
 
 Candidates are made and used up inside one tick. The hold is a property of the cells. `g.prHot` and `g.prErupt` (§5.2)
@@ -321,25 +321,25 @@ are on `g` and are saved. So a save made between two scans loads to what would h
 | pocket touching a VALVE with air beyond | P >= 4 | 1-4 steam cells out, whistle at the vessel's pitch | each scan |
 | `sandPressure` | target EMPTY cell with steam over it (16 up, 3 wide) | refused | each try |
 | burst piece, fixed solid | lands with air under it / on liquid | falls on / sinks (timber floats) | |
-| water on a rattling iron pot | water-metal quench (heat.js:156-164) | the lid drops under 100, the steam condenses (heat.js:115), P falls | existing heat |
+| water on a rattling iron pot | water-metal quench (heat.ts:156-164) | the lid drops under 100, the steam condenses (heat.ts:115), P falls | existing heat |
 
 SAFETY VALVE (new, `MAT.VALVE` = 55):
 
 | property | value | as |
 |---|---|---|
-| flags | SOLID, STILL, CONDUCTS | iron. The step skips it (world.js:1224) |
-| heat | `def(VALVE, 1.5, 0.36)`, `hi(VALVE, 1500, 500)`, heatUp → LAVA aux METAL | GIRDER (heat.js:94, 131, 312) |
-| acid | eaten at 0.003 | METAL (world.js:1041) |
-| bangs | in the hard set (only a big one craters it) | METAL (world.js:536-537) |
-| peasants | `P_HARD` | METAL (peasants.js:33-35) |
+| flags | SOLID, STILL, CONDUCTS | iron. The step skips it (world.ts:1224) |
+| heat | `def(VALVE, 1.5, 0.36)`, `hi(VALVE, 1500, 500)`, heatUp → LAVA aux METAL | GIRDER (heat.ts:94, 131, 312) |
+| acid | eaten at 0.003 | METAL (world.ts:1041) |
+| bangs | in the hard set (only a big one craters it) | METAL (world.ts:536-537) |
+| peasants | `P_HARD` | METAL (peasants.ts:33-35) |
 | gatherers | not in `L_LOOSE`: a valve lying about is somebody's | |
-| cloner | will not learn it (`t < MAT.PLANK`, world.js:1183) | every MORE material |
+| cloner | will not learn it (`t < MAT.PLANK`, world.ts:1183) | every MORE material |
 
 ---
 
 ## 4. The palette
 
-SAFETY VALVE goes in **MORE, under BUILDING**, after TRESTLE (world.js:121):
+SAFETY VALVE goes in **MORE, under BUILDING**, after TRESTLE (world.ts:121):
 
     { m: MAT.VALVE, name: "SAFETY VALVE", key: "", more: "build",
       desc: "iron that holds steam in until it cannot, then lets it out, whistling. a big pot hoots, a small one shrieks." }
@@ -347,19 +347,19 @@ SAFETY VALVE goes in **MORE, under BUILDING**, after TRESTLE (world.js:121):
 Why paint it at all? Pressure without a valve is a toy with one ending. With one, a player gets a kettle that sings, a
 steam whistle (a faucet inside), a boiler that will not go off, and a chord of pots. Nothing else in the palette makes
 one: a hole is always open, and a valve is shut until it is not. The village makes it too (§5.1), as it makes
-STONEWORK. Not the main panel: that is full (game.js:13, test/picker.js:34). The flyout grows from 130 to 140 px, and
-`MORE_TOP` goes from 230 to 220 (game.js:563-576), well clear of `PLAY_Y`. The name has 12 characters, which fits.
+STONEWORK. Not the main panel: that is full (game.ts:13, test/picker.js:34). The flyout grows from 130 to 140 px, and
+`MORE_TOP` goes from 230 to 220 (game.ts:563-576), well clear of `PLAY_Y`. The name has 12 characters, which fits.
 
 `SAND_SHADES[55]` is brass and iron, `["#b8903a", "#a8822f", "#c89c44", "#7e7a72"]`. drawWorld draws a dark lever line
 across the cell, and a white glint while it vents. Its positional `SAND_DENS`/`FREE`/`POUR` are set by index after the
-literals (world.js:133-144). The harness glyph is `"&"` (harness/inspect.js:15-22). A tip goes at the end of `TIPS`
-(game.js:18-69): "tip: shut some water in iron and put a torch under it. then put a SAFETY VALVE in the lid, and try
+literals (world.ts:133-144). The harness glyph is `"&"` (harness/inspect.js:15-22). A tip goes at the end of `TIPS`
+(game.ts:18-69): "tip: shut some water in iron and put a torch under it. then put a SAFETY VALVE in the lid, and try
 again".
 
-New `g.fx` keys `rattle` and `valve`, written `(g.fx.rattle || 0) + 1`, since old saves lack them (save.js:479-483).
-New voices in audio.js: `SFX.rattle` (quick square clicks) and `SFX.valve(hz, loud)` (a sine at the vessel's pitch
-with a breath of hiss, like `SFX.whistle`, audio.js:73). Both play from `sandSounds0`/`sandSoundsSide` (game.js:694).
-`cellReadout` (game.js:470) says "straining n%" (strain / 120) on a wall cell in `g.prHot`, and "venting" on a valve.
+New `g.fx` keys `rattle` and `valve`, written `(g.fx.rattle || 0) + 1`, since old saves lack them (save.ts:479-483).
+New voices in audio.ts: `SFX.rattle` (quick square clicks) and `SFX.valve(hz, loud)` (a sine at the vessel's pitch
+with a breath of hiss, like `SFX.whistle`, audio.ts:73). Both play from `sandSounds0`/`sandSoundsSide` (game.ts:694).
+`cellReadout` (game.ts:470) says "straining n%" (strain / 120) on a wall cell in `g.prHot`, and "venting" on a valve.
 
 ---
 
@@ -369,9 +369,9 @@ with a breath of hiss, like `SFX.whistle`, audio.js:73). Both play from `sandSou
 
 A played organ never comes near its rattle line (§0.2), and an untended one never boils. So this all begins with a
 player who paints a TORCH into the firebox, or warms the tank with the HEAT brush. The organist cannot rake a torch
-out: raking turns only EMBER to ASH (pleasures.js:1087, 1098).
+out: raking turns only EMBER to ASH (pleasures.ts:1087, 1098).
 
-- **The organist hears it.** In `pOrganStep` (pleasures.js:995), a `g.prHot` entry on the tank's walls counts toward
+- **The organist hears it.** In `pOrganStep` (pleasures.ts:995), a `g.prHot` entry on the tank's walls counts toward
   `want`, next to `s.shutT` (:1004). So somebody idle within 240 is sent for, if there is no fire on (:1005). In
   `pTaskOrgan`, once at the stand and after the `k.act % 30` gate (:1078), a rattling tank with every valve shut gets
   valve 0 opened at once, with `P_SAY.breathe`, through the existing breathe branch (:1101). It stays open while there
@@ -383,10 +383,10 @@ out: raking turns only EMBER to ASH (pleasures.js:1087, 1098).
   rains back into the gutter, and the organist bails it into the tank as now (`pOGutter`, :1031).
 - **They mend it with a valve.** Every stride `pOrganStep` looks in `g.booms` for a `steam` entry inside the tank's
   wall box since it last looked (`s.boomT`). The first time, `s.blown = g.tick`, and the plan entry at the burst's cell
-  (an `iron(11, y)` entry, pleasures.js:896) has its `v` set to `MAT.VALVE`. It keeps `res: "iron"` and `cost`
-  (`bPrice`, build.js:325). The feed says "the steam organ blew out the side of its tank. they are mending it with a
+  (an `iron(11, y)` entry, pleasures.ts:896) has its `v` set to `MAT.VALVE`. It keeps `res: "iron"` and `cost`
+  (`bPrice`, build.ts:325). The feed says "the steam organ blew out the side of its tank. they are mending it with a
   safety valve", and in a great-works village there is a tale (`wTale(g, "burst", ...)`, with a `wTold` case, "the
-  steam organ blew its side out", wonders.js:298). `bInspect` (build.js:1041) finds the cells gone and opens the
+  steam organ blew its side out", wonders.ts:298). `bInspect` (build.ts:1041) finds the cells gone and opens the
   repair (:1079). `bPlace` lays the entry's `v` (:852), so the builders put a VALVE where she blew, at the price of a
   girder. Nobody walks into the tank to do it. Nothing has to be taken out, since the hole is already there.
 - **After that she whistles.** The valve sits on the tank's side, over the gutter, with air beyond it (u = 12). The
@@ -398,30 +398,30 @@ The tank is the only sealed vessel the village makes, and the hard part of the c
 
 ### 5.2 Peasants near pressure
 
-- `prWarn(g, e)`: every walking peasant within 30 who is not on a brave task (`task.brave`, pleasures.js:1013) gets
-  `panic = max(panic, 90)` and turns away. That is the far branch of `peasantsBlast` (peasants.js:537-540), so they
-  already know how to run and hide (`bHide`, build.js:1258). Some say `P_SAY.rattle`: "it's going to go", "is it meant
+- `prWarn(g, e)`: every walking peasant within 30 who is not on a brave task (`task.brave`, pleasures.ts:1013) gets
+  `panic = max(panic, 90)` and turns away. That is the far branch of `peasantsBlast` (peasants.ts:537-540), so they
+  already know how to run and hide (`bHide`, build.ts:1258). Some say `P_SAY.rattle`: "it's going to go", "is it meant
   to do that", "everybody back", "that's not a noise a pot should make", "*backs away slowly*". A peasant on the lid
   when it goes is thrown, not set alight, and says `"thrown"` (master's line, used as it is).
 - **Eruptions.** The first push after 300 quiet ticks (`g.prErupt`, lazy: `{x, y, t, n}` by outlet column) calls
-  `peasantsReact(g, "geyser", ox, oy)`. That is a new branch doing what "firework" does (peasants.js:550-551): bored
+  `peasantsReact(g, "geyser", ox, oy)`. That is a new branch doing what "firework" does (peasants.ts:550-551): bored
   to 0 within 160, "ooh", a little leap. `achieve(g, "geyser")` comes after the third eruption.
 - **A sight.** A fountain that has pushed in 20 of its last 150 scans is worth a walk. Every 600 ticks, idle peasants
-  within 160 (as the festival's call, ideas.js:1888-1891, `I_FUN` and the 15% skip) get `{kind: "watch", of:
-  "geyser", x, y, until: +900}`. `iTaskWatch` (ideas.js:1946) already stands them out from under it, and the mood line
+  within 160 (as the festival's call, ideas.ts:1888-1891, `I_FUN` and the 15% skip) get `{kind: "watch", of:
+  "geyser", x, y, until: +900}`. `iTaskWatch` (ideas.ts:1946) already stands them out from under it, and the mood line
   (:2092) says "is watching the fountain". When a geyser watch ends, `iTaskWatch` calls `wSpark(g, p, "baths")` and
-  not "theatre". "What if the pond. But warm" (pleasures.js:37) is a thought you have watching hot water come out of
-  the ground. `wSpark` rolls nothing and does nothing unless the baths are ready (wonders.js:271-276).
+  not "theatre". "What if the pond. But warm" (pleasures.ts:37) is a thought you have watching hot water come out of
+  the ground. `wSpark` rolls nothing and does nothing unless the baths are ready (wonders.ts:271-276).
 
 ### 5.3 Everything else
 
 | system | what pressure does to it |
 |---|---|
-| fire brigade | Nothing. Its water never boils (§0.1), and a player's boiler is not a site. A burst beside a house breaks its windows (GLASS 2.5) and throws its planks. The house reopens for repair, or, past 60% gone, is a ruin (build.js:1060-1065). Buckets thrown at a fire beside a rattling iron pot cool it |
+| fire brigade | Nothing. Its water never boils (§0.1), and a player's boiler is not a site. A burst beside a house breaks its windows (GLASS 2.5) and throws its planks. The house reopens for repair, or, past 60% gone, is a ruin (build.ts:1060-1065). Buckets thrown at a fire beside a rattling iron pot cool it |
 | tidying, gathering | Burst iron is scrap (§2.4). A blown boiler is a few bars to whoever sweeps up |
 | mines, storeys, platforms | No steam. A player's lava under a flooded gallery gives the chaos case: the rock between blows |
-| great works | The organ (§5.1). The baths are open water. `wBathe` (wonders.js:1292) bathes in any warm water, so a fountain's basin that has cooled to 30-45 gets bathed in, and one hotter than that gets "far too hot" (`tooHot`) |
-| ducks | A duck on a fountain's mouth goes up with it, feathers and quack (ducks.js:224) |
+| great works | The organ (§5.1). The baths are open water. `wBathe` (wonders.ts:1292) bathes in any warm water, so a fountain's basin that has cooled to 30-45 gets bathed in, and one hotter than that gets "far too hot" (`tooHot`) |
+| ducks | A duck on a fountain's mouth goes up with it, feathers and quack (ducks.ts:224) |
 
 ---
 
@@ -455,13 +455,13 @@ The tank is the only sealed vessel the village makes, and the hard part of the c
 
 `prStep` never calls `heatAdd`, `heatSetQ` or `heatForce`. It moves heat only by:
 
-- `sandSwap`, which swaps T, lat and the counted state together (world.js:316-330). That covers pushes, vents and
+- `sandSwap`, which swaps T, lat and the counted state together (world.ts:316-330). That covers pushes, vents and
   sinking pieces;
-- `sandFling`, which puts the whole of `heatQ` into the piece (world.js:427). The piece lands with it (world.js:494-495)
+- `sandFling`, which puts the whole of `heatQ` into the piece (world.ts:427). The piece lands with it (world.ts:494-495)
   or drops it in the nearest cell (`partDrop`). A burst piece that falls on keeps it in flight;
 - glints, which carry nothing.
 
-Debris thrown off the edge takes its heat with it, as debris from any bang does (world.js:482). Test 3 checks the rest:
+Debris thrown off the edge takes its heat with it, as debris from any bang does (world.ts:482). Test 3 checks the rest:
 grid `heatQ` plus particle `pt`, before and after `prBurst` and after the pieces have landed, equal to 1e-3 relative.
 
 ---
@@ -480,10 +480,10 @@ grid `heatQ` plus particle `pt`, before and after `prBurst` and after the pieces
 - **The chaos soak will change.** Seed 3 has a 14-steam pocket under rock at tick 610 (§0.1), and painted water can
   meet painted lava anywhere. The chaos lines of harness/soak-baseline.txt are recorded again in phase 1, with a note.
   Plain, rich and leftovers come out byte-identical.
-- **Saves.** `MAT.VALVE` is appended at 55 (world.js:71). Grids are saved as raw ids, and an old save cannot hold 55,
-  which did not exist. (save.js:274 is the self-check "materials valid", `v >= NMAT`, NMAT 64. It is not the loader,
+- **Saves.** `MAT.VALVE` is appended at 55 (world.ts:71). Grids are saved as raw ids, and an old save cannot hold 55,
+  which did not exist. (save.ts:274 is the self-check "materials valid", `v >= NMAT`, NMAT 64. It is not the loader,
   as v1 said, but 55 passes it.) `g.prHot`, `g.prErupt`, `s.blown` and `s.boomT` are lazy and read with `|| 0`, since
-  `saveApplyState` deletes keys an old save lacks (save.js:483). Particles are saved, so a burst piece's long life
+  `saveApplyState` deletes keys an old save lacks (save.ts:483). Particles are saved, so a burst piece's long life
   survives a reload. A sandbox save with a sealed boiler in it will rattle after loading. The physics changed, not the
   file, and the commit says so.
 - **peasantsBlast / ducksBlast** get an optional sixth argument, `cold`. Every existing call passes five.
@@ -510,26 +510,26 @@ last scan (a 1-bit mark, by candidate cell, for 8 ticks).
 
 ## 10. Code layout
 
-A new file, `pressure.js`, loaded after `heat.js` and before `peasants.js` in index.html (harness/loader.js reads the
+A new file, `pressure.js`, loaded after `heat.ts` and before `peasants.ts` in index.html (harness/loader.js reads the
 order from there). It holds the constants, `PR_S`, `prNote`, `prStep`, `prFlood`, `prLiquid`, `prWalls`, `prBurst`,
 `prPush`, `prVent`, `prHeld` (the hold), `prWarn` and `prDraw` (jitter and puffs, on side dice).
 
 | file:line | change |
 |---|---|
-| world.js:71, 121, 133-144, 213, 239, 252-256 | `VALVE: 55`; PICK entry; dens/free/pour; shades; SOLID; STILL |
-| world.js:483-497 | burst pieces fall on, or sink (§2.4) |
-| world.js:536-537, 700, 1041 | VALVE in the hard set; `CONDUCTS`; acid |
-| world.js:792-798 | steam that did not rise → `prNote` |
-| world.js:919 | `if (prHeld(g, nb)) continue;` before the swap |
-| world.js:1215, 1241-1243 | `PR_ON`/`PR_N`; `if (PR_N) prStep(g)` before `heatStep` |
-| heat.js:94, 131, 312 | def, hi, heatUp for VALVE |
-| peasants.js:33-35, 522-553, P_SAY | `P_HARD`; `cold`; the "geyser" react; `rattle`, `organValve` |
-| ducks.js:212-227 | `cold` |
-| ideas.js:1946-1947, 2092 | a geyser watch sparks the baths; its mood line |
-| pleasures.js:995-1005, 1078-1102, 896 | rattle → want and breathe; booms → blown → VALVE entry |
-| wonders.js:298-312 | `wTold` case "burst" |
-| game.js:18-69, 153-155, 470, 694-728, drawWorld | tip, fx, readout, sounds, the valve's look |
-| audio.js:56+ | `SFX.rattle`, `SFX.valve` |
+| world.ts:71, 121, 133-144, 213, 239, 252-256 | `VALVE: 55`; PICK entry; dens/free/pour; shades; SOLID; STILL |
+| world.ts:483-497 | burst pieces fall on, or sink (§2.4) |
+| world.ts:536-537, 700, 1041 | VALVE in the hard set; `CONDUCTS`; acid |
+| world.ts:792-798 | steam that did not rise → `prNote` |
+| world.ts:919 | `if (prHeld(g, nb)) continue;` before the swap |
+| world.ts:1215, 1241-1243 | `PR_ON`/`PR_N`; `if (PR_N) prStep(g)` before `heatStep` |
+| heat.ts:94, 131, 312 | def, hi, heatUp for VALVE |
+| peasants.ts:33-35, 522-553, P_SAY | `P_HARD`; `cold`; the "geyser" react; `rattle`, `organValve` |
+| ducks.ts:212-227 | `cold` |
+| ideas.ts:1946-1947, 2092 | a geyser watch sparks the baths; its mood line |
+| pleasures.ts:995-1005, 1078-1102, 896 | rattle → want and breathe; booms → blown → VALVE entry |
+| wonders.ts:298-312 | `wTold` case "burst" |
+| game.ts:18-69, 153-155, 470, 694-728, drawWorld | tip, fx, readout, sounds, the valve's look |
+| audio.ts:56+ | `SFX.rattle`, `SFX.valve` |
 | harness/inspect.js:15-22, test/picker.js:25 | glyph; `NEW` += "SAFETY VALVE" |
 
 ---
@@ -631,7 +631,7 @@ Files: `pressure.js — steam shut in, and what it does about it`.
   under a pond's bed to push it.
 - **Hot-air pressure.** Every house would be a bomb in every house fire, and a plain village burns houses.
 - **Superheat.** Real, and a burst flashing superheated water would be grand. But it needs a boiling point per cell in
-  heatStep's transition loop (heat.js:443-482), the hottest loop in the game.
+  heatStep's transition loop (heat.ts:443-482), the hottest loop in the game.
 - **Sideways bubbles**, so that steam could move along a flat pipe. That is a change to every steam cell in every pond.
   The vapour lock stays, and it is real enough.
 
@@ -647,7 +647,7 @@ Files: `pressure.js — steam shut in, and what it does about it`.
 - **The hold in open air.** A cloud drifting over the low arm of a U-bend stops it levelling while it is there. No
   village has steam (§0.1). In a sandbox it is a puzzle for a second, and then the cloud moves on.
 - **The organ's right wall** was measured on seed 1's organ. Phase 4 checks it on every organ the test suite builds, and
-  that u = 12 beside the tank is air (pleasures.js:871). If something stands there, the lid
+  that u = 12 beside the tank is air (pleasures.ts:871). If something stands there, the lid
   valves (R 10) are next, and §5.1's mending works for any tank-wall entry.
 - **Burst pieces.** The falling-on rule is one branch, gated on life over 240. Phase 1's test 7 covers ceilings and
   ponds, and the soak watches the particle count.
@@ -669,7 +669,7 @@ Files: `pressure.js — steam shut in, and what it does about it`.
 | no room for particles | The burst waits (§2.3). Test 8 |
 | the valve's equilibrium, the chord | Re-measured (§0.4). The vent schedule is restated. The chord now comes from pitch by size |
 | §0.1 to cover great works and leftovers | Done: 0 steam cells in either (§0.1) |
-| grounding errors (bHide, TIPS, save.js:274, the valve arithmetic, the organist and the bell) | Fixed. The organist never leaves for the bell (`I_IDLE`, ideas.js:531), and that is why §5.1 now starts with a torch |
+| grounding errors (bHide, TIPS, save.ts:274, the valve arithmetic, the organist and the bell) | Fixed. The organist never leaves for the bell (`I_IDLE`, ideas.ts:531), and that is why §5.1 now starts with a torch |
 
 Where v2 disagrees: v1's "a blown valve needs no repair site" is moot, since a lid valve no longer blows. But the hole
 rule now flings a neighbour only if it would have gone by itself, so hw >= 1 cannot take out the lid beside a valve.

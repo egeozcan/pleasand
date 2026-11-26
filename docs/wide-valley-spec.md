@@ -97,16 +97,16 @@ inside `gameDrawSide`).
   unchanged, and `g.cx = (g.mx - PANEL) / CELL + g.camI`. So `sandCell`, `cellAt`, brushes, eyedrop, grabs and
   lightning all work in world cells unchanged.
 - **Audit**: grep every file for `PANEL +`, `PANEL -`, `- PANEL)`, `g.gw * CELL`, `gw * CELL`, `.width * 2 * CELL`,
-  `.width * 4 * CELL`, `drawImage(g.vc` and `drawImage(g.gc`. Known sites: `game.js` (`gameDraw` field and glow
+  `.width * 4 * CELL`, `drawImage(g.vc` and `drawImage(g.gc`. Known sites: `game.ts` (`gameDraw` field and glow
   blits, cursor, held-peasant and duck brackets, ruled-line preview, throw-preview dots, the readout tooltip, the
-  stat popup's x clamp), `peasants.js` (`peasantGrab` position, speech bubbles and their x clamp, ghosts), `ducks.js`
+  stat popup's x clamp), `peasants.ts` (`peasantGrab` position, speech bubbles and their x clamp, ghosts), `ducks.ts`
   (grab position, bubbles), `harness/harness.js` (`toScreen`, cursor helpers), and the tests that set `g.mx` by hand.
   **Deliberate exceptions**, each with a comment saying so: `cursorSample` / `cursorVel` (screen cells: see below) and
   the panel/header/strip hit tests (screen space by nature). No other conversion may ignore the camera.
 - **Throwing**: the cursor-velocity samples stay in **screen** cells, so a throw is as hard as the flick even if the
   view edge-panned during the drag. The held peasant or duck tracks the cursor in the world.
 - **The camera and the simulation**: the only sim code that reads the pointer is the "being watched" chat check
-  (`peasants.js:1664`, `g.cx` / `g.cy` / `g.mx > PANEL`), which already makes a village depend on where the mouse is.
+  (`peasants.ts:1664`, `g.cx` / `g.cy` / `g.mx > PANEL`), which already makes a village depend on where the mouse is.
   It keeps reading `g.cx` (now a world column, which is what it means). To keep replays exact, camera moves are
   journalled, **coalesced**: a `saveInput(g, "cam", { x: camI })` is written when `camI` has settled (unchanged for
   one update after changing), and also immediately before any other journalled input if `camI` differs from the last
@@ -181,7 +181,7 @@ world columns `floor(u * gw / 544)` up to the next one's start; for 1088 that is
 272 save half a column. The 186 rows go into 10 bands of 18 or 19.
 
 - **The land**: the ten strip rows are not even: the high sky gets two (world rows 0-39, 40-79) and the land and the
-  air just over it the other eight (`STRIP_ROWS` in `game.js`), so the valley's silhouette reads at a glance (evenly,
+  air just over it the other eight (`STRIP_ROWS` in `game.ts`), so the valley's silhouette reads at a glance (evenly,
   the ground would be the bottom two rows). Each pixel is the colour of the band's most common non-air thing, from
   three sample rows a band in its first column (about 16 000 reads a rebuild), at 115 % of that thing's first shade;
   air is the sky at that band's middle. Rebuilt every 15 frames, and at once after a load. Peasants and ducks go in
@@ -235,8 +235,8 @@ the middle screen; 0 at `S == 1`).
 - **The village is generated where you are first looking**: huts at `V0 + 14 + irnd(VIEW_GW - hutW - 28)`; the
   first tree at `V0 + 16 + irnd(VIEW_GW - 32)`; the 7 villagers at `V0 + 6 + irnd(VIEW_GW - 12)`; the first pond by
   today's rules over the columns `V0 .. V0 + VIEW_GW - 1`. At `S == 1` each of these is today's expression.
-- Ore and oil are fixed counts today (11 coal seams, 10 ore lenses, 10 gold veins: `world.js:1267-1290`; `O_POOLS`
-  = 5: `oil.js:31`), spread with `irnd(gw)`. They become `count * S`, so density per column is unchanged. At
+- Ore and oil are fixed counts today (11 coal seams, 10 ore lenses, 10 gold veins: `world.ts:1267-1290`; `O_POOLS`
+  = 5: `oil.ts:31`), spread with `irnd(gw)`. They become `count * S`, so density per column is unchanged. At
   `S == 1` the loops are identical.
 - **Only when `S > 1`**: the wilds get `S - 1` more trees (left of the village, right, left, ...) and four chances
   (p 0.5 each) at a pond, two each side of the village, each the deepest dip of its stretch filled to under its lip,
@@ -261,25 +261,25 @@ and `g.gw / 2` used as "the middle of where things are" becomes `rMid(g)`. The l
 
 | where | what | change |
 |---|---|---|
-| `ideas.js:787` `iFarmSpot` | a field | range |
-| `mines.js:275`, `:289` `mPlanMine` | a mine (and the fallback over a field) | range |
-| `oil.js:302` `oPlanWell` fallback | a well over a field | range (and its main search, if whole-width) |
-| `wonders.js:1494` `wPlot`, `:626` bench search | a great work's plot, a quarry | range |
-| `monuments.js:114` `mPlotAny` | the floors a monument may go on | range |
-| `heavens.js:476` `hMeteorite`, `:440`, `:480` | a meteorite's column; which side it comes from | range; side by `rMid` |
-| `heavens.js:583` | shooting-star streaks | range (they are for watching) |
-| `heavens.js:1695` `hRelease` | where a returning astronaut can stand | range |
-| `heavens.js:1836-1837` | which side a launch crowd gathers | `rMid` |
-| `peasants.js:631` | re-entry column from space | range |
-| `peasants.js:1420-1430` arrivals | newcomer's edge, and facing | edges of the range; `q.dir` by `rMid` |
-| `ducks.js:197` | a flying duck's water goal | range |
-| `ducks.js:586` | a duck walking in | edges of the range |
-| `wonders.js:1520` (`o.near` fallback), `:1579` `wMiddle` fallback | "the middle of the village" | `rMid` |
-| `wonders.js:1520` (`o.edge`) | "out at the edge of the valley": `Math.min(x0, g.gw - x0 - W)` | measured from the range: `Math.min(x0 - x0R, x1R + 1 - x0 - W)` with `x0R, x1R` the range's ends (identical at `S == 1`) |
-| `world.js:1316/1366/1386`, ponds | generation | the middle screen (above) |
+| `ideas.ts:787` `iFarmSpot` | a field | range |
+| `mines.ts:275`, `:289` `mPlanMine` | a mine (and the fallback over a field) | range |
+| `oil.ts:302` `oPlanWell` fallback | a well over a field | range (and its main search, if whole-width) |
+| `wonders.ts:1494` `wPlot`, `:626` bench search | a great work's plot, a quarry | range |
+| `monuments.ts:114` `mPlotAny` | the floors a monument may go on | range |
+| `heavens.ts:476` `hMeteorite`, `:440`, `:480` | a meteorite's column; which side it comes from | range; side by `rMid` |
+| `heavens.ts:583` | shooting-star streaks | range (they are for watching) |
+| `heavens.ts:1695` `hRelease` | where a returning astronaut can stand | range |
+| `heavens.ts:1836-1837` | which side a launch crowd gathers | `rMid` |
+| `peasants.ts:631` | re-entry column from space | range |
+| `peasants.ts:1420-1430` arrivals | newcomer's edge, and facing | edges of the range; `q.dir` by `rMid` |
+| `ducks.ts:197` | a flying duck's water goal | range |
+| `ducks.ts:586` | a duck walking in | edges of the range |
+| `wonders.ts:1520` (`o.near` fallback), `:1579` `wMiddle` fallback | "the middle of the village" | `rMid` |
+| `wonders.ts:1520` (`o.edge`) | "out at the edge of the valley": `Math.min(x0, g.gw - x0 - W)` | measured from the range: `Math.min(x0 - x0R, x1R + 1 - x0 - W)` with `x0R, x1R` the range's ends (identical at `S == 1`) |
+| `world.ts:1316/1366/1386`, ponds | generation | the middle screen (above) |
 
-Deliberately left whole-width: `pleasures.js:1226` `pWaters` (reads the water there is; its callers then pick by
-distance, and a lake is a lake wherever it is), `oil.js:84` / ores (generation: whole world), and every search that
+Deliberately left whole-width: `pleasures.ts:1226` `pWaters` (reads the water there is; its callers then pick by
+distance, and a lake is a lake wherever it is), `oil.ts:84` / ores (generation: whole world), and every search that
 spirals out from a peasant with a fixed radius (saplings, campfires, `bPlantSpot`, ice slides, pond digging). The
 implementation re-runs the grep (`irnd(g.gw`, `irnd(gw`, `< g.gw -`, `g.gw / 2`, `* (g.gw`) at the end and accounts
 for every hit in the commit body. Because the range grows as the village builds, the village still creeps outward,

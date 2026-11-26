@@ -31,14 +31,14 @@ re-measures the plan. v3 took v2's review:
 - **Chest-deep damp strands nobody.** The route hazard reads only the head row, the cell the breath reads, so a stand
   is ruled out for damp exactly when `pDampGo` is walking its peasant out. Chest-deep is a cough (§5.2, test 18, stuck.js
   with 5-deep and 8-deep damp).
-- **Grounding fixed**: `NAV_DAMPOK` is not like `NAV_HOTOK` (pathGo sets that only around `navHere`, paths.js:265-267),
+- **Grounding fixed**: `NAV_DAMPOK` is not like `NAV_HOTOK` (pathGo sets that only around `navHere`, paths.ts:265-267),
   and §5.2 says why; the positional tables' reason now covers `SAND_DENS` and `SAND_POUR` (§2); the bound (§3.3).
 - **The powders look and read differently**: cold blue-white grit against smooth yellow cream, "thirsty" against
-  "slaked. spent" (§7). **The wick is 2 and drawn**, as wet sand is (game.js:790-792). Cut to 0, a sunk heap's floor
+  "slaked. spent" (§7). **The wick is 2 and drawn**, as wet sand is (game.ts:790-792). Cut to 0, a sunk heap's floor
   layer stayed white (20 of 40 slaked). **One name**: the achievement is CHOKEDAMP. **A first five minutes** (§11).
 - **Less surface, two holes closed.** Gathering slaked lime for the great works is cut: nobody would have seen it.
-  Re-checking found that a builder treading lime down (`heatVacate`, build.js:892) would leave 5,000° air in a plain
-  village, and a bang's catch-all (world.js:563) a fire as hot. Every exit now takes its heat (§4.1, test 15).
+  Re-checking found that a builder treading lime down (`heatVacate`, build.ts:892) would leave 5,000° air in a plain
+  village, and a bang's catch-all (world.ts:563) a fire as hot. Every exit now takes its heat (§4.1, test 15).
 - **The self-smothering kiln is no longer promised.** Re-probed, a pit kiln's damp goes up hot (§0). What smothers is
   cold damp: acid on chalk, and kiln damp that has cooled and come back down.
 
@@ -48,17 +48,17 @@ re-measures the plan. v3 took v2's review:
 
 | what | where | what it means for this plan |
 |---|---|---|
-| ACID eats things into air. It never makes anything | world.js:1035-1052 | the first thing anybody tries on a new rock. Now it makes something |
-| SMOKE, STEAM, GAS all rise or wander. Smoke fades anywhere at .03 a tick | world.js:802-838 | there is no heavy gas, and fading in place has a precedent |
-| Phase worth `heatH0` = `HEAT_HS + HEAT_HLAT·heatF(sh)`. A kind change keeps Q | heat.js:196-217 | a chemical store of heat is a phase worth, like water's melting heat |
-| `heatSpawn` gives the new cell the old one's T and returns what it cost. heatStep charges it (`heatSetQ(g, i, q - paid)`) | heat.js:285-291, 462 | the pattern for chalk pushing out damp and slaked lime pushing out steam |
-| Every L > 0 `heatUp` case changes the cell's kind | heat.js:293-322 | a "no room, wait" branch in heatStep (§3.2) is reached by no master material |
-| Water at 100 banks up to 1,200·fw before it boils, and `heatQ` counts it | heat.js:219-223, 458-462 | the bound in §3.3 has to count it |
-| `sandFire` rolls one die per neighbour before it looks at it | world.js:728-739 | smothering uses that die. No new dice in master code |
-| ROCK never falls, and is what a pick is for | world.js:241-243; mines.js:57 | CHALK is ROCK |
-| Wet sand is drawn darker, with no state, from its neighbours | game.js:790-792 | how the wick is shown |
-| `P_SAY.idea_concrete`: "the bucket hit the lime and it went WARM". `wSpark` sparks CONCRETE | wonders.js:75, 271-276 | the village's old joke comes true in front of them |
-| A bucket is 5 cells (`I_LOAD`) | ideas.js:79 | a pail on lime is up to 5 slakes |
+| ACID eats things into air. It never makes anything | world.ts:1035-1052 | the first thing anybody tries on a new rock. Now it makes something |
+| SMOKE, STEAM, GAS all rise or wander. Smoke fades anywhere at .03 a tick | world.ts:802-838 | there is no heavy gas, and fading in place has a precedent |
+| Phase worth `heatH0` = `HEAT_HS + HEAT_HLAT·heatF(sh)`. A kind change keeps Q | heat.ts:196-217 | a chemical store of heat is a phase worth, like water's melting heat |
+| `heatSpawn` gives the new cell the old one's T and returns what it cost. heatStep charges it (`heatSetQ(g, i, q - paid)`) | heat.ts:285-291, 462 | the pattern for chalk pushing out damp and slaked lime pushing out steam |
+| Every L > 0 `heatUp` case changes the cell's kind | heat.ts:293-322 | a "no room, wait" branch in heatStep (§3.2) is reached by no master material |
+| Water at 100 banks up to 1,200·fw before it boils, and `heatQ` counts it | heat.ts:219-223, 458-462 | the bound in §3.3 has to count it |
+| `sandFire` rolls one die per neighbour before it looks at it | world.ts:728-739 | smothering uses that die. No new dice in master code |
+| ROCK never falls, and is what a pick is for | world.ts:241-243; mines.ts:57 | CHALK is ROCK |
+| Wet sand is drawn darker, with no state, from its neighbours | game.ts:790-792 | how the wick is shown |
+| `P_SAY.idea_concrete`: "the bucket hit the lime and it went WARM". `wSpark` sparks CONCRETE | wonders.ts:75, 271-276 | the village's old joke comes true in front of them |
+| A bucket is 5 cells (`I_LOAD`) | ideas.ts:79 | a pail on lime is up to 5 slakes |
 
 **How chalk burns** (measured, store 2,000: an 11×5 block on a stone slab in cleared sky, `sim.load(3)` and `(5)`,
 quicklime counted at 1,000 / 2,000 / 3,000 / 5,000 ticks):
@@ -72,7 +72,7 @@ quicklime counted at 1,000 / 2,000 / 3,000 / 5,000 ticks):
 | LAVA poured over the top | 0 while it is covered: nowhere for the damp to go **(v2)** | |
 
 So a kiln takes about half as long again as it did at 800, and it is still "burn it on a torch", as the tip says.
-Lava and the bellows (1,800) do it too, wherever the damp has room. A bolt adds up to +2,600 (world.js:680), which is
+Lava and the bellows (1,800) do it too, wherever the damp has room. A bolt adds up to +2,600 (world.ts:680), which is
 enough to burn only the few cells at the heart of the strike at once.
 
 **Where kiln damp goes** (measured): out of a 14-wide, 18-deep pit with torches down both sides, 59 quicklime in
@@ -87,8 +87,8 @@ of 60, slowly, as the damp faded and made room. Damp born at 580 goes up first. 
 | | |
 |---|---|
 | materials | CHALK 55 (paintable, MORE / FROM THE ROCK), QUICKLIME 56, SLAKED LIME 57, CHOKEDAMP 58 (`MAT.DAMP`). 5 ids stay free under NMAT 64 |
-| code | a new `lime.js` (~200 lines: `limeRoom`, `limeQuick`, `limeCarb`, `limeAcid`, `sandDamp`, `limeStep`, `pDampGo`), after platforms.js in index.html |
-| hooks | world.js (ids, tables, flags, dispatch, acid, fire, ember and bang branches), heat.js (defs, worths, one heatUp case, the wait line), peasants.js (breath, cough, rim, walking branch, lines), paths.js (one hazard read, `NAV_DAMPOK`), mines.js (foul), ducks.js (one compare), build.js (two table rows, one vanish), ideas.js (`iUrgent` skip, `limeStep` call), wonders.js (one `W_HOW` line), game.js (picker, names, readouts, drawing), harness/inspect.js (glyphs) |
+| code | a new `lime.js` (~200 lines: `limeRoom`, `limeQuick`, `limeCarb`, `limeAcid`, `sandDamp`, `limeStep`, `pDampGo`), after platforms.ts in index.html |
+| hooks | world.ts (ids, tables, flags, dispatch, acid, fire, ember and bang branches), heat.ts (defs, worths, one heatUp case, the wait line), peasants.ts (breath, cough, rim, walking branch, lines), paths.ts (one hazard read, `NAV_DAMPOK`), mines.ts (foul), ducks.ts (one compare), build.ts (two table rows, one vanish), ideas.ts (`iUrgent` skip, `limeStep` call), wonders.ts (one `W_HOW` line), game.ts (picker, names, readouts, drawing), harness/inspect.js (glyphs) |
 | village | breathing (and not breathing) damp, the route out, the rim, the foul mine, the concrete spark, the brigade that learns. Three achievements |
 | UI | one MORE row (MORE_H 130 to 140, MORE_TOP 230 to 220, against PLAY_Y 14), readouts, eyedropper, one tip |
 | tests | test/lime.js, 21 tests; test/picker.js `NEW` gains CHALK |
@@ -105,29 +105,29 @@ of 60, slowly, as the damp faded and made room. Damp born at 580 goes up first. 
 | 58 | CHOKEDAMP | what burning or fizzing chalk gives off: heavy, and you cannot breathe it | 0.3 / 1 / 0 | 0.5 / .02 | AIRY FLUID | no |
 
 - **CHALK earns its place.** It starts the chain, and you build with it: a cliff for acid and lightning, a block for
-  the torches, a seam under the village. It goes under FROM THE ROCK after ROCK SALT (`MORE_GROUPS`, game.js:564, lists
+  the torches, a seam under the village. It goes under FROM THE ROCK after ROCK SALT (`MORE_GROUPS`, game.ts:564, lists
   by group). Desc (80 chars): "soft white rock. acid fizzes it. burnt past 580 it is quicklime. then add water."
   The review notes the village's rock never has chalk in it. I disagree that the label is off. The group says what a
   thing is (rock, `ROCK[CHALK] = 1`, and a pick takes it as stone), not where the world put it. Chalk beds in the
   ground would change every master hash (§14).
-- **QUICKLIME is not in the picker**, because its heat is the point. Painted at T0 (`sandPlace`, world.js:342) it
+- **QUICKLIME is not in the picker**, because its heat is the point. Painted at T0 (`sandPlace`, world.ts:342) it
   would bring 56 + 2,000f of heat that the books never paid for: painted heat. A cloner already refuses it
-  (`t < MAT.PLANK`, world.js:1183).
+  (`t < MAT.PLANK`, world.ts:1183).
 - **SLAKED LIME is not in the picker.** It is the spent state, and it has four jobs. It tells you the heat is gone.
   It is the crust a heap grows, and the water lying on that crust is what boils. It drinks damp and sets back into chalk
   (the only sink for damp besides fading). And it stops acid cell for cell. The review calls it bookkeeping. The crust
   and the damp sink are play.
 - **CHOKEDAMP is not in the picker**, for the same reason SMOKE is not: you earn it. Acid on chalk earns it as fast
   as you like.
-- The eyedropper (`sandEyedrop`, game.js:540-549) gives CHALK for all three, as STEAM gives WATER.
-- Damp's C 0.5 is air's (heat.js:57), so when damp fades to air it keeps its temperature exactly.
+- The eyedropper (`sandEyedrop`, game.ts:540-549) gives CHALK for all three, as STEAM gives WATER.
+- Damp's C 0.5 is air's (heat.ts:57), so when damp fades to air it keeps its temperature exactly.
 
-**Positional tables.** SAND_DENS, SAND_FREE and SAND_POUR (world.js:133-144) stop at index 52. Phase 1 pads 53 and 54
-with `9, 0, 0`, which reads exactly as the `undefined` they hold now everywhere they are read. `SAND_FREE[t] === 1` (world.js:299,
-929; mines.js:175) is false either way, and the `SAND_DENS` compares beside it are only reached once it is true.
-`SAND_DENS[t] >= 1` (world.js:357) is only reached for a cell sandCan let through, so never LINEN or TRESTLE.
-`SAND_FREE[t] &&` (world.js:550) and `!SAND_FREE[c]` (mines.js:177) treat 0 and undefined alike, and so does `if
-(!pour)` in `sandDab` (game.js:428). `SAND_DENS[src]` is read only for a moving cell, and both are STILL. Then the
+**Positional tables.** SAND_DENS, SAND_FREE and SAND_POUR (world.ts:133-144) stop at index 52. Phase 1 pads 53 and 54
+with `9, 0, 0`, which reads exactly as the `undefined` they hold now everywhere they are read. `SAND_FREE[t] === 1` (world.ts:299,
+929; mines.ts:175) is false either way, and the `SAND_DENS` compares beside it are only reached once it is true.
+`SAND_DENS[t] >= 1` (world.ts:357) is only reached for a cell sandCan let through, so never LINEN or TRESTLE.
+`SAND_FREE[t] &&` (world.ts:550) and `!SAND_FREE[c]` (mines.ts:177) treat 0 and undefined alike, and so does `if
+(!pour)` in `sandDab` (game.ts:428). `SAND_DENS[src]` is read only for a moving cell, and both are STILL. Then the
 four rows above go in. `SAND_SHADES` gains chalk `#cfcac0 #c4bfb4 #d8d3c9 #bcb7ab`, quicklime `#eef1f4 #e3e7eb
 #f7f9fb`, slaked `#dccb98 #d3c18c #e3d4a6`, and damp `#6b7a55 #74835c` (drawn see-through, §7).
 
@@ -137,7 +137,7 @@ four rows above go in. `SAND_SHADES` gains chalk `#cfcac0 #c4bfb4 #d8d3c9 #bcb7a
 
 ### 3.1 Phase worths and transitions
 
-New rows in the IIFE at heat.js:196-207, so `heatH0` needs no change. `f = heatF(sh)` (0.7-1.3, heat.js:208) is the
+New rows in the IIFE at heat.ts:196-207, so `heatH0` needs no change. `f = heatF(sh)` (0.7-1.3, heat.ts:208) is the
 cell's own jitter, and `fw` the water's. Every reaction keeps the lime cell's shade.
 
 | kind | HEAT_HS | HEAT_HLAT | worth at 20° | why |
@@ -168,7 +168,7 @@ most `LIME_SEEP` 6 cells of CHALK, QUICKLIME or SLAKED LIME (porous: the damp se
 - **Not STEAM.** `heatSpawn` charges the difference. A damp puff written over steam would hand the steam's latent
   heat to the quicklime, which would be born at about 1,900.
 - **Not through damp.** An oven full of its own damp burns only as fast as the damp fades. CO₂ stops calcination.
-- **No room: it waits.** One line in heatStep's change branch (heat.js:462):
+- **No room: it waits.** One line in heatStep's change branch (heat.ts:462):
   `paid = heatUp(g, i, v); if (m[i] === v) { L = heatLat(g, i, L); lat[i] = L; T[i] = hi + (e - L) * IC[v]; continue; }`.
   It keeps the latent heat it needs and puts the rest into temperature, so Q is unchanged, and it tries again next
   tick. A sealed lump warms with what is round it (1,221 under lava **(v2)**). Uncovered while hot, it burns at once.
@@ -199,8 +199,8 @@ At f = .7 and fw = 1.3 that is 1,950, against 3,400 × .7 = 2,380. The margin is
 because drying is the store + 1,400, so f's share cancels: `2380 - 1950 = 2040·0.7 - 166 - 640·1.3`. For brine (HI
 103, the water's cell left as SALT at 103) it is `152 + 1360f + 640fs`, margin **444**.
 
-**Water that is boiling.** `heatQ` counts the water's banked latent heat (heat.js:219-223), and water at 100 holds up
-to 1,200·fw of it before it turns to steam (heat.js:458-462). Brine at 103 holds the same. Add that `Lw` to the sum
+**Water that is boiling.** `heatQ` counts the water's banked latent heat (heat.ts:219-223), and water at 100 holds up
+to 1,200·fw of it before it turns to steam (heat.ts:458-462). Brine at 103 holds the same. Add that `Lw` to the sum
 above, and once `Lw` > 430 (worst case) a slake can dry at once. So v2's "a slake never dries itself" was too strong.
 The true claim: **drying needs heat that a fire put in, into the lime or into the water.** Boiling water has had it put
 in, and the lime only hurries its boil: the water's cell ends as steam, the lime as quicklime, paid for by the fire
@@ -215,7 +215,7 @@ slakes only below 450. Lime in a closed box over a torch will cycle (dry, steam,
 ### 3.4 The reactions kept by hand
 
 Each one syncs both cells (`heatSync`), sums their Q, writes the by-product and gives the rest to the main cell with
-`heatSetQ`, as `heatSpawn` does. None uses `sandSet`, which throws away a phase worth (world.js:336-340).
+`heatSetQ`, as `heatSpawn` does. None uses `sandSet`, which throws away a phase worth (world.ts:336-340).
 
 | reaction | heat out, at 20° | so |
 |---|---|---|
@@ -240,30 +240,30 @@ Rates are per tick, per touching pair. "New" means the rule is in lime.js.
 | actor | with / when | result | rate | where |
 |---|---|---|---|---|
 | CHALK | T > 580, 2,000f banked, room | QUICKLIME + a CHOKEDAMP puff at 580 (hot, so it rises first) | heat | heatUp |
-| CHALK | ACID neighbour | CHOKEDAMP in place, cold. The acid is used 30% of the time, as always | .04 | acid list, world.js:1040-1043 |
-| CHALK | a pick | "stone" in the pocket | | `M_YIELD`, mines.js:57 |
-| QUICKLIME | WATER or SALTWATER beside it, or straight up through at most `LIME_WICK` **2** cells of slaked lime; own T < 450 | SLAKED LIME, the water drunk (§3.4). `g.fx.hiss++` every time: the sizzle is throttled to one per 0.15 s (game.js:703) | on `((g.tick + i) & 3) === 0`, then .2 | new `limeQuick`, first line of sandPowder |
+| CHALK | ACID neighbour | CHOKEDAMP in place, cold. The acid is used 30% of the time, as always | .04 | acid list, world.ts:1040-1043 |
+| CHALK | a pick | "stone" in the pocket | | `M_YIELD`, mines.ts:57 |
+| QUICKLIME | WATER or SALTWATER beside it, or straight up through at most `LIME_WICK` **2** cells of slaked lime; own T < 450 | SLAKED LIME, the water drunk (§3.4). `g.fx.hiss++` every time: the sizzle is throttled to one per 0.15 s (game.ts:703) | on `((g.tick + i) & 3) === 0`, then .2 | new `limeQuick`, first line of sandPowder |
 | QUICKLIME | STEAM | nothing. It conducts (K .05) | | |
 | QUICKLIME | ACID | SALT and SMOKE (§3.4) | .04 | acid list, a branch before the generic one |
 | SLAKED LIME | T > 450, 3,400f banked, room | QUICKLIME + a STEAM puff | heat | heatUp |
 | SLAKED LIME | CHOKEDAMP, the lime **resting** (`vy` 0, the cell under it neither AIRY nor FLUID) | CHALK in place; the damp becomes WATER | .02, on the damp's die | new `sandDamp` |
 | SLAKED LIME | ACID | SALTWATER, +1.6° | .04 | acid list |
-| CHOKEDAMP | FIRE beside it | the fire becomes SMOKE, keeping its heat (`heatBecome`) | .2, the fire's die | sandFire, one branch before WET (world.js:739) |
-| CHOKEDAMP | EMBER beside it | the ember becomes ASH, keeping its heat | .01, the ember's die | ember chain, world.js:1128-1140 |
+| CHOKEDAMP | FIRE beside it | the fire becomes SMOKE, keeping its heat (`heatBecome`) | .2, the fire's die | sandFire, one branch before WET (world.ts:739) |
+| CHOKEDAMP | EMBER beside it | the ember becomes ASH, keeping its heat | .01, the ember's die | ember chain, world.ts:1128-1140 |
 | CHOKEDAMP | anywhere | fades to EMPTY (same C, so same T) | .0002 | `sandDamp`, one die `r` |
 | CHOKEDAMP | EMPTY directly above | thins away | .002 (the same `r`) | `sandDamp` |
 | CHOKEDAMP | T > 100 | rises on .6 of ticks: up into EMPTY or into damp 20° cooler, else up a diagonal into EMPTY | | `sandDamp` |
 | CHOKEDAMP | T ≤ 100 | on .65 of ticks: down (`sandCan`: through SMOKE, STEAM and GAS), then a diagonal (`sandSlide`), then `sandSpread(…, 4)`. Under a liquid it bubbles up (`sandBubble`). Water sinks through it | | `sandDamp` |
-| TORCH | under damp | burns without a flame (it lights only EMPTY, world.js:1155-1158) | | nothing new |
-| sandBoom | | CHALK is in the hard set by `ROCK`. QUICKLIME and SLAKED: `big && inner` (world.js:548) skips them, the outer shell flings them as debris (keeping their heat), and what is left stays as it is, a branch before the 85% FIRE catch-all (:563). DAMP joins STEAM, SMOKE and GAS: never flung (:550), stays itself (:561) | | world.js |
-| a builder's spade | QUICKLIME, SLAKED LIME | dug (`B_DIG`) and tossed as now. Trodden down instead (build.js:892), it goes by `heatVanish`, not `heatVacate`, so the heat goes with it | | build.js |
+| TORCH | under damp | burns without a flame (it lights only EMPTY, world.ts:1155-1158) | | nothing new |
+| sandBoom | | CHALK is in the hard set by `ROCK`. QUICKLIME and SLAKED: `big && inner` (world.ts:548) skips them, the outer shell flings them as debris (keeping their heat), and what is left stays as it is, a branch before the 85% FIRE catch-all (:563). DAMP joins STEAM, SMOKE and GAS: never flung (:550), stays itself (:561) | | world.ts |
+| a builder's spade | QUICKLIME, SLAKED LIME | dug (`B_DIG`) and tossed as now. Trodden down instead (build.ts:892), it goes by `heatVanish`, not `heatVacate`, so the heat goes with it | | build.ts |
 | lightning, DRAIN, CLONER | | a bolt burns the chalk at its heart and dries lime with room; a drain takes the loose ones by `heatVanish`; a cloner learns none of them | | nothing new |
 
 **Every way out takes its heat.** A lime cell turned to air by the recount would give that air 56 + 2,000f at C 0.5:
 5,000°. So no rule ever writes EMPTY over lime except by `heatVanish` (a drain, the spade) or as a reaction kept by
-hand. `heatTaken` (heat.js:493-500) would have caught the spade only in a great-works village. Test 15 scans for it.
+hand. `heatTaken` (heat.ts:493-500) would have caught the spade only in a great-works village. Test 15 scans for it.
 
-Two powders never trade places (world.js:263-264), so quicklime poured on sand sits on it, and water cannot sink
+Two powders never trade places (world.ts:263-264), so quicklime poured on sand sits on it, and water cannot sink
 through either. The wick is what makes the paste porous. It is drawn: slaked lime with water beside it, or under at
 most 2 cells of slaked lime with water on top, gets a darker shade, as wet sand does (§7). The dark band shows where
 the water is going in, and the white under it is what it will reach.
@@ -279,7 +279,7 @@ Store 2,000, drying 3,400, wick 2. An open stone basin or trough in cleared sky,
 | one pail (5 cells) on a 20×6 quicklime heap | drunk, all of it, with a sizzle. A plank 2 deep reached 119, gunpowder 2 deep 73. Nothing went |
 | three pails on the heap | **gunpowder 2 deep went off, 3 of 3** (at 96-141 ticks). 0-1 cells boiled |
 | five pails on the heap | 21-24 slaked, then the crust. **2 to 5 cells of the water lying on it boiled**, 2-4 at once. A plank 2 deep reached 247 and did not catch |
-| a pail at the feet of a peasant on a quicklime floor | **3 of 8 caught fire** (`pHeat`, peasants.js:748: feet over 350), one of them fatally: the water that would have put them out had been drunk |
+| a pail at the feet of a peasant on a quicklime floor | **3 of 8 caught fire** (`pHeat`, peasants.ts:748: feet over 350), one of them fatally: the water that would have put them out had been drunk |
 | the same at store 800 (v2's) | pond of 40: 0-1 boiled. Feet: 1 of 6 caught |
 
 So lime is a store of heat that comes back as heat you can see. It is still not a way to light a house: wood two
@@ -291,38 +291,38 @@ cells down reached 247 at most, against its 300.
 
 ### 5.1 Breath
 
-In `pStep` (peasants.js:656 reads `cm` at fy-4 and `ch` at fy-7), `damp = !sub && ch === MAT.DAMP`:
+In `pStep` (peasants.ts:656 reads `cm` at fy-4 and `ch` at fy-7), `damp = !sub && ch === MAT.DAMP`:
 
 - **Head in damp:** `p.breath` falls on even ticks, so a peasant lasts **600 ticks** from a full 300 (`P_BREATH`,
-  peasants.js:18). No recovery while in it, no bubbles, and the death cause is `damp`. On the first breath lost:
+  peasants.ts:18). No recovery while in it, no bubbles, and the death cause is `damp`. On the first breath lost:
   `p.task = null` and `pSay(g, p, "damp", true)`. Every damp tick: `p.dampT = g.tick + 240` and
-  `p.panic = max(p.panic, 60)`. `scared` (peasants.js:1580) then keeps them off tasks.
-- **Chest in damp, head clear:** a cough, as smoke gives (the line at peasants.js:679 gains `|| cm === MAT.DAMP`, and
+  `p.panic = max(p.panic, 60)`. `scared` (peasants.ts:1580) then keeps them off tasks.
+- **Chest in damp, head clear:** a cough, as smoke gives (the line at peasants.ts:679 gains `|| cm === MAT.DAMP`, and
   rolls its die only when that is true, which in a village with no damp it never is). No breath lost, no panic, and
   the route does not mind (§5.2).
 - Lines: `P_SAY.damp` "*gasp*", "the air's gone heavy", "can't... breathe", "UP. go UP", "*wheeze*".
   `P_DEATH.damp` "{n} breathed the bottom of the hole", "{n} lay down where the air was bad", "{n} went down for a look
-  and stayed". `W_HOW.damp` "breathed the bottom of a hole" (wonders.js:281). `P_CAUSE.damp` "chokedamp"
-  (game.js:1423). `pMood`: before the drowning line (game.js:1370), with `p.dampT > g.tick` and breath down,
+  and stayed". `W_HOW.damp` "breathed the bottom of a hole" (wonders.ts:281). `P_CAUSE.damp` "chokedamp"
+  (game.ts:1423). `pMood`: before the drowning line (game.ts:1370), with `p.dampT > g.tick` and breath down,
   "can't get their breath. Ns of air left", counting two ticks to a breath.
 
 ### 5.2 Getting out: a route, not a direction
 
-- **One row, read by both.** `paths.js` gains `function pDampAt(g, x, y) { return pCell(g, x, y - 7) === MAT.DAMP; }`.
-  `navHazard` (paths.js:59-62) gains `|| (!NAV_DAMPOK && pDampAt(g, x, y))`, and the breath in §5.1 reads the same
+- **One row, read by both.** `paths.ts` gains `function pDampAt(g, x, y) { return pCell(g, x, y - 7) === MAT.DAMP; }`.
+  `navHazard` (paths.ts:59-62) gains `|| (!NAV_DAMPOK && pDampAt(g, x, y))`, and the breath in §5.1 reads the same
   cell. So a stand is ruled out for damp exactly when somebody standing on it would be breathing it. That is when
   `p.dampT` is set and `pDampGo` is walking them. v2 also checked the chest (y-4). Damp at the chest then ruled out the
-  stand under a peasant who could still breathe, every errand's `navHere` (paths.js:245) failed, and they walked
+  stand under a peasant who could still breathe, every errand's `navHere` (paths.ts:245) failed, and they walked
   straight at their goals, into the spill. Feet and chest are never checked now, so a spill up to 7 deep is a cough,
   not a wall.
-- `var NAV_DAMPOK = false` beside `NAV_HOTOK` (paths.js:32). **It is not used the way `NAV_HOTOK` is.** pathGo sets
-  `NAV_HOTOK` only around `navHere` (paths.js:265-267), so a burning peasant may start on hot ground and the route on
+- `var NAV_DAMPOK = false` beside `NAV_HOTOK` (paths.ts:32). **It is not used the way `NAV_HOTOK` is.** pathGo sets
+  `NAV_HOTOK` only around `navHere` (paths.ts:265-267), so a burning peasant may start on hot ground and the route on
   still keeps out of the heat. `pDampGo(g, p)` (lime.js) sets `NAV_DAMPOK = true` around one whole
   `pathGo(g, p, "air", null, null, goal)` call and clears it after. A route out of a pit of damp has to go *through*
-  damp, so `navFind` must accept damp stands too. And pathGo's "something nasty on the next steps" check (paths.js:262-263)
+  damp, so `navFind` must accept damp stands too. And pathGo's "something nasty on the next steps" check (paths.ts:262-263)
   would otherwise replan every tick. The goal is a stand with `!pDampAt`. With `tx` null the search has no heuristic
-  (paths.js:212), so it finds the nearest clean air by cost: ladders, lifts and all (`navEdges`, paths.js:131-146).
-- In the walking code, the branch at peasants.js:1590 becomes
+  (paths.ts:212), so it finds the nearest clean air by cost: ladders, lifts and all (`navEdges`, paths.ts:131-146).
+- In the walking code, the branch at peasants.ts:1590 becomes
   `if (p.dampT > g.tick && !p.fire) { if (pDampGo(g, p) < 0 && (p.anim % 60) === 0) p.dir = -p.dir; } else if (!p.fire) {…}`.
 - **Measured (v2):** `sim.load(s)` for s in 1, 2, 4-9, a mine built, a gallery built, four miners on its floor, every
   air cell in the bottom 12 rows of the gallery and shaft made damp, 2,400 ticks. With the route, **32 of 32 got out**,
@@ -334,11 +334,11 @@ hole. That is the hazard it should be.
 
 ### 5.3 The mine that goes foul
 
-`mFlooded` (mines.js:718-731) also counts damp cells in the plan. More than 4 of those (and 4 or fewer of water) makes
+`mFlooded` (mines.ts:718-731) also counts damp cells in the plan. More than 4 of those (and 4 or fewer of water) makes
 the mine **foul**, not flooded: `s.foul = 1`, and the feed says once, "{Mine} is full of chokedamp. nobody is going down
 there till it clears". `mFlooded` returns true, so every gate that keeps people out of a flooded mine keeps them out of
-this one (ideas.js:739, leftovers.js:819 and 866, mines.js:618 and 625). It also sets a module flag, `M_FOUL`.
-`mFloodClock` (mines.js:242-249) does not start the 12,000-tick write-off while it is set, and mines.js:618 does not
+this one (ideas.ts:739, leftovers.ts:819 and 866, mines.ts:618 and 625). It also sets a module flag, `M_FOUL`.
+`mFloodClock` (mines.ts:242-249) does not start the 12,000-tick write-off while it is set, and mines.ts:618 does not
 mark the gallery's direction worked out. Cleared: `s.foul = 0`, "the air in {mine} is fit to breathe again".
 
 How long a mine is foul **(v2)**: a 41×10 gallery and shaft with 443 damp cells drops to 212 by 2,000 ticks, 21 by
@@ -347,26 +347,26 @@ cells under them thin at the faster rate. A torch at the far end does **not** he
 
 ### 5.4 What the village makes of it
 
-1. **The rim.** `pNasty` (peasants.js:1318) already looks down from an edge for fire and acid. It counts damp too: 7
-   damp cells below the edge, a head's depth, make it nasty. The look-ahead (peasants.js:1596) turns them round as it
+1. **The rim.** `pNasty` (peasants.ts:1318) already looks down from an edge for fire and acid. It counts damp too: 7
+   damp cells below the edge, a head's depth, make it nasty. The look-ahead (peasants.ts:1596) turns them round as it
    does now. When damp was the reason (a flag `P_NASTY_DAMP`), they say `P_SAY.dampRim` instead of "nope": "the air's
    wrong down there", "smells of nothing. i don't like it", "not down there", "the duck won't go in either". One compare
    per cell scanned, no dice.
-2. **Ducks** (`dNasty`, ducks.js:182-185) count damp as nasty. A duck is about two cells tall, so a layer a peasant
+2. **Ducks** (`dNasty`, ducks.ts:182-185) count damp as nasty. A duck is about two cells tall, so a layer a peasant
    coughs through is over a duck's head, and the ducks leave the hollow first. They know.
-3. **Builders** treat damp as air (`B_AIR`, build.js:71-72) and dig quicklime and slaked lime as loose (`B_DIG`,
+3. **Builders** treat damp as air (`B_AIR`, build.ts:71-72) and dig quicklime and slaked lime as loose (`B_DIG`,
    :68-69), taking the heat with them (§4.1).
 4. **"it went WARM".** `limeQuick` writes `g.limeAt = {x, y, t}`, a lazy key. `limeStep` runs from `ideasStep`, which
-   runs only every 20th tick (ideas.js:539-540), and only while `g.limeAt.t` is under 300 ticks old. It looks at
-   peasants within 12. Anybody with `p.pail` (ideas.js:485) says `P_SAY.limeWorse`: "it's getting WORSE", "stop
+   runs only every 20th tick (ideas.ts:539-540), and only while `g.limeAt.t` is under 300 ticks old. It looks at
+   peasants within 12. Anybody with `p.pail` (ideas.ts:485) says `P_SAY.limeWorse`: "it's getting WORSE", "stop
    throwing water at it", "this is not how fire works". That sets `g.limeWise`. Anybody else says `P_SAY.limeWarm`: "it
    went WARM", "who heated the pond", "it's boiling and nobody lit it". Anybody who knows masonry gets
-   `wSpark(g, p, "concrete")` (wonders.js:271-276, which gives it only if the idea is ready).
-5. **The brigade that learns.** Once `g.limeWise` is set, `iUrgent` (ideas.js:474-490) skips a blaze with quicklime
+   `wSpark(g, p, "concrete")` (wonders.ts:271-276, which gives it only if the idea is ready).
+5. **The brigade that learns.** Once `g.limeWise` is set, `iUrgent` (ideas.ts:474-490) skips a blaze with quicklime
    within 6 cells of its site's box. They stand off and say `P_SAY.limeWise`: "not with water. NOT with water", "let it
    burn. trust me", "remember the lime". The look happens only in a village with `g.limeWise`, once per peasant per
    call, over a box of about 30×20.
-6. **Achievements**, appended to `P_ACHIEVE` (peasants.js:399). The master table hashes only master's keys
+6. **Achievements**, appended to `P_ACHIEVE` (peasants.ts:399). The master table hashes only master's keys
    (test/wonders.js:61-69). `slake` "IT WENT WARM" / "quicklime and water. they have been saying so for years".
    `smother` **"CHOKEDAMP"** / "a fire went out on its own, in a hole full of nothing". `chalkagain` "FULL CIRCLE" /
    "chalk, burnt, slaked, and set back into chalk. not a degree lost" (on the first `limeCarb`).
@@ -385,15 +385,15 @@ cells under them thin at the faster rate. A torch at the far end does **not** he
 - **No new dice stream.** The new rules roll the village's own dice, as acid and salt do, and only where the player
   has painted chalk. That village already left master's path when the brush rolled `irnd(256)` for the shade.
 - **Only lazy keys**: `g.limeAt`, `g.limeWise`, `s.foul`, `p.dampT`. Each is read with a guard (`p.dampT > g.tick` is
-  false for undefined). `saveApplyState` deletes keys an older save lacks (save.js:483), which is the same as
+  false for undefined). `saveApplyState` deletes keys an older save lacks (save.ts:483), which is the same as
   never having had them. No grid arrays. The flags `NAV_DAMPOK`, `M_FOUL` and `P_NASTY_DAMP` are set and cleared inside
   one call, and never saved. `g.fx.hiss` is sound, not state.
-- **Old saves load.** The ids are appended (55-58 < NMAT, save.js:274). The brush is saved by name (save.js:503), and
+- **Old saves load.** The ids are appended (55-58 < NMAT, save.ts:274). The brush is saved by name (save.ts:503), and
   CHALK is appended after TRESTLE, so every brush keeps its place for keyframes and recordings. The fixture
   test/fixtures/valley-272.json replays to its hash.
 - **The panel.** One `more: "rock"` row at the end of PICK, so `PICK_N` is unchanged. The rock rows of the flyout move
-  up 10 and the BUILDING rows stay put, since the flyout is anchored at its bottom (game.js:567-576). MASTER_SC clicks
-  only panel rows. test/picker.js `NEW` gains "CHALK". The stale MORE hover line (game.js:1346, which has no TRESTLE)
+  up 10 and the BUILDING rows stay put, since the flyout is anchored at its bottom (game.ts:567-576). MASTER_SC clicks
+  only panel rows. test/picker.js `NEW` gains "CHALK". The stale MORE hover line (game.ts:1346, which has no TRESTLE)
   becomes "MORE  coal, iron ore, gold, rock salt, chalk, stonework, concrete, firebrick, stained glass, trestle. click to
   open". (If another plan adds a MORE group first, the flyout is taller by its rows; the PLAY_Y check in test/picker.js
   is the one to re-run.)
@@ -402,17 +402,17 @@ cells under them thin at the faster rate. A torch at the far end does **not** he
 
 ## 7. Drawing, readouts, the harness
 
-- `drawWorld` (game.js:740) gains branches beside the TRESTLE one (:865). **CHALK**: its grey shade, lit on top, and a
+- `drawWorld` (game.ts:740) gains branches beside the TRESTLE one (:865). **CHALK**: its grey shade, lit on top, and a
   black flint `#4a4a52` where `(x*7 + y*13) % 61 === 0`. **QUICKLIME**: its cold blue-white, with grey grit `#a9adb2`
   where `(x*5 + y*11) % 7 === 0`, so a heap of it reads as crumbly lumps. **SLAKED LIME**: smooth cream, no grit, and
-  the wet paste (`LIME_WET`, its shades at 0.72, as `SAND_WET` is built at 0.68, world.js:221) where §4.1's wick would
+  the wet paste (`LIME_WET`, its shades at 0.72, as `SAND_WET` is built at 0.68, world.ts:221) where §4.1's wick would
   find water. **CHOKEDAMP**: `blend32(bg[i], DAMP_TINT, .22)`, and .34 on its top face with a slow ripple, so a pool of
   it reads as a surface you can see the sky through. Its branch comes before any AIRY handling.
 - **Hot lime shimmers.** An EMPTY cell over QUICKLIME or SLAKED LIME hotter than 150 is drawn lighter, by .12, where
-  `((g.tick >> 3) + x * 5 + y) % 7 === 0`. Drawn only: no state, no dice. Over 450 the glow (game.js:887-889) takes over.
-- **Telling them apart, in words.** `MAT_NAME`: QUICKLIME, SLAKED LIME, CHOKEDAMP, by hand (game.js:452-462). CHALK
-  comes from PICK. `MAT_UP[CHALK] = "burning"`, `MAT_UP[SLAKED] = "drying"` (game.js:465-468). `cellReadout`
-  (game.js:470) adds:
+  `((g.tick >> 3) + x * 5 + y) % 7 === 0`. Drawn only: no state, no dice. Over 450 the glow (game.ts:887-889) takes over.
+- **Telling them apart, in words.** `MAT_NAME`: QUICKLIME, SLAKED LIME, CHOKEDAMP, by hand (game.ts:452-462). CHALK
+  comes from PICK. `MAT_UP[CHALK] = "burning"`, `MAT_UP[SLAKED] = "drying"` (game.ts:465-468). `cellReadout`
+  (game.ts:470) adds:
 
 | cell | readout |
 |---|---|
@@ -423,7 +423,7 @@ cells under them thin at the faster rate. A torch at the far end does **not** he
 | slaked lime, over its HI | `SLAKED LIME 450°  drying 12%` |
 | chokedamp | `CHOKEDAMP 20°  heavy: it lies in the low places` |
 
-- One tip at the end of `TIPS` (game.js:18-70): "tip: burn some CHALK on a torch. let it cool. then drop a lot of it in
+- One tip at the end of `TIPS` (game.ts:18-70): "tip: burn some CHALK on a torch. let it cool. then drop a lot of it in
   the pond".
 - harness/inspect.js `GLYPH`: CHALK `&`, QUICKLIME `q`, SLAKED `Q`, DAMP `d`.
 
@@ -431,8 +431,8 @@ cells under them thin at the faster rate. A torch at the far end does **not** he
 
 ## 8. Performance
 
-- **Nothing new runs over the whole grid.** CHALK is STILL, so `sandStep` skips it (world.js:1224), and it burns in
-  heatStep's existing pass. The dispatch (world.js:1229-1231) gains two compares at the end of the powder list and one
+- **Nothing new runs over the whole grid.** CHALK is STILL, so `sandStep` skips it (world.ts:1224), and it burns in
+  heatStep's existing pass. The dispatch (world.ts:1229-1231) gains two compares at the end of the powder list and one
   branch for damp after GAS.
 - Quicklime looks at its neighbours one tick in four, and the wick reads at most 2 cells. Slaked lime has no rule of
   its own. Damp is a random walk like smoke, and it cannot multiply: one puff per chalk cell burnt or fizzed.
@@ -449,8 +449,8 @@ cells under them thin at the faster rate. A torch at the far end does **not** he
 
 ### 9.1 Phase 1: the four materials, the cycle, the books
 
-world.js (ids, padded tables, flags, dispatch, the sandPowder line), heat.js (defs, worths, the CHALK/SLAKED heatUp
-case, the wait line), lime.js and its script tag, game.js (PICK row, names, readouts, drawing, eyedropper), glyphs.
+world.ts (ids, padded tables, flags, dispatch, the sandPowder line), heat.ts (defs, worths, the CHALK/SLAKED heatUp
+case, the wait line), lime.js and its script tag, game.ts (PICK row, names, readouts, drawing, eyedropper), glyphs.
 
 1. "lime: CHALK is in MORE under FROM THE ROCK with a colour, a name and a description; the other three are not in the
    picker, and the eyedropper gives chalk for each". Plus test/picker.js `NEW`.
@@ -479,7 +479,7 @@ case, the wait line), lime.js and its script tag, game.js (PICK row, names, read
 
 ### 9.2 Phase 2: what damp, acid, bangs and spades do
 
-world.js hooks: sandFire, the ember chain, the acid list, sandBoom's branches. build.js (`B_DIG`, `B_AIR`, the vanish).
+world.ts hooks: sandFire, the ember chain, the acid list, sandBoom's branches. build.ts (`B_DIG`, `B_AIR`, the vanish).
 lime.js `limeCarb`, `limeAcid`.
 
 11. "lime: a fire in a pit of chokedamp goes out, and the one beside the pit does not" (`smother` achieved).
@@ -495,8 +495,8 @@ lime.js `limeCarb`, `limeAcid`.
 
 ### 9.3 Phase 3: the village
 
-peasants.js (breath, cough, lines, `pNasty`, the walking branch), paths.js (`pDampAt`, `NAV_DAMPOK`), lime.js
-(`pDampGo`, `limeStep`), mines.js (foul), ducks.js, ideas.js (`iUrgent`), wonders.js and game.js (cause tables,
+peasants.ts (breath, cough, lines, `pNasty`, the walking branch), paths.ts (`pDampAt`, `NAV_DAMPOK`), lime.js
+(`pDampGo`, `limeStep`), mines.ts (foul), ducks.ts, ideas.ts (`iUrgent`), wonders.ts and game.ts (cause tables,
 `pMood`), README.
 
 16. "lime: a peasant with damp at the head loses breath at half the water rate and dies of `damp` at 600 ticks if held
@@ -634,13 +634,13 @@ first minute anyway.
 - **Slaked lime + sand → wet concrete.** MORTAR has no phase worth, so two cells of it would come out at about 300°.
   The honest mortar is the one that is in: lime setting in the damp.
 - **Gathering slaked lime for the great works.** v2 had it: 16 cells saved the kiln 2 stone and 2 coal. It touched
-  leftovers.js and the haul for a difference nobody would see. Cut.
+  leftovers.ts and the haul for a difference nobody would see. Cut.
 - **Slaked lime as a paste that stands up and does not slide.** Tried, to tell the powders apart by how they heap. In
   the pond the grains buried each other, and 17 to 21 of 40 slaked against 39 to 40. Colour, grit and readout do it
   instead.
 - **No wick at all.** Tried: a sunk heap's floor layer stays white under its own crust (20 of 40 slaked). Two cells,
   drawn wet, is the least that works.
-- **Chalk beds in the rock, firedamp from coal.** Either changes `sandLandscape` (world.js:1339), and with it every
+- **Chalk beds in the rock, firedamp from coal.** Either changes `sandLandscape` (world.ts:1339), and with it every
   master hash. The rock is the plain village's. Chalk is the player's.
 - **QUICKLIME in the picker** (painted heat, §2). **Quicklime drinking steam** (real, and it was the loop, §3.3).
 - **A store above 2,000.** At 2,400 the pond of forty boils 17 to 20 cells, the kiln slows again, and acid salt passes

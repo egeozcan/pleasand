@@ -38,7 +38,7 @@
    so that an 80 000-tick run says what the warmed valley of its second
    half costs, apart from the cold one of its first.
 
-   --load SAVE: the village is a save (save.js, as the harness writes
+   --load SAVE: the village is a save (save.ts, as the harness writes
    one), loaded into a fresh game, and played on from there at 4x.
    --late DIR: the late game, fast: seeds 3, 7, 14 each from
    DIR/seed<N>-60k.json (a valley 60 000 ticks old, warmed through), or,
@@ -221,7 +221,7 @@ function profStop(p) {
 }
 
 /* each sample put to one place: the first of the world's phases on its stack (sandStep, partStep, peasantsStep,
-   ducksStep), and inside them: heatStep by its steps (its own lines by where they stand in heat.js, between the comments
+   ducksStep), and inside them: heatStep by its steps (its own lines by where they stand in heat.ts, between the comments
    that begin each step; a function it calls by which step calls it), the rest of sandStep, navFind (all of it, pGrate
    inside it too), pGrate outside navFind, the rest of peasantsStep. what is on no phase's stack is the rest of the frame:
    gameUpdate's own work, the harness's, the garbage collector.
@@ -233,7 +233,8 @@ var HEAT_CALLEE = { heatRecount: "heat0", heatQuietTables: "heat1", heatViews: "
                     heatRowColdFresh: "heat1", heatColdRow: "heat1", heatWordCold: "heat1", random: "heat1", draw: "heat1",
                     heatRangeBand: "heat2", heatSteadyScan: "heat2", heatQ: "heat2", heatSetQ: "heat2", heatUp: "heat2", heatDown: "heat2", heatLat: "heat2", heatF: "heat2" };
 function heatMarks(dir) {
-  var src = require("fs").readFileSync(path.join(dir, "heat.js"), "utf8").split("\n"), at = {}, k;
+  var fs = require("fs"), file = path.join(dir, fs.existsSync(path.join(dir, "heat.ts")) ? "heat.ts" : "heat.js");   /* (an older tree's: JS) */
+  var src = fs.readFileSync(file, "utf8").split("\n"), at = {}, k;
   var find = { start: /^function heatStep(Js)?\(/, s1: /\/\* 1\. make heat/, metal: /\/\* metal gets a few more goes/, s2: /\/\* 2\. anything out of its range/ };
   for (k = 0; k < src.length; k++) Object.keys(find).forEach(function (q) { if (at[q] == null && find[q].test(src[k]) && (q === "start" || at.start != null)) at[q] = k + 1; });
   return at;
@@ -256,7 +257,7 @@ function breakdown(cpu, dir, ms, at, hr0) {
       if (f === "pGrate") gr = true;
       if (top === null && TOP[f]) top = f;
       if (top !== null && f === "heatStep" && heatAt < 0) heatAt = c;
-      /* (heatStep hands the step to the JS's, heatStepJs, or to the WebAssembly's: simwasm.js. the JS's lines are counted
+      /* (heatStep hands the step to the JS's, heatStepJs, or to the WebAssembly's: simwasm.ts. the JS's lines are counted
          as heatStep's own were; the WebAssembly's, which has no lines here, as heatOther) */
       if (heatAt === c - 1 && f === "heatStepJs") heatAt = c;
       if (top !== null && f === "navFind" && navAt < 0) navAt = c;
@@ -272,7 +273,7 @@ function breakdown(cpu, dir, ms, at, hr0) {
         var pt = nd.positionTicks || [], tot = 0, base = nd.callFrame.lineNumber + 1;   /* (the line heatStep starts on, in the game's one script) */
         pt.forEach(function (p) { tot += p.ticks; });
         pt.forEach(function (p) {
-          var line = p.line - base + marks.start;   /* (in heat.js) */
+          var line = p.line - base + marks.start;   /* (in heat.ts) */
           var st = line < marks.s1 ? "heat0" : line < marks.metal ? "heat1" : line < marks.s2 ? "heatMetal" : "heat2";
           r[st] = (r[st] || 0) + p.ticks / tot;
         });

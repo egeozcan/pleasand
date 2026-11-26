@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  oil.js
+   PLEASAND  --  oil.ts
 
    deep in the rock there are pools of oil: dark, sealed in stone,
    waiting. a mine dug to the bottom of the rock can
@@ -22,11 +22,22 @@
                     two flights' worth; then it is back to the well's
                     tank to fill it up
 
-   a well is a site, like a house (build.js): a plan, a blueprint,
+   a well is a site, like a house (build.ts): a plan, a blueprint,
    repairs. the oil is finite: when the pool under it is empty, the
    well is dry, and they will sink another.
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps on a villager) */
+interface Peasant {
+  wellNo?: any; fuel?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  oilY?: number;
+  pump?: any; pumpT?: number;
+  spilt?: any; spill?: any; barrels?: number; tank?: number; blockT?: number; blockSince?: number; dry?: boolean;
+}
 
 var O_POOLS = 5;            /* pools of oil in the rock, in a new valley */
 var O_RESERVOIR = 1;        /* oil aux tag: carried with the cell when it flows, never set on spills or painted oil */
@@ -77,7 +88,7 @@ P_ACHIEVE.rocket = ["ONE SMALL TOWN", "a peasant flew. the ducks are unimpressed
    worldgen, deeper than the mines go and behind a skin of stone, so
    nothing seeps until somebody drills for it
    ------------------------------------------------------------------- */
-function oSeedOil(g, rock) {
+function oSeedOil(g: Game, rock) {
   var gw = g.gw, gh = g.gh, n, tries, cx, cy, rx, ry, dx, dy, x, y, j, hi, ok, inside, shell;
   for (n = 0; n < O_POOLS * gw / VIEW_GW; n++) {   /* (as many a screen, however wide the valley) */
     for (tries = 0; tries < 90; tries++) {
@@ -115,16 +126,16 @@ function oSeedOil(g, rock) {
     }
   }
 }
-function oReservoirOil(g, j) { return g.m[j] === MAT.OIL && g.aux[j] === O_RESERVOIR; }
+function oReservoirOil(g: Game, j: number) { return g.m[j] === MAT.OIL && g.aux[j] === O_RESERVOIR; }
 /* how much reservoir oil there is about (for the tests and for the smell) */
-function oOilInRock(g) {
+function oOilInRock(g: Game) {
   var n = 0;
   for (var j = 0; j < g.m.length; j++) if (oReservoirOil(g, j)) n++;
   return n;
 }
 /* a mine whose workings come near a pool of oil smells it: once is enough, and the village hears about it, from
    whoever is nearest the workings that smelled it */
-function oSmell(g) {
+function oSmell(g: Game) {
   if (g.oilSeen || !g.know.mine) return;
   var k, t, x, y, near = null;
   for (k = 0; k < g.sites.length && !near; k++) {
@@ -147,7 +158,7 @@ function oSmell(g) {
    ------------------------------------------------------------------- */
 /* the shallowest oil under the column the well drills (col), within O_DEEP of the deck, that the bore can reach (down
    through the rock, and turned along it: no gallery or cave in the way): the cell index, or -1 */
-function oFindOil(g, s, any) {
+function oFindOil(g: Game, s: Site, any?: boolean) {
   var x0 = Math.max(1, s.col - O_SLANT), x1 = Math.min(g.gw - 2, s.col + O_SLANT), y, x, j, best = -1, bd = 1e9, d;
   for (y = s.G + 4; y < Math.min(g.gh - 1, s.G + O_DEEP); y++) for (x = x0; x <= x1; x++) {
     j = y * g.gw + x;
@@ -158,7 +169,7 @@ function oFindOil(g, s, any) {
   return best;
 }
 /* oil pooled about the foot of the well: how many cells, out to a dozen or so */
-function oSumpCount(g, s) {
+function oSumpCount(g: Game, s: Site) {
   /* (what has run off downhill, out of sight of the spout, still counts: a well only ever spills so much) */
   if ((s.spilt || 0) >= O_SPILL_MAX) return O_SPILL_MAX;
   var n = 0, x, y, sx = s.spill.x, sy = s.spill.y;
@@ -167,7 +178,7 @@ function oSumpCount(g, s) {
   return n;
 }
 /* a barrel spilt at the foot of the well: at the spout, if there is room. false if the sump is full there */
-function oSpill(g, s, up) {
+function oSpill(g: Game, s: Site, up?) {
   var y0 = s.spill.y - (up || 0), xs = [0, -1, 1, -2, 2], a, x, y, j, k;
   /* at the spout, if there is room; on top of the oil there (it settles); and if something has been left in the way
      (a log, a campfire, a wall somebody built), a cell or two to either side, and over the top of it. a barrel of oil
@@ -189,9 +200,9 @@ function oSpill(g, s, up) {
   }
   return false;
 }
-function oLabel(s) { return "the oil well"; }
+function oLabel(s: Site) { return "the oil well"; }
 /* one barrel up out of the reservoir, and into their pockets, the tank or the count: j is the oil cell (oFindOil) */
-function oTake(g, s, j, p) {
+function oTake(g: Game, s: Site, j: number, p: Peasant) {
   g.aux[j] = 0; heatVacate(g, j);
   s.barrels++; g.barrels++;
   if (g.barrels === 1) {
@@ -202,7 +213,7 @@ function oTake(g, s, j, p) {
   if (g.barrels === O_ROCKET_OIL) iSpark(g, p, "rocket");   /* (all those barrels, and that handle going up and down) */
 }
 /* one of ours is finished: it blows, a little, and takes those barrels out of the pool (the pool is finite) */
-function oFinish(g, s, p) {
+function oFinish(g: Game, s: Site, p: Peasant) {
   if (s.kind !== "well") return false;
   var who = p ? p.name : "the village", k, j;
   feed(g, who + " struck oil. the derrick is up", "#d8c090", "plan" + s.id);
@@ -219,17 +230,17 @@ function oFinish(g, s, p) {
 }
 /* oil still down there, but the bore cut off from it (a gallery dug across it, a cave fallen in): nobody works the pump
    for a while, and then they try again */
-function oBlocked(g, s) {
+function oBlocked(g: Game, s: Site) {
   if (!(s.blockT > g.tick - 6000)) feed(g, "the oil well's bore is blocked. the oil is still down there, somewhere", "#c8d0dc", "dry" + s.id);
   s.blockT = g.tick + 3000;
   if (!s.blockSince) s.blockSince = g.tick;
 }
-function oRunDry(g, s, p) {
+function oRunDry(g: Game, s: Site, p?: Peasant) {
   s.dry = true;
   feed(g, "the oil well has run dry", "#c8d0dc", "dry" + s.id);
   if (p) pSay(g, p, "dry", true);
 }
-function oMood(g, p) {
+function oMood(g: Game, p: Peasant) {
   var k = p.task, s = k && (k.kind === "pump" || k.kind === "pack") ? bSite(g, k.site) : null;
   if (p.launch && p.state === "fly") return "is flying a rocket pack";
   if (k && k.kind === "pump") return s && s.dry ? "is at the dry well" : "is working the pump at the oil well" +
@@ -246,22 +257,22 @@ function oMood(g, p) {
    derrick, a place to stand at the pump and a place for the oil to go
    ------------------------------------------------------------------- */
 /* can p walk to the pump of well plot r (else that spot is let be a while, by them: p.wellNo) */
-function oWellReach(g, p, r) {
+function oWellReach(g: Game, p: Peasant, r) {
   var h = navHere(g, p), sx = r.pump.x, sy = r.pump.y;
   /* (to where the pump is worked from, exactly as the pump task wants it: oTaskPump) */
   if (h && navFind(g, h.x, h.y, function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 2; }, sx, sy)) return true;
   p.wellNo[oWellKey(r.at, r)] = g.tick + 20000;   /* (that plot, with its pump that side, for them: somebody else may be on the right side of it) */
   return false;
 }
-/* the rows a derrick in column x could stand on: every floor of it (mines.js mFloors), and the row fy they are on, if
+/* the rows a derrick in column x could stand on: every floor of it (mines.ts mFloors), and the row fy they are on, if
    the top of it is no ground (water, say) */
-function oFloors(g, x, fy) {
+function oFloors(g: Game, x: number, fy: number) {
   var L = mFloors(g, x, false);
   return mGround(g, x) > 0 ? L : [fy].concat(L);
 }
 /* a plot, as p.wellNo remembers it was out of reach: the column, the side the pump is, and the floor */
-function oWellKey(x, r) { return x + ":" + r.pump.x + ":" + r.pump.y; }
-function oPlanWell(g, p) {
+function oWellKey(x: number, r) { return x + ":" + r.pump.x + ":" + r.pump.y; }
+function oPlanWell(g: Game, p: Peasant) {
   var W = mSites(g, "well"), live = 0, k, d, sd, r, best = null, sc, fx, fy, x0, x1, F, T, plan = [], x, y, ph;
   if (!g.know.oil) return false;
   /* (a well blocked a long while is no use to anybody: it does not count, though it is not dry) */
@@ -281,7 +292,7 @@ function oPlanWell(g, p) {
   for (d = 0; d <= g.gw; d++) for (sd = -1; sd <= 1; sd += 2) {
     if (!d && sd > 0) continue;
     x = fx + d * sd;
-    if (x < rLo(g, 10) || x > rHi(g, 11)) continue;   /* (in the village's range: world.js) */
+    if (x < rLo(g, 10) || x > rHi(g, 11)) continue;   /* (in the village's range: world.ts) */
     /* (on any floor of it: the rock under a shelf has oil in it as well as the rock under open sky) */
     var L = oFloors(g, x, fy);
     for (var n = 0; n < L.length; n++) for (k = 0; k < 2; k++) {
@@ -295,7 +306,7 @@ function oPlanWell(g, p) {
   C.sort(function (a, b) { return a.sc - b.sc; });
   for (k = 0; k < C.length && k < 8 && !best; k++) if (oWellReach(g, p, C[k])) best = C[k];
   if (!best && C.length > 8) { p.oilCD = 600; return false; }   /* (more to look at, next time) */
-  /* (nowhere: then over one of two fields, dug up for it, as a mine would be: mines.js) */
+  /* (nowhere: then over one of two fields, dug up for it, as a mine would be: mines.ts) */
   if (!best && iCount(g, "farm") >= 2) {
     M_FARMOK = true;
     C = [];
@@ -303,7 +314,7 @@ function oPlanWell(g, p) {
       var LF = oFloors(g, x, fy);
       for (var nf = 0; nf < LF.length; nf++) for (k = 0; k < 2; k++) {
         r = oWellPlot(g, x - 2, LF[nf], k);
-        if (r && !(p.wellNo[oWellKey(x, r)] > g.tick) && mFieldsUnder(g, x - 6, x + 6) <= 1 && mFieldSpare(g, r.x0 - 4, r.x0 + 8)) { r.at = x; C.push(r); }   /* (a field to spare: mines.js) */
+        if (r && !(p.wellNo[oWellKey(x, r)] > g.tick) && mFieldsUnder(g, x - 6, x + 6) <= 1 && mFieldSpare(g, r.x0 - 4, r.x0 + 8)) { r.at = x; C.push(r); }   /* (a field to spare: mines.ts) */
       }
     }
     C.sort(function (a, b) { return a.work - b.work; });
@@ -334,7 +345,7 @@ function oPlanWell(g, p) {
   for (x = x0 + 1; x <= x0 + 3; x++) plan.push(bE(g, x, T, MAT.GIRDER, ph));
   plan.push(bE(g, x0 + 1, T - 1, MAT.GIRDER, ph + 1), bE(g, x0 + 2, T - 1, MAT.GIRDER, ph + 1), bE(g, x0 + 3, T - 1, MAT.GIRDER, ph + 1));
   plan.push(bE(g, x0 + 2, T - 2, MAT.GIRDER, ph + 2));
-  mClearSpot(g, plan, best.pump.x, best.pump.y, x0, x1);   /* (the place to stand at the pump, kept clear: mines.js) */
+  mClearSpot(g, plan, best.pump.x, best.pump.y, x0, x1);   /* (the place to stand at the pump, kept clear: mines.ts) */
   var s = bNew(g, "well", p, plan, [x0 - 3, T - 5, x1 + 3, F + 3],
                { G: F, T: T, dx0: x0, dx1: x1, col: x0 + 2, spill: best.spill, pump: best.pump, oilY: best.oilY, oilX: best.oilX,
                  tank: 0, barrels: 0, dry: false, pumpT: 0, spots: [{ x: best.pump.x, y: best.pump.y, a: x0, b: x1, step: 1 }] });
@@ -345,14 +356,14 @@ function oPlanWell(g, p) {
 }
 /* is (x0 .. x0 + 4) a place for a derrick, near row fy, with oil under it (the pump on the left of it, or with flip on
    the right, and the spout the other side). {x0, F, dig, fill, oilY, oilDepth, spill, pump, work} or null */
-function oWellPlot(g, x0, fy, flip) {
+function oWellPlot(g: Game, x0: number, fy: number, flip) {
   var x1 = x0 + 4, pumpX = flip ? x1 + 2 : x0 - 2, spillX = flip ? x0 - 2 : x1 + 2, gy = [], x, y, c, k, F = 1 << 20, G, T, dig = [], fill = [],
       oilY = -1, oilDepth = 0, bestD = 1e9, d, gs, gp, spoutY, pumpY;
   if (x0 < 8 || x1 > g.gw - 9) return null;
   var hi = -1;
-  /* (a grown tree on the plot, or by the pump, is felled first: mines.js mFellable) */
+  /* (a grown tree on the plot, or by the pump, is felled first: mines.ts mFellable) */
   for (x = x0; x <= x1; x++) {
-    G = mGroundNear(g, x, true, fy);   /* (the floor that row fy is on: mines.js) */
+    G = mGroundNear(g, x, true, fy);   /* (the floor that row fy is on: mines.ts) */
     if (G < 0 || Math.abs(G - fy) > 16 || !pSolid(g, x, G)) return null;
     gy.push(G); if (G < F) F = G; if (G > hi) hi = G;
   }
@@ -406,7 +417,7 @@ function oWellPlot(g, x0, fy, flip) {
 /* the way down from the ground under the deck (which may be on short posts) at column col, row y0, to the oil at (ox,
    oy): straight down to the row over it, then along (through the rock only) and into it. through earth and rock, not
    a pipe dangling from a bridge, through somebody's building, or through the open air of a mine */
-function oBore(g, col, y0, ox, oy) {
+function oBore(g: Game, col: number, y0: number, ox: number, oy: number) {
   var x, y, c, d = ox < col ? -1 : 1;
   for (y = y0; y < oy - (ox === col ? 0 : 1); y++) {
     c = pCell(g, col, y);
@@ -421,9 +432,9 @@ function oBore(g, col, y0, ox, oy) {
 /* the bore of well w, already sunk, from y0 down column col and along to oil at (ox, oy): as oBore, but through what the
    well has pumped out of the pool already (empty, or still runny) as well as rock and sand. never through a mine's
    workings: a gallery across the bore is a gap no pipe crosses */
-function oBoreOpen(g, col, y0, ox, oy, w) {
+function oBoreOpen(g: Game, col, y0: number, ox: number, oy: number, w: Site) {
   var x, y, d = ox < col ? -1 : 1;
-  function ok(x, y) {
+  function ok(x: number, y: number) {
     var c = pCell(g, x, y);
     if (w && x >= w.x0 && x <= w.x1 && y >= w.y0 && y <= w.y1 && bMarked(g, x, y)) return true;   /* (the well's own ironwork: posts under its deck) */
     if (ROCK[c] || c === MAT.SAND || c === MAT.SOIL || c === MAT.ASH || c === MAT.SNOW || c === MAT.SALT) return true;
@@ -444,7 +455,7 @@ function oBoreOpen(g, col, y0, ox, oy, w) {
    ------------------------------------------------------------------- */
 /* before the ordinary round of jobs: a pack on their back and a mind to fly it, or iron in their pocket and a tank of
    oil at the well. (called from pPickTask, so it is not lost under a pile of building work) */
-function oFirst(g, p) {
+function oFirst(g: Game, p: Peasant) {
   if (!g.know.rocket) return false;
   if (p.pack) return p.bored > 900 && Math.random() < 0.3 && (oFuel(p) ? oLaunch(g, p) || oGoLaunch(g, p) : oGoRefuel(g, p));
   if ((p.iron || 0) < 1 || p.hunger >= P_HUNGRY || p.fire || p.sleep || p.cold > 200 || p.panic > 0 ||
@@ -452,7 +463,7 @@ function oFirst(g, p) {
   if (Math.random() >= 0.6) return false;
   return oGoPack(g, p);
 }
-function oPick(g, p, hungry) {
+function oPick(g: Game, p: Peasant, hungry: boolean) {
   if (!g.know.oil) return false;
   /* oil, iron, and a pack on their back: up they go. (or, with it empty, off to the well to fill it up) */
   if (p.pack && p.bored > 900 && Math.random() < 0.25 && (oLaunch(g, p) || (oFuel(p) && oGoLaunch(g, p)))) return true;
@@ -466,7 +477,7 @@ function oPick(g, p, hungry) {
   }
   return false;
 }
-function oGoPump(g, p) {
+function oGoPump(g: Game, p: Peasant) {
   var best = null, bd = 220, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
@@ -481,7 +492,7 @@ function oGoPump(g, p) {
   return true;
 }
 /* one tick of one of the jobs in here, or undefined if it is not one of ours */
-function oTask(g, p, k) {
+function oTask(g: Game, p: Peasant, k: Task) {
   if (k.kind === "pump") return oTaskPump(g, p, k);
   if (k.kind === "pack") return oTaskPack(g, p, k);
   if (k.kind === "refuel") return oTaskRefuel(g, p, k);
@@ -490,7 +501,7 @@ function oTask(g, p, k) {
 }
 /* a pack on their back, a mind to fly it, and a roof (or a tree, or a cliff) in the way here: off to somewhere near
    with open sky over it, and up from there */
-function oGoLaunch(g, p) {
+function oGoLaunch(g: Game, p: Peasant) {
   var fx = Math.floor(p.x), d, s, x, G;
   for (d = 4; d <= 90; d++) for (s = -1; s <= 1; s += 2) {
     x = fx + d * s;
@@ -505,7 +516,7 @@ function oGoLaunch(g, p) {
 }
 /* open sky over (x, y), for a pack leaving from there: the way to point it (1 or -1, as oLaunch would aim it facing
    that way), or 0 if neither way is clear */
-function oSkyOk(g, x, y) {
+function oSkyOk(g: Game, x: number, y: number) {
   for (var Y = y - 2; Y >= y - 22; Y--) if (Y < 0 || !AIRY[pCell(g, x, Y)]) return 0;
   for (var k = 0; k < 2; k++) {
     var dir = k ? -1 : 1, room = dir < 0 ? x + 0.5 : g.gw - x - 0.5;
@@ -514,7 +525,7 @@ function oSkyOk(g, x, y) {
   }
   return 0;
 }
-function oTaskLaunch(g, p, k) {
+function oTaskLaunch(g: Game, p: Peasant, k: Task) {
   if (!p.pack || !oFuel(p) || ++k.t > 1800) return iDone(p, false);
   var fy = Math.floor(p.y);
   if (Math.abs(p.x - k.x - 0.5) > 1 || Math.abs(fy - k.y) > 2) {
@@ -527,9 +538,9 @@ function oTaskLaunch(g, p, k) {
   return true;
 }
 /* flights left in their rocket pack (an old pack, from before anybody counted, is full) */
-function oFuel(p) { return !p.pack ? 0 : (p.fuel == null ? O_PACK_FUEL : p.fuel); }
+function oFuel(p: Peasant) { return !p.pack ? 0 : (p.fuel == null ? O_PACK_FUEL : p.fuel); }
 /* the nearest well with a flight's worth of oil in its tank */
-function oTankFor(g, p, n) {
+function oTankFor(g: Game, p: Peasant, n: number) {
   var best = null, bd = 220, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
@@ -540,14 +551,14 @@ function oTankFor(g, p, n) {
   return best;
 }
 /* a pack with room in it, and a well with oil in the tank: off to fill it up */
-function oGoRefuel(g, p) {
+function oGoRefuel(g: Game, p: Peasant) {
   if (!p.pack || oFuel(p) >= O_PACK_FUEL) return false;
   var s = oTankFor(g, p, O_PACK_OIL / O_PACK_FUEL);
   if (!s) return false;
   p.task = { kind: "refuel", site: s.id, t: 0, act: 0 };
   return true;
 }
-function oTaskRefuel(g, p, k) {
+function oTaskRefuel(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), sx, sy, fy = Math.floor(p.y), per = O_PACK_OIL / O_PACK_FUEL;
   if (!s || s.kind !== "well" || !s.done || s.repair || !p.pack || ++k.t > 2400) return iDone(p, false);
   sx = s.pump.x; sy = s.pump.y;
@@ -562,7 +573,7 @@ function oTaskRefuel(g, p, k) {
   while (oFuel(p) < O_PACK_FUEL && s.tank >= per) { s.tank -= per; p.fuel = oFuel(p) + 1; }
   return iDone(p, true);
 }
-function oTaskPump(g, p, k) {
+function oTaskPump(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), sx, sy, fy = Math.floor(p.y);
   if (!s || s.kind !== "well" || !s.done || s.repair || ++k.t > 3000) return iDone(p, false);
   if (s.dry) return iDone(p, k.n > 0);
@@ -599,7 +610,7 @@ function oTaskPump(g, p, k) {
   return true;
 }
 /* a rocket pack: iron in their pocket, and barrels from the well's tank */
-function oGoPack(g, p) {
+function oGoPack(g: Game, p: Peasant) {
   if (!g.know.rocket || p.pack || (p.iron || 0) < 1) return false;
   var best = null, bd = 220, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
@@ -613,7 +624,7 @@ function oGoPack(g, p) {
   p.task = { kind: "pack", site: best.id, t: 0, act: 0 };
   return true;
 }
-function oTaskPack(g, p, k) {
+function oTaskPack(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), sx, sy, fy = Math.floor(p.y);
   if (!s || s.kind !== "well" || !s.done || s.repair || ++k.t > 3000) return iDone(p, false);
   sx = s.pump.x; sy = s.pump.y;
@@ -639,7 +650,7 @@ function oTaskPack(g, p, k) {
   return iDone(p, true);
 }
 /* up. no steering to speak of, and a landing that is mostly luck */
-function oLaunch(g, p) {
+function oLaunch(g: Game, p: Peasant) {
   if (!p.pack || p.state !== "walk" || p.fire || p.sleep || p.climb || p.rope || p.swimming || p.jumping || p.chute ||
       p.cold > 300 || p.panic > 0 || p.pail) return false;
   var fx = Math.floor(p.x), fy = Math.floor(p.y), y;
@@ -654,7 +665,7 @@ function oLaunch(g, p) {
   var vx = p.dir * clamp((room - 20) / 140, 0.1, 0.8);
   if (!oClearFlight(g, p.x, p.y, vx)) return false;   /* (a tower, a tree, a roof in the way of the climb: not here) */
   p.fuel = oFuel(p) - 1;
-  hFlew(g, p);   /* (counted, for the moon rocket: heavens.js) */
+  hFlew(g, p);   /* (counted, for the moon rocket: heavens.ts) */
   p.state = "fly"; p.flyT = 0; p.launch = 1; p.immune = Math.max(p.immune || 0, 600); p.fallY = p.y;
   p.vx = vx; p.vy = -O_LAUNCH; p.spin = 0;
   p.task = null; p.idle = 0; p.bored = 0; p.falling = false;
@@ -666,7 +677,7 @@ function oLaunch(g, p) {
 }
 /* is the way up clear, for a rocket pack leaving (x, y) going across at vx: the climb, as it would fly it, with room
    for the one on it, all the way to the top of it */
-function oClearFlight(g, x, y, vx) {
+function oClearFlight(g: Game, x: number, y: number, vx: number) {
   var vy = -O_LAUNCH, t, k;
   for (t = 0; t < 60 && vy < 0.5; t++) {
     x += vx; y += vy; vy += 0.1; vx *= 0.995;
@@ -676,7 +687,7 @@ function oClearFlight(g, x, y, vx) {
   return true;
 }
 /* the goings on: twice a second (from ideasStep) */
-function oStep(g) {
+function oStep(g: Game) {
   oSmell(g);
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
@@ -694,14 +705,14 @@ function oStep(g) {
 var O_PIPE = hex32("#241f18"), O_PIPE_HI = hex32("#4a4030");
 var O_BEAM = hex32("#7a8494"), O_BEAM_HI = hex32("#c0c8d4"), O_BRACE = hex32("#8a94a4");
 var O_TANKC = hex32("#3a4048"), O_TANKC_HI = hex32("#7a8494");
-function oPut(g, x, y, col, glow) {
+function oPut(g: Game, x: number, y: number, col, glow?: boolean) {
   if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) return;
   var i = y * g.gw + x;
   g.px[i] = col;
   if (glow) g.gpx[i] = col;
 }
 /* the truss, and the bore down into the rock */
-function oDraw(g) {
+function oDraw(g: Game) {
   var S = g.sites, px = g.px, gw = g.gw, gh = g.gh, k, s, x, y, j, U;
   for (k = 0; k < S.length; k++) {
     s = S[k];
@@ -748,7 +759,7 @@ function oDraw(g) {
   return 0;
 }
 /* over the top of everybody: the pump beam, rocking */
-function oDrawOver(g) {
+function oDrawOver(g: Game) {
   var S = g.sites, k, s, x, y, up;
   for (k = 0; k < S.length; k++) {
     s = S[k];
@@ -768,14 +779,14 @@ function oDrawOver(g) {
 }
 /* the tank on their back, and the flame under it: straight into the pixel buffer, beside the sprite */
 var P_PACK_TANK = hex32("#3e4652"), P_PACK_HI = hex32("#8a94a4"), P_PACK_NOZZLE = hex32("#c8ccd4");
-function pDrawPack(g, p, ox, oy) {
+function pDrawPack(g: Game, p: Peasant, ox: number, oy: number) {
   var d = p.dir, bx = ox - d * 2;
   oPut(g, bx, oy - 3, P_PACK_HI);
   oPut(g, bx, oy - 2, P_PACK_TANK);
   oPut(g, bx, oy - 1, P_PACK_TANK);
   oPut(g, bx, oy, P_PACK_NOZZLE);
 }
-function pDrawFlame(g, p, ox, oy) {
+function pDrawFlame(g: Game, p: Peasant, ox: number, oy: number) {
   if (!p.launch || p.state !== "fly" || p.vy > 0.6) return;
   var d = p.dir, bx = ox - d * 2, k, col;
   for (k = 0; k < 3; k++) {

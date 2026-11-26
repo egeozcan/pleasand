@@ -6,14 +6,14 @@
    where it cannot. the two walks must come to the same world, bit for
    bit, dice and all. two games of one seed are given the same cells; in
    the second the temperatures are moved four bytes off a double, so the
-   step cannot walk it by words (heat.js heatViews) and goes cell by
+   step cannot walk it by words (heat.ts heatViews) and goes cell by
    cell, as it was first written. then both are stepped, and compared
    after every step. required by test/run.js
    ===================================================================== */
 "use strict";
 
 module.exports = function (test, check, sim) {
-  /* both walks are played twice: the JS's by words against the JS's by cells, and the WebAssembly step (simwasm.js, which
+  /* both walks are played twice: the JS's by words against the JS's by cells, and the WebAssembly step (simwasm.ts, which
      walks by words) against the JS's by cells. the dice are test/sim.js's, which the module asks JS for, one by one */
   [false, true].forEach(function (wasm) { suite(test, check, sim, wasm); });
 };
@@ -45,7 +45,7 @@ function suite(test, check, sim, wasm) {
     var ga = p.a.g, gb = p.b.g, n = ga.m.length, i;
     p.a.heatStep(ga); p.b.heatStep(gb);
     if (wasm) check(p.a.eval("simWho(g)") === "wasm", "the WebAssembly step did not play it");
-    ga = p.a.g;   /* (its arrays are views of the module's memory now: simwasm.js simBind) */
+    ga = p.a.g;   /* (its arrays are views of the module's memory now: simwasm.ts simBind) */
     var Ta = new Int32Array(ga.T.buffer, ga.T.byteOffset, n), Tb = new Int32Array(gb.T.buffer, gb.T.byteOffset, n);
     var La = new Int32Array(ga.lat.buffer, ga.lat.byteOffset, n), Lb = new Int32Array(gb.lat.buffer, gb.lat.byteOffset, n);
     /* (the WebAssembly against the JS: a NaN is any NaN. which one comes out of a sum of two is not the same in both, and

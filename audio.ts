@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  audio.js
+   PLEASAND  --  audio.ts
 
    the sound department. an oscillator, a noise buffer, and a compressor
    so that forty gunpowder grains going off at once is loud, not broken.
@@ -7,9 +7,9 @@
    ===================================================================== */
 "use strict";
 
-var AC = null, MASTER = null, MUTED = false, NOISE = null;
+var AC: AudioContext = null, MASTER: GainNode = null, MUTED = false, NOISE: AudioBuffer = null;
 
-function actx() {
+function actx0() {
   if (!AC) {
     try {
       AC = new (window.AudioContext || window.webkitAudioContext)();
@@ -27,7 +27,7 @@ function actx() {
 }
 function live() { return !MUTED && AC && AC.state === "running"; }
 
-function tone(f, dur, type, vol, slide, delay) {
+function tone0(f: number, dur: number, type: OscillatorType, vol: number, slide?: number, delay?: number) {
   if (!live()) return;
   var c = AC, t = c.currentTime + (delay || 0), o = c.createOscillator(), g = c.createGain();
   o.type = type || "square";
@@ -38,7 +38,7 @@ function tone(f, dur, type, vol, slide, delay) {
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g); g.connect(MASTER); o.start(t); o.stop(t + dur + 0.02);
 }
-function hiss(dur, vol, cut, sweep, delay, type) {
+function hiss0(dur: number, vol: number, cut: number, sweep?: number, delay?: number, type?: BiquadFilterType) {
   if (!live()) return;
   var c = AC, t = c.currentTime + (delay || 0), s = c.createBufferSource(); s.buffer = NOISE;
   s.playbackRate.value = 0.8 + Math.random() * 0.4;
@@ -112,10 +112,10 @@ var SFX = {
     [[392, 0.09], [784, 0.04], [988, 0.025], [1568, 0.012]].forEach(function (h) { tone(h[0], 2.6, "sine", h[1]); });
     tone(196, 1.6, "triangle", 0.03);
   },
-  /* applause: a crowd's worth of hands, a burst of noise at a time (wonders.js) */
+  /* applause: a crowd's worth of hands, a burst of noise at a time (wonders.ts) */
   clap: function () { for (var k = 0; k < 14; k++) hiss(0.03, 0.05 + Math.random() * 0.05, 3500, 1800, k * 0.06 + Math.random() * 0.04, "bandpass"); },
   /* a steam organ's pipe: a breathy square wave, the pitch by the pipe (f), quieter with less steam (v 0..1), a touch
-     of hiss for the breath (pleasures.js) */
+     of hiss for the breath (pleasures.ts) */
   organ: function (f, v) {
     v = v == null ? 1 : v;
     tone(f, 0.42, "square", 0.022 * v); tone(f * 2, 0.36, "triangle", 0.01 * v);
@@ -156,7 +156,7 @@ var SFX = {
   }
 };
 
-/* what only a live speaker rolls, it rolls on the side dice (rng.js): with the
+/* what only a live speaker rolls, it rolls on the side dice (rng.ts): with the
    sound on or off, in a browser or in the harness, the village rolls the same */
-tone = rngSide(tone); hiss = rngSide(hiss); actx = rngSide(actx);
+var tone = rngSide(tone0), hiss = rngSide(hiss0), actx = rngSide(actx0);
 ["ghost", "quack", "babble", "scream", "clap"].forEach(function (k) { SFX[k] = rngSide(SFX[k]); });

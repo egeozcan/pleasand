@@ -1,7 +1,7 @@
 /* =====================================================================
-   PLEASAND  --  tidy.js
+   PLEASAND  --  tidy.ts
 
-   a village that knows landscaping (ideas.js) looks round at the rest
+   a village that knows landscaping (ideas.ts) looks round at the rest
    of the valley and thinks: that could be somewhere else. a place for
    everything, and everything in its place:
 
@@ -19,7 +19,7 @@
                  built (a roof, a bridge, the stairs, the lookout on the
                  tower), and ash or salt with it, is swept off, a handful
                  at a time. ash and salt go in a pocket (they come in
-                 handy: leftovers.js); sand goes in a pocket too, if the
+                 handy: leftovers.ts); sand goes in a pocket too, if the
                  village makes glass, and the rest is carried off and
                  tipped somewhere out of the way: into a hole in the
                  ground, if there is one about, which it fills in, or
@@ -34,7 +34,7 @@
                  as it was. the heap is the village's: it has a stick in
                  it, so everybody knows
 
-   bailing is the bucket job (ideas.js iTaskBucket) with a puddle to fill it
+   bailing is the bucket job (ideas.ts iTaskBucket) with a puddle to fill it
    from: k.src and k.at (where the puddle was), k.of (the site it is in the
    way of), k.size (how big it was), k.dump and k.into (where it goes when no
    pond or field wants it), k.topUp, k.ups and k.upT (filling the bucket up
@@ -54,9 +54,25 @@
    is left be too (nobody wants it in the pond). a puddle in a field, a
    pond or a mine is the field's, the pond's or the mine's own business
    (the wheat drinks it, the pond is meant to have it in, the mine bails
-   its own: build.js).
+   its own: build.ts).
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps in g) */
+interface Game {
+  tidyNo?: any; bailNo?: any; bailT?: number; tidyT?: number; bailed?: number; tidied?: number; filled?: number;
+  tipped?: number; tip?: any; tidyNewsT?: number; cleanNewsT?: number; levelNewsT?: number; driftNewsT?: number;
+  weedNewsT?: number; tGround?: Int16Array; tLumps?: any; tSpoil?: any; tPiled?: any; tPileFail?: any;
+}
+/* (what this file keeps on a villager) */
+interface Peasant {
+  sweep?: any; homeT?: number; sweepT?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  sweptT?: number; bailDestNo?: number; tidyRest?: number; cleanT?: number;
+  pourC?: any; bailRest?: number; nowhereT?: number; weedT?: number; tdoors?: any;
+}
 
 var TD_PUDDLE = 16;          /* fresh water in a body this many cells or fewer is a puddle */
 var TD_LAKE = 48;            /* water outside the door, this much of it, is the lake come in, and no floor of anybody's */
@@ -126,20 +142,20 @@ P_SAY.tidyLevel = ["flat as a floor", "you'd never know there was a hole", "LEVE
 P_ACHIEVE.heap = ["THE HEAP", "a pile of sand, in one place, on purpose. civilisation"];
 P_ACHIEVE.tidy = ["A PLACE FOR EVERYTHING", "and everything in its place. the peasants tidied up"];
 
-function tReset(g) {
+function tReset(g: Game) {
   g.tidyNo = {}; g.bailNo = {}; g.bailT = 0; g.tidyT = 0; g.bailed = 0; g.tidied = 0; g.filled = 0; g.tipped = 0; g.tip = null;
   g.tidyNewsT = g.cleanNewsT = g.levelNewsT = g.driftNewsT = g.weedNewsT = 0;   /* (when each kind of news is next worth telling) */
   g.tGround = null; g.tLumps = []; g.tSpoil = {}; g.tPiled = {}; g.tPileFail = {};   /* (the ground as it was, and the piles on it: tGroundKeep) */
 }
 /* somewhere they lately found they could not get to (by the four columns) */
 /* (one book for puddles, one for roofs and heaps: a roof nobody can climb onto says nothing about the floor under it) */
-function tNo(g, x, bail) { var b = bail ? g.bailNo : g.tidyNo; return !!(b && b[x >> 2] > g.tick); }
-function tNoGo(g, x, bail) { var k = bail ? "bailNo" : "tidyNo"; if (!g[k]) g[k] = {}; g[k][x >> 2] = g.tick + TD_NO; }
+function tNo(g: Game, x: number, bail?: boolean) { var b = bail ? g.bailNo : g.tidyNo; return !!(b && b[x >> 2] > g.tick); }
+function tNoGo(g: Game, x: number, bail?: boolean) { var k = bail ? "bailNo" : "tidyNo"; if (!g[k]) g[k] = {}; g[k][x >> 2] = g.tick + TD_NO; }
 
 /* -------------------------------------------------------------------
    WHAT TO DO ABOUT IT. called from iPick, once they know landscaping
    ------------------------------------------------------------------- */
-function tPick(g, p, hungry) {
+function tPick(g: Game, p: Peasant, hungry: boolean) {
   if (hungry || p.pail) return false;
   /* (a puddle on a floor first: it is in everybody's way, and it soaks into the boards. sand on a roof can wait) */
   if (g.know.bucket && Math.random() < 0.7 && tGoBail(g, p)) return true;
@@ -148,7 +164,7 @@ function tPick(g, p, hungry) {
 }
 /* their own house, though, is another matter: a puddle on their own floor, or sand on their own roof, and they see to
    it before the mine or the graves get them (called from iPick, early). now and then, not every time they look up */
-function tHome(g, p) {
+function tHome(g: Game, p: Peasant) {
   var s = bHome(g, p), cells, dest, t, k;
   if (!s || !s.done || p.pail || (p.homeT || 0) > g.tick) return false;
   p.homeT = g.tick + TD_HOME + irnd(TD_HOME);
@@ -170,7 +186,7 @@ function tHome(g, p) {
 }
 /* every twenty ticks: a bailer (or a sweeper) who has ended up swimming (the lake was the way there, or the water to tip it in) gives
    it up after a while, rather than doing laps with a bucket; and nobody bails that puddle again for a while */
-function tStep(g) {
+function tStep(g: Game) {
   /* (the ground as it was is looked at from the start: a pile tipped out before they knew landscaping is still a pile,
      once they do) */
   if (!g.tGround || g.tick % TD_TIDY_GAP === 0) tGroundKeep(g);
@@ -198,21 +214,21 @@ function tStep(g) {
   }
 }
 /* one tick of a bailing job, the part that is not throwing: the bucket filled out of the puddle (and topped up along a
-   floor before they go), or the job finished. undefined once the bucket is full, and the bucket job (ideas.js
+   floor before they go), or the job finished. undefined once the bucket is full, and the bucket job (ideas.ts
    iTaskBucket) throws it, as it throws any other */
-function tBailStep(g, p, k) {
+function tBailStep(g: Game, p: Peasant, k: Task) {
   /* (past its time, by the clock: a job that is swimming or stuck does not run, so counts nothing. it is finished with
      the news, as any other, with whatever was bailed counted. a bucket in hand is thrown, if it can be, first) */
   if (k.t0 != null && g.tick - k.t0 > TD_LONG * (p.pail ? 3 : 2)) { tNoGo(g, k.src.x, true); return tBailDone(g, p, k); }
   if (!p.pail || k.topUp) return tBailScoop(g, p, k);
-  if (g.know.storey) { var lo = sGardyloo(g, p, k); if (lo !== undefined && lo !== null) return lo; }   /* (in a flat: out of the door with it. storeys.js) */
+  if (g.know.storey) { var lo = sGardyloo(g, p, k); if (lo !== undefined && lo !== null) return lo; }   /* (in a flat: out of the door with it. storeys.ts) */
   return undefined;
 }
 /* what a bailer says, throwing it */
-function tBailSay(k) { return k.pond ? "bailPond" : k.field ? "bailThrow" : k.into === "the bushes" ? "bailBush" : k.into === "the yard" ? "bailYard" : "bailThrow"; }
+function tBailSay(k: Task) { return k.pond ? "bailPond" : k.field ? "bailThrow" : k.into === "the bushes" ? "bailBush" : k.into === "the yard" ? "bailYard" : "bailThrow"; }
 /* no way to anywhere the bucket could be thrown from, for a while: true, and they stop trying to get closer (the next
    thing is pStuck: tBailStuck) */
-function tBailLost(k) {
+function tBailLost(k: Task) {
   if ((k.nopath = (k.nopath || 0) + 1) <= 90) return false;
   k.nopath = 0; k.since = 1e9;
   return true;
@@ -220,7 +236,7 @@ function tBailLost(k) {
 /* a bailer stuck with a full bucket, nowhere to throw it at tgt from (standing at column fx): somewhere else, if there is
    anywhere, true. else false, and it goes down where they are (iSpill), and nobody bails that spot again for a while,
    or they would carry it round and round */
-function tBailStuck(g, k, tgt, fx) {
+function tBailStuck(g: Game, k: Task, tgt, fx: number) {
   /* (a puddle for a pond or a field they cannot get to throw it on: into the water they found to fall back on, then) */
   if ((k.pond || k.field) && k.dump && tgt !== k.dump) { k.pond = k.field = 0; k.last = null; k.aim = 0; k.best = null; k.since = 0; return true; }
   /* (nowhere to throw it on that bush from: another bush, or a bit of ground, out of the door) */
@@ -230,12 +246,12 @@ function tBailStuck(g, k, tgt, fx) {
   return false;
 }
 /* one tick of one of the jobs in here, or undefined if it is not one of ours. (a puddle is bailed with the bucket: that
-   is ideas.js's bucket job, with a puddle to fill it from) */
-function tTask(g, p, k) {
+   is ideas.ts's bucket job, with a puddle to fill it from) */
+function tTask(g: Game, p: Peasant, k: Task) {
   if (k.kind === "tidy") return tTaskTidy(g, p, k);
   return undefined;
 }
-function tMood(g, p) {
+function tMood(g: Game, p: Peasant) {
   var k = p.task, s;
   if (!k) return "";
   if (k.kind === "bucket" && k.src) {
@@ -256,16 +272,16 @@ function tMood(g, p) {
   return "";
 }
 /* a site whose puddles are its own business: a field drinks them, a pond is meant to have water in, a mine bails its own */
-/* (a field under glass keeps its own damp: leftovers.js) */
-function tOwnWater(s) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "glasshouse" || !!s.bath; }   /* (the baths: pleasures.js) */
+/* (a field under glass keeps its own damp: leftovers.ts) */
+function tOwnWater(s: Site) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "glasshouse" || !!s.bath; }   /* (the baths: pleasures.ts) */
 /* a site nobody sweeps: sand on a field is tilled, a pond's banks and the collar of a mine are sand on purpose, and a
    grave is let be. (a glasshouse's roof is a roof, and is swept) */
-function tNoSweep(s, g) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "grave" ||
-  (!!g && !!g.know.deck && plOverRoof(g, s)); }   /* (a roof with a platform low over it: nobody can stand on it to sweep. platforms.js) */
-/* the site at (x, y), its box: a house before a platform over it (platforms.js) */
-function tSiteAt(g, x, y) { var s = bSiteAround(g, x, y, null, 0); return s && s.kind === "deck" && g.know.deck ? plSiteUnder(g, x, y) || s : s; }
+function tNoSweep(s: Site, g: Game) { return s.kind === "heap" || s.kind === "farm" || s.kind === "pond" || s.mine || s.kind === "tunnel" || s.kind === "grave" ||
+  (!!g && !!g.know.deck && plOverRoof(g, s)); }   /* (a roof with a platform low over it: nobody can stand on it to sweep. platforms.ts) */
+/* the site at (x, y), its box: a house before a platform over it (platforms.ts) */
+function tSiteAt(g: Game, x: number, y: number) { var s = bSiteAround(g, x, y, null, 0); return s && s.kind === "deck" && g.know.deck ? plSiteUnder(g, x, y) || s : s; }
 /* is (x, y) somewhere a house or a field is near: the village, where tidiness matters */
-function tVillage(g, x) {
+function tVillage(g: Game, x: number) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if ((s.kind === "house" || s.kind === "farm") && Math.abs(s.cx - x) <= TD_VILLAGE) return true;
@@ -280,7 +296,7 @@ function tVillage(g, x) {
    (water sloshing at the edge of a river touches it by a corner as often as not), and so does water a cell or two off
    it: a splash on the bank of the pond is the pond's. seen, if given, gets every cell looked at, so the rest of a pond
    is not looked at again; keep, if given, says which columns it may run on into */
-function tPuddleOf(g, x, y, seen, keep, max) {
+function tPuddleOf(g: Game, x: number, y: number, seen?, keep?, max?: number) {
   var gw = g.gw, st = [y * gw + x], out = [], j, cx, cy, dx, dy, q;
   var G = T_GOT = tMarks(g, T_GOT), got = G.a, gv = G.v, sa = seen ? seen.a : null, sv = seen ? seen.v : 0;
   max = max || TD_PUDDLE;
@@ -307,14 +323,14 @@ function tPuddleOf(g, x, y, seen, keep, max) {
    (T_GOT: tPuddleOf's; T_SEEN, tGoBail's and T_NEAR, tPuddleNear's, handed down to it as seen; T_BODY: tBodySize's),
    kept, and used again */
 var T_GOT = null, T_SEEN = null, T_NEAR = null, T_BODY = null;
-function tMarks(g, S) {
+function tMarks(g: Game, S) {
   var n = g.gw * g.gh;
   if (!S || S.a.length !== n) S = { a: new Uint32Array(n), v: 0 };
   if (++S.v > 0xfffffff0) { S.a.fill(0); S.v = 1; }
   return S;
 }
 /* how big the body of water (x, y) is part of is, counted up to max (keep, if given: which columns it may run on into) */
-function tBodySize(g, x, y, keep, max) {
+function tBodySize(g: Game, x: number, y: number, keep, max: number) {
   var gw = g.gw, st = [y * gw + x], n = 0, j, dx, dy, q, G = T_BODY = tMarks(g, T_BODY), got = G.a, gv = G.v;
   while (st.length && n < max) {
     j = st.pop();
@@ -325,7 +341,7 @@ function tBodySize(g, x, y, keep, max) {
   return n;
 }
 /* the house whose inside (x, y) is in, if any (water on its roof is a puddle like any other, in the house's way) */
-function tHouseAt(g, x, y) {
+function tHouseAt(g: Game, x: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind === "house" && s.done && x > s.x0 && x < s.x1 && y >= tInsideTop(g, s) && y <= s.y1) return s;
@@ -333,7 +349,7 @@ function tHouseAt(g, x, y) {
   return null;
 }
 /* the highest row of house s that is its inside, not its roof: as high up as its doors go */
-function tInsideTop(g, s) {
+function tInsideTop(g: Game, s: Site) {
   var ds = tDoors(g, s), top = s.y0;
   for (var k = 0; k < ds.length; k++) top = k ? Math.min(top, ds[k].top) : ds[k].top;
   return top;
@@ -342,12 +358,12 @@ function tInsideTop(g, s) {
    however deep it is), but not the columns they have lately found they cannot get at. null if there is none, or if it
    is the lake come in at the door (a lake's worth of water outside the doorway, TD_LAKE: a pool that ran out of the
    door and lies on the step is no lake, and the floor is bailed all the same), which no bucket will empty */
-function tHousePuddle(g, s, raw) {
+function tHousePuddle(g: Game, s: Site, raw?: boolean) {
   var out = [], x, y, j, k, ox, top = tInsideTop(g, s);
   /* (the floor, as high up as the doors go: not the roof, which is the roof's business. raw: every column, the ones
      they could not get at as well, for whether it is really dry) */
   /* (outside means outside: a puddle's search would step over the door into the floor's own water, and call that a lake) */
-  var outside = function (cx) { return cx < s.x0 || cx > s.x1; };
+  var outside = function (cx: number) { return cx < s.x0 || cx > s.x1; };
   for (y = top; y <= s.y1; y++) for (x = s.x0 + 1; x <= s.x1 - 1; x++) {
     j = y * g.gw + x;
     if (g.m[j] !== MAT.WATER || (!raw && tNo(g, x, true))) continue;
@@ -363,7 +379,7 @@ function tHousePuddle(g, s, raw) {
    sloshes from wall to wall. so: the water on the floor of the house it is in (k.of), or every bit of puddle (not pond)
    on the deck or the stair it is in the way of, or else within a few cells of where it was last seen (k.src, k.at).
    not the columns they have lately found they cannot get at. its cells, or null once there is none */
-function tPuddleNear(g, k) {
+function tPuddleNear(g: Game, k) {
   var s = k.of && bSite(g, k.of), x0, x1, y0, y1, x, y, j, c, seen, out = [];
   if (s && s.kind === "house") return tHousePuddle(g, s);
   seen = T_NEAR = tMarks(g, T_NEAR);
@@ -382,7 +398,7 @@ function tPuddleNear(g, k) {
   return out.length ? out : null;
 }
 /* the bit of it nearest (x, y), on the top of the water: the cell to go to */
-function tTop(g, cells, x, y) {
+function tTop(g: Game, cells, x: number, y?: number) {
   var best = null, bd = 1e9, k, cx, cy, d;
   for (k = 0; k < cells.length; k++) {
     cx = cells[k] % g.gw; cy = (cells[k] / g.gw) | 0;
@@ -393,7 +409,7 @@ function tTop(g, cells, x, y) {
   return best || { x: cells[0] % g.gw, y: (cells[0] / g.gw) | 0 };
 }
 /* the site, not one with water of its own, whose box (or a cell round it) one of these cells is in: the puddle is in its way */
-function tInTheWay(g, cells) {
+function tInTheWay(g: Game, cells) {
   for (var k = 0; k < cells.length; k++) {
     var x = cells[k] % g.gw, y = (cells[k] / g.gw) | 0;
     for (var q = 0; q < g.sites.length; q++) {
@@ -404,10 +420,10 @@ function tInTheWay(g, cells) {
   return null;
 }
 /* is any of these cells in (or by) a site whose puddles are its own business */
-function tOwned(g, cells) {
+function tOwned(g: Game, cells) {
   for (var k = 0; k < cells.length; k++) {
     var x = cells[k] % g.gw, y = (cells[k] / g.gw) | 0;
-    if (mCryptAt(g, x, y)) return true;   /* (water in the crypt: the cathedral bails its own, up the ladder. monuments.js) */
+    if (mCryptAt(g, x, y)) return true;   /* (water in the crypt: the cathedral bails its own, up the ladder. monuments.ts) */
     for (var q = 0; q < g.sites.length; q++) {
       var s = g.sites[q];
       if (tOwnWater(s) && x >= s.x0 - 2 && x <= s.x1 + 2 && y >= s.y0 - 3 && y <= s.y1 + 2) return true;
@@ -417,13 +433,13 @@ function tOwned(g, cells) {
 }
 /* how many are bailing the floor of house s (a job gone on far too long holds nothing up), and how many a floor with
    cells of water on it is worth: one bucket to a puddle, two to a flood */
-function tBailers(g, s) {
+function tBailers(g: Game, s: Site) {
   for (var k = 0, n = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && t.kind === "bucket" && t.src && t.of === s.id && !(t.t0 != null && g.tick - t.t0 > TD_LONG)) n++; }
   return n;
 }
 function tBailCrew(cells) { return cells.length > TD_FLOOD ? 2 : 1; }
 /* somebody already at it: the puddles in house of, or a puddle near x, y. one bucket to a puddle */
-function tBailing(g, x, y, of) {
+function tBailing(g: Game, x: number, y: number, of: Site) {
   for (var k = 0; k < g.peasants.length; k++) {
     var t = g.peasants[k].task;
     if (!t || t.kind !== "bucket" || !t.src) continue;
@@ -436,13 +452,13 @@ function tBailing(g, x, y, of) {
    back in the nearest real water. {pond | field, dump, into} or null. there has to be real water to tip it in, whatever
    it is for: the pond fills up, or the wheat has drunk enough, before the puddle is gone, and a bucket with nowhere to
    go is poured out where they stand, which is how a puddle gets carried round and round a house for ever */
-function tBailDest(g, cells, of) {
+function tBailDest(g: Game, cells, of) {
   var top = tTop(g, cells, cells[0] % g.gw), x0 = 1e9, x1 = -1e9, k, s, best = null, bd = 1e9, d;
   for (k = 0; k < cells.length; k++) { x0 = Math.min(x0, cells[k] % g.gw); x1 = Math.max(x1, cells[k] % g.gw); }
   /* (not back into itself) */
   /* (not miles: a puddle is not worth carrying across the valley, to water or to a pond or a field. one on a floor that
      has nothing near goes out of the door instead) */
-  var dump = iFindWater(g, { x: top.x, y: top.y - 1 }, TD_CARRY, null, true, [{ x0: x0 - 3, x1: x1 + 3 }], true);
+  var dump: { x: number; y: number; bush?: boolean } = iFindWater(g, { x: top.x, y: top.y - 1 }, TD_CARRY, null, true, [{ x0: x0 - 3, x1: x1 + 3 }], true);
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     d = Math.abs(s.cx - top.x);
@@ -480,7 +496,7 @@ function tBailDest(g, cells, of) {
 }
 /* somewhere outside site s to pour a puddle out of it: the top of the nearest bush (or flower, or sapling) with the sky
    over it, nobody's, not in or by anybody's site; or else open ground well away from all of them. {x, y, bush} or null */
-function tOutside(g, s, bad) {
+function tOutside(g: Game, s: Site, bad?: number[]): { x: number; y: number; bush: boolean } {
   /* (worked out once in a while, not every time anybody looks: it is a long look) */
   var key = (bad || []).join(",");
   if (s.pourC && s.pourC.key === key && g.tick - s.pourC.t < TD_POUR_KEEP) return s.pourC.at;
@@ -494,7 +510,7 @@ function tOutside(g, s, bad) {
     rise[q] = r;
     if ((Gq = tPourAt(g, q, fy)) >= 0 && !LIQUID[pCell(g, q, Gq)]) r = Math.min(r, Gq);
   }
-  function low(x) {
+  function low(x: number) {
     var G = tPourAt(g, x, fy);
     return G >= 0 && (G >= floor + (LIQUID[pCell(g, x, G)] ? 1 : 0) || rise[x] < G - 2) ? G : -1;
   }
@@ -533,7 +549,7 @@ function tOutside(g, s, bad) {
 }
 /* how much water would lie about (x, y) and stay below row lim (the floor, or the top of a rise): the air and water
    that way down from it, counted up to max */
-function tPourRoom(g, x, y, lim, max) {
+function tPourRoom(g: Game, x: number, y: number, lim: number, max: number) {
   var st = [y * g.gw + x], seen = {}, n = 0, j, cx, cy, c;
   while (st.length && n < max) {
     j = st.pop();
@@ -548,7 +564,7 @@ function tPourRoom(g, x, y, lim, max) {
   return n;
 }
 /* could somebody walk from the floor of house s to somewhere they could throw a bucket at t from */
-function tThrowable(g, s, t) {
+function tThrowable(g: Game, s: Site, t) {
   var fy = tFloor(g, s) - 1, x, o, sx = -1;
   /* (from somewhere on the floor, the middle first: 0, -1, +1, -2 ...) */
   for (o = 0; o < 24 && sx < 0; o++) { x = Math.floor(s.cx) + (o & 1 ? -((o + 1) >> 1) : o >> 1); if (x > s.x0 && x < s.x1 && navStand(g, x, fy) === 1) sx = x; }
@@ -557,7 +573,7 @@ function tThrowable(g, s, t) {
 }
 /* the row of the first thing a bucket thrown down column x (about row fy) lands on: the ground, or water lying on it
    (not anything hot, and not anything anybody built). -1 if nothing like that */
-function tPourAt(g, x, fy) {
+function tPourAt(g: Game, x: number, fy: number) {
   for (var y = Math.max(1, fy - 23); y <= fy + 14 && y < g.gh; y++) {
     var c = pCell(g, x, y);
     if (AIRY[c] || P_LEAF[c]) continue;
@@ -567,7 +583,7 @@ function tPourAt(g, x, fy) {
 }
 /* somewhere to pour water out at, at (x, G): nobody's site within pad, the sky over it, nothing hot or built about it
    (wet is no matter: that is what water is) */
-function tPourOk(g, x, G, pad) {
+function tPourOk(g: Game, x: number, G, pad: number) {
   if (!AIRY[pCell(g, x, G - 1)] || bSiteAround(g, x, G, null, pad)) return false;
   for (var y = G - 3; y <= G + 1; y++) for (var xx = x - 2; xx <= x + 2; xx++) {
     var c = pCell(g, xx, y);
@@ -576,14 +592,14 @@ function tPourOk(g, x, G, pad) {
   return true;
 }
 /* the row of house s's floor: the row under the foot of its doors (or the bottom of its box) */
-function tFloor(g, s) {
+function tFloor(g: Game, s: Site) {
   var ds = tDoors(g, s), f = -1;
   for (var k = 0; k < ds.length; k++) f = Math.max(f, ds[k].bot + 1);
   return f >= 0 ? f : Math.floor(s.y1);
 }
 /* water on a floor with nowhere at all to put it (uphill all round, and no water near): the village says so, and the
    floor is let be a while */
-function tNowhere(g, s) {
+function tNowhere(g: Game, s: Site) {
   if (!s || s.kind !== "house") return;
   /* (a while: it may only be the flood sloshing about, or a pool outside that has not run off yet. the news, once) */
   s.bailRest = g.tick + TD_NO;
@@ -591,10 +607,10 @@ function tNowhere(g, s) {
   s.nowhereT = g.tick;
 }
 /* is column x within a few of any in bad (places they could not throw at from anywhere) */
-function tBad(bad, x) { for (var k = 0; bad && k < bad.length; k++) if (Math.abs(bad[k] - x) < 6) return true; return false; }
+function tBad(bad: number[], x: number) { for (var k = 0; bad && k < bad.length; k++) if (Math.abs(bad[k] - x) < 6) return true; return false; }
 /* a bailer stuck with a full bucket, nowhere to throw it at tgt from: somewhere else outside the house it came out of
    (or out of the way of whatever it was in), a couple of times, before it goes down where they stand. true if so */
-function tRetarget(g, k, tgt) {
+function tRetarget(g: Game, k: Task, tgt) {
   var s = k.of && bSite(g, k.of), o;
   (k.bad = k.bad || []).push(tgt.x);
   tNoGo(g, tgt.x, true);   /* (and nobody else is sent there with a bucket a while, either) */
@@ -604,14 +620,14 @@ function tRetarget(g, k, tgt) {
   return true;
 }
 /* where the bucket is going, in words */
-function tInto(g, k) { return k.pond ? "the pond" : k.field ? "the wheat" : (k.into || "the water"); }
+function tInto(g: Game, k: Task) { return k.pond ? "the pond" : k.field ? "the wheat" : (k.into || "the water"); }
 /* the job pointed somewhere else: the puddle, as it is, sent where it is wanted now. (pond and field are the bucket job's
    own: a bailer counts in the crew of the pond or the field it is carrying to, iCrew, so nobody piles on) */
-function tAim(k, d) {
+function tAim(k: Task, d) {
   k.pond = d.pond; k.field = d.field; k.dump = d.dump; k.into = d.into;
 }
 /* a puddle in the village that would be better off somewhere else, and off with a bucket to move it */
-function tGoBail(g, p) {
+function tGoBail(g: Game, p: Peasant) {
   if (g.tick < (g.bailT || 0)) return false;
   g.bailT = g.tick + TD_BAIL_GAP;
   /* (the whole village, top to bottom, looked over once in a while: not just what is in front of them. a puddle on the
@@ -669,9 +685,9 @@ function tGoBail(g, p) {
 }
 /* which columns have fresh water anywhere in rows 1 .. gh - 1, the rows tGoBail looks down (1 if so), the valley
    looked over a row at a time, four cells to a word (a word with no water in it: none in its four columns, that
-   row). null when a row is not a whole number of words (mines.js mWords): then every column is looked down */
+   row). null when a row is not a whole number of words (mines.ts mWords): then every column is looked down */
 var T_WET = null;
-function tWetCols(g) {
+function tWetCols(g: Game) {
   var m32 = mWords(g);
   if (!m32) return null;
   var gw = g.gw, W = gw >> 2, m = g.m, w = MAT.WATER * 0x01010101, i, v, b, x, n = W * g.gh;
@@ -688,13 +704,13 @@ function tWetCols(g) {
   return T_WET;
 }
 /* off with a bucket to the puddle (cells, in site of's way, if any), to go where dest says */
-function tStartBail(g, p, cells, of, dest) {
+function tStartBail(g: Game, p: Peasant, cells, of, dest) {
   var top = tTop(g, cells, Math.floor(p.x), Math.floor(p.y));
   p.task = { kind: "bucket", src: top, at: { x: top.x, y: top.y }, of: of ? of.id : 0, t: 0, t0: g.tick, act: 0, n: 0, size: cells.length };
   tAim(p.task, dest);
 }
 /* bucket empty, bailing: to the puddle, and a bucketful out of it. (iTaskBucket, while there is nothing in the bucket) */
-function tBailScoop(g, p, k) {
+function tBailScoop(g: Game, p: Peasant, k: Task) {
   if (k.t0 != null && g.tick - k.t0 > TD_LONG) {
     if (p.pail) { k.topUp = false; return false; }   /* (what is in the bucket is thrown first, not tipped on the floor) */
     tNoGo(g, k.src.x, true); return tBailDone(g, p, k);
@@ -738,7 +754,7 @@ function tBailScoop(g, p, k) {
      bit: a thin puddle on a floor does) */
   /* (and a puddle on a floor is bailed from in the house, not through the wall from outside it) */
   var hs = k.of && bSite(g, k.of), indoor = hs && hs.kind === "house";
-  var inReach = function (x, y) {
+  var inReach = function (x: number, y: number) {
     /* (or from the doorway, or the step just outside it: a floor flooded too deep to stand in is bailed from the door) */
     if (indoor && (x <= hs.x0 || x >= hs.x1 || y < hs.y0 || y > hs.y1) && !tAtDoor(g, hs, x, y)) return false;
     for (var q = 0; q < cells.length; q++) { var cx = cells[q] % g.gw, cy = (cells[q] / g.gw) | 0; if (Math.abs(cx - x) <= 5 && cy >= y - 4 && cy <= y + 6) return true; }
@@ -782,13 +798,13 @@ function tBailScoop(g, p, k) {
   return false;
 }
 /* is (x, y) standing in a doorway of house s, or on the step just outside it */
-function tAtDoor(g, s, x, y) {
+function tAtDoor(g: Game, s: Site, x: number, y: number) {
   var ds = tDoors(g, s);
   for (var k = 0; k < ds.length; k++) { var at = (x - ds[k].x) * ds[k].side; if (at >= 0 && at <= 2 && y >= ds[k].top && y <= ds[k].bot + 1) return true; }
   return false;
 }
 /* a bucketful out of the puddle: the cells nearest the top of it, in reach, each with its heat (as iScoop) */
-function tScoopCells(g, cells, fx, fy, room) {
+function tScoopCells(g: Game, cells, fx: number, fy: number, room: number) {
   var gw = g.gw, pick = [], load = [], k, j, x, y;
   for (k = 0; k < cells.length; k++) {
     j = cells[k]; x = j % gw; y = (j / gw) | 0;
@@ -805,14 +821,14 @@ function tScoopCells(g, cells, fx, fy, room) {
   return load.length ? load : null;
 }
 /* bucket full, bailing: where it goes. (a pond filled up, or the wheat had enough, on the way: the nearest real water) */
-function tBailTarget(g, k) {
+function tBailTarget(g: Game, k: Task) {
   var s;
   if (k.pond && (s = bSite(g, k.pond)) && iPondThirst(g, s)) return iPondTarget(g, s);
   if (k.field && (s = bSite(g, k.field)) && iThirsty(g, s)) return iWaterTarget(g, k.field);
   return k.dump || null;
 }
 /* the puddle is gone: the news, the first time, and a word about it */
-function tBailDone(g, p, k, gone) {
+function tBailDone(g: Game, p: Peasant, k: Task, gone?: boolean) {
   if (k.n > 0) {
     g.bailed = (g.bailed || 0) + 1;
     var of = k.of && bSite(g, k.of);
@@ -827,7 +843,7 @@ function tBailDone(g, p, k, gone) {
   return iDone(p, k.n > 0);
 }
 /* enough tidying, of both kinds, and the village notices */
-function tTidyCheer(g) {
+function tTidyCheer(g: Game) {
   if ((g.bailed || 0) + (g.tidied || 0) >= 5 && (g.bailed || 0) >= 1 && (g.tidied || 0) >= 1) achieve(g, "tidy");
 }
 
@@ -836,7 +852,7 @@ function tTidyCheer(g) {
    ------------------------------------------------------------------- */
 /* is column x (its ground at row G) somebody's, for piles: by a site (whose ground goes up and down as it is built, and
    is its own business), where a mine's spoil has gone (tSpoiled), or the village's heap itself */
-function tGroundBusy(g, x, G) {
+function tGroundBusy(g: Game, x: number, G) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (x >= s.x0 - 3 && x <= s.x1 + 3 && G >= s.y0 - 8 && G <= s.y1 + 4) return true;
@@ -844,9 +860,9 @@ function tGroundBusy(g, x, G) {
   if (g.tSpoil && g.tSpoil[x >> 2]) return true;
   return !!g.tip && Math.abs(x - g.tip.x) <= 10;
 }
-/* the spoil off a mine (or the ground cleared for a furnace) has gone on the ground at column x (mines.js mSpoil): that
+/* the spoil off a mine (or the ground cleared for a furnace) has gone on the ground at column x (mines.ts mSpoil): that
    ground, and a few columns either side that it slides down onto, is the spoil heap's from now on, not a pile */
-function tSpoiled(g, x) {
+function tSpoiled(g: Game, x: number) {
   if (!g.tSpoil) g.tSpoil = {};
   for (var q = (x - 4) >> 2; q <= (x + 4) >> 2; q++) g.tSpoil[q] = 1;
 }
@@ -856,9 +872,9 @@ var T_GALL = null;   /* (tGroundKeep's look at the ground, kept and used again) 
    over the ground as it was, TD_LUMP or more somewhere along it, no wider than TD_LUMP_W, standing up over the ground
    either side of it (lev: the row of the lower of the two). anything else that has come up is the ground now: a pile
    on a slope that has slid level, a hollow filled flush, sand that has settled, a dune */
-function tGroundKeep(g) {
+function tGroundKeep(g: Game) {
   var gw = g.gw, B = g.tGround, x, G, up, q, cur = [], lumps = [], now = [];
-  /* (mGround in every column, all at once: mines.js mGroundAll. nothing here moves anything, or marks it) */
+  /* (mGround in every column, all at once: mines.ts mGroundAll. nothing here moves anything, or marks it) */
   if (!B || B.length !== gw) { B = g.tGround = new Int16Array(gw); mGroundAll(g, B); g.tLumps = []; return; }
   var GA = T_GALL = T_GALL && T_GALL.length === gw ? T_GALL : new Int16Array(gw);
   mGroundAll(g, GA);
@@ -872,7 +888,7 @@ function tGroundKeep(g) {
     else if (tGroundBusy(g, x, G) || !tVillage(g, x)) { if (up <= 2) B[x] = G; cur[x] = -2; }
   }
   /* (the ground either side of a pile: the nearest that has not come up, looking out from it) */
-  function edge(x, dir) {
+  function edge(x: number, dir: number) {
     for (var q = x, Gq; Math.abs(q - x) < 20 && q > 0 && q < gw - 1; q += dir) if ((Gq = now[q]) >= 0 && B[q] >= 0 && B[q] - Gq <= 0) return Gq;
     return -1;
   }
@@ -900,20 +916,20 @@ function tGroundKeep(g) {
   g.tLumps = lumps;
 }
 /* how many are shovelling up a pile in columns x0 .. x1 */
-function tLumpWork(g, x0, x1) {
+function tLumpWork(g: Game, x0: number, x1: number) {
   for (var k = 0, n = 0; k < g.peasants.length; k++) { var o = g.peasants[k].task; if (o && o.kind === "tidy" && o.lump && o.lump.x0 <= x1 && o.lump.x1 >= x0) n++; }
   return n;
 }
 /* is (x, y) a handful of pile L to shovel off: sand (or ash, or salt), on the top, lying still, cool, nobody's, and over
    both the ground as it was in that column and the ground either side of the pile (it is dug down level, no lower) */
-function tLumpCell(g, L, x, y) {
+function tLumpCell(g: Game, L, x: number, y: number) {
   if (!g.tGround || x < L.x0 || x > L.x1 || !TD_LITTER[pCell(g, x, y)] || bMarked(g, x, y) || !AIRY[pCell(g, x, y - 1)]) return false;
   if (g.T[y * g.gw + x] >= 60 || !tStill(g, x, y) || bSiteAround(g, x, y, null, 1)) return false;
   return y < Math.min(g.tGround[x], L.lev);
 }
 /* the next handful of pile L: off the top of it, the highest column first (a pile is dug down, not into from the side),
    the nearer of two the same height. {x, y} or null once it is level */
-function tLumpNext(g, p, L) {
+function tLumpNext(g: Game, p: Peasant, L) {
   var best = null, bd = 1e9, x, G, d, k;
   /* (the pile as it is now: shovelling at it changes its outline, and the ground either side) */
   for (k = 0; g.tLumps && k < g.tLumps.length; k++) {
@@ -928,7 +944,7 @@ function tLumpNext(g, p, L) {
   return best;
 }
 /* the nearest pile anybody could be shovelling, that nobody is: {x, y, lump} */
-function tFindLump(g, p) {
+function tFindLump(g: Game, p: Peasant) {
   var best = null, bd = 1e9, k, L, t, d;
   for (k = 0; g.tLumps && k < g.tLumps.length; k++) {
     L = g.tLumps[k];
@@ -941,18 +957,18 @@ function tFindLump(g, p) {
   return best;
 }
 /* is any of pile L (or a pile next to it) still a pile, as the village last looked */
-function tLumpLeft(g, L) {
+function tLumpLeft(g: Game, L) {
   for (var k = 0; g.tLumps && k < g.tLumps.length; k++) if (g.tLumps[k].x0 <= L.x1 + 2 && g.tLumps[k].x1 >= L.x0 - 2) return true;
   return false;
 }
 /* nobody can get at pile L: it is the lie of the land now */
-function tLumpLetBe(g, L) {
+function tLumpLetBe(g: Game, L) {
   for (var x = L.x0; g.tGround && x <= L.x1; x++) g.tGround[x] = mGround(g, x);
   for (x = L.x0 >> 2; g.tPiled && x <= L.x1 >> 2; x++) delete g.tPiled[x];
 }
 /* nobody could get at pile L, again: after a few of those (anybody's: the next one may know a way), it is let be, and
    the village says so. (g.tPileFail, by the four columns at the west end of it) */
-function tLumpGaveUp(g, L) {
+function tLumpGaveUp(g: Game, L) {
   if (!g.tPileFail) g.tPileFail = {};
   var key = L.x0 >> 2, f = g.tPileFail[key] || { n: 0, t: 0 };
   if (g.tick - f.t > TD_FORGET) f.n = 0;
@@ -963,7 +979,7 @@ function tLumpGaveUp(g, L) {
   feed(g, "nobody can get at " + tLumpLabel(g, L) + ". it can stay where it is", "#c8d0dc", "pile" + key);
 }
 /* "the pile of sand by marge's hut", or wherever it is */
-function tLumpLabel(g, L) {
+function tLumpLabel(g: Game, L) {
   var best = null, bd = TD_VILLAGE, cx = (L.x0 + L.x1) / 2;
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k], d = Math.abs(s.cx - cx); if (s.kind === "house" && d < bd) { bd = d; best = s; } }
   return "the pile of sand " + (best ? "by " + bLabel(best) : "in the village");
@@ -974,7 +990,7 @@ function tLumpLabel(g, L) {
    ------------------------------------------------------------------- */
 /* is (x, y) a weed at the door of house s: a bush (not a flower somebody left, not a sapling somebody planted), nobody's,
    in the doorway or on the step outside it, as high as the door goes */
-function tWeedAt(g, s, x, y) {
+function tWeedAt(g: Game, s: Site, x: number, y: number) {
   if (pCell(g, x, y) !== MAT.PLANT || bMarked(g, x, y)) return false;
   var ds = tDoors(g, s);
   for (var k = 0; k < ds.length; k++) {
@@ -984,7 +1000,7 @@ function tWeedAt(g, s, x, y) {
   return false;
 }
 /* the weeds at the doors of house s: {x, y (the nearest to p), n (how many)} or null */
-function tFindWeed(g, p, s) {
+function tFindWeed(g: Game, p: Peasant, s: Site) {
   var ds = tDoors(g, s), best = null, bd = 1e9, n = 0, k, a, x, y, d;
   for (k = 0; k < ds.length; k++) for (a = 0; a <= 3; a++) for (y = ds[k].top - 1; y <= ds[k].bot; y++) {
     x = ds[k].x + a * ds[k].side;
@@ -997,7 +1013,7 @@ function tFindWeed(g, p, s) {
 }
 /* a house near p with a bush grown up in its doorway (or house s alone): off to clear it. a doorstep gone to seed is the
    first thing anybody sees of a house. true if so */
-function tGoWeed(g, p, only) {
+function tGoWeed(g: Game, p: Peasant, only?: Site) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = only || g.sites[k], t;
     if (s.kind === "house" && s.done && !(s.weedT > g.tick) && Math.abs(s.cx - p.x) <= TD_LOOK && !(!only && pAvoid(g, p, s.cx)) &&
@@ -1010,12 +1026,12 @@ function tGoWeed(g, p, only) {
   return false;
 }
 /* is somebody tidying site id already */
-function tSiteTidying(g, id) {
+function tSiteTidying(g: Game, id: number) {
   for (var k = 0; k < g.peasants.length; k++) { var o = g.peasants[k].task; if (o && o.kind === "tidy" && o.site === id) return true; }
   return false;
 }
-/* a snip at a time, until the doorway is clear: the clippings go, as greenery cleared off a plot does (build.js bDig) */
-function tTaskWeed(g, p, k) {
+/* a snip at a time, until the doorway is clear: the clippings go, as greenery cleared off a plot does (build.ts bDig) */
+function tTaskWeed(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !tWeedAt(g, s, k.x, k.y)) {
     var t = s && tFindWeed(g, p, s);
@@ -1038,7 +1054,7 @@ function tTaskWeed(g, p, k) {
 }
 /* the doorway clear (or as clear as they could get it): let be a good while (bushes grow back, slowly), the news now
    and then, and a word */
-function tWeeded(g, p, k, s) {
+function tWeeded(g: Game, p: Peasant, k: Task, s: Site) {
   if (s) s.weedT = g.tick + TD_WEED;
   if (k.n > 0) {
     g.tidied = (g.tidied || 0) + 1;
@@ -1055,9 +1071,9 @@ function tWeeded(g, p, k, s) {
 /* is (x, y) litter: sand, ash or salt, on the top of a heap of it (air over it), nobody's, cool enough to handle, and
    lying on something somebody built (a roof, a deck, a stair: not a field, a pond's banks or the collar of a mine).
    the site it is lying on, or null */
-function tLitterAt(g, x, y) {
+function tLitterAt(g: Game, x: number, y: number) {
   if (!TD_LITTER[pCell(g, x, y)] || bMarked(g, x, y) || !AIRY[pCell(g, x, y - 1)] || g.T[y * g.gw + x] >= 60 || !tStill(g, x, y)) return null;
-  /* (salt flung on an icy deck is at work on the ice: leftovers.js) */
+  /* (salt flung on an icy deck is at work on the ice: leftovers.ts) */
   if (pCell(g, x, y) === MAT.SALT && (sandHas(g, x, y, MAT.ICE) >= 0 || sandHas(g, x, y, MAT.SNOW) >= 0)) return null;
   for (var yy = y + 1; yy < y + 24 && yy < g.gh; yy++) {   /* (a roof buried deep: the top of it) */
     var c = pCell(g, x, yy), s;
@@ -1071,9 +1087,9 @@ function tLitterAt(g, x, y) {
 }
 /* has the grain at (x, y) been lying there a while: not sliding off the eaves, not rolling past the door. a grain only
    passing through is nobody's business yet */
-function tStill(g, x, y) { return g.tick - g.stamp[y * g.gw + x] > TD_STILL; }
+function tStill(g: Game, x: number, y: number) { return g.tick - g.stamp[y * g.gw + x] > TD_STILL; }
 /* the doors of house s, from its plan: [{x, top, bot, side (which way is out)}], worked out once */
-function tDoors(g, s) {
+function tDoors(g: Game, s: Site) {
   if (s.tdoors) return s.tdoors;
   var by = {}, out = [], k, e, x, y;
   for (k = 0; k < s.plan.length; k++) {
@@ -1090,7 +1106,7 @@ function tDoors(g, s) {
    nobody bails the floor inside): the top of the drift, nobody's, while the drift right at the door stands two or
    more cells over the floor of the doorway (a step they walk up and duck in under the lintel). it is dug down to a
    step, no lower: what is left of a dune behind it is a dune, and nobody's business */
-function tDriftAt(g, s, x, y) {
+function tDriftAt(g: Game, s: Site, x: number, y: number) {
   if (!s || s.kind !== "house" || !s.done || !TD_LITTER[pCell(g, x, y)] || bMarked(g, x, y) || !AIRY[pCell(g, x, y - 1)] || g.T[y * g.gw + x] >= 60 || !tStill(g, x, y)) return false;
   var ds = tDoors(g, s), k, d, o, at;
   for (k = 0; k < ds.length; k++) {
@@ -1104,13 +1120,13 @@ function tDriftAt(g, s, x, y) {
   return false;
 }
 /* is it sand (or ash, or salt) all the way down column x from row y to row y1 */
-function tSandDown(g, x, y, y1) {
+function tSandDown(g: Game, x: number, y: number, y1: number) {
   for (; y <= y1; y++) if (!TD_LITTER[pCell(g, x, y)]) return false;
   return true;
 }
 /* is every door of house s drifted shut: nobody gets in until somebody digs one out (and any drifted door is reason
    enough for a bailer who could not get in not to blame the house) */
-function tShut(g, s, any) {
+function tShut(g: Game, s: Site, any?: boolean) {
   if (!s || s.kind !== "house") return false;
   var ds = tDoors(g, s), n = 0;
   for (var k = 0; k < ds.length; k++) if (tBlocked(g, ds[k])) n++;
@@ -1118,7 +1134,7 @@ function tShut(g, s, any) {
 }
 /* is door d drifted shut: sand (or ash, or salt) heaped up right outside it, over the floor of the doorway, so high that
    whoever walks in off the top of it does not fit in under the lintel (a step or so, and they duck in: pStepUp) */
-function tBlocked(g, d) {
+function tBlocked(g: Game, d) {
   var x = d.x + d.side, y;
   /* (buried over the lintel: shut, whatever room there is up on the eaves) */
   if (TD_LITTER[pCell(g, x, d.top - 1)] && TD_LITTER[pCell(g, x, d.top)]) return true;
@@ -1128,9 +1144,9 @@ function tBlocked(g, d) {
   return !pRoom(g, d.x, y - 1);
 }
 /* litter on site s, at (x, y): on top of it, or drifted against its door */
-function tIsLitter(g, s, x, y) { return tLitterAt(g, x, y) === s || tDriftAt(g, s, x, y); }
+function tIsLitter(g: Game, s: Site, x: number, y: number) { return tLitterAt(g, x, y) === s || tDriftAt(g, s, x, y); }
 /* the nearest litter on any site near p (or on site s alone): {x, y, site, drift} */
-function tFindLitter(g, p, R, only) {
+function tFindLitter(g: Game, p: Peasant, R: number, only?) {
   var best = null, bd = 1e9, k, s, x, y, d, t;
   for (k = 0; k < g.sites.length; k++) {
     s = only || g.sites[k];
@@ -1167,7 +1183,7 @@ function tFindLitter(g, p, R, only) {
   }
   return best;
 }
-function tGoTidy(g, p) {
+function tGoTidy(g: Game, p: Peasant) {
   if (g.tick < (g.tidyT || 0)) return false;
   g.tidyT = g.tick + TD_TIDY_GAP;
   /* (a roof first, or the door: those are somebody's. a pile in the street after) */
@@ -1181,8 +1197,8 @@ function tGoTidy(g, p) {
   return true;
 }
 /* cell j flung up and away, out (one way only: not back over the house), if the arc it would fly on is clear (as
-   build.js bToss). true if so */
-function tFling(g, j, out) {
+   build.ts bToss). true if so */
+function tFling(g: Game, j: number, out: number) {
   var x = j % g.gw, y = (j / g.gw) | 0, t, X, Y;
   for (t = 1; t <= 14; t++) {
     X = x + 0.5 + out * t; Y = y + 0.5 - 1.7 * t + 0.055 * t * t;
@@ -1192,13 +1208,13 @@ function tFling(g, j, out) {
   return sandFling(g, j, out * (0.9 + Math.random() * 0.2), -1.6 - Math.random() * 0.2);
 }
 /* what they are carrying off, in their arms (p.sweep: cells, heat and all, as a bucket holds water) */
-function tHeld(p) { return p.sweep ? p.sweep.length : 0; }
+function tHeld(p: Peasant) { return p.sweep ? p.sweep.length : 0; }
 /* the next handful for a sweeping job: on the same roof (within R of them), or off the same pile */
-function tNext(g, p, k, R) {
+function tNext(g: Game, p: Peasant, k: Task, R: number) {
   var s;
   return k.lump ? tLumpNext(g, p, k.lump) : (s = bSite(g, k.site)) ? tFindLitter(g, p, R, s) : null;
 }
-function tTaskTidy(g, p, k) {
+function tTaskTidy(g: Game, p: Peasant, k: Task) {
   k.t++;
   if (k.t0 != null && g.tick - k.t0 > TD_LONG * (1 + (k.trips || 0))) {
     if (!k.n) tNoGo(g, k.x);   /* (a whole job and nothing swept: wherever it was is let be a while) */
@@ -1233,14 +1249,14 @@ function tTaskTidy(g, p, k) {
   return tSwept(g, p, k);
 }
 /* is there anywhere to tip what is swept up at (t.x, t.y): a hole, the heap, or open ground, as tHeapSpot looks */
-function tTipSomewhere(g, t) {
+function tTipSomewhere(g: Game, t) {
   var s = t.site && bSite(g, t.site), q = { x: t.x + 0.5, y: t.y, task: null };
   return !!(tHeapSpot(g, q, t.y) || (s && tHeapSpot(g, q, Math.floor(s.y1))) || tHeapSpot(g, q, t.y, true) || (s && tHeapSpot(g, q, Math.floor(s.y1), true)));
 }
 /* nobody could get to s to bail it (kind "bail"), sweep it ("tidy") or dig out its door ("door"), twice running: it is
    let be a good long while (a door, a shorter while: a house nobody can get into matters), not walked to and walked
    away from every few minutes (the next try finds out if the way in has opened up) */
-function tGaveUp(g, s, kind) {
+function tGaveUp(g: Game, s: Site, kind: string) {
   if (!s) return;
   var f = kind + "Fail";
   /* (two in a long while: a sweep that went well somewhere else on the roof says nothing about the bit nobody can get up
@@ -1258,7 +1274,7 @@ function tGaveUp(g, s, kind) {
 /* done with the roof: swept clean, or as many trips as anybody makes in one go. a roof that is clean is let be only if
    it keeps getting sand on it again (a deck at the foot of a dune): a fresh lot on a roof swept yesterday is swept
    today. a roof swept clean is worth a word, now and then */
-function tSwept(g, p, k) {
+function tSwept(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), clean = k.lump ? !tLumpNext(g, p, k.lump) : s && !tFindLitter(g, p, 200, s);
   if (k.lump && clean && k.n >= 4 && !tLumpLeft(g, k.lump) && g.tick > (g.cleanNewsT || 0)) { g.cleanNewsT = g.tick + 2500; feed(g, p.name + " carried off " + tLumpLabel(g, k.lump) + ". level ground again", "#d8d0c0", "pile"); }
   /* (dug out the door, trip after trip, and it is drifted shut again: a dune comes down on it, and it is let be a long
@@ -1279,7 +1295,7 @@ function tSwept(g, p, k) {
 }
 /* a handful of it off the roof: ash and salt in a pocket (if there is room), and sand too, to a village that makes glass;
    the rest in their arms, heat and all, to be tipped */
-function tSweep(g, p, k, x, y) {
+function tSweep(g: Game, p: Peasant, k: Task, x: number, y: number) {
   var j = y * g.gw + x, c = g.m[j], r = L_AS[c];
   k.n++;
   /* (a word about it once they are at it, and not before: a grain that was gone by the time they got there is not worth
@@ -1291,7 +1307,7 @@ function tSweep(g, p, k, x, y) {
     if (p.sayT <= 0) pSay(g, p, "tidyDoor", true);
   }
   else if (k.n === 1 && p.sayT <= 0 && (k.mine || Math.random() < 0.5)) pSay(g, p, k.mine ? "tidyHome" : k.lump ? "tidyPile" : "tidy", !!k.mine);
-  /* (a door buried: no time for armfuls. a spadeful over the shoulder, away from the house, as a hole is dug (build.js
+  /* (a door buried: no time for armfuls. a spadeful over the shoulder, away from the house, as a hole is dug (build.ts
      bDig), and what lands out there is a pile, for later) */
   var ds0 = k.drift && bSite(g, k.site);
   if (ds0 && tFling(g, j, x + 0.5 < ds0.cx ? -1 : 1)) { g.fx.thud++; if (p.sayT <= 0 && Math.random() < 0.05) pSay(g, p, "tidyDoor"); return; }
@@ -1312,12 +1328,12 @@ function tSweep(g, p, k, x, y) {
    that they can see a way to, which is the village's heap from now on (if there is none, or it is full, or a few in a
    row could not get to it; p.task.noTip: this one could not, and goes somewhere else). loose: in a village built up all round,
    anywhere off the roof, just this once. {x, y (the ground), dip, tip (the heap)} or null */
-function tHeapSpot(g, p, fy, loose) {
+function tHeapSpot(g: Game, p: Peasant, fy: number, loose?: boolean) {
   var flat = null, d, sd, x, G, c, k, lvl, gy = {}, pad = loose ? 5 : TD_HEAP_PAD, L = p.task && p.task.lump, tries = 0;
   /* (a new heap for the village, if this is to be it: somewhere they can get to from here, by the look of it) */
   var noTip = !!(p.task && p.task.noTip), anew = !loose && (tTipTop(g) < 0 || g.tip.fail >= TD_HEAP_FAILS);
   /* (loose: the ground from the sky down, wherever it is: a village built up all round has its ground at all heights) */
-  function ground(x) { return gy[x] != null ? gy[x] : (gy[x] = loose ? mGround(g, x) : bGround(g, x, fy)); }
+  function ground(x: number) { return gy[x] != null ? gy[x] : (gy[x] = loose ? mGround(g, x) : bGround(g, x, fy)); }
   for (d = 4; d <= TD_TIP_FAR; d++) for (sd = -1; sd <= 1; sd += 2) {
     x = Math.floor(p.x) + d * sd;
     if (x < 10 || x > g.gw - 11 || tNo(g, x)) continue;
@@ -1353,7 +1369,7 @@ function tHeapSpot(g, p, fy, loose) {
 }
 /* the village's heap is (x, G) now: g.tip, and its site (kind "heap": nobody builds on it, or plants a tree, or sows
    a field over it, any more than on anybody's house). moved, if there was one before, which was full */
-function tTipAt(g, x, G, p) {
+function tTipAt(g: Game, x: number, G, p: Peasant) {
   var s = g.tip && bSite(g, g.tip.site), box = [x - 8, G - TD_HEAP_HIGH - 2, x + 8, G];   /* (and room about it: nobody builds right up against the heap) */
   /* (the old one grown as high as a heap goes: that is news, of a sort) */
   if (s && p && (g.tip.n || 0) >= 3 && tTipFull(g)) feed(g, "the heap is as high as a heap goes. " + p.name + " is starting another", "#d8d0c0", "heap");
@@ -1363,33 +1379,33 @@ function tTipAt(g, x, G, p) {
   g.tip = { x: x, y: G, site: s.id, n: 0 };   /* (n: armfuls tipped on it) */
 }
 /* is column x within R of a house */
-function tByHouse(g, x, R) {
+function tByHouse(g: Game, x: number, R: number) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.kind === "house" && x >= s.x0 - R && x <= s.x1 + R) return true; }
   return false;
 }
 /* is column x by a pile lying about (within pad, 12 if not given), or by pile L (the one they are shovelling up): a pile
    is no place for the heap, nor for a pond */
-function tByLump(g, x, L, pad) {
+function tByLump(g: Game, x: number, L, pad?: number) {
   pad = pad == null ? 12 : pad;
   if (L && x >= L.x0 - pad && x <= L.x1 + pad) return true;
   for (var k = 0; g.tLumps && k < g.tLumps.length; k++) if (x >= g.tLumps[k].x0 - pad && x <= g.tLumps[k].x1 + pad) return true;
   return false;
 }
 /* is there a way from where p stands to beside (x, G), where a heap could be tipped from */
-function tReach(g, p, x, G) {
+function tReach(g: Game, p: Peasant, x: number, G) {
   var here = navHere(g, p);
   return !!here && !!navFind(g, here.x, here.y, function (X, Y) { return Math.abs(X - x) >= 1 && Math.abs(X - x) <= 3 && Math.abs(Y - G) <= 6 && navStand(g, X, Y) === 1; }, x, G - 1);
 }
 /* is there a way on foot from where p stands to within r columns of (x, y) (and a few rows): dry feet, all the way.
    (a way that swims the lake is no way to send somebody with a bucket) */
-function tCanGet(g, p, x, y, r) {
+function tCanGet(g: Game, p: Peasant, x: number, y: number, r: number) {
   var here = navHere(g, p), path = here && navFind(g, here.x, here.y, function (X, Y) { return Math.abs(X - x) <= r && Math.abs(Y - y) <= 6 && navStand(g, X, Y) === 1; }, x, y);
   for (var k = 0; path && k < path.length; k++) if (navStand(g, path[k].x, path[k].y) !== 1) return false;
   return !!path;
 }
 /* the heap they have been using (g.tip), while it is not grown into a hill and is still out of everybody's way: things
    in one place. {x, y, dip, tip} or null */
-function tTipSpot(g, p) {
+function tTipSpot(g: Game, p: Peasant) {
   var t = g.tip, G;
   if (!t || Math.abs(t.x - p.x) > TD_TIP_FAR || tNo(g, t.x)) return null;
   G = tTipTop(g);
@@ -1397,21 +1413,21 @@ function tTipSpot(g, p) {
 }
 /* has the village's heap grown as high as a heap goes */
 /* (by its height over the ground it was started on: a cone of sand takes the ground beside it up with it) */
-function tTipFull(g) {
+function tTipFull(g: Game) {
   var t = g.tip, G = t ? mGround(g, t.x) : -1;
   return G >= 0 && t.y - G > TD_HEAP_HIGH;
 }
 /* the top of the village's heap, while it is still somewhere to heap things (not grown into a hill, not built over,
    not under water): its row, or -1 once they need a new one. (a heap a long way off from whoever has an armful, or
    that nobody can get to just now, is still the heap) */
-function tTipTop(g) {
+function tTipTop(g: Game) {
   /* (the ground from the sky down: somebody standing on the heap is not the top of it) */
   var t = g.tip, G = t ? mGround(g, t.x) : -1;
   if (G < 0) return -1;
   return !tTipFull(g) && tHeapOk(g, t.x, G, 2, true) ? G : -1;   /* (somebody's lantern going up nearby since is no reason to give the heap up) */
 }
 /* nothing of anybody's near it, nothing wet or hot about it */
-function tHeapOk(g, x, G, pad, own) {
+function tHeapOk(g: Game, x: number, G, pad: number, own?: boolean) {
   /* (open to the sky: not under a bush, which bGround looks through, and which a handful of sand will not go into) */
   for (var yy = G - 8; yy < G; yy++) if (!AIRY[pCell(g, x, yy)] || P_LEAF[pCell(g, x, yy)]) return false;
   /* (own: the heap itself is somewhere to tip things, the heap being what it is for) */
@@ -1427,7 +1443,7 @@ function tHeapOk(g, x, G, pad, own) {
   }
   return true;
 }
-function tTaskTip(g, p, k) {
+function tTaskTip(g: Game, p: Peasant, k: Task) {
   if (!tHeld(p)) return k.tipped ? tDumped(g, p, k) : tSwept(g, p, k);
   if (!k.heap) {
     /* (looked for about where they stand, and, if they are up on the roof, about where the ground is under it) */
@@ -1440,7 +1456,7 @@ function tTaskTip(g, p, k) {
   var h = k.heap, fx = Math.floor(p.x), fy = Math.floor(p.y);
   /* (from beside it, or up the side of the heap a little: a heap grown high has steep sides. an armful tossed onto it
      from a few steps off lands on it all the same) */
-  var near = function (x, y) { return Math.abs(x - h.x) >= 1 && Math.abs(x - h.x) <= (h.tip ? 5 : 3) && Math.abs(y - h.y) <= (h.tip ? 12 : 6); };
+  var near = function (x: number, y: number) { return Math.abs(x - h.x) >= 1 && Math.abs(x - h.x) <= (h.tip ? 5 : 3) && Math.abs(y - h.y) <= (h.tip ? 12 : 6); };
   if (!near(fx, fy)) {
     /* (nobody can get there: somewhere else, and after a few of those, wherever they are) */
     if (iWalk(g, p, k, "heap" + h.x, h.x, h.y - 1, near)) {
@@ -1462,7 +1478,7 @@ function tTaskTip(g, p, k) {
   return true;
 }
 /* one handful of what they carry into the air over the ground at column x: false if there is no room for it there */
-function tTip(g, p, k, x) {
+function tTip(g: Game, p: Peasant, k: Task, x: number) {
   var G = bGround(g, x, k.heap.y), c, j;
   if (G < 1) return false;
   j = (G - 1) * g.gw + x;
@@ -1478,8 +1494,8 @@ function tTip(g, p, k, x) {
   return true;
 }
 /* whatever is left in their arms, down where they are (they could not get to the heap, the job ran out, or something
-   came up): into the air about them, as a spilt bucket goes (ideas.js iSpill) */
-function tDrop(g, p, x, y, force) {
+   came up): into the air about them, as a spilt bucket goes (ideas.ts iSpill) */
+function tDrop(g: Game, p: Peasant, x: number, y: number, force?) {
   if (!tHeld(p)) return;
   /* (not on somebody's roof, or floor, or bridge, or the step of their door, where it came from: it is held on to until
    they are a few steps clear of it) */
@@ -1491,7 +1507,7 @@ function tDrop(g, p, x, y, force) {
 }
 /* an armful and no sweeping job (they got hungry, the alarm went, they died): it goes down where they are, as a full
    bucket does (iPail), once they are off anybody's roof or floor. a new sweeping job takes it along to be tipped */
-function tCarry(g, p) {
+function tCarry(g: Game, p: Peasant) {
   if (!tHeld(p) || (p.task && p.task.kind === "tidy" && !p.dead)) { p.sweepT = 0; return; }
   /* (and a village built up all round, nowhere clear of anybody's door: after a while, wherever they are, but on a roof) */
   p.sweepT = (p.sweepT || 0) + 1;
@@ -1499,7 +1515,7 @@ function tCarry(g, p) {
   tDrop(g, p, Math.floor(p.x) + p.dir, Math.floor(p.y), p.dead || tired);
 }
 /* all of it tipped where it was going: the news, the first time, and a hole filled level is worth a word */
-function tDumped(g, p, k) {
+function tDumped(g: Game, p: Peasant, k: Task) {
   var h = k.heap, level = false;
   g.tidied = (g.tidied || 0) + 1;
   if (h && h.dip) {
@@ -1534,7 +1550,7 @@ function tDumped(g, p, k) {
 var TD_STICK = hex32("#7a5228"), TD_RAG = hex32("#d8483a"), TD_RAG_D = hex32("#a83428");
 /* the village's heap, once it is one (THE HEAP): a stick stuck in the top of it, with a rag tied on, so everybody knows
    where things go. it goes up as the heap does */
-function tDraw(g) {
+function tDraw(g: Game) {
   var t = g.tip;
   if (!t || (t.n || 0) < 3) return;   /* (three armfuls on it, and it is a heap) */
   var G = bGround(g, t.x, t.y), y, f = (g.tick >> 4) & 1;

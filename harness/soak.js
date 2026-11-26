@@ -96,7 +96,7 @@ function applyPreset(h, preset) {
     }
     h.give(["bucket", "farm", "mine", "dig", "masonry", "festival"]);
   } else if (preset === "leftovers") {
-    /* what is left over (leftovers.js): snow and ice about the village, salt, ash, a lump of glass, a pinch of powder,
+    /* what is left over (leftovers.ts): snow and ice about the village, salt, ash, a lump of glass, a pinch of powder,
        and the ideas that make something of them */
     h.give(["farm", "bucket", "dig", "fish", "festival", "mine", "masonry", "smelt", "forge", "potash", "salt", "powder", "glass"]);
     h.g.iron = 20;

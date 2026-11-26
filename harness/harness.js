@@ -160,7 +160,7 @@ Harness.prototype.hash = function () {
   (g.sites || []).forEach(function (s) { mix(s.id); mix(s.done ? 1 : 0); mix(s.repair ? 1 : 0); });
   mix(g.np); mix(g.rip); mix((g.peasants || []).length); mix((g.ducks || []).length);
   /* (the hand, once there is one: a lump in it or in the air, off the grid and as much the world as what is on it, and
-     what it remembers. all of it, as it saves: hand.js) */
+     what it remembers. all of it, as it saves: hand.ts) */
   if (g.hand) mixStr(JSON.stringify(g.hand));
   return ("00000000" + h.toString(16)).slice(-8);
 };
@@ -356,7 +356,7 @@ Harness.prototype.restore = function (s) {
     s = found.snap;
   }
   if (!s || !s.state) throw new Error("restore wants a snapshot or a checkpoint id");
-  /* a save's keyframe goes in exactly as loading it would put it in (save.js saveApplyState: what a save does not keep is
+  /* a save's keyframe goes in exactly as loading it would put it in (save.ts saveApplyState: what a save does not keep is
      left be, nobody is touching anything, a save from before the speed selector plays at 1x): one way in, not two */
   /* (a snapshot of a valley another width: the game is made that wide first, and the view put back in it after) */
   var sw = s.state && typeof s.state.gw === "number" ? s.state.gw : this.g.gw;
@@ -367,7 +367,7 @@ Harness.prototype.restore = function (s) {
   /* the pathfinder's scratch is not state, but it is marked with generations:
      clear the marks so a restored generation cannot collide with a stale one */
   if (this.g.navSeen) { this.g.navSeen.fill(0); this.g.navShut.fill(0); }
-  this._eval("saveScratchReset")();   /* (and whatever is cached outside g for the tick: save.js SAVE_GEN) */
+  this._eval("saveScratchReset")();   /* (and whatever is cached outside g for the tick: save.ts SAVE_GEN) */
   this.loaded.rng.state = s.rng;
   this.loaded.clock.t = s.clock;
   this.ticks = s.ticks;
@@ -908,7 +908,7 @@ Harness.prototype._doGive = function (a) {
    10. THE HAND: mouse, keys, clicks, drags, throws
    ------------------------------------------------------------------- */
 /* a world cell, as the screen point over it. in a valley wider than the screen, the view is moved first if the cell is
-   out of it, or so near its edge that a drag would carry the view along (game.js camStep): centred on it, at once. the
+   out of it, or so near its edge that a drag would carry the view along (game.ts camStep): centred on it, at once. the
    same every time, so a scenario replays to the same village */
 Harness.prototype._screen = function (x, y, margin) {
   var g = this.g, V = this._eval("VIEW_GW"), c = g.camI || 0, M = margin || 0;
@@ -1008,7 +1008,7 @@ Harness.prototype._doWheel = function (d, sel) {
   return this;
 };
 
-/* the side panel, under the pointer, as what a click there does ("sel:<NAME>", "clear", "size+": game.js panelAt).
+/* the side panel, under the pointer, as what a click there does ("sel:<NAME>", "clear", "size+": game.ts panelAt).
    recorded with the click, so that it replays as that whatever the panel is by then. a click recorded without it (from
    before that was kept) is read against the panel as it was when it was recorded: the list it was recorded with, and
    the buttons under it where they were (master's, below a list without wet concrete: _scLayout) */
@@ -1098,7 +1098,7 @@ Harness.prototype.flick = function (vx, vy) {
 Harness.prototype._doFlick = function (vx, vy) {
   var g = this.g, t = this.loaded.clock.t;
   g.samp.length = 0;
-  var sx = g.cx - (g.camI || 0);   /* (the samples are in the screen's cells: game.js cursorSample) */
+  var sx = g.cx - (g.camI || 0);   /* (the samples are in the screen's cells: game.ts cursorSample) */
   g.samp.push([t - 5 * TICK_MS, sx - vx * 5, g.cy - vy * 5]);
   g.samp.push([t, sx, g.cy]);
   return this;
@@ -1153,7 +1153,7 @@ Harness.prototype._advanceRaw = function (n) {
 
 Harness.prototype._apply = function (op) {
   var a = op.args || {};
-  /* (a row of the browser's own journal, save.js saveInput, where it is one the harness can act on: the camera) */
+  /* (a row of the browser's own journal, save.ts saveInput, where it is one the harness can act on: the camera) */
   if (op.op == null && op.kind === "cam") return this._doCam(numArg(op.x, "x"));
   switch (op.op) {
     case "place": return this._doPlace(a);
@@ -1249,7 +1249,7 @@ Harness.prototype.replay = function (sc, opts) {
 };
 
 /* -------------------------------------------------------------------
-   12. SAVE FILES: the game's own format (save.js), written and read here
+   12. SAVE FILES: the game's own format (save.ts), written and read here
    ------------------------------------------------------------------- */
 /* the save as an object. opts.keyframes: how many history frames (or
    checkpoints, if there is no history) to put in as keyframes (default 3) */
@@ -1334,10 +1334,10 @@ Harness.prototype.load = function (src, opts) {
     if (kf && i === opts.keyframe) return;
     var st;
     try { st = f && decode(f.state); } catch (e) { return; }
-    /* (a keyframe that is not a whole world is not offered: the grids a village cannot go on without, save.js) */
+    /* (a keyframe that is not a whole world is not offered: the grids a village cannot go on without, save.ts) */
     var n = (st && st.gw || 0) * (st && st.gh || 0);
     if (!st || typeof st !== "object" || !n || self._eval("SAVE_GRID").some(function (k) { return !st[k] || st[k].length !== n; })) return;
-    var ns = self._eval("saveSelOf")(doc, st, false);   /* (its brush, by name: save.js) */
+    var ns = self._eval("saveSelOf")(doc, st, false);   /* (its brush, by name: save.ts) */
     if (ns != null) st.sel = ns;
     self.checkpointList.push({ id: "kf" + i, tick: f.updates != null ? f.updates : -1, snap: {
       version: 1, seed: self.seed, ticks: f.updates != null ? f.updates : self.ticks, sandTick: f.tick, time: f.t,

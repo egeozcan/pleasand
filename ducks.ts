@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  ducks.js
+   PLEASAND  --  ducks.ts
 
    ducks. like the peasants, they are not on the grid: each is a little
    bag of numbers that reads the cells around it. a duck waddles, heads
@@ -13,6 +13,11 @@
    duck's feet are at (x, y); its body is the few cells above.
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps in g) */
+interface Game {
+  did?: number; duckRip?: number; heldDuck?: Duck;
+}
 
 var D_MAX = 60, D_GROW = 3600;   /* how many ducks the world holds, and how long a duckling takes to grow up */
 var D_FLAP = 0.25;               /* how fast a duck comes down when it is gliding in to land */
@@ -45,7 +50,7 @@ P_ACHIEVE.duckspace = ["DUCK IN SPACE", "quack, houston"];
    the bottom row of a sprite is the duck's feet row.
    ------------------------------------------------------------------- */
 var D_KEY = { h: 0, e: 1, B: 2, t: 3, b: 4, W: 5, f: 6 };
-function dParse(rows) {
+function dParse(rows: string[]) {
   var out = [], n = rows.length;
   for (var r = 0; r < n; r++) for (var c = 0; c < rows[r].length; c++) {
     var ch = rows[r][c];
@@ -64,7 +69,17 @@ var D_SPR = {
   babyB: dParse(["..hB", "bbb.", "..f."]),
   babySwim: dParse(["..hB", "bbb."])
 };
-var D_KINDS = [
+/* a breed: how common it is, its colours (and its ducklings'), and whether it is rubber */
+interface DuckKind { name: string; w: number; cols: string[]; baby: string[]; rubber?: boolean; pal?: Uint32Array; bpal?: Uint32Array; }
+/* a duck (duckSpawn makes one). lead: the one a duckling follows; seed: where the seed it is after is */
+interface Duck {
+  id: number; kind: DuckKind; x: number; y: number; vx: number; vy: number; dir: number; state: string;
+  t: number; baby: boolean; lead: Duck; idle: number; dab: number; fire: number; stuck: number; submerged: number;
+  flyT: number; alt: number; goal: number; quackT: number; say: string; sayT: number; anim: number; dead: number;
+  look: number; seed: { x: number; y: number }; ride?: any; shoved?: number; detour?: number;
+}
+
+var D_KINDS: DuckKind[] = [
   { name: "MALLARD", w: 35, cols: ["#2f7a3a", "#101010", "#e8c040", "#f0f0f0", "#8a6a4a", "#5a5a6e", "#f08a20"],
     baby: ["#d8b850", "#101010", "#e8a030", "#b89a48", "#b89a48", "#b89a48", "#e88a20"] },
   { name: "DUCK", w: 35, cols: ["#7a5a3a", "#101010", "#d08a30", "#6a4a2a", "#8a6a44", "#6a5038", "#f08a20"],
@@ -81,10 +96,10 @@ var D_THERM = new Uint32Array(10);
 /* -------------------------------------------------------------------
    MAKING, FINDING, LOSING DUCKS
    ------------------------------------------------------------------- */
-function duckSpawn(g, x, y, kind, baby, quiet) {
+function duckSpawn(g: Game, x: number, y: number, kind?: DuckKind, baby?: boolean, quiet?: boolean) {
   if (g.ducks.length >= D_MAX) { if (!quiet) feed(g, "that is enough ducks", "#ffd94a"); return null; }
   kind = kind || pWeighted(D_KINDS);
-  var d = { id: ++g.did, kind: kind, x: x, y: y, vx: 0, vy: 0, dir: Math.random() < 0.5 ? -1 : 1, state: "walk",
+  var d: Duck = { id: ++g.did, kind: kind, x: x, y: y, vx: 0, vy: 0, dir: Math.random() < 0.5 ? -1 : 1, state: "walk",
             t: baby ? 0 : D_GROW, baby: !!baby, lead: null, idle: 0, dab: 0, fire: 0, stuck: 0, submerged: 0, flyT: 0, alt: 0, goal: -1,
             quackT: 120 + irnd(600), say: "", sayT: 0, anim: irnd(100), dead: 0, look: irnd(60), seed: null };
   g.ducks.push(d);
@@ -92,7 +107,7 @@ function duckSpawn(g, x, y, kind, baby, quiet) {
   return d;
 }
 /* a mother and a line of ducklings behind her, each following the one in front */
-function duckFamily(g, x, y) {
+function duckFamily(g: Game, x: number, y: number) {
   var kind = Math.random() < 0.5 ? D_KINDS[1] : D_KINDS[2], mom = duckSpawn(g, x, y, kind), prev = mom, n = 3 + irnd(3);
   if (!mom) return null;
   for (var k = 0; k < n; k++) {
@@ -103,7 +118,7 @@ function duckFamily(g, x, y) {
   achieve(g, "ducklings");
   return mom;
 }
-function duckAt(g, x, y, pad) {
+function duckAt(g: Game, x: number, y: number, pad?: number) {
   pad = pad || 0;
   var best = null, bd = 1e9;
   for (var k = 0; k < g.ducks.length; k++) {
@@ -114,17 +129,17 @@ function duckAt(g, x, y, pad) {
   }
   return best;
 }
-function dSay(g, d, kind, force) {
+function dSay(g: Game, d: Duck, kind: string, force?: boolean) {
   if (d.dead || (!force && d.sayT > 0)) return;
   if (kind === "quack" && d.kind.rubber) kind = "squeak";
   if (kind === "quack" && d.baby) kind = "peep";
   d.say = pick(D_SAY[kind] || [kind]); d.sayT = 50 + d.say.length * 4;
   if (kind === "squeak") g.fx.squeak++; else if (kind === "peep") g.fx.peep++; else g.fx.quack++;
 }
-function dFeathers(g, d, n) {
+function dFeathers(g: Game, d: Duck, n: number) {
   for (var k = 0; k < n; k++) partAdd(g, PK_GLINT, d.x + 0.5, d.y - 2, (Math.random() - 0.5) * 1.2, -0.3 - Math.random() * 0.6, 30 + irnd(40), pick(D_FEATHER));
 }
-function dDie(g, d, cause) {
+function dDie(g: Game, d: Duck, cause: string) {
   if (d.dead) return;
   d.dead = 1;
   g.duckRip = (g.duckRip || 0) + 1;
@@ -145,15 +160,15 @@ function dDie(g, d, cause) {
 var D_PASS = new Uint8Array(NMAT);
 [MAT.PLANT, MAT.FLOWER, MAT.DOOR, MAT.LADDER, MAT.CROP, MAT.WHEAT, MAT.GIRDER].forEach(function (v) { D_PASS[v] = 1; });
 /* what a duck will waddle a long way for: seeds, and ripe wheat (which is seeds, on a stalk, in a row, somebody's) */
-function dTasty(g, x, y) { var c = pCell(g, x, y); return c === MAT.SEED || (c === MAT.WHEAT && !iScarecrowNear(g, x, y)); }
-function dSolid(g, x, y) { return SOLID[pCell(g, x, y)] === 1; }
-function dBody(g, x, y) { var c = pCell(g, x, y); return SOLID[c] === 1 && !D_PASS[c]; }
-function dBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return dBody(g, fx, fy) || dBody(g, fx, fy - 1) || dBody(g, fx, fy - 2); }
+function dTasty(g: Game, x: number, y: number) { var c = pCell(g, x, y); return c === MAT.SEED || (c === MAT.WHEAT && !iScarecrowNear(g, x, y)); }
+function dSolid(g: Game, x: number, y: number) { return SOLID[pCell(g, x, y)] === 1; }
+function dBody(g: Game, x: number, y: number) { var c = pCell(g, x, y); return SOLID[c] === 1 && !D_PASS[c]; }
+function dBlocked(g: Game, x: number, y: number) { var fx = Math.floor(x), fy = Math.floor(y); return dBody(g, fx, fy) || dBody(g, fx, fy - 1) || dBody(g, fx, fy - 2); }
 /* wedged into something (a gap too low for a duck, sand poured on it, a plank laid over it): the nearest place close by
    that a duck fits and could wriggle to (through open cells only: never through a wall), and better still one it can
    stand in, and never one that would kill it. or null */
 var D_WRIG = new Int8Array(9 * 9);
-function dWriggle(g, d) {
+function dWriggle(g: Game, d: Duck) {
   var fx = Math.floor(d.x), fy = Math.floor(d.y), best = null, bs = 1e9, s, i, j, k, x, y;
   var seen = D_WRIG, q = [40];   /* a 9x9 window round the duck; 40 is the middle */
   seen.fill(0); seen[40] = 1;
@@ -177,9 +192,9 @@ function dWriggle(g, d) {
   }
   return best;
 }
-function dGround(g, x, y) { return dSolid(g, Math.floor(x), Math.floor(y) + 1); }
+function dGround(g: Game, x: number, y: number) { return dSolid(g, Math.floor(x), Math.floor(y) + 1); }
 /* is it unpleasant to be at (x, y): hot, fire, acid, a drain */
-function dNasty(g, x, y) {
+function dNasty(g: Game, x: number, y: number) {
   var c = pCell(g, x, y);
   return HOT[c] || c === MAT.ACID || c === MAT.DRAIN || pHotAt(g, x, y);
 }
@@ -188,13 +203,13 @@ function dNasty(g, x, y) {
    THINGS THAT HAPPEN TO DUCKS
    ------------------------------------------------------------------- */
 /* take off and fly somewhere: water if there is any within reach, else wherever */
-function dTakeOff(g, d, scared) {
+function dTakeOff(g: Game, d: Duck, scared?: boolean) {
   if (d.baby) { d.idle = 0; d.dir = -d.dir; return; }   /* too small to fly: run the other way */
   d.state = "fly"; d.flyT = scared ? 120 + irnd(120) : 200 + irnd(300); d.vy = -0.6; d.idle = 0; d.dab = 0;
   d.alt = clamp(Math.floor(d.y) - 18 - irnd(30), 8, g.gh - 30);
   d.goal = -1;
   for (var k = 0; k < 40; k++) {
-    var x = rCol(g), y;   /* (water in the village's range: world.js) */
+    var x = rCol(g), y;   /* (water in the village's range: world.ts) */
     for (y = 4; y < g.gh && AIRY[g.m[y * g.gw + x]]; y++);
     if (y < g.gh && WET[g.m[y * g.gw + x]]) { d.goal = x; break; }
   }
@@ -202,14 +217,14 @@ function dTakeOff(g, d, scared) {
   if (scared) dSay(g, d, "quack", true);
 }
 /* something going bang, or flying at them */
-function ducksScare(g, x, y, r) {
+function ducksScare(g: Game, x: number, y: number, r: number) {
   for (var k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k];
     if (d.dead || d.state === "held" || d.state === "thrown" || d.state === "fly") continue;
     if ((d.x - x) * (d.x - x) + (d.y - y) * (d.y - y) < r * r) { d.dir = d.x < x ? -1 : 1; dTakeOff(g, d, true); }
   }
 }
-function ducksBlast(g, cx, cy, R, P) {
+function ducksBlast(g: Game, cx: number, cy: number, R: number, P: number) {
   var big = R >= 12, reach = R * 2.4;
   for (var k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k];
@@ -225,32 +240,32 @@ function ducksBlast(g, cx, cy, R, P) {
     } else if (dd < (big ? 400 : R * 10)) ducksScare(g, d.x, d.y, 1);
   }
 }
-function ducksZapNear(g, x, y, r) {
+function ducksZapNear(g: Game, x: number, y: number, r: number) {
   for (var k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k];
     if (!d.dead && (d.x - x) * (d.x - x) + (d.y - 2 - y) * (d.y - 2 - y) < (r + 3) * (r + 3)) dDie(g, d, "zap");
   }
 }
 /* swimming in water that lightning has just gone through */
-function ducksZapMarked(g) {
+function ducksZapMarked(g: Game) {
   for (var k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k], fx = Math.floor(d.x), fy = Math.floor(d.y);
     if (d.dead || fx < 0 || fx >= g.gw || fy < 0 || fy >= g.gh) continue;
     if (g.zmark[fy * g.gw + fx] || (fy + 1 < g.gh && g.zmark[(fy + 1) * g.gw + fx])) dDie(g, d, "zap");
   }
 }
-function duckGrab(g, d) {
-  if (d.ride) delete d.ride;   /* (hand.js) */
+function duckGrab(g: Game, d: Duck) {
+  if (d.ride) delete d.ride;   /* (hand.ts) */
   d.state = "held"; g.heldDuck = d;
   dSay(g, d, "quack", true);
 }
-function dHeld(g, d) {
+function dHeld(g: Game, d: Duck) {
   d.x = clamp((g.mx - PANEL) / CELL + (g.camI || 0) - 0.5, 1, g.gw - 2);
   d.y = clamp((g.my - PLAY_Y) / CELL + 2, 4, g.gh - 1);
   d.vx = g.cvx; d.vy = g.cvy; d.anim++;
   if (d.sayT <= 0 && Math.random() < 0.02) dSay(g, d, "quack");
 }
-function duckThrow(g, d) {
+function duckThrow(g: Game, d: Duck) {
   g.heldDuck = null;
   if (d.dead) return;
   dHeld(g, d);
@@ -263,7 +278,7 @@ function duckThrow(g, d) {
 /* -------------------------------------------------------------------
    THE DUCK, ONE TICK AT A TIME
    ------------------------------------------------------------------- */
-function ducksStep(g) {
+function ducksStep(g: Game) {
   var D = g.ducks, k, d;
   for (k = 0; k < D.length; k++) if (!D[k].dead) dStep(g, D[k]);
   /* a peasant flying at a duck knocks it flapping */
@@ -290,10 +305,10 @@ function ducksStep(g) {
   if ((g.tick % 60) === 0) duckArrivals(g);
 }
 
-function dStep(g, d) {
+function dStep(g: Game, d: Duck) {
   d.anim++;
   if (d.sayT > 0) d.sayT--;
-  if (d.state === "held") { if (!(d.ride && g.hand)) dHeld(g, d); return; }   /* (on a lump in the hand: hand.js) */
+  if (d.state === "held") { if (!(d.ride && g.hand)) dHeld(g, d); return; }   /* (on a lump in the hand: hand.ts) */
   if (d.baby && ++d.t >= D_GROW) { d.baby = false; d.lead = null; dSay(g, d, "quack", true); }
   /* the one in front is gone: follow whoever it was following */
   while (d.lead && d.lead.dead) d.lead = d.lead.lead;
@@ -336,7 +351,7 @@ function dStep(g, d) {
   if (d.quackT > 0) d.quackT--;
   else { d.quackT = 300 + irnd(900); if (d.state !== "thrown") dSay(g, d, "quack"); }
 
-  if (d.shoved && d.state !== "thrown") d.shoved = 0;   /* (down again from a knock: hand.js) */
+  if (d.shoved && d.state !== "thrown") d.shoved = 0;   /* (down again from a knock: hand.ts) */
   if (d.state === "thrown") dThrown(g, d);
   else if (d.state === "fly") dFly(g, d);
   else if (LIQUID[cf] || (LIQUID[cu] && !dGround(g, d.x, d.y))) dSwim(g, d);
@@ -344,7 +359,7 @@ function dStep(g, d) {
 }
 
 /* a step sideways: up a step or two, down a step or two, turn at walls (or, now and then, fly over them) */
-function dStepX(g, d, sp) {
+function dStepX(g: Game, d: Duck, sp: number) {
   var nx = d.x + d.dir * sp, nfx = Math.floor(nx), fx = Math.floor(d.x), fy = Math.floor(d.y), k;
   if (nx < 1 || nx > g.gw - 2) { d.dir = -d.dir; return false; }
   if (nfx !== fx) {
@@ -358,7 +373,7 @@ function dStepX(g, d, sp) {
   return true;
 }
 /* which way to go: after mother, after seeds, towards water, or wherever */
-function dHeading(g, d) {
+function dHeading(g: Game, d: Duck) {
   if (d.lead) {
     var dx = d.lead.x - d.x;
     if (Math.abs(dx) > 3.5) { d.dir = dx < 0 ? -1 : 1; return d.baby ? 0.13 : 0.11; }
@@ -385,7 +400,7 @@ function dHeading(g, d) {
       if (hit && hit.n < Math.abs(best)) { best = hit.n * s; d.seed = hit.at; }
     }
     /* (seed in the duck palace's trough: looked for a good deal further off than that, and liked better than wheat.
-       pleasures.js) */
+       pleasures.ts) */
     if (g.wDuckPalace && (!d.seed || pCell(g, d.seed.x, d.seed.y) !== MAT.SEED)) d.seed = pPalaceSeed(g, d) || d.seed;
     if (!d.seed && d.state === "walk" && Math.random() < 0.6) {
       /* water it could waddle to: go and get in it */
@@ -404,7 +419,7 @@ function dHeading(g, d) {
 }
 /* waddle along the ground from d, dir s, up to max columns, the way it would walk (a step or two up, any way down,
    it flaps), and stop at a wall. the first place fn likes, as {n: how far, at: what fn said}, or null */
-function dScan(g, d, s, max, fn) {
+function dScan(g: Game, d: Duck, s: number, max: number, fn) {
   var x = Math.floor(d.x), y = Math.floor(d.y), i, k, r;
   for (i = 1; i <= max; i++) {
     x += s;
@@ -421,7 +436,7 @@ function dScan(g, d, s, max, fn) {
   return null;
 }
 /* any seed (or ear of wheat) within reach of the beak gets eaten */
-function dPeck(g, d) {
+function dPeck(g: Game, d: Duck) {
   var fx = Math.floor(d.x), fy = Math.floor(d.y), x, y, j;
   for (x = fx - 1; x <= fx + 2; x++) for (y = fy - 1; y <= fy + 1; y++) {
     if (dTasty(g, x, y) && Math.random() < 0.08) {
@@ -433,7 +448,7 @@ function dPeck(g, d) {
     }
   }
 }
-function dWalk(g, d) {
+function dWalk(g: Game, d: Duck) {
   var fx = Math.floor(d.x), fy = Math.floor(d.y);
   d.dab = 0; d.state = "walk";
   if (!dGround(g, d.x, d.y)) {
@@ -459,7 +474,7 @@ function dWalk(g, d) {
     else if (Math.random() < 0.0008 && !d.baby) dTakeOff(g, d);
   }
 }
-function dSwim(g, d) {
+function dSwim(g: Game, d: Duck) {
   var fx = Math.floor(d.x), fy = Math.floor(d.y), depth = 0;
   if (d.state !== "swim") { d.state = "swim"; d.vy = 0; }
   /* float: feet in the water, the rest of the duck above it */
@@ -482,7 +497,7 @@ function dSwim(g, d) {
   fx = Math.floor(d.x); fy = Math.floor(d.y);
   if (!LIQUID[pCell(g, fx, fy)] && dGround(g, d.x, d.y)) d.state = "walk";
 }
-function dFly(g, d) {
+function dFly(g: Game, d: Duck) {
   var fx, fy, nx, ny;
   if (d.flyT > 0) {
     /* cruising: towards the water it picked, at the height it picked */
@@ -524,14 +539,14 @@ function dFly(g, d) {
   if (LIQUID[pCell(g, Math.floor(nx), Math.floor(ny))]) { d.x = nx; d.y = ny; d.state = "swim"; d.vx = d.vy = 0; return; }
   d.x = nx; d.y = ny;
 }
-function dThrown(g, d) {
+function dThrown(g: Game, d: Duck) {
   d.flyT++;
   d.vy += 0.1; d.vx *= 0.995;
   var spd = Math.sqrt(d.vx * d.vx + d.vy * d.vy), n = Math.ceil(spd * 2) || 1, s, nx, ny;
   if (spd > 5) { d.vx *= 5 / spd; d.vy *= 5 / spd; spd = 5; }
   for (s = 0; s < n; s++) {
     nx = d.x + d.vx / n; ny = d.y + d.vy / n;
-    if (d.shoved && (nx < 1 || nx > g.gw - 1)) { d.vx = -d.vx * 0.5; nx = d.x; }   /* (knocked by the hand: the edge is a wall. hand.js) */
+    if (d.shoved && (nx < 1 || nx > g.gw - 1)) { d.vx = -d.vx * 0.5; nx = d.x; }   /* (knocked by the hand: the edge is a wall. hand.ts) */
     if (nx < -4 || nx > g.gw + 4 || ny > g.gh + 8) { d.dead = 1; feed(g, "a duck left. by air", "#c8d0dc"); return; }
     if (ny < -40) { d.dead = 1; feed(g, "a duck has gone to space", "#9ad0ff"); achieve(g, "duckspace"); return; }
     if (LIQUID[pCell(g, Math.floor(nx), Math.floor(ny))]) { d.x = nx; d.y = ny; d.vx = d.vy = 0; d.state = "swim"; g.fx.splash++; return; }
@@ -551,7 +566,7 @@ function dThrown(g, d) {
 }
 
 /* a new village gets a couple of ducks on its pond, if it has one */
-function duckPond(g, pond) {
+function duckPond(g: Game, pond: number[]) {
   g.ducks.length = 0; g.heldDuck = null;
   if (!pond) return;
   var x0 = pond[0], x1 = pond[1], y = pond[2], n = Math.min(3, Math.max(1, Math.floor((x1 - x0) / 12)));
@@ -568,7 +583,7 @@ function duckPond(g, pond) {
    ------------------------------------------------------------------- */
 var D_ARRIVE = 7200, D_ARRIVE_MORE = 7200;   /* ticks between ducks walking in: at the least, and up to this many more */
 var D_ARRIVE_UPTO = 8;                        /* no more walk in once there are this many grown ducks about */
-function duckArrivals(g) {
+function duckArrivals(g: Game) {
   /* (the first wait comes from the clock, not the dice: a valley's luck is the same with ducks due or not) */
   if (g.duckArriveT == null) { g.duckArriveT = g.tick + D_ARRIVE + (g.tick * 7919) % D_ARRIVE_MORE; return; }
   if (g.tick < g.duckArriveT) return;
@@ -576,13 +591,13 @@ function duckArrivals(g) {
   var grown = 0;
   for (var k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead && !g.ducks[k].baby) grown++;
   if (grown >= D_ARRIVE_UPTO) return;
-  /* (a duck at home on the duck palace's deck: twice the chance of ducklings, and they hatch there. pleasures.js) */
+  /* (a duck at home on the duck palace's deck: twice the chance of ducklings, and they hatch there. pleasures.ts) */
   var mum = g.wDuckPalace ? pPalaceMother(g) : null, n = Math.random() < (mum ? 0.5 : 0.25) ? 3 + irnd(3) : 0;
   if (mum && n && pPalaceHatch(g, mum, n)) return;
   duckWalkIn(g, n);
 }
 /* a duck from one edge or the other, wherever there is ground to stand on near it; n ducklings behind, towards the edge */
-function duckWalkIn(g, n) {
+function duckWalkIn(g: Game, n: number) {
   var first = Math.random() < 0.5 ? 1 : -1;
   for (var t = 0; t < 120; t++) {
     var side = (t & 1) ? -first : first, dir = side, off = 3 + (t >> 1) + n * 4;
@@ -607,8 +622,8 @@ function duckWalkIn(g, n) {
 }
 
 /* how a duck is doing, for the bar at the bottom */
-function dMood(d, g) {
-  if (d.state === "held" && d.ride && g && g.hand) return g.hand.held ? "is sitting on a lump of the valley. quack" : "is flying, with the ground it was sitting on. quack";   /* (hand.js) */
+function dMood(d: Duck, g: Game) {
+  if (d.state === "held" && d.ride && g && g.hand) return g.hand.held ? "is sitting on a lump of the valley. quack" : "is flying, with the ground it was sitting on. quack";   /* (hand.ts) */
   if (d.state === "held") return "is being held. quack";
   if (d.fire) return "is on fire";
   if (d.state === "thrown") return "is airborne. not on purpose";
@@ -623,13 +638,13 @@ function dMood(d, g) {
 /* -------------------------------------------------------------------
    DRAWING
    ------------------------------------------------------------------- */
-function ducksDraw(g) {
+function ducksDraw(g: Game) {
   var D = g.ducks, k, c;
   for (k = 0; k < D.length; k++) {
     var d = D[k];
     if (d.dead) continue;
     var spr, fast = (d.anim >> 2) & 1, ox = Math.floor(d.x), oy = Math.floor(d.y), flip = d.dir < 0;
-    /* (one sitting on a lump in the hand sits, feet tucked, as on the pond: hand.js. thrown with it, it flaps) */
+    /* (one sitting on a lump in the hand sits, feet tucked, as on the pond: hand.ts. thrown with it, it flaps) */
     var sat = d.state === "held" && d.ride && g.hand && g.hand.held;
     if (d.baby) spr = d.state === "swim" || sat ? D_SPR.babySwim : (((d.anim / 6) | 0) & 1 ? D_SPR.babyA : D_SPR.babyB);
     else if (sat) spr = D_SPR.swim;
@@ -642,7 +657,7 @@ function ducksDraw(g) {
     dBlit(g, spr, ox, oy, flip, pal, d.fire > 0);
   }
 }
-function dBlit(g, spr, ox, oy, flip, pal, glow) {
+function dBlit(g: Game, spr, ox: number, oy: number, flip: boolean, pal: Uint32Array, glow: boolean) {
   var px = g.px, gp = g.gpx, m = g.m, gw = g.gw, gh = g.gh, w = 0, k;
   for (k = 0; k < spr.length; k += 3) if (spr[k] > w) w = spr[k];
   for (k = 0; k < spr.length; k += 3) {
@@ -655,7 +670,7 @@ function dBlit(g, spr, ox, oy, flip, pal, glow) {
   }
 }
 /* quacks, written small over the duck */
-function ducksBubbles(g, c) {
+function ducksBubbles(g: Game, c) {
   c.font = "bold 6px " + UI_FONT; c.textAlign = "center";
   for (var k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k];

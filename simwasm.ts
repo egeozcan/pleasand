@@ -1,10 +1,10 @@
 /* =====================================================================
-   PLEASAND  --  simwasm.js
+   PLEASAND  --  simwasm.ts
 
    the sand step's walk and the heat step, played by WebAssembly (the
    Rust in wasm/, built into simwasm-bin.js by wasm/build.sh) where it
-   can be. it plays the very same world the JS does (world.js
-   sandStepJs, heat.js heatStepJs), cell for cell, degree for degree and
+   can be. it plays the very same world the JS does (world.ts
+   sandStepJs, heat.ts heatStepJs), cell for cell, degree for degree and
    die for die, a good deal faster. where it cannot be (no WebAssembly,
    the module not compiled yet, a valley whose width is not a multiple of
    four, or SIM_WASM off), the JS plays it, and nobody can tell which.
@@ -18,27 +18,64 @@
    place (simBind). everything else in the game reads and writes them as
    it always has. nothing new goes on g.
 
-   it colours the cells in view, too (simDraw: game.js drawWorld's loop, the same colours to the bit, the picture's own
+   it colours the cells in view, too (simDraw: game.ts drawWorld's loop, the same colours to the bit, the picture's own
    dice): its px and gp are copied onto the picture, and JS draws everything else over them as before.
 
    the dice: when the game's Math.random is a mulberry32 whose state can
-   be read (rng.js RNG in a browser, the harness's own), the module rolls
+   be read (rng.ts RNG in a browser, the harness's own), the module rolls
    it itself and hands the state back before anything of JS's rolls; when
    it is not (test/sim.js's), the module asks Math.random for every die.
 
-   changing a rule: change it in both, the JS (world.js, heat.js) and the
+   changing a rule: change it in both, the JS (world.ts, heat.ts) and the
    Rust (wasm/src/lib.rs), run wasm/build.sh, and check with test/wasm.js
    (node test/run.js wasm) and harness/same.js that they still agree.
    ===================================================================== */
 "use strict";
 
+/* (what this file keeps in g) */
+interface Game {
+  pressList?: Int32Array;
+}
+
+/* what the module exports (wasm/src/lib.rs) */
+interface SimExports {
+  memory: WebAssembly.Memory;
+  sim_abi(): number;
+  sim_known_mats(): number;
+  sim_tab(k: number): number;
+  sim_scratch_bytes(gw: number, gh: number): number;
+  sim_heat_consts(bq: number, bandHi: number, airW: number, amb: number): void;
+  sim_consts(...k: number[]): void;
+  sim_draw_consts(n: number, t0: number, step: number): void;
+  sim_bind(...ptrsAndSize: number[]): void;
+  sim_bind_draw(...ptrsAndSize: number[]): void;
+  sim_rng_mode(own: number): void;
+  sim_sand(tick: number, parity: number, pgen: number, dmask: number): void;
+  sim_heat(dmask: number): void;
+  sim_press_n(): number;
+  sim_pgen(): number;
+  sim_draw(x0: number, x1: number, t: number, flick: number): number;
+}
+type SimArray = Uint8Array | Int8Array | Uint32Array | Int32Array | Float32Array;
+interface SimArrayType { new (buf: ArrayBufferLike, at: number, n: number): SimArray; BYTES_PER_ELEMENT: number; }
+/* views of the module's memory: the grid's arrays (SIM_ARRS) and the picture's own */
+interface SimViews {
+  [name: string]: SimArray;
+  m: Uint8Array; pressList: Int32Array; px: Uint32Array; gp: Uint32Array; wave: Uint8Array; haze: Int8Array;
+}
+/* the instance, and what it is bound to */
+interface Sim {
+  ex: SimExports; mem: WebAssembly.Memory; u32: Uint32Array; cnt: Int32Array; rngAt: number;
+  g: Game; R: Dice; n: number; gw: number; views: SimViews;
+}
+
 var SIM_WASM = !(typeof location !== "undefined" && location && /[?&]js(&|=|$)/.test(location.search || ""));
 /* (the module, compiled once; the instance and its views, made at the first step that wants them) */
-var SIM_MOD = null, SIM = null, SIM_DEAD = false;
+var SIM_MOD: WebAssembly.Module = null, SIM: Sim = null, SIM_DEAD = false;
 /* how many kinds of thing the Rust knows the rules of: a MAT it does not know, and the JS plays the world */
 var SIM_ABI = 2;
 
-function simBytes(s) {
+function simBytes(s: string) {
   if (typeof atob === "function") {
     var b = atob(s), u = new Uint8Array(b.length), i;
     for (i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
@@ -66,7 +103,7 @@ function simBytes(s) {
 function simGet() {
   if (SIM !== null) return SIM;
   if (SIM_DEAD || SIM_MOD === null) return null;
-  var S = { ex: null, mem: null, u32: null, cnt: null, rngAt: 0, g: null, R: null, n: -1, gw: -1, views: null };
+  var S: Sim = { ex: null, mem: null, u32: null, cnt: null, rngAt: 0, g: null, R: null, n: -1, gw: -1, views: null };
   try {
     var inst = new WebAssembly.Instance(SIM_MOD, { env: {
       js_rnd: function () { return Math.random(); },
@@ -79,8 +116,8 @@ function simGet() {
       js_sin: Math.sin,
       js_lit: function (x, y) { return wLitGlass(S.g, x, y) ? 1 : 0; }
     } });
-    S.ex = inst.exports; S.mem = S.ex.memory;
-    if (S.ex.sim_abi() !== SIM_ABI) throw new Error("simwasm-bin.js is not the build this simwasm.js was written for");
+    S.ex = inst.exports as unknown as SimExports; S.mem = S.ex.memory;
+    if (S.ex.sim_abi() !== SIM_ABI) throw new Error("simwasm-bin.js is not the build this simwasm.ts was written for");
     var keys = Object.keys(MAT);
     if (keys.length !== S.ex.sim_known_mats() || keys.some(function (k, i) { return MAT[k] !== i; }))
       throw new Error("MAT has things the Rust does not know: rebuild it (wasm/)");
@@ -94,16 +131,16 @@ function simGet() {
   SIM = S;
   return S;
 }
-function simViews(S) {
+function simViews(S: Sim) {
   var buf = S.mem.buffer;
   S.u32 = new Uint32Array(buf);
   S.rngAt = S.ex.sim_tab(40) >> 2;
   S.cnt = new Int32Array(buf, S.ex.sim_tab(41), 4);
 }
 /* the rules' tables, as JS made them, copied in once */
-function simTables(S) {
+function simTables(S: Sim) {
   var ex = S.ex, buf = S.mem.buffer, k, v;
-  function put(Type, at, src, len) {
+  function put(Type: SimArrayType, at: number, src: ArrayLike<number>, len: number) {
     var dst = new Type(buf, ex.sim_tab(at), len);
     for (k = 0; k < len; k++) dst[k] = src[k];
   }
@@ -127,7 +164,7 @@ function simTables(S) {
   ex.sim_heat_consts(HEAT_BQ2 !== null ? 1 : 0, HEAT_BAND_HI32 | 0, HEAT_AIRW ? 1 : 0, HEAT_AMB32 | 0);
   ex.sim_consts(AMBIENT, T_MAX, T_MIN, HEAT_FAST, SAND_CLEAN, SAND_VMAX, PRESS_TRIES, PRESS_SCAN, W_SET, W_DRAUGHT);
   /* the picture's: every thing's shades, lit and not, wet sand, pools by depth, mushroom smoke, the glow's ramp, what is
-     leafy to a peasant, and the colours game.js drawWorld names */
+     leafy to a peasant, and the colours game.ts drawWorld names */
   var pal = new Uint32Array(buf, ex.sim_tab(50), 64 * 256), lit = new Uint32Array(buf, ex.sim_tab(51), 64 * 256);
   for (v = 0; v < NMAT && v < SAND_PAL.length; v++) { pal.set(SAND_PAL[v], v << 8); lit.set(SAND_LIT[v], v << 8); }
   put(Uint32Array, 52, SAND_WET, 256);
@@ -141,19 +178,19 @@ function simTables(S) {
   ex.sim_draw_consts(GLOW_PAL.length, GLOW_T0, GLOW_STEP);
 }
 
-/* the grid's arrays, and their types. (dmask comes and goes: wonders.js) */
-var SIM_ARRS = [["m", Uint8Array], ["stamp", Uint32Array], ["aux", Uint8Array], ["sh", Uint8Array], ["vy", Uint8Array],
+/* the grid's arrays, and their types. (dmask comes and goes: wonders.ts) */
+var SIM_ARRS: [string, SimArrayType][] = [["m", Uint8Array], ["stamp", Uint32Array], ["aux", Uint8Array], ["sh", Uint8Array], ["vy", Uint8Array],
                 ["T", Float32Array], ["lat", Float32Array], ["hm", Uint8Array], ["ha", Uint8Array], ["hs", Uint8Array],
                 ["pmark", Uint32Array], ["pstack", Int32Array], ["fastList", Int32Array], ["dmask", Uint8Array],
                 ["bg", Uint32Array]];
-/* (the ones a valley may be without: wonders.js makes dmask only for the bellows, and the sky, bg, is the picture's) */
-var SIM_OPT = { dmask: 1, bg: 1 };
+/* (the ones a valley may be without: wonders.ts makes dmask only for the bellows, and the sky, bg, is the picture's) */
+var SIM_OPT: Record<string, number> = { dmask: 1, bg: 1 };
 /* room in the module's memory for a valley gw wide, and views of it: the grid's arrays (SIM_ARRS), the pressure step's
    tries, the heat step's scratch, and the picture's own (px and gp, the waves, the haze, the pools' depth). (a new width
    gets new room: the old is not given back, but a valley changes width only on a NEW or a load) */
-function simLayout(S, g) {
-  var gw = g.gw, gh = g.gh, n = gw * gh, k, at, need = 0, views = {}, ptr = {};
-  var parts = SIM_ARRS.map(function (a) { return [a[0], a[1].BYTES_PER_ELEMENT * n]; });
+function simLayout(S: Sim, g: Game) {
+  var gw = g.gw, gh = g.gh, n = gw * gh, k, at, need = 0, views = {} as SimViews, ptr: Record<string, number> = {};
+  var parts = SIM_ARRS.map(function (a): [string, number] { return [a[0], a[1].BYTES_PER_ELEMENT * n]; });
   parts.push(["pressList", 4 * PRESS_TRIES], ["scratch", S.ex.sim_scratch_bytes(gw, gh)],
              ["px", 4 * n], ["gp", 4 * n], ["wave", gw], ["haze", gh], ["dep", gw]);
   for (k = 0; k < parts.length; k++) need += (parts[k][1] + 15) & ~15;
@@ -174,7 +211,7 @@ function simLayout(S, g) {
   S.views = views; S.n = n; S.gw = gw;
 }
 /* the valley that was bound before a new one is given copies of its arrays to keep: the memory is the new one's now */
-function simEvict(S) {
+function simEvict(S: Sim) {
   var og = S.g, k, nm, a;
   S.g = null;
   if (!og || !S.views) return;
@@ -185,7 +222,7 @@ function simEvict(S) {
   if (og.pressList === S.views.pressList) og.pressList = og.pressList.slice();
 }
 /* g's arrays are views of the module's memory: copied in, if they are not */
-function simBind(S, g) {
+function simBind(S: Sim, g: Game) {
   var n = g.gw * g.gh, k, nm, a, v, V;
   if (S.n !== n || S.gw !== g.gw || S.views === null || S.views.m.buffer !== S.mem.buffer) simLayout(S, g);
   else if (S.g !== g && S.g !== null) simEvict(S);
@@ -202,32 +239,32 @@ function simBind(S, g) {
 }
 
 /* the dice the game is rolling, if the module can roll them itself: their state, to read and set. else null */
-function simRng() {
+function simRng(): Dice {
   if (typeof RNG !== "undefined" && RNG && Math.random === RNG.random) return RNG;
   var h = typeof window !== "undefined" && window ? window.PLEASAND_RNG : null;
   if (h && Math.random === h.random) return h;
   return null;
 }
 /* what the step counted up, onto g */
-function simFlush(S, g) {
+function simFlush(S: Sim, g: Game) {
   var c = S.cnt;
   if ((c[0] | c[1] | c[2]) === 0) return;
   g.score += c[0]; g.fx.hiss += c[1]; g.fx.whoosh += c[2];
   c[0] = 0; c[1] = 0; c[2] = 0;
 }
 /* out to JS in the middle of a step, and back */
-function simOut(S) { if (S.R !== null) S.R.state = S.u32[S.rngAt]; simFlush(S, S.g); }
-function simIn(S) { if (S.R !== null) S.u32[S.rngAt] = S.R.state >>> 0; }
+function simOut(S: Sim) { if (S.R !== null) S.R.state = S.u32[S.rngAt]; simFlush(S, S.g); }
+function simIn(S: Sim) { if (S.R !== null) S.u32[S.rngAt] = S.R.state >>> 0; }
 
 /* the module, bound to g, if it is to play g's step. else null */
-function simFor(g) {
+function simFor(g: Game) {
   if (!SIM_WASM) return null;
   var S = SIM !== null ? SIM : simGet();
   if (S === null || (g.gw & 3) !== 0 || g.gw < 8 || g.gh < 3) return null;
   simBind(S, g);
   return S;
 }
-function simRun(S, g, heat) {
+function simRun(S: Sim, g: Game, heat: boolean) {
   var R = simRng();
   S.R = R;
   if (R !== null) S.u32[S.rngAt] = R.state >>> 0;
@@ -248,24 +285,24 @@ function simRun(S, g, heat) {
 /* -------------------------------------------------------------------
    THE STEPS, as the game calls them
    ------------------------------------------------------------------- */
-function sandStep(g) {
+function sandStep(g: Game) {
   var S = simFor(g);
   if (S === null) return sandStepJs(g);
   var T = ++g.tick;
   g.parity ^= 1;
   g.pressN = 0;
-  if (g.gw > VIEW_GW && T % 300 === 0) vRangeSet(g);   /* (the village's range, now and then: world.js) */
+  if (g.gw > VIEW_GW && T % 300 === 0) vRangeSet(g);   /* (the village's range, now and then: world.ts) */
   simRun(S, g, false);
   heatStep(g);
 }
-function heatStep(g) {
+function heatStep(g: Game) {
   var S = simFor(g);
   if (S === null) return heatStepJs(g);
   simRun(S, g, true);
 }
-/* the picture of the cells in columns X0 to X1 (game.js drawWorld), coloured by the module into g.px and g.gpx: how many
+/* the picture of the cells in columns X0 to X1 (game.ts drawWorld), coloured by the module into g.px and g.gpx: how many
    are hot. -1 if the module is not to do it (then drawWorld does it itself) */
-function simDraw(g, X0, X1, t, flick) {
+function simDraw(g: Game, X0: number, X1: number, t: number, flick: number) {
   if (!SIM_WASM || g.thermal || !g.bg || !g.px || !g.gpx) return -1;
   var S = SIM !== null ? SIM : simGet();
   if (S === null || (g.gw & 3) !== 0 || g.gw < 8 || g.gh < 3 || g.bg.length !== g.gw * g.gh || g.px.length !== g.bg.length) return -1;
@@ -288,4 +325,4 @@ function simDraw(g, X0, X1, t, flick) {
 }
 
 /* which one is playing g (for the debug overlay, and the tests) */
-function simWho(g) { return SIM_WASM && SIM !== null && g && (g.gw & 3) === 0 && SIM.g === g ? "wasm" : "js"; }
+function simWho(g: Game) { return SIM_WASM && SIM !== null && g && (g.gw & 3) === 0 && SIM.g === g ? "wasm" : "js"; }

@@ -1,7 +1,7 @@
 /* =====================================================================
    PLEASAND  --  test/wonders.js
 
-   the great works' framework (wonders.js): the dice a village without
+   the great works' framework (wonders.ts): the dice a village without
    any of it rolls, wet concrete, forced draught, the lightning rod, the
    crew, quarrying (in a mine's gallery, and in the save that started
    all this), iron held back, gilding, the kiln, mixing, and tales.

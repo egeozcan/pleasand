@@ -294,7 +294,7 @@ test("a lift carries them up a tower a good deal faster than the ladder", functi
   check(g.got.lift, "nobody noticed riding the lift");
 });
 
-/* navEdges as it was at 74a8b7a, before its quick looks (paths.js navSidesQ) and the lifts' list for a search (navLift):
+/* navEdges as it was at 74a8b7a, before its quick looks (paths.ts navSidesQ) and the lifts' list for a search (navLift):
    every way on from a place, by the slow looks alone */
 var NAV_EDGES_WAS = "(function (g, x, y, add) {\n" +
 "  var s, nx, k, d, dy, ny, j, top, c;\n" +
@@ -1395,7 +1395,7 @@ test("a site nobody can ever walk to is given up after enough tries, and a furna
 });
 
 /* -------------------------------------------------------------------
-   what is left over (leftovers.js)
+   what is left over (leftovers.ts)
    ------------------------------------------------------------------- */
 /* a layer of v, n deep, over the top of the ground from x0 to x1 */
 function coat(w, x0, x1, v, n) {
@@ -1880,10 +1880,10 @@ test("the fingerprint sees two small differences in one field, not just one", fu
 
 test("the sand step's shortcuts play the world as the plain cell-by-cell walk does, at the row's ends too", function () {
   /* sandStep, on a width that is a multiple of four, passes over runs of still words and sees heaps, ponds and dry plants
-     at rest itself (world.js). the plain walk it stands in for hands every cell that is not still and has not had its turn
+     at rest itself (world.ts). the plain walk it stands in for hands every cell that is not still and has not had its turn
      to sandTurn, row by row from the bottom, the way the row's parity says. two villages, the same dice, one of them made
      to take that walk: cell for cell, temperature for temperature and die for die, the same after every tick */
-  /* (and the walk the WebAssembly step takes, simwasm.js, against the same plain walk: the heat step is whichever the
+  /* (and the walk the WebAssembly step takes, simwasm.ts, against the same plain walk: the heat step is whichever the
      village has, the same in both) */
   var snap = require("../harness/snapshot.js");
   [[272, false], [1088, false], [272, true], [1088, true]].forEach(function (gwW) {
@@ -2765,22 +2765,22 @@ test("the village's looks over the whole valley, a row at a time, find the groun
   });
 });
 
-/* the great works: the framework (wonders.js), the ones in stone (monuments.js), and the ones for enjoying (pleasures.js) */
+/* the great works: the framework (wonders.ts), the ones in stone (monuments.ts), and the ones for enjoying (pleasures.ts) */
 require("./wonders.js")(test, check, sim);
 require("./monuments.js")(test, check, sim);
 require("./pleasures.js")(test, check, sim);
 require("./heavens.js")(test, check, sim);
-/* a crowded valley: storeys on the houses (storeys.js) */
+/* a crowded valley: storeys on the houses (storeys.ts) */
 require("./storeys.js")(test, check, sim);
-/* and when the roofs will take no more: platforms on trestle legs (platforms.js) */
+/* and when the roofs will take no more: platforms on trestle legs (platforms.ts) */
 require("./platforms.js")(test, check, sim);
 /* the valley, four screens wide, and the view along it (docs/wide-valley-spec.md) */
 require("./valley.js")(test, check, sim);
 /* the picker's MORE row, and its flyout */
 require("./picker.js")(test, check, sim);
-/* and the hand, under MORE: a lump of the valley lifted, carried and put down (hand.js) */
+/* and the hand, under MORE: a lump of the valley lifted, carried and put down (hand.ts) */
 require("./hand.js")(test, check, sim);
-/* the heat step's walk by words, against its walk by cells (heat.js) */
+/* the heat step's walk by words, against its walk by cells (heat.ts) */
 require("./heat.js")(test, check, sim);
 /* the WebAssembly step against the JS, a village at a time (wasm.js) */
 require("./wasm.js")(test, check, sim);

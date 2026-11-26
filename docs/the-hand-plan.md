@@ -8,13 +8,13 @@ built in the six phases of §7, each of which ships on its own with `node test/r
 playing as master does. v3.1 took the last review's smaller points, before any code was written:
 
 - **The offering is exact.** A lump of COAL is left only from a pocket, `(p.coal || 0) >= 1` and `p.coal--`, as GOLD
-  already is in `iOffer` (ideas.js:1809). With neither it is a wave at the sky and no cell is written (§4.4). The hand
+  already is in `iOffer` (ideas.ts:1809). With neither it is a wave at the sky and no cell is written (§4.4). The hand
   makes no fuel.
 - **A set-down moves its sites together.** §3.1 now says in what order: the sites that could move are found first,
   each is checked against the boxes of the sites that are *not* moving with it, and then all of them are shifted at
   once. A house and its lantern carried together go together, and cannot veto each other.
-- **sStep and plStep, said truly.** `sStep` (storeys.js:341-358) needs no change, and §3.0 says why. `plStep`
-  (platforms.js:446-465) gets one line, `if (s.handH) continue;`, and §3.0 says what it stops.
+- **sStep and plStep, said truly.** `sStep` (storeys.ts:341-358) needs no change, and §3.0 says why. `plStep`
+  (platforms.ts:446-465) gets one line, `if (s.handH) continue;`, and §3.0 says what it stops.
 - **Witnesses are rationed.** A lift stops the walkers near it only if it takes a site's cell or a rider, or nobody has
   been stopped by a lift for 600 ticks (§4.5). Moving sand about all afternoon stops the village once every ten
   seconds at most, not at every press. Test 28 grows a run of rapid lifts (test 36).
@@ -35,7 +35,7 @@ v3 took v2's review:
   first lift, so molten iron set one way before and another after. That is gone, with `g.paux` and every hook in
   `partAdd`, `partKill`, `sandFling` and the landing. **The lump is a body of its own**, as a peasant or a duck is: it
   flies whole, and what it does when it hits something is its own physics (§2.5), never a grain's. Once it comes
-  apart, its grains are master's grains and land as they always have. world.js gets one line, in `sandClear`.
+  apart, its grains are master's grains and land as they always have. world.ts gets one line, in `sandClear`.
 - **The let-go is safe by default.** A thrown lump stays rigid in flight, and a big one takes only a share of the
   flick: `sqrt(60 / n)` of it, so a house with its ground (124 cells) takes 70%. It comes apart only if it *meets*
   something at 2.5 a tick or more, along the way it is going. A house let go at walking pace eight rows up lands
@@ -43,16 +43,16 @@ v3 took v2's review:
 - **The hard set is explicit** (`H_HARDM`, §2.5): rock, stonework, concrete, firebrick, moonrock, metal, girder,
   glass, ice, the timber, and the machines. Bed, flower, wheat, lamp, linen and packed snow are not in it.
 - **Riders are always let go.** CLEAR drops a flying lump and puts its riders into `"fly"` at rest (§5). A crash
-  throws them off into `"fly"`, and from there **pFly's speed rule** decides (peasants.js:1278-1279), not pLand's 34
+  throws them off into `"fly"`, and from there **pFly's speed rule** decides (peasants.ts:1278-1279), not pLand's 34
   rows: v2 named the wrong rule.
-- **A cloner keeps what it was copying.** `g.cloneSrc` entries (keyed by cell, world.js:1164-1169) are taken with the
+- **A cloner keeps what it was copying.** `g.cloneSrc` entries (keyed by cell, world.ts:1164-1169) are taken with the
   cell and re-keyed at the set-down. A crash forgets them, as anything that comes down as grains forgets.
 - **Dice, said truly.** Lift, hold, flight and set-down roll none. A crash rolls one die per grain through `partAdd`
-  (world.js:383, then overwritten by the cell's own shade), a knocked-in window one more, a powder bang many. Only a
+  (world.ts:383, then overwritten by the cell's own shade), a knocked-in window one more, a powder bang many. Only a
   valley the hand has broken something in rolls them.
 - **Smaller fixes.** The push-aside order is pinned (take, clear, place; one reserved home per cell). The paused
   branch calls `handRide` only. A long hover stops each passer-by once, not every 10 ticks. Four phases, not three.
-  `camDragging` is game.js:329 (its return 333); the test requires are test/run.js:2478-2489.
+  `camDragging` is game.ts:329 (its return 333); the test requires are test/run.js:2478-2489.
 
 ---
 
@@ -62,13 +62,13 @@ Probes on master b07c9b4, run in a scratch copy for v2. The arithmetic is new in
 
 | what | value |
 |---|---|
-| cells in the brush disc (`sandDab`'s `dx² + dy² <= r² + r`, game.js:429-430) | r 5: 97, r 9: 293, r 12: 489, r 16 (`SAND_MAXSIZE`): 861 |
-| a house (seed 7, tick 6000, `bHousePlan` build.js:460) | 62 plan cells, 11 x 15-17. An r 10 disc round it lifts 124 cells: the house, and 62 of the ground under it |
+| cells in the brush disc (`sandDab`'s `dx² + dy² <= r² + r`, game.ts:429-430) | r 5: 97, r 9: 293, r 12: 489, r 16 (`SAND_MAXSIZE`): 861 |
+| a house (seed 7, tick 6000, `bHousePlan` build.ts:460) | 62 plan cells, 11 x 15-17. An r 10 disc round it lifts 124 cells: the house, and 62 of the ground under it |
 | that house, set down whole 70 columns over | 62 of 62 plan cells in place, both windows, heat drift 0.000 |
 | the same lump turned to grains at vy 2.97 (a 40-row drop) | 9 of 62 in place (15%), windows 0 of 2, heat 0.000, nothing lost: **a heap** (after the build, nothing lost however big the lump: §11) |
-| the same at vy 4 (80 rows, the debris cap, world.js:469) | 7 of 62 (11%) |
+| the same at vy 4 (80 rows, the debris cap, world.ts:469) | 7 of 62 (11%) |
 | landings across the whole suite (469 tests) where v2's global rules would have fired | 1, a glass grain landing hard. Enough to move a pinned run, which is why v3 leaves grains alone |
-| rows of free fall, from still, to reach 2 / 2.5 / 3.7 a tick (`vy += 0.11`, world.js:460) | 21 / 30 / 65 |
+| rows of free fall, from still, to reach 2 / 2.5 / 3.7 a tick (`vy += 0.11`, world.ts:460) | 21 / 30 / 65 |
 | a house let go moving (1.5, 0.8), its share 0.70, 8 rows up / 20 rows up | lands at vy 1.44, 8 columns on / vy 2.21, 15 columns on: **whole, both times** |
 | the same house slammed straight down at the full flick (3.13 after its share) from 3 rows | vy 3.24: a heap. A slam is a slam |
 
@@ -76,13 +76,13 @@ So a gentle let-go puts a house down exactly, a careless one a little further on
 throw into something breaks it.
 
 Leaned on, checked: the peasants already say "**is that a giant hand**" near the cursor (`P_SAY.watched`,
-peasants.js:65, picked at 1687-1688). Grab and throw are `pHeld` / `peasantGrab` / `peasantThrow` (peasants.js:785-805)
-and `duckGrab` / `dHeld` / `duckThrow` (ducks.js:242-259), the let-go read from `cursorVel(g)` (game.js:2107), which
+peasants.ts:65, picked at 1687-1688). Grab and throw are `pHeld` / `peasantGrab` / `peasantThrow` (peasants.ts:785-805)
+and `duckGrab` / `dHeld` / `duckThrow` (ducks.ts:242-259), the let-go read from `cursorVel(g)` (game.ts:2107), which
 the harness sets with `h.flick(vx, vy)` (harness/harness.js:1080). `pStep` returns at `held` before any danger
-(peasants.js:637); a blast's push and `wEvict` skip the held (peasants.js:531, wonders.js:575). Bowling knocks people
-over at speed² >= 2 (peasants.js:588-598). `bInspect` (build.js:1041) runs on finished sites every 120 ticks
-(build.js:990): a few cells gone is a repair, over 60% a ruin (build.js:1060-1066). Panic runs people home (`bHide`,
-build.js:1258, from peasants.js:1633).
+(peasants.ts:637); a blast's push and `wEvict` skip the held (peasants.ts:531, wonders.ts:575). Bowling knocks people
+over at speed² >= 2 (peasants.ts:588-598). `bInspect` (build.ts:1041) runs on finished sites every 120 ticks
+(build.ts:990): a few cells gone is a repair, over 60% a ruin (build.ts:1060-1066). Panic runs people home (`bHide`,
+build.ts:1258, from peasants.ts:1633).
 
 ## 1. What this adds
 
@@ -111,92 +111,92 @@ build.js:1258, from peasants.js:1633).
 (The build's desc said whoever was standing on it at length, and at 123 characters the bar cut it off before the flick
 once the cell readout took its right-hand end. Shortened after the build, to 100 with the name: §11.)
 
-- **Where.** Appended after TRESTLE (world.js:121), so every brush keeps its index (saves store brushes by name and
-  keyframes by place: save.js:441, 503-508). `MORE_GROUPS` (game.js:564) gets `["hand", "THE HAND"]` last. The
+- **Where.** Appended after TRESTLE (world.ts:121), so every brush keeps its index (saves store brushes by name and
+  keyframes by place: save.ts:441, 503-508). `MORE_GROUPS` (game.ts:564) gets `["hand", "THE HAND"]` last. The
   flyout grows by `MORE_GAP` 3 + `MORE_HEAD` 9 + `ROWH` 10 = 22 px: `MORE_H` from 130 to 152 and `MORE_TOP` from 230
   to 208, well clear of `PLAY_Y` 14 (test/picker.js:33). Key Y is free: `gameKey` matches PICK keys first
-  (game.js:1940), the PICK letters are D E F H K L N V, `gameKey`'s own are P S A C R G T B, and M is mute (game.js:2044).
+  (game.ts:1940), the PICK letters are D E F H K L N V, `gameKey`'s own are P S A C R G T B, and M is mute (game.ts:2044).
 - **Not a material, so not on the panel.** The panel is full (33 rows to y 350), and MORE is where brushes went in
-  f9c3820. To be found, the closed MORE row's hint (game.js:1346) names THE HAND (Y) first, the flyout's title "MORE
-  MATERIALS" (game.js:1235, and the hint at 1348) becomes "MORE" (no test reads it), a `TIPS` line is added
-  (game.js:18), the README's Controls get a line, and the peasants already ask "is that a giant hand". After the
+  f9c3820. To be found, the closed MORE row's hint (game.ts:1346) names THE HAND (Y) first, the flyout's title "MORE
+  MATERIALS" (game.ts:1235, and the hint at 1348) becomes "MORE" (no test reads it), a `TIPS` line is added
+  (game.ts:18), the README's Controls get a line, and the peasants already ask "is that a giant hand". After the
   first pick the MORE row shows the palm (`moreSlot`), one click away.
-- **Its icon.** `ICONS.hand` (game.js:108), an open palm, 8x8, in the peasants' skin `#f1c7a0`:
+- **Its icon.** `ICONS.hand` (game.ts:108), an open palm, 8x8, in the peasants' skin `#f1c7a0`:
   `["...s.s..", ".s.s.s..", ".s.s.s.s", ".sssss.s", ".ssssss.", ".sssss..", "..ssss..", "..ssss.."]`.
-  `drawSwatch` already takes `ICONS[pk.tool]` (game.js:1184-1187).
-- **The cursor** (a branch beside `"peasant"`, game.js:1111): the brush ring with the palm open, closed while holding.
-- **Right-drag** still erases with HAND picked (`painting`, game.js:493). The hand is the left button only.
+  `drawSwatch` already takes `ICONS[pk.tool]` (game.ts:1184-1187).
+- **The cursor** (a branch beside `"peasant"`, game.ts:1111): the brush ring with the palm open, closed while holding.
+- **Right-drag** still erases with HAND picked (`painting`, game.ts:493). The hand is the left button only.
 
 ### 2.1 Lift (`handLift`, on press)
 
-`gameTap`'s tool branch (game.js:1748-1759) gets `else if (pk.tool === "hand") handLift(g);`. The press is journaled
-as every tap is (game.js:1699). `toolHold` (game.js:526) does nothing for a tool it does not know.
+`gameTap`'s tool branch (game.ts:1748-1759) gets `else if (pk.tool === "hand") handLift(g);`. The press is journaled
+as every tap is (game.ts:1699). `toolHold` (game.ts:526) does nothing for a tool it does not know.
 
 - **The anchor** is the cursor cell, clamped so that the whole disc is inside the grid.
 - Every cell in the disc of `g.size`, in scan order, is lifted if `!AIRY[v] && v !== MAT.INERT`, machines too.
 - Each is taken exactly as `sandFling` takes one: `q = heatQ(g, j)`, then `m = EMPTY, aux = 0, T = AMBIENT, lat = 0,
   heatAccept`. Into `g.hand.held.c` (a flat array, six numbers a cell) go `dx, dy, m, aux, sh, q`. A CLONER with a
   `g.cloneSrc[j]` has it moved to `held.clone` as `[cell number, recipe]` and the key deleted. The recipe is
-  `pRecipe`'s plain object (peasants.js:324), saved already as part of `g.cloneSrc`.
+  `pRecipe`'s plain object (peasants.ts:324), saved already as part of `g.cloneSrc`.
 - **Riders.** A peasant in `"walk"` (not dead, not `aboard`, not `g.held`) whose feet cell or the one under it was
   lifted gets `p.state = "held"` and `p.ride = {dx, dy}` from the anchor. Sleepers in a lifted bed come too, woken ("i
   was ASLEEP"). A duck in `"walk"` or `"swim"` on or in a lifted cell gets `d.ride` the same way.
 - **Sites.** Every site whose box meets the disc goes into `g.hand.sites` as `{id, n, of, burn}`: `n` of its present
-  plan cells (`bOk`, build.js:201) came up, out of `of`, and `burn` is `s.burning`. Finished ones are put on hold
-  (§3.0). The lump keeps **ids** and looks each up again with `bSite` (build.js:172) at the let-go; one gone by then
+  plan cells (`bOk`, build.ts:201) came up, out of `of`, and `burn` is `s.burning`. Finished ones are put on hold
+  (§3.0). The lump keeps **ids** and looks each up again with `bSite` (build.ts:172) at the let-go; one gone by then
   (CLEAR, NEW, `bRemove`) is skipped.
 - `g.hand` is made at the first lift: `{held, fly, sites, lifts, gifts: [], kind: 0, cruel: 0}`, `lifts` counting them.
 
 ### 2.2 Held
 
-- `handStep` (once a tick, from `peasantsStep` after `lTick`, peasants.js:610) calls `handRide`: the lump's place
+- `handStep` (once a tick, from `peasantsStep` after `lTick`, peasants.ts:610) calls `handRide`: the lump's place
   `held.x, y` from the cursor cell, clamped, and every rider put at place + offset with task, rope, climb and sleep
-  cleared, as `pHeld` does (but without its chat die). **Paused**, the `if (!steps)` branch (game.js:680-683) calls
+  cleared, as `pHeld` does (but without its chat die). **Paused**, the `if (!steps)` branch (game.ts:680-683) calls
   `handRide` only: the lump and its riders follow the cursor with time stopped, and nothing falls or rolls a die. The
   place is stored, not read from the pointer, so the let-go is decided by state that saves.
-- `pStep`'s held line (peasants.js:637) becomes `if (p.state === "held") { if (!(p.ride && g.hand)) pHeld(g, p);
-  return; }`, and `dStep`'s (ducks.js:295) the same way.
+- `pStep`'s held line (peasants.ts:637) becomes `if (p.state === "held") { if (!(p.ride && g.hand)) pHeld(g, p);
+  return; }`, and `dStep`'s (ducks.ts:295) the same way.
 - **Nothing in the lump steps.** It is off the grid. Lava in the hand stays at 1300° as long as you hold it, and a
   nuke's fuse waits. **It keeps its heat to itself**, held and in flight: a lump of lava carried, or thrown, through a
   pond does not boil a drop of it on the way, and only once it is put down (or comes apart) does its heat meet anything.
   This is the one visible exception to "every pixel has a temperature and touches its neighbours", it is the same one a
   flying debris grain makes, and the README names it.
 - **Drawn** by `handDraw` into `g.px` (and the glow buffer, for cells over 450°), in `drawWorld` after the particles
-  and `bDraw` and before `ducksDraw` (game.js:917-924), so riders are drawn on their hill. Colour is
+  and `bDraw` and before `ducksDraw` (game.ts:917-924), so riders are drawn on their hill. Colour is
   `SAND_PAL[m][sh]`, temperature `AMBIENT + (q - heatH0(m, aux, sh)) * HEAT_IC[m]`, as `heatSetQ` reckons it
-  (heat.js:225-227). The first solid cell under each of its columns is darkened as a peasant's shadow is
-  (peasants.js:2304-2310). Drawing only.
-- **Riders sit.** peasants.js:2275 becomes `if (p.state === "held") body = p.ride && g.hand && g.hand.held ?
-  P_BODY.sit : (fast ? P_BODY.panicA : P_BODY.panicB);`, and `sit` is drawn 2 lower already (peasants.js:2313). They
-  sit while carried and flail in flight. `pMood` (game.js:1365, whose held line at 1366 says "does not like it") says
+  (heat.ts:225-227). The first solid cell under each of its columns is darkened as a peasant's shadow is
+  (peasants.ts:2304-2310). Drawing only.
+- **Riders sit.** peasants.ts:2275 becomes `if (p.state === "held") body = p.ride && g.hand && g.hand.held ?
+  P_BODY.sit : (fast ? P_BODY.panicA : P_BODY.panicB);`, and `sit` is drawn 2 lower already (peasants.ts:2313). They
+  sit while carried and flail in flight. `pMood` (game.ts:1365, whose held line at 1366 says "does not like it") says
   "is sitting on a lump of the valley, being carried" ("... enjoying the view" if their view of the hand is positive,
   "... holding on" if negative), and in flight "is flying, with the ground they were standing on".
 
 ### 2.3 Let go (`handLetGo`)
 
-`sandRelease` (game.js:510-523) gets `if (g.hand && g.hand.held) handLetGo(g, cursorVel(g));` after the `heldDuck`
+`sandRelease` (game.ts:510-523) gets `if (g.hand && g.hand.held) handLetGo(g, cursorVel(g));` after the `heldDuck`
 line (519).
 
-- **The share.** The flick is clamped to ±4.5 as `peasantThrow` clamps it (peasants.js:804), then multiplied by
+- **The share.** The flick is clamped to ±4.5 as `peasantThrow` clamps it (peasants.ts:804), then multiplied by
   `k = min(1, sqrt(60 / n))` for a lump of `n` cells: a pebble of 60 or fewer takes all of it, a house and its ground
   70% (at most 3.1 a tick), the whole r 16 brush 26% (at most 1.2). A component under 0.5 after that is 0: a hand
   trembles. `held` becomes `fly = {x, y, fx, fy, vx, vy, c, clone, wet: 0}`. A lump of nothing (a press on empty
   sky, which still makes `g.hand`) is simply dropped.
 - **Let go inside the ground** (the lump does not fit where it is): it is moved up a row at a time, as far as the top
   of the valley if need be, to the first row where it fits, and flies from there. The sky is always free.
-- **Loaded mid-hold.** `saveApplyState` (save.js:479) ends with `if (g.hand && g.hand.held) handLetGo(g, [0, 0]);`,
-  after it clears `down` (save.js:487; `down` is in `SAVE_INPUT`, save.js:44): the same for the browser and the
+- **Loaded mid-hold.** `saveApplyState` (save.ts:479) ends with `if (g.hand && g.hand.held) handLetGo(g, [0, 0]);`,
+  after it clears `down` (save.ts:487; `down` is in `SAVE_INPUT`, save.ts:44): the same for the browser and the
   harness, paused or not, and for keyframe restores. A save taken in flight is in flight when loaded.
 
 ### 2.4 Flight, and setting down (`handStep`, `handFly`, `handSet`)
 
 The lump **fits** at a place if every cell is in the grid's columns, not below its floor, and on a cell that is AIRY
-or LIQUID and not mortar held in its form (`sandHeld`, world.js:303). Rows above the top are sky. The valley's sides
+or LIQUID and not mortar held in its form (`sandHeld`, world.ts:303). Rows above the top are sky. The valley's sides
 are walls. Riders go with it, at their offsets. Each tick in flight:
 
 1. If any lump cell is over LIQUID: `vy = min(vy, 1)`, `vx *= 0.8`. The first tick of that, a splash of `PK_GLINT`s,
-   for show, as `pFly` splashes (peasants.js:1255-1262).
-2. `vy = min(4, vy + 0.11)`, `vx *= 0.995` (debris's gravity, drag and cap, world.js:460, 469).
+   for show, as `pFly` splashes (peasants.ts:1255-1262).
+2. `vy = min(4, vy + 0.11)`, `vx *= 0.995` (debris's gravity, drag and cap, world.ts:460, 469).
 3. It moves a whole cell at a time toward `(fx + vx, fy + vy)`, x and y in turn, checking `fits` at each step.
 4. **Blocked**, the speed that counts is the one *into* what blocked it: `|vx|` for a side, `vy` for the floor,
    `-vy` for an overhang. At `H_HARD` (2.5) or more, it **crashes** (§2.5). Under it: blocked at the side, `vx = 0`
@@ -214,13 +214,13 @@ on the spot. Only a drop of about 30 rows, a slam, or a real throw into a wall b
   a lump at the bottom of a deep lake pushes its water up to the top of the lake, and along the top of one full to
   the brim; §11, after the build.) All homes are found before anything moves; if one is missing, the lump goes up a row and tries again
   (a lump that cannot sink into a pond rests on it, and floats there). Then, for each, in order: `heatSync(g, j)` as
-  `partDrop` does (world.js:415), `q = heatQ(g, j)` and its `m, aux, sh`; `j` is cleared as `sandFling` clears a cell;
+  `partDrop` does (world.ts:415), `q = heatQ(g, j)` and its `m, aux, sh`; `j` is cleared as `sandFling` clears a cell;
   at the home `t`, `qt = heatQ(g, t)`, the material written, `heatSetQ(g, t, qt + q)`.
 - **Placed.** For each lump cell: `heatSync(g, j)`, `qa = heatQ(g, j)` (air, or FIRE, which is smothered and keeps
   its heat in the cell), then `m, aux, sh` as they were, `vy = 0`, `heatSetQ(g, j, qa + q)`. A window is a window, a
   door keeps its knob, a cloner gets its `g.cloneSrc` back at the new index.
 - **Riders** are put down at their offsets: `state = "walk"`, `fallY = y`, `delete p.ride`, `P_SAY.touchdown`
-  ("nailed it", "ten out of ten", peasants.js:114). Ducks to `"walk"`.
+  ("nailed it", "ten out of ten", peasants.ts:114). Ducks to `"walk"`.
 - **Sites**: §3.
 
 Whatever was loose in the lump (sand, water, powder) is loose again once placed, and slumps by its own rules.
@@ -228,8 +228,8 @@ Whatever was loose in the lump (sand, water, powder) is loose again once placed,
 ### 2.5 What it hits (`handHit`, `handCrash`, `handKnock`)
 
 These are the lump's rules, as `pFly`'s are a thrown peasant's. Nothing else in the valley obeys them, and no grain is
-changed by them. `H_HARDM` is a table: STONE, COAL, ORE, GOLD, ROCKSALT (`ROCK`, world.js:241-242), BRICK, CONCRETE,
-FIREBRICK, MOONROCK, METAL, GIRDER, GLASS, STAINED, ICE, the `WOODY` six (world.js:244-245), and TORCH, FAUCET, DRAIN,
+changed by them. `H_HARDM` is a table: STONE, COAL, ORE, GOLD, ROCKSALT (`ROCK`, world.ts:241-242), BRICK, CONCRETE,
+FIREBRICK, MOONROCK, METAL, GIRDER, GLASS, STAINED, ICE, the `WOODY` six (world.ts:244-245), and TORCH, FAUCET, DRAIN,
 CLONER. Not BED, FLOWER, WHEAT, LAMP, LINEN or PACKSNOW, though they are `STILL`, and nothing loose.
 
 **At a crash**, before it comes apart, the cells that stopped it (the ones its leading cells could not move into) are
@@ -237,36 +237,36 @@ struck, each by the lump cell behind it:
 
 | struck | by | what happens | heat |
 |---|---|---|---|
-| GLASS or STAINED | a hard cell | it is SAND (`heatBecome`, heat.js:244): the pane pours out of its frame | kept: both have `heatH0` 0 |
-| a window (PLANK, aux 1, build.js:477-478) | a hard cell | knocked in: `sandFling(g, j, vx * 0.5, vy * 0.5)`. It lands inside as a plank, and `bInspect` mends the window | goes with it |
+| GLASS or STAINED | a hard cell | it is SAND (`heatBecome`, heat.ts:244): the pane pours out of its frame | kept: both have `heatH0` 0 |
+| a window (PLANK, aux 1, build.ts:477-478) | a hard cell | knocked in: `sandFling(g, j, vx * 0.5, vy * 0.5)`. It lands inside as a plank, and `bInspect` mends the window | goes with it |
 | anything else | anything | nothing: a lump of water against a window is a splash |  |
 
 Then **it comes apart** (`handCrash`), if the particle pool has room (`g.np + n <= PMAX - 400`, the margin `sandBoom`
-keeps, world.js:519); if not, it is set down whole (or, at a wall, it drops). Its own GLASS and STAINED cells become
+keeps, world.ts:519); if not, it is set down whole (or, at a wall, it drops). Its own GLASS and STAINED cells become
 SAND and its ICE SNOW (shattered, crushed: Q kept, and `heatSetQ` at the landing gives the new temperature). If it
 holds GUNPOWDER, the first powder cell is put back in the grid where it is and `sandBoom(g, j)` is called: one bang a
-crash, and the rest go up as they land by its fire, as powder does (world.js:940). Every other cell becomes a
+crash, and the rest go up as they land by its fire, as powder does (world.ts:940). Every other cell becomes a
 `PK_DEBRIS` grain at its place (`partAdd`, then `pt = q`, `ps = sh`, life 240, as `sandFling` makes one) with the
 lump's `vx, vy`, or `vx = 0` if the wall it hit was the valley's edge, so that nothing is thrown off it. `partStep`
-lands them over the next few ticks, and its swap-on-kill (`partKill`, world.js:388) reorders them as they land: a
+lands them over the next few ticks, and its swap-on-kill (`partKill`, world.ts:388) reorders them as they land: a
 heap, not a restacked house (§0: 15% of a house in place from 40 rows).
 
-**They land as master's grains land** (world.js:494), with aux 0. A window comes down a plank, a door forgets its
+**They land as master's grains land** (world.ts:494), with aux 0. A window comes down a plank, a door forgets its
 knob, molten iron sets as stone, as it does when a bang throws it, and a cloner forgets who it was copying and copies
 the next one to touch it. A nuke lands with its count started again, and if it lands at 2 a tick or more,
-sandPowder's landed-hard rule puts it at 200 (world.js:951): a nuke that had nearly gone gets a few seconds back. Do
+sandPowder's landed-hard rule puts it at 200 (world.ts:951): a nuke that had nearly gone gets a few seconds back. Do
 not rely on this.
 
 **Riders at a crash** are thrown off into `"fly"` with the lump's `vx, vy`, `flyT = 0`, `fallY = y`, and no
-`immune`: it is a fall, not an arm's swing. `pFly` decides (peasants.js:1278-1279): over 2 a tick when they meet
+`immune`: it is a fall, not an arm's swing. `pFly` decides (peasants.ts:1278-1279): over 2 a tick when they meet
 the ground, "oof"; over 3.7, a splat. So a rider in a house dropped from 30 to 65 rows gets up dizzy, and one dropped
 from higher does not, as anybody dropped by the PEASANT tool from there does not. Ducks go `"thrown"` as `duckThrow`
 throws them.
 
 **Knocks** (`handKnock`, each tick in flight, a pass over `g.peasants`). A living peasant in `"walk"` (not riding,
 `held`, `fly` or `space`) whose body (`|p.x - x| < 1.5`, `p.y - 8 <= y <= p.y`) holds a lump cell, while the lump
-is going at speed² >= 2 (the bowling rule's own speed, peasants.js:588), is knocked over as bowling knocks them
-(peasants.js:593-597): `"fly"`, `flyT 0`, `immune 6`, `fallY = y`, "oof", `g.fx.thud`, and a shove, not a throw
+is going at speed² >= 2 (the bowling rule's own speed, peasants.ts:588), is knocked over as bowling knocks them
+(peasants.ts:593-597): `"fly"`, `flyT 0`, `immune 6`, `fallY = y`, "oof", `g.fx.thud`, and a shove, not a throw
 (fixed after the build: it was bowling's own `vx = lump vx * 0.8 + ...`, `vy = min(lump vy, 0) - 1.2`, which sent
 them a hundred rows up after an upward pebble, or over the valley's wall): `vy = -1.2` whichever way the lump is
 going, `vx = lump vx * 0.5 + (p.x - lump middle) * 0.1` clamped to ±0.7 (`H_SHOVE`: 0.7² + 1.2² is under bowling's
@@ -275,11 +275,11 @@ along, more where the ground falls away, so it is `p.shoved` (and a duck's `d.sh
 they are down, that keeps them in the valley: `pFly` and `dThrown` take the edge for a wall while it is on, as `pFly`
 does for a rocket pack (fixed after the last review: §11). The lump goes on at `vx *= 0.9`,
 and keeps a list of whoever it knocked (`f.knocked`, their ids, saved with the flight). If any lump cell in them is
-WET and they are on fire, the fire is out (`p.fire = 0`, the hiss and "phew" of peasants.js:674-677). A duck is
+WET and they are on fire, the fire is out (`p.fire = 0`, the hiss and "phew" of peasants.ts:674-677). A duck is
 knocked `"thrown"`, with a quack, and the same shove. Set down whole where it knocked somebody, the lump puts them up
 out of it and lets them fall, as a rider with no room (§2.4); come apart there, it marks them `p.handOff`, as a rider
 thrown off, so that the grains do not bury them either (fixed after the build). Slower than that, a lump coming down
-on somebody it did not knock buries them, as painting stone on them does (peasants.js:714-720), and §4.5's panic is
+on somebody it did not knock buries them, as painting stone on them does (peasants.ts:714-720), and §4.5's panic is
 their warning.
 
 ## 3. Sites go with it
@@ -288,18 +288,18 @@ their warning.
 
 At the lift, every **finished** site with a plan cell taken gets `s.handH = 1`.
 
-- `bInspect` (build.js:1041) gets a first line: `if (s.handH) return;`. A held house is not a ruin and not a repair
+- `bInspect` (build.ts:1041) gets a first line: `if (s.handH) return;`. A held house is not a ruin and not a repair
   job, and nothing is mended at the old place while it is in the air.
-- `ideasStep`'s site loop (ideas.js:547-572) gets `if (s.handH) continue;` before `iFlames` (553). A held burning house
+- `ideasStep`'s site loop (ideas.ts:547-572) gets `if (s.handH) continue;` before `iFlames` (553). A held burning house
   is neither burning nor put out in the books, and the flames it left behind in the air are not news. `s.burning` is
   kept until it comes down.
-- The lamp cleanup (ideas.js:550) removes an unhung lantern only once its house is no longer a site, and a held
+- The lamp cleanup (ideas.ts:550) removes an unhung lantern only once its house is no longer a site, and a held
   house is still one. No change.
-- `sStep` (storeys.js:341-358): **no change.** Its loop removes a storey only when its base is no longer a site
+- `sStep` (storeys.ts:341-358): **no change.** Its loop removes a storey only when its base is no longer a site
   (`bSite(g, s.base)`, 351), and nothing removes a held site: `bInspect` returns at `s.handH`, and the hand itself
   never calls `bRemove`. Its other steps (`sPlotCheck`, `sNoPane`, `sRoofStep`, `sLines`) go by site ids and kinds, and
   a storey or a base is never moved (§3.1), so a held one is judged at the old place when it comes down, as any is.
-- `plStep` (platforms.js:446-465): **one line**, `if (s.handH) continue;`, first in its loop. Without it, `plTrim`
+- `plStep` (platforms.ts:446-465): **one line**, `if (s.handH) continue;`, first in its loop. Without it, `plTrim`
   (462, every 300 ticks, on any deck with a ladder, done or not) would read the ground under a held deck's old place
   and set `e.off` on its rungs, which makes `bOk` call them fine for 900 ticks after it comes down; and `plHouseOn`
   (464) would plan a house on a held deck that had none. A held house whose deck has gone meanwhile is removed by the
@@ -321,7 +321,7 @@ At a set-down, a site on the list is moved if all of these hold:
 - its kind is `house` (huts too), `lamp`, `scarecrow`, `grave`, `statue` or `bell` (`H_MOVES`), small things whose
   coordinates are all known; and a lantern or a bell only with what it hangs from (fixed after the build: §11);
 - it was done at the lift, with `n >= 0.9 * of` and `of >= 2`;
-- it is not a storey or a storey's base (`sOver`, storeys.js:48), not on a deck (`s.deck`), not a great work;
+- it is not a storey or a storey's base (`sOver`, storeys.ts:48), not on a deck (`s.deck`), not a great work;
 - for a house, the cell over its bed is not LIQUID once set down: a house at the bottom of the lake is a wreck;
 - none of its shifted plan cells falls in the box (pad 0) of a site that is **not moving with it**: set down in
   somebody's field, it is a mess in a field.
@@ -331,39 +331,39 @@ for the whole lump: from the anchor at the lift to where it came to rest.
 
 1. The **candidates** `C` are the sites on `g.hand.sites` that pass the first four tests, in list order.
 2. Each candidate's shifted plan cells are checked against the boxes of every site in `g.sites` that is not in `C`,
-   as they are (unshifted: those are not going anywhere). `bSiteAround` (build.js:292) returns only the first site it
+   as they are (unshifted: those are not going anywhere). `bSiteAround` (build.ts:292) returns only the first site it
    finds and cannot skip a set, so this is a loop of its own, `handBoxHit(g, i, C)`. A candidate that fails is taken
    out of `C`, and since it now stays where it was, step 2 is run again for the rest, until a round takes nobody out
    (at most `C.length` rounds of a handful of sites). The sites left in `C` are checked against nothing in `C`: they
    move by the same `(DX, DY)`, so whatever lay between them lies between them still.
 3. **All of `C` is shifted at once**, then the marks are remade, as below.
 
-For each site in `C`: `bMark(g, s, 0)` (build.js:136);
+For each site in `C`: `bMark(g, s, 0)` (build.ts:136);
 every plan entry's `i += DX + DY * g.gw` (the EMPTY ones too); then the box `x0 y0 x1 y1`, `cx cy`, and whichever of
-`F G iy0` (rows), `ix0 ix1 px` (columns), `bed {x, y}` and `win[]` the site has (`bHousePlan` build.js:484-485, `bHut`
-1470-1471, ideas.js:1517, 1583, 1680, 1746); then `bMark` again for every site, as `bRemove` does (build.js:166-167).
+`F G iy0` (rows), `ix0 ix1 px` (columns), `bed {x, y}` and `win[]` the site has (`bHousePlan` build.ts:484-485, `bHut`
+1470-1471, ideas.ts:1517, 1583, 1680, 1746); then `bMark` again for every site, as `bRemove` does (build.ts:166-167).
 Up to 10% of plan cells did not come: `bInspect` mends them at the new place. The few left at the old place belong to
 nobody. A lantern's `home` is still its house's id, and a bell's `on`; a bell's mouth (`bx`, `by`) moves with it.
 A lantern or a bell left behind by its house, standing in the air where the wall or the ridge was, comes down
 (`handFall`, fixed after the build: §11). A scarecrow carried to the duck pond works there
-(`iScarecrowNear`, ideas.js:1700, goes by `s.cx`). The feed says "Gary's house has moved. Gary was not asked" (key
+(`iScarecrowNear`, ideas.ts:1700, goes by `s.cx`). The feed says "Gary's house has moved. Gary was not asked" (key
 `"hand" + s.id`, with the arrow). Tale `"moved"`.
 
 ### 3.2 Chased
 
 A house lifted with `n >= 0.3 * of` gives its owner `{kind: "chase", site, t}`, unless they are riding in it, on fire
-or on a bucket. `handTask` goes in `iTask`'s chain before `oTask` (ideas.js:508). It walks them toward the column
+or on a bucket. `handTask` goes in `iTask`'s chain before `oTask` (ideas.ts:508). It walks them toward the column
 under the lump with `iWalk`, keyed by that column `>> 3`, so a new route is asked for only every 8 columns, shouting
 `P_SAY.handChase` ("MY HOUSE", "PUT IT BACK", "that's MINE", "careful with the bed"). It ends when the flight ends,
 or after 3,000 ticks, or (fixed after the build) after 1,500 with the lump over the same 8 columns (`H_STAND`), and
-they splash through a puddle on the way after it, as far as swimming. `chase` joins `I_IDLE` (ideas.js:531), so a fire alarm takes them off it. §4.5's panic sends
+they splash through a puddle on the way after it, as far as swimming. `chase` joins `I_IDLE` (ideas.ts:531), so a fire alarm takes them off it. §4.5's panic sends
 them out from under a lump that is coming down.
 
 ### 3.3 Wrecked
 
-`bInspect`'s ruin branch (build.js:1060-1066) gets, before its feed: `if (s.handT != null && g.tick - s.handT < 3000)
+`bInspect`'s ruin branch (build.ts:1060-1066) gets, before its feed: `if (s.handT != null && g.tick - s.handT < 3000)
 handRuined(g, s, o);`. The tale is `"flew"` ("the time Gary's house flew") instead of `"house"` ("burned down",
-wonders.js:308), and it is booked (§4.1). A house that was burning at the lift is not booked: the fire had it already.
+wonders.ts:308), and it is booked (§4.1). A house that was burning at the lift is not booked: the fire had it already.
 
 ## 4. What they make of it
 
@@ -381,42 +381,42 @@ the village's: +1 if `kind - cruel >= 3`, -1 if `<= -3`, else 0.
 | **knocked**: knocked flat by a flying lump | "oof", on their back | -2 | cruel +1 |
 | **rode**: set down standing after a ride | "nailed it" | +1 | |
 | **took**: the hand lifted their offering (§4.4) | "THE HAND TOOK IT" | giver +1 | kind +1 |
-| **zapped**: struck by lightning once `g.hand` exists (a line in `pZap`, peasants.js:491) | the X-ray flash | -2 | cruel +1 |
+| **zapped**: struck by lightning once `g.hand` exists (a line in `pZap`, peasants.ts:491) | the X-ray flash | -2 | cruel +1 |
 
 All seven are the player's doing: a knock comes only from a lump, and lightning in this valley only ever came from
-the LIGHTNING tool (game.js:533, the one caller of `sandLightning`). Before the hand they took it for weather. Once
+the LIGHTNING tool (game.ts:533, the one caller of `sandLightning`). Before the hand they took it for weather. Once
 they have seen the hand, they put two and two together.
 
 ### 4.2 Water from the sky
 
 `s.handWet = g.tick` when a set-down places a WET cell in the box of a site on `g.blaze`, or a crash makes WET grains
 within it (checked only while `g.blaze.length` is non-zero, against a handful of boxes). In `ideasStep`, where a
-site's flames are found gone (ideas.js:556), before the brigade's line: `if (s.burning && s.handWet && g.tick -
+site's flames are found gone (ideas.ts:556), before the brigade's line: `if (s.burning && s.handWet && g.tick -
 s.handWet < 900) handPutOut(g, s);`. That says "the sky put out the fire at Gary's house" (key `"blaze" + s.id`, so it
 replaces "on fire!" and the brigade's line), books it, tells the tale `"saved"`, and sets `p.thank = g.tick` on the
 owner. A thrown pond that bursts on a burning roof counts as much as one set down on it.
 
 **The dunk** is the other way round, checked at the set-down: if the lump carried at least 30% of a burning site and
 pushed 20 or more liquid cells aside, it is put out there and then. Its embers are next to water, and the ember rule
-makes them ash (world.js:1133-1137). Whether it is also *moved* is §3.1's question, and in a lake it is not.
+makes them ash (world.ts:1133-1137). Whether it is also *moved* is §3.1's question, and in a lake it is not.
 
 ### 4.3 Asking
 
-In `iUrgent`'s no-water branch (ideas.js:486), after its `pSay`, so its dice roll as before: `if (g.hand)
+In `iUrgent`'s no-water branch (ideas.ts:486), after its `pSay`, so its dice roll as before: `if (g.hand)
 handWish(g, p, best);`. It fires if `p`'s view is positive and the site has not been wished for in this fire
 (`s.wishT < s.burning`). The feed, with the arrow: "Gary looks up. 'water, please. from anywhere'". `p.ask = 300`;
 while it lasts, `handStep` sets `p.idle = 2` and `p.pose = "panicA"` after their `pStep`: arms up, held still
-(peasants.js:191, drawn through `p.pose` at 2285, since `pStep` resets `pose` at 708). A wished-for fire put out by
+(peasants.ts:191, drawn through `p.pose` at 2285, since `pStep` resets `pose` at 708). A wished-for fire put out by
 the hand adds "ANSWERED" to the feed line. It is the only wish: for everything else that goes wrong in the valley,
 they already have a job.
 
 ### 4.4 Thanks, and the offering
 
-`iPick` (ideas.js:395) gets, after the eureka line: `if (p.thank && handThank(g, p)) return true;`. Within 6,000
+`iPick` (ideas.ts:395) gets, after the eureka line: `if (p.thank && handThank(g, p)) return true;`. Within 6,000
 ticks of the deed, idle, they find the cell beside them that is EMPTY, on something solid, with open sky for 20 rows,
-and leave on it the best they have, out of their pocket, as `iOffer` does (ideas.js:1808-1810): **a nugget of GOLD** if
-`(p.gold || 0) >= 1` (`p.gold--`), else **a lump of COAL** if `(p.coal || 0) >= 1` (`p.coal--`, the pocket leftovers.js
-already keeps, leftovers.js:572), each with `sandSet` and `heatAccept` as `iOffer` writes its nugget; else a wave at
+and leave on it the best they have, out of their pocket, as `iOffer` does (ideas.ts:1808-1810): **a nugget of GOLD** if
+`(p.gold || 0) >= 1` (`p.gold--`), else **a lump of COAL** if `(p.coal || 0) >= 1` (`p.coal--`, the pocket leftovers.ts
+already keeps, leftovers.ts:572), each with `sandSet` and `heatAccept` as `iOffer` writes its nugget; else a wave at
 the sky, and no cell is written. Nothing is made: what is on the hill came out of somebody's pocket. "Gary left a
 lump of coal for the hand. it is what he had".
 `g.hand.gifts.push({i, m, who})`, at most 8. A lift that takes a gift's cell (still that material) is "THE HAND TOOK
@@ -429,10 +429,10 @@ Every 10 ticks while a lump is held or flying, `handStep` passes over the peasan
 below it:
 
 - **Coming down** (flying, `vy > 0`): everyone under it panics outward (`p.panic = 60`, `p.dir` away), "look out
-  below!" (`P_SAY.timber`, peasants.js:119). Anyone would.
+  below!" (`P_SAY.timber`, peasants.ts:119). Anyone would.
 - **Held, view negative**: `p.panic = 120`, outward. A panicking peasant runs home (`bHide`): the afraid go indoors
   and shut the door. (The hand can lift the house. They have not thought of that yet.)
-- **Held, view not negative**: a free walker (no task, or an `I_FUN` one, ideas.js:529) who has not looked up at this
+- **Held, view not negative**: a free walker (no task, or an `I_FUN` one, ideas.ts:529) who has not looked up at this
   lift (`p.handSeen !== g.hand.lifts`) stops and looks up, `p.idle = 30`, once. The positive ones `p.ask` and wave. One
   in ten says `P_SAY.handUnder` ("is that my house", "it's raining sky", "hello up there", "can i have a go"). A long
   hover is a show each passer-by stops for once, not a spell on the village.
@@ -446,18 +446,18 @@ Under a held lump the rule above (once a lift) is unchanged.
 
 ### 4.6 What they say, and what is shown
 
-The chat line (peasants.js:1688) picks `"watched"` when the cursor is near. With the hand known and a view, it picks
+The chat line (peasants.ts:1688) picks `"watched"` when the cursor is near. With the hand known and a view, it picks
 `"handLove"` ("hello, hand", "we left you some coal") or `"handGrudge"` ("YOU", "i know what you did", "put my house
 back") instead: one `pSay` either way. (Fixed after the build: a window knocked out has its owner, if they are near
 and awake, say so as it goes, `P_SAY.handSmash` ("MY WINDOW", "i JUST fixed that"); and the first lift anybody sees is
-never "oh no it's the hand again", `P_SAY.handLiftFirst`.) The PEASANTS popup (`popRows`, game.js:1437) gets THE HAND once `g.hand`
+never "oh no it's the hand again", `P_SAY.handLiftFirst`.) The PEASANTS popup (`popRows`, game.ts:1437) gets THE HAND once `g.hand`
 exists: "trusted" / "feared" / "not sure", and the two tallies as bars. Three achievements: ACCEPTED; A KINDLY HAND
 ("the village leaves out coal for it now"), at `kind >= 10 && cruel * 3 <= kind`; and THE WRATH ("they have started
 hiding when you move the mouse"), at `cruel >= 10 && kind * 3 <= cruel`.
 
 ### 4.7 Tales and plays
 
-`wTold` (wonders.js:298) gets four tales: `moved` "the hand moved {n}'s house", `flew` "{n}'s house flew", `rode` "{n}
+`wTold` (wonders.ts:298) gets four tales: `moved` "the hand moved {n}'s house", `flew` "{n}'s house flew", `rode` "{n}
 rode on the hand" (after a ride of 100 columns or more), and `saved` "the hand put out {also}". `M_RANK` gets `flew:
 8, rode: 7, moved: 6, saved: 6`. `M_SCRIPTS` has the second actor play the hand, in the `fling` pose:
 
@@ -469,7 +469,7 @@ moved: [{ r: 0, pose: "sleep", line: "zzz" }, { r: 1, dx: 4, pose: "walkA", line
 ```
 
 `M_REACT.flew = ["hahaha", "MY HOUSE", "*gasp*", "i was there", "it flew so far"]`. `rode` and `saved` fall back to
-`any` ("this is the time {t}", monuments.js:208), as other tales do.
+`any` ("this is the time {t}", monuments.ts:208), as other tales do.
 
 ## 5. Determinism, saves, heat: the rules kept
 
@@ -480,49 +480,49 @@ moved: [{ r: 0, pose: "sleep", line: "zzz" }, { r: 1, dx: 4, pose: "walkA", line
   ideasStep; `p.ride` in pStep, dStep, peasantGrab, duckGrab, peasantsDraw, pMood; `p.thank` in iPick. On every path a
   plain village walks, that is a property read that finds nothing. **partStep, partAdd, partKill, sandFling and the
   landing are not touched.** No dice, no site kinds, no table entries change. So these hold: test/valley.js's
-  `44ff922d` (valley.js:35); test/wonders.js's `27c63d83572cdf83` / `e4a8c3ddf17eef3f` (wonders.js:76), `dc6bb627`
+  `44ff922d` (valley.js:35); test/wonders.js's `27c63d83572cdf83` / `e4a8c3ddf17eef3f` (wonders.ts:76), `dc6bb627`
   (93), and seed 3's idea order with `03cf4e61` (100); and harness/soak-baseline.txt.
 - **Dice.** Lift, hold, `handRide`, flight, set-down and the ledger roll none. A crash rolls one `irnd(256)` per grain
-  in `partAdd` (world.js:383; the shade is then the cell's own), the splash its glints, a knocked-in window one through
+  in `partAdd` (world.ts:383; the shade is then the cell's own), the splash its glints, a knocked-in window one through
   `sandFling`, a powder crash a bang's worth. The village's reactions (pSay, bHide, panics) roll the main dice, as every
   reaction does. All of it happens only in a valley the hand has touched, and per tick, so at any speed the same.
 - **Tables only added to.** New `P_SAY` keys (`handLift`, `handUnder`, `handChase`, `handWish`, `handTook`,
   `handLove`, `handGrudge`, `handWoke`) and `P_ACHIEVE` keys. test/wonders.js:61-70 hashes the listed keys, and no
   listed line changes. `watched` keeps its lines.
-- **Saves.** `g.hand` is plain objects and number arrays (no Map, Set or closure: saveEncode, save.js:111-150). In
+- **Saves.** `g.hand` is plain objects and number arrays (no Map, Set or closure: saveEncode, save.ts:111-150). In
   flight, a save keeps the lump with its heat and speed, and it flies on when loaded. Mid-hold, loading lets it go
   still (§2.3). Riders are saved `held` with `p.ride`. An old save has none of these keys, and all are read `|| 0` or
-  made lazily. `saveApplyState`'s deleting of absent keys (save.js:481-483) is what we want: loading a plain save
+  made lazily. `saveApplyState`'s deleting of absent keys (save.ts:481-483) is what we want: loading a plain save
   over a hand village leaves no `g.hand`.
-- **NEW**: `ideasReset` (ideas.js:240) gets `delete g.hand;`.
-- **CLEAR** (`sandClear`, world.js:1251, from the button at game.js:634 and key C) gets `if (g.hand) handClear(g);`.
+- **NEW**: `ideasReset` (ideas.ts:240) gets `delete g.hand;`.
+- **CLEAR** (`sandClear`, world.ts:1251, from the button at game.ts:634 and key C) gets `if (g.hand) handClear(g);`.
   `sites` and `gifts` go (CLEAR has emptied `g.sites`, 1257, and the hill). A **flying** lump goes too: its cells came
   from a valley that is gone, and its riders are let go, `delete p.ride`, `state = "fly"`, `flyT 0`, `vx = vy = 0`,
-  `fallY = y`, `immune 4` (as `peasantThrow` lets go, peasants.js:803), so that they drop into the empty room and land
+  `fallY = y`, `immune 4` (as `peasantThrow` lets go, peasants.ts:803), so that they drop into the empty room and land
   by pFly. One taken up over the top of the valley is let go at row 0 (`p.y = max(p.y, 0)`, a duck's `d.y` too), not
   where they were: from row -85, pFly's first step was under -40 and sent them to space, a tale, and a reentry
   (fixed after the build). Its ducks go `"thrown"` at rest. A **held** lump is kept, riders and all: CLEAR empties the valley, not
   your hand.
 - **A PEASANT grab of a rider** (only possible in flight, since holding needs the button): `peasantGrab`
-  (peasants.js:793) and `duckGrab` get `if (p.ride) delete p.ride;`. `handStep` drops any rider no longer `"held"`,
-  which covers a nuke's heart (peasants.js:528) too.
-- **Edge-panning.** `camDragging` (game.js:329) gets `|| (g.hand && g.hand.held)` in its return (333). Carrying a lump
-  into the edge of the view brings the view along, as a stroke or a held peasant does (game.js:362).
+  (peasants.ts:793) and `duckGrab` get `if (p.ride) delete p.ride;`. `handStep` drops any rider no longer `"held"`,
+  which covers a nuke's heart (peasants.ts:528) too.
+- **Edge-panning.** `camDragging` (game.ts:329) gets `|| (g.hand && g.hand.held)` in its return (333). Carrying a lump
+  into the edge of the view brings the view along, as a stroke or a held peasant does (game.ts:362).
 - **Heat is conserved, matter too.** Lift, hold, flight, set-down and push-aside move heat cell to cell through
   `heatQ` / `heatSetQ` (§0: drift 0.000). The lump never leaves the valley (its sides are walls, and the sky gives it
   back), and a crash at the edge throws nothing over it. The one loss left was master's: a crash grain with no free
-  cell within 6 leaves its heat and not its matter (`partDrop`, world.js:406). Fixed after the build: the hand's own
+  cell within 6 leaves its heat and not its matter (`partDrop`, world.ts:406). Fixed after the build: the hand's own
   grains are marked (`g.ph`), and one that would be lost is put down in its column instead (§11, after the build).
 - **The picker.** HAND is appended. `ui.picks`, brush names and keyframe places stay. The flyout's rows move up
   22 px, and recordings name what they pick on it (`sel:NAME`), so they replay.
-- **The arrows and the wheel wrap somewhere else.** `gameKey`'s ArrowUp / ArrowDown (game.js:1941-1942) and the wheel
+- **The arrows and the wheel wrap somewhere else.** `gameKey`'s ArrowUp / ArrowDown (game.ts:1941-1942) and the wheel
   over the list (1931) go round all of PICK, and `moreStep` (598-602) round MORE's part of it, so with HAND last:
   ArrowDown from TRESTLE is HAND (it was PEASANT), ArrowUp from PEASANT is HAND (it was TRESTLE), and the wheel up
   from COAL over the flyout is HAND (it was TRESTLE). This is the change f9c3820 made when it appended eight, and it is
   acceptable for the same reasons: a harness scenario records the brush each arrow or wheel step came to by name
   (`Harness.prototype.key` and `wheel`, harness/harness.js:971-1000) and replays to that; one from before names were
   kept steps up and down the list it was recorded with (`sc.picks`, or master's, harness.js:1182, `_stepSel` 965); a
-  save picks its brush by name and its keyframes by `ui.picks` (save.js:503-509); and the browser's input journal is a
+  save picks its brush by name and its keyframes by `ui.picks` (save.ts:503-509); and the browser's input journal is a
   record, never replayed. The two assertions in test/picker.js that pin the old wrap (the test "the wheel over the
   flyout goes round MORE's brushes only", test/picker.js:119 and 126-127) are changed to HAND in phase 1, and test 31
   checks that a scenario recorded before HAND still lands where it did.
@@ -544,7 +544,7 @@ middle of a 1,088 valley at 4x, against the wide-valley budget (docs/wide-valley
 
 ## 7. Phases
 
-`hand.js` (new; a `<script>` after ducks.js and before save.js in index.html, which the sim and the harness read
+`hand.ts` (new; a `<script>` after ducks.ts and before save.ts in index.html, which the sim and the harness read
 from there, harness/loader.js:22-29) holds the functions, all named `hand*`. Tests go in `test/hand.js`, a module
 like test/platforms.js, its names starting `"hand: "`, required beside the others at the bottom of test/run.js
 (2478-2489, after picker.js). Tests keep the numbers v3 gave them (1-30) and the new ones go on from 31.
@@ -569,7 +569,7 @@ The tool, the lift, the hold, a still let-go, a straight drop, the set-down, and
 Sites are held while carried and ruled on at the old place after. Nothing is thrown sideways yet: the flick is read
 as `[0, 0]`.
 
-- **hand.js**: `handLift` (§2.1: the anchor, the disc in scan order, the cell taken as `sandFling` takes it into
+- **hand.ts**: `handLift` (§2.1: the anchor, the disc in scan order, the cell taken as `sandFling` takes it into
   `held.c`, `cloneSrc` into `held.clone`, riders, ducks, `g.hand.sites` with `n`, `of`, `burn`, `s.handH` on finished
   ones); `handRide` (§2.2); `handLetGo(g, v)` (§2.3: still only, the fit-upward rule, a lump of nothing dropped);
   `handFits`; `handStep` (once a tick: `handRide` while held, `handFly` in flight, dropping riders no longer
@@ -581,32 +581,32 @@ as `[0, 0]`.
   `"fly"` with no `immune`, ducks `"thrown"`. No glass, ice or powder rules yet: those cells come apart as grains like
   any other); `handEnd` (each site on the list: `delete s.handH; s.handT = g.tick`, nothing moved); `handClear`
   (§5's CLEAR rule); `handDraw` (§2.2, with the shadow); `P_SAY.handWoke`.
-- **world.js**: the PICK entry after TRESTLE (121), `{ tool: "hand", name: "HAND", key: "Y", more: "hand", desc }`;
+- **world.ts**: the PICK entry after TRESTLE (121), `{ tool: "hand", name: "HAND", key: "Y", more: "hand", desc }`;
   `sandClear` (1251) gets `if (g.hand) handClear(g);`.
-- **game.js**: `MORE_GROUPS` (564) gets `["hand", "THE HAND"]` last; `ICONS.hand` (108); the cursor branch beside
+- **game.ts**: `MORE_GROUPS` (564) gets `["hand", "THE HAND"]` last; `ICONS.hand` (108); the cursor branch beside
   `"peasant"` (1111); `gameTap`'s `else if (pk.tool === "hand") handLift(g);` (1748-1759); `sandRelease` (519) `if
   (g.hand && g.hand.held) handLetGo(g, [0, 0]);` (phase 2 passes `cursorVel(g)`); the paused branch (680-683)
   `if (g.hand) handRide(g);`; `camDragging`'s return (333) `|| !!(g.hand && g.hand.held)`; `drawWorld` calls
   `handDraw` after the particles and `bDraw`, before `ducksDraw` (917-924); the flyout title (1235) and its hint
   (1348) "MORE"; the closed row's hint (1346) names THE HAND (Y) first and TRESTLE with the rest; a `TIPS` line at
-  the end ("tip: press Y, and pick up the pond"; `g.tip = irnd(TIPS.length)`, game.js:162, rolls one die
-  whatever the length, as f9c3820's tip did; `g.tipN` after the build, so that it is not also tidy.js's heap); `pMood`'s held line (1366) for riders (carried, flying; the
+  the end ("tip: press Y, and pick up the pond"; `g.tip = irnd(TIPS.length)`, game.ts:162, rolls one die
+  whatever the length, as f9c3820's tip did; `g.tipN` after the build, so that it is not also tidy.ts's heap); `pMood`'s held line (1366) for riders (carried, flying; the
   view's two variants wait for phase 4).
-- **peasants.js**: `pStep`'s held line (637) `if (p.state === "held") { if (!(p.ride && g.hand)) pHeld(g, p);
+- **peasants.ts**: `pStep`'s held line (637) `if (p.state === "held") { if (!(p.ride && g.hand)) pHeld(g, p);
   return; }`; `peasantsStep` calls `if (g.hand) handStep(g);` after `lTick` (610); the body pick (2275) sits riders;
   `peasantGrab` (793) `if (p.ride) delete p.ride;`.
-- **ducks.js**: `dStep`'s held line (295) the same way; `duckGrab` (242) the same `delete d.ride`.
-- **save.js**: `saveApplyState` (479) ends with `if (g.hand && g.hand.held) handLetGo(g, [0, 0]);`.
-- **ideas.js**: `ideasReset` (240) `delete g.hand;`; `ideasStep`'s site loop `if (s.handH) continue;` before `iFlames`
+- **ducks.ts**: `dStep`'s held line (295) the same way; `duckGrab` (242) the same `delete d.ride`.
+- **save.ts**: `saveApplyState` (479) ends with `if (g.hand && g.hand.held) handLetGo(g, [0, 0]);`.
+- **ideas.ts**: `ideasReset` (240) `delete g.hand;`; `ideasStep`'s site loop `if (s.handH) continue;` before `iFlames`
   (553).
-- **build.js**: `bInspect` (1041) `if (s.handH) return;` first.
-- **platforms.js**: `plStep`'s loop (448) `if (s.handH) continue;` first (§3.0). storeys.js: no change (§3.0).
+- **build.ts**: `bInspect` (1041) `if (s.handH) return;` first.
+- **platforms.ts**: `plStep`'s loop (448) `if (s.handH) continue;` first (§3.0). storeys.ts: no change (§3.0).
 - **test/picker.js**: `NEW` (25) gets `"HAND"`; the per-entry check (30) gets a tool branch, `q.tool ? w.ICONS[q.tool]
   && q.desc : (...as now)`; the wheel-and-arrows test's "a step up from COAL" (119) and "down from TRESTLE" (126-127)
   expect HAND, and it adds "down from HAND is PEASANT".
 - **README**: after the platforms paragraphs (539-559), the first paragraph of §7's README text below, with the
   heat sentence; a Controls line (580-612), "**Y** the hand: press to pick up what is under the brush, let go to put
-  it down"; a Files line (678) for hand.js; Things to try (614): "Lift the pond. Carry it to the fire." and "Lift a
+  it down"; a Files line (678) for hand.ts; Things to try (614): "Lift the pond. Carry it to the fire." and "Lift a
   peasant on a hill, take them for a ride, and set them down gently."
 
 > And there is the hand. They have always said it looked like one. Pick HAND (under MORE, or press Y) and press:
@@ -651,7 +651,7 @@ as `[0, 0]`.
 
 Throwing: the flick, sideways flight, what a lump hits and breaks, and who is in the way.
 
-- **hand.js**: `handLetGo` takes the flick (clamped ±4.5, the share `k = min(1, sqrt(60 / n))`, the 0.5 dead zone);
+- **hand.ts**: `handLetGo` takes the flick (clamped ±4.5, the share `k = min(1, sqrt(60 / n))`, the 0.5 dead zone);
   `handFly` in x as well as y (step 3 in turn), the side and overhang contacts with the speed *into* what blocked it
   (step 4), the splash of `PK_GLINT`s (step 1); `H_HARD` and the table `H_HARDM` (§2.5); `handHit` (the struck
   cells: glass and stained to SAND by `heatBecome`, a window knocked in by `sandFling`); `handCrash` gains its own
@@ -659,7 +659,7 @@ Throwing: the flick, sideways flight, what a lump hits and breaks, and who is in
   edge rule (`vx = 0` at the valley's side); `handKnock` (§2.5: bowling's speed² >= 2, `"fly"`, `immune 6`, "oof",
   `g.fx.thud`, a wet lump puts a burning peasant out, ducks `"thrown"`, the lump at `vx *= 0.9`); and §4.5's
   **coming-down** panic only (flying, `vy > 0`: `p.panic = 60`, outward, `P_SAY.timber`), every 10 ticks.
-- **game.js**: `sandRelease`'s line passes `cursorVel(g)`.
+- **game.ts**: `sandRelease`'s line passes `cursorVel(g)`.
 - **README**: the second paragraph (below), and Things to try: "Flick a pebble at a window. Watch who comes out with
   a ladder."
 
@@ -694,16 +694,16 @@ after (docs/wide-valley-spec.md:306-311). The numbers go into the plan's as-buil
 A house set down whole is the same house somewhere else, its owner chases it, and a dropped one is mourned as one
 that flew.
 
-- **hand.js**: `handShift` with `H_MOVES` and §3.1's five tests, in §3.1's order (candidates, the loop of
+- **hand.ts**: `handShift` with `H_MOVES` and §3.1's five tests, in §3.1's order (candidates, the loop of
   `handBoxHit(g, i, C)` against sites not in `C` until nobody drops out, then all shifted at once and every site
-  re-marked as `bRemove` does, build.js:166-167); the feed line, key `"hand" + s.id`; `handEnd` calls it at a
+  re-marked as `bRemove` does, build.ts:166-167); the feed line, key `"hand" + s.id`; `handEnd` calls it at a
   set-down (never at a crash); `handTask` (§3.2: `chase`, `iWalk` keyed by the column `>> 3`, `P_SAY.handChase`,
   ended by the flight's end, 3,000 ticks, the site no longer being one, or the owner riding, burning or on a
   bucket); `handRuined` (§3.3: the tale `flew`; no booking yet).
-- **ideas.js**: `iTask`'s chain gets `handTask` before `oTask` (508); `I_IDLE` (531) gets `chase: 1`.
-- **build.js**: `bInspect`'s ruin branch (1060-1066) gets `if (s.handT != null && g.tick - s.handT < 3000)
+- **ideas.ts**: `iTask`'s chain gets `handTask` before `oTask` (508); `I_IDLE` (531) gets `chase: 1`.
+- **build.ts**: `bInspect`'s ruin branch (1060-1066) gets `if (s.handT != null && g.tick - s.handT < 3000)
   handRuined(g, s, o);` before its feed, and the `"house"` tale is skipped when it ran.
-- **wonders.js / monuments.js**: `wTold` (298) tales `moved` and `flew`; `M_RANK` (72) `flew: 8, moved: 6`;
+- **wonders.ts / monuments.ts**: `wTold` (298) tales `moved` and `flew`; `M_RANK` (72) `flew: 8, moved: 6`;
   `M_SCRIPTS` (60) `flew` and `moved`; `M_REACT` (53) `flew`.
 - **harness/soak.js**: none needed: `chase` has a `site` that is a real site while it lasts (the "tasks -> sites"
   invariant, soak.js:43, holds because `handTask` ends it the tick the site is gone).
@@ -732,17 +732,17 @@ that flew.
 The ledger and the fear: the deeds that phases 1-3 and lightning make, what each peasant thinks of the hand, and what
 the village does under a held lump.
 
-- **hand.js**: `handDeed`, `handView`; the deeds *moved* (from `handShift`), *wrecked* (from `handRuined`), *knocked*
+- **hand.ts**: `handDeed`, `handView`; the deeds *moved* (from `handShift`), *wrecked* (from `handRuined`), *knocked*
   (from `handKnock`), *rode* (from `handSet`, and the tale `rode` after 100 columns or more); §4.5's held-lump pass
   (view negative: `p.panic = 120` outward, `bHide`; view not negative: a free walker looks up once a lift,
   `p.handSeen`, one in ten `P_SAY.handUnder`); the lift's witnesses with §4.5's ration (`g.hand.wT`; only a lift
   that takes a site's cell or a rider, or the first in 600 ticks), `P_SAY.handLift`; the achievement THE WRATH;
   `P_SAY.handLove`, `handGrudge`.
-- **peasants.js**: `pZap` (491) `if (g.hand) handDeed(g, p, "zapped", 0, 1);` after its guard; the chat line (1688)
+- **peasants.ts**: `pZap` (491) `if (g.hand) handDeed(g, p, "zapped", 0, 1);` after its guard; the chat line (1688)
   picks `handLove` / `handGrudge` over `watched` when `g.hand` and a view (one `pSay` either way).
-- **game.js**: `pMood`'s rider line gets the two view variants; `popRows` (1437) gets THE HAND section in the
+- **game.ts**: `pMood`'s rider line gets the two view variants; `popRows` (1437) gets THE HAND section in the
   PEASANTS popup ("trusted" / "feared" / "not sure", and the tallies as bars).
-- **wonders.js / monuments.js**: `wTold` tale `rode`; `M_RANK` `rode: 7`.
+- **wonders.ts / monuments.ts**: `wTold` tale `rode`; `M_RANK` `rode: 7`.
 - **README**: "Knock them flat and they go indoors when your shadow comes over. Once they know about the hand,
   lightning is not weather any more." Things to try: none new.
 
@@ -761,17 +761,17 @@ the village does under a held lump.
 
 Water from the sky, the dunk, the wish, and the thanks on the hill.
 
-- **hand.js**: `s.handWet` set by `handSet` and `handCrash` while `g.blaze.length` (§4.2); `handPutOut` (the feed, key
+- **hand.ts**: `s.handWet` set by `handSet` and `handCrash` while `g.blaze.length` (§4.2); `handPutOut` (the feed, key
   `"blaze" + s.id`, the deed *put out*, the tale `saved`, `p.thank` on the owner); the dunk in `handSet`; `handWish`
   (§4.3: once a fire, view positive, `p.ask = 300`, and `handStep` holding the arms up after `pStep`; "ANSWERED");
   `handThank` (§4.4: the cell, the pocket exactly as v3.1 says, `g.hand.gifts` at most 8); in `handLift` the gift
   check, the deed *took*, `P_SAY.handTook`, ACCEPTED; the deed *moved* when burning or flooded (+2, kind +1); the
   achievements ACCEPTED and A KINDLY HAND; `P_SAY.handWish`.
-- **ideas.js**: `ideasStep`, where a site's flames are found gone (556), before the brigade's line, `if (s.burning &&
+- **ideas.ts**: `ideasStep`, where a site's flames are found gone (556), before the brigade's line, `if (s.burning &&
   s.handWet && g.tick - s.handWet < 900) handPutOut(g, s);` (and the brigade's line skipped when it ran);
   `iUrgent`'s no-water branch (486), after its `pSay`, `if (g.hand) handWish(g, p, best);`; `iPick` (395) after the
   eureka line, `if (p.thank && handThank(g, p)) return true;`.
-- **wonders.js / monuments.js**: tale `saved`; `M_RANK` `saved: 6`.
+- **wonders.ts / monuments.ts**: tale `saved`; `M_RANK` `saved: 6`.
 - **README**: "They remember. Put out a fire for them and they will leave something out for you on the hill, a
   nugget of gold, or a lump of coal if that is what is in their pocket: pick it up and they are beside themselves."
   Things to try: "Put out a fire with a pond, then look on the hill." and "Lift a burning house and drop it in the
@@ -828,7 +828,7 @@ No game code, unless the playtest finds something.
   are saying "YOU" when your cursor comes near.
 - **The snowball the size of a shed.** Lift a small drift (a brush of 6, 137 cells: it takes 66% of the flick)
   and flick it at the village square. It knocks over three people at once and comes down beyond them, a drift where
-  there was none. They are not amused. (They throw snowballs at each other, `leftovers.js`. It is not the same.) A
+  there was none. They are not amused. (They throw snowballs at each other, `leftovers.ts`. It is not the same.) A
   whole hill flicked hardly goes anywhere: it takes a quarter of the flick, too slow to knock anybody over.
 - **The water bomb.** A peasant on fire, running. A small lump of the pond, flicked: it hits them, knocks them flat,
   and puts them out. "phew". And then they remember that it knocked them flat.
@@ -846,14 +846,14 @@ No game code, unless the playtest finds something.
 ## 9. Risks
 
 - **A house set down somewhere strange**: on a spike of rock, half over a cliff, up a pillar. The cells hold (STILL).
-  An owner who cannot get in sleeps rough, as anybody whose house cannot be reached does (`pStuck`, build.js:1248).
-  Routes are cached by key (`"home" + id`, build.js:1253), so a moved house's old route is stale until `pathGo` asks
+  An owner who cannot get in sleeps rough, as anybody whose house cannot be reached does (`pStuck`, build.ts:1248).
+  Routes are cached by key (`"home" + id`, build.ts:1253), so a moved house's old route is stale until `pathGo` asks
   again. Test 20 checks the owner gets home; the playtest measures the rest.
 - **Accidental destruction.** The let-go is read from `cursorVel`, which is non-zero until the cursor has been still
-  for 90 ms (game.js:2111), so most releases are moving. The share, the dead zone and "only the speed into what it
+  for 90 ms (game.ts:2111), so most releases are moving. The share, the dead zone and "only the speed into what it
   hits counts" make that a drift, not a wreck (§0, test 12). A house still breaks from a slam or a 30-row drop, which
   is meant. If players still wreck houses by accident in the playtest, the share's 60 goes down.
-- **Burying.** A lump set down slowly on a peasant buries them (peasants.js:714-720: under `P_HARD` they die after 260
+- **Burying.** A lump set down slowly on a peasant buries them (peasants.ts:714-720: under `P_HARD` they die after 260
   ticks). §4.5's panic gives them time, and the hand can lift it off again.
 - **Riders dropped from over 65 rows die**, by pFly's rule for anybody (§2.5). The README says so.
 - **A bite out of a great work** is held while carried (§3.0), then mended by its own builders. A bite out of the
@@ -885,7 +885,7 @@ No game code, unless the playtest finds something.
   move a pinned run (§0) and every old sandbox save that bangs near glass. The lump has its own rules instead, as the
   peasant and the duck have theirs. The review's request to measure how often felled logs would knock people over is
   answered by there being no such rule: a grain knocks nobody, in any valley.
-- **Grains that keep their aux.** A bang that flings molten iron sets it as stone (world.js:494). That is master's
+- **Grains that keep their aux.** A bang that flings molten iron sets it as stone (world.ts:494). That is master's
   seam, not this plan's, and fixing it is a change to master's grains with its own re-pinning. Not here.
 - **A higher throw threshold** (the review's first suggestion for the let-go). The share does that job and more: a
   pebble still flies as fast as it is flicked.
@@ -904,7 +904,7 @@ No game code, unless the playtest finds something.
 
 ### Phase 1: the careful hand
 
-`hand.js` (about 400 lines with its comments), the hooks as §7 lists them, `test/hand.js` (tests 1-11, 31, 32), the
+`hand.ts` (about 400 lines with its comments), the hooks as §7 lists them, `test/hand.js` (tests 1-11, 31, 32), the
 README's paragraph, Controls line, Files line and two Things to try. Where the code differs from the plan above, and
 why:
 
@@ -914,7 +914,7 @@ why:
   (it fits there, and sinks through it), not over one, so a lump coming down fast onto a puddle still breaks, and one
   coming down into a pond deeper than the few rows it falls in a tick is caught by it. And a lump that comes to rest
   with any of itself in a liquid is set down, whatever its speed: a grain started inside water has no air within three
-  cells to land in, and `partDrop` keeps its heat and not its matter (world.js:406). No grain is lost in a pond.
+  cells to land in, and `partDrop` keeps its heat and not its matter (world.ts:406). No grain is lost in a pond.
 - **Something fell into its place while it was in the air** (the sand round the hole it came out of slumps in, on the
   grid, while the lump is off it): `handSet` moves it up until it fits before anything is pushed aside. Nothing is
   written over.
@@ -965,10 +965,10 @@ window in Things to try. Tests 12-18 and 38 in test/hand.js. Where the code diff
   let-go with no speed along is still set down on its first tick, so phase 1's drops are as they were. A house let go at
   (1.5, 0.8) eight rows up comes down 6 columns on (test 12; §0 reckoned 8), whole; a pebble at 3.9 that grazes the
   eave hits the gable at 3.3 and breaks against it. A slide along the flat at 3 a tick goes about nine columns.
-- **The window is knocked out by the shock, not by being struck.** `bHousePlan` (build.js:477-481) puts the window
+- **The window is knocked out by the shock, not by being struck.** `bHousePlan` (build.ts:477-481) puts the window
   in the middle of a solid gable: two cells, the boards all round them, and the ceiling under them. No lump cell is ever
   next to it, so §2.5's "a window struck by a hard cell" never happens. And `sandFling` at half speed into the wall
-  would land the plank back in its own cell, where `bOk` (build.js:201, which compares the material and not the aux)
+  would land the plank back in its own cell, where `bOk` (build.ts:201, which compares the material and not the aux)
   calls it a window, and nothing is mended. So: any window (PLANK, aux 1) within `H_PANE` (4) cells, either way, of a
   cell a hard lump struck at a crash is knocked out of its frame (`handPane`): a grain of itself, heat and all, from
   where the lump cell that struck is, coming away from the wall and falling. The hole is mended by bInspect's repair
@@ -980,11 +980,11 @@ window in Things to try. Tests 12-18 and 38 in test/hand.js. Where the code diff
   lump and that edge: at the edge, nothing; sixty columns off, almost all of it.
 - **Grains bottom row first.** A crash makes its grains in `handOrder` (bottom row first), not scan order, so that the
   lower ones are stepped first and land first. A lump coming down in columns in step lands grains on top of grains still
-  in the air, and `partDrop` keeps their heat and not their matter (world.js:406, master's seam, §5): in scan order 7 of a
+  in the air, and `partDrop` keeps their heat and not their matter (world.ts:406, master's seam, §5): in scan order 7 of a
   69-cell pebble from 90 rows, bottom first 3 (partKill's swap reorders them, so not none). Test 16 checks that no grain
   is about to go over either side on any tick, and allows 3 cells lost to `partDrop`. (Fixed after the build: it
   allows none, and at 1fa2191 the throw at the left-hand edge loses 3.)
-- **Out from under it, not home.** `p.panic` sends a walker home (`bHide`, peasants.js:1635), and their home may be
+- **Out from under it, not home.** `p.panic` sends a walker home (`bHide`, peasants.ts:1635), and their home may be
   what the lump is coming down on. `handUnder` sets `p.handOut = g.tick + 60`, a property only the hand writes, and
   pStep's line reads `!(p.handOut > g.tick)` before `iFlee` and `bHide`: in a plain village that is `undefined > n`,
   false, and the line goes as it did. The pass runs on the flight's first tick and every 10 after (`f.t`, the flight's
@@ -997,9 +997,9 @@ window in Things to try. Tests 12-18 and 38 in test/hand.js. Where the code diff
   at the top of the liquid it has come into.
 - **Powder is put back only into air.** The fallback crash in `handSet` (no home for what it displaces, which no test
   has reached) can be wet; there the powder comes apart as a grain like the rest.
-- **`H_PANE`, not `H_REACH`.** heavens.js has a `var H_REACH = 2500` (the bound on a footing search). Every script
-  shares one scope, so hand.js's own, loaded later, was the one everybody saw, and fourteen wonders, foundry and moon
-  rocket tests failed. None of hand.js's names is used anywhere else now (checked with `grep -w`).
+- **`H_PANE`, not `H_REACH`.** heavens.ts has a `var H_REACH = 2500` (the bound on a footing search). Every script
+  shares one scope, so hand.ts's own, loaded later, was the one everybody saw, and fourteen wonders, foundry and moon
+  rocket tests failed. None of hand.ts's names is used anywhere else now (checked with `grep -w`).
 - **Tests, as built.** The test helper `carry` ends with `h.flick(0, 0)`: with the flick read, a carry and a let-go a
   tick later is a throw, and phase 1's tests meant a hand that had stopped. Test 12's house (seed 6, as phase 1's) is
   60 plan cells and its lump 108, so its share is 0.745. Test 13 throws a 37-cell pebble (r 3) at (4, 0.5) from 25
@@ -1019,7 +1019,7 @@ against 3.4 / 3.7 ms for the same valleys untouched, well inside the budget's 9 
 each), over the flight and the 300 ticks after: median 13.8-14.4 ms, p95 15.2-23.9 ms over four runs, against 13.5-14.7
 / 15.5-17.0 ms untouched. The 4x baseline is itself over 9 ms: the wide-valley spec (docs/wide-valley-spec.md:306-311)
 sets that budget at 1x, and accepts that a wide valley may not keep up at 4x. Every slow update looked at was sandStep
-and heatStep (the hole the lift left, and the heap, slumping), not hand.js; one probe's 185 ms update ran again at
+and heatStep (the hole the lift left, and the heap, slumping), not hand.ts; one probe's 185 ms update ran again at
 19.8 ms. The soaks (seeds 1-6 x 12,000, plain, rich, chaos) match b07c9b4's, run in a clean copy, in every column but
 ms/t; plain run one after the other on a quiet machine: 90 s of cpu against b07c9b4's 100.
 
@@ -1027,10 +1027,10 @@ ms/t; plain run one after the other on a quiet machine: 90 s of cpu against b07c
 
 `handShift` (with `handCan`, the first four tests, and `handBoxHit`, the fifth), `H_MOVES`, the feed line keyed
 `"hand" + s.id` with the arrow, the tale `moved`, `handEnd` calling it at a set-down and never at a crash, `handTask`
-(the chase), `handRuined` (the tale `flew`, nothing booked yet), and `P_SAY.handChase`. ideas.js: `handTask` in `iTask`'s
-chain before `oTask`, `chase` in `I_IDLE`. build.js: `bInspect`'s ruin branch calls `handRuined` within `H_LONG` (3,000)
-ticks of `s.handT`, and skips the `"house"` tale when it told one. wonders.js: `wTold`'s `moved` ("the hand moved Gary's
-house") and `flew` ("Gary's house flew"). monuments.js: `M_RANK` `flew: 8, moved: 6`, `M_SCRIPTS.flew` and `.moved` as
+(the chase), `handRuined` (the tale `flew`, nothing booked yet), and `P_SAY.handChase`. ideas.ts: `handTask` in `iTask`'s
+chain before `oTask`, `chase` in `I_IDLE`. build.ts: `bInspect`'s ruin branch calls `handRuined` within `H_LONG` (3,000)
+ticks of `s.handT`, and skips the `"house"` tale when it told one. wonders.ts: `wTold`'s `moved` ("the hand moved Gary's
+house") and `flew` ("Gary's house flew"). monuments.ts: `M_RANK` `flew: 8, moved: 6`, `M_SCRIPTS.flew` and `.moved` as
 §4.7 has them, `M_REACT.flew`. The README's paragraph, and "Move the scarecrow to the duck pond". Tests 20-23, 33, 34
 and 39 in test/hand.js. Where the code differs from the plan, and why:
 
@@ -1044,7 +1044,7 @@ and 39 in test/hand.js. Where the code differs from the plan, and why:
   house in a field is caught the first way (its floor is in the six rows over the soil that are the field's box).
 - **A drop is a ruin.** §3.0 leaves a crash to master's `bInspect` at the old place. Dropped from forty rows straight
   down, the house comes down a heap of its own planks where it stood (§0: 10 of 60 in place), and `bInspect` counts a
-  plan cell as lost only if it is free (`bFree`, build.js:203): a door's cell with a plank lying in it is not free. So
+  plan cell as lost only if it is free (`bFree`, build.ts:203): a door's cell with a plank lying in it is not free. So
   the heap was "a few cells to mend", the builders mended the few they could, and "Kevin's house is as good as new"
   stood over a pile of planks (seed 6, tick 14,000, watched). Now a crash marks every held site more than `H_RUIN` (60%,
   bInspect's own share) of which came up with it, `s.handX`, and `bInspect`'s ruin test reads `broken > n * 0.6 ||
@@ -1066,7 +1066,7 @@ and 39 in test/hand.js. Where the code differs from the plan, and why:
   invariant holds tick by tick, not only once the chaser has landed.
 - **The news.** "Gary's house has moved. Gary was not asked", or ", and Gary with it" when they rode down on it (riders
   set down are listed on the flight, `f.rode`). A lantern moved with its house is not news of its own. Only a house gets
-  the tale `moved`. `delete s.tdoors` (tidy.js caches where a house's doors are) and the routes keyed by the site
+  the tale `moved`. `delete s.tdoors` (tidy.ts caches where a house's doors are) and the routes keyed by the site
   (`"home"`, `"bed"`, `"b"` + id) are dropped for whoever has them.
 - **The anchor at the lift** is kept on the lump (`ax`, `ay`, carried from `held` into `fly`). A lump in the air in a save
   made before this has none, and moves nothing when it comes down.
@@ -1082,7 +1082,7 @@ and 39 in test/hand.js. Where the code differs from the plan, and why:
   again at the old place in under 6,000 ticks. Test 34's first half moves the house and its lanterns one column along
   (and down onto the hole's rim), a move small enough that the house's cells would be in its right lantern's old box
   (the test checks that it would), and all three move.
-- **Not here** (fixed after the build: §11). A bell on a house's ridge (mines.js `mPlanBell`) is a site of its own and
+- **Not here** (fixed after the build: §11). A bell on a house's ridge (mines.ts `mPlanBell`) is a site of its own and
   not one of `H_MOVES`: a house carried off with its bell leaves the bell's site at the old place, where it is a ruin,
   and the gold on the ridge is nobody's.
 
@@ -1100,10 +1100,10 @@ came down a heap: "Kevin's house is gone", "the time Kevin's house flew".
 `handDeed` and the table of deeds, `H_DEEDS`; `handView`; the deeds *moved* (from `handShift`), *wrecked* (from
 `handRuined`), *knocked* (from `handKnock`) and *rode* (from `handSet`, with the tale `rode` for a ride of `H_RIDE`, 100,
 columns or more); `handFree`, `handWitness` (the lift's witnesses, rationed by `g.hand.wT`) and `handHover` (§4.5's pass
-under a held lump, every 10 ticks); `P_SAY.handLift`, `handUnder`, `handLove`, `handGrudge`; `P_ACHIEVE.wrath`. peasants.js:
+under a held lump, every 10 ticks); `P_SAY.handLift`, `handUnder`, `handLove`, `handGrudge`; `P_ACHIEVE.wrath`. peasants.ts:
 `pZap` books *zapped* once `g.hand` exists, and the chat line picks `handLove` or `handGrudge` over `watched` for anybody
-with a view (one `pSay` either way). game.js: `pMood`'s rider line ("enjoying the view", "holding on"), and THE HAND in the
-PEASANTS popup. wonders.js / monuments.js: the tale `rode`, `M_RANK.rode` 7. The README's paragraph. Tests 27, 28, 29, 35
+with a view (one `pSay` either way). game.ts: `pMood`'s rider line ("enjoying the view", "holding on"), and THE HAND in the
+PEASANTS popup. wonders.ts / monuments.ts: the tale `rode`, `M_RANK.rode` 7. The README's paragraph. Tests 27, 28, 29, 35
 and 36 in test/hand.js. Where the code differs from the plan, and why:
 
 - **A deed is a name.** §4.1 has `handDeed(g, p, d, k, c)` with amounts, §7 `handDeed(g, p, "zapped", 0, 1)` with a name.
@@ -1148,7 +1148,7 @@ and 36 in test/hand.js. Where the code differs from the plan, and why:
   the books say is burning (+2, kind +1); drops a house from forty rows with its owner stood out of the way (-3, cruel
   +2), and one burning (nothing); and lifts the sky twenty times over 2,000 ticks (nobody has a `feel`).
 - **Phase 3's test 20, made to say what it means.** The owner, sent to bed in the house where it is now, had 20 logs in
-  their pocket from `housed()`, and `pPickTask` takes wood carried to a site before bed (peasants.js, ahead of `bPick`).
+  their pocket from `housed()`, and `pPickTask` takes wood carried to a site before bed (peasants.ts, ahead of `bPick`).
   With the dice the hand's witnesses now roll, Sue took hers to the empty hut and stood there building it for the rest
   of the test. The test empties the owner's pockets before bed.
 
@@ -1168,10 +1168,10 @@ ran home and shut the door; "i'm watching you" (Hamish), "keep your hands to you
 `p.thank`), the dunk in `handSet`, `handWish` (`p.ask`, held up by `handAsk` after `pStep` every tick), `handThank` with
 `handSkyAt`, `handTaskThank` and `handLeave` (the thank-you, out of the pocket), `handGifts` in `handLift` (the deed
 *took*, ACCEPTED), `handFlood` (the deed *rescued* for a house moved out of a flood), `handPid`; `P_SAY.handWish`,
-`handTook`, `handThank`; `P_ACHIEVE.accepted` and `kindly`. ideas.js: `ideasStep` calls `handPutOut` where the flames are
+`handTook`, `handThank`; `P_ACHIEVE.accepted` and `kindly`. ideas.ts: `ideasStep` calls `handPutOut` where the flames are
 found gone, before the brigade's line and instead of it; `iUrgent`'s no-water branch calls `handWish` after its `pSay`;
-`iPick` calls `handThank` after the eureka line; `I_IDLE` gets `thank`. wonders.js / monuments.js: the tale `saved`,
-`M_RANK.saved` 6. game.js: `pMood` says who is asking the sky, waving at it, or going to leave it something. The
+`iPick` calls `handThank` after the eureka line; `I_IDLE` gets `thank`. wonders.ts / monuments.ts: the tale `saved`,
+`M_RANK.saved` 6. game.ts: `pMood` says who is asking the sky, waving at it, or going to leave it something. The
 README's paragraph ("And the sky answers. ... They remember. ..."), the Files line, and the two Things to try. Tests 24,
 25, 26 and 37 in test/hand.js. Where the code differs from the plan, and why:
 
@@ -1292,7 +1292,7 @@ is version 3 (round 13) and its hash `0294ee8f` (round 20, which put the hand in
 the build, when Gertrude came to say something about her window).
 
 **The README**, read over as a whole: the hand's five paragraphs in order (the careful hand, the careless hand, sites
-going with it, what they remember, the sky answering), the Controls line for HAND, the Files line for hand.js, and the
+going with it, what they remember, the sky answering), the Controls line for HAND, the Files line for hand.ts, and the
 six Things to try (the pond to the fire, a ride, a pebble at a window, the scarecrow to the duck pond, a fire put out
 with a pond and then the hill, a burning house in the lake). Three sentences changed to say what the code now does: the
 chase is given up for "something that will not wait (their dinner, say)"; they think worse of it for a window knocked
@@ -1302,7 +1302,7 @@ header, clicked" (it is the count's popup that says how the village sees the han
 **The review.** Rounds by a correctness reviewer and a gameplay reviewer, the gameplay round reading the playtest's
 log, until neither found a P0 or a P1:
 
-- **Round 1, correctness** (a high-effort review of the whole diff, hand.js included):
+- **Round 1, correctness** (a high-effort review of the whole diff, hand.ts included):
   - P1: **a house the hand only went near flew.** `handLift` lists every site whose box the disc meets, taken from or
     not, and `handEnd` gave each of them `s.handT`. A house beside a lift of the sky that burned down within 3,000 ticks
     was told as "the time Gary's house flew" and booked as wrecked (-3, cruel +2). Now `s.handT` is set only for a site
@@ -1326,7 +1326,7 @@ log, until neither found a P0 or a P1:
     acid, lava and wet concrete. Now `WET` only. Tested (43: the pond turned to oil).
   - P1: **the sky took the credit from a brigade that finished the fire.** `handDouse` now notes `s.handWetD`, the
     buckets on it by then, and three more after that and it is the brigade's. Tested (43).
-  - P1: **the owner walked after a house they are said to run under**: `chase` runs at the brigade's 0.4 (peasants.js
+  - P1: **the owner walked after a house they are said to run under**: `chase` runs at the brigade's 0.4 (peasants.ts
     `rush`), and keeps up with a house carried a column every three ticks. Tested (46; walking, they were 60 columns
     behind).
   - P1: **a fast pebble went through people**: knocks were looked for where it was at the end of a tick, and a one-cell
@@ -1348,7 +1348,7 @@ log, until neither found a P0 or a P1:
     `s.handWet >= s.burning`. Tested (49).
   - P1 (both reviewers): **the let-go was from the last tick's place**, not where the pointer was let go. `handLetGo`
     now calls `handRide` first. Tested (49).
-  - P2 (master's; fixed after the build): `g.tip` is both the tip on the title card and tidy.js's heap in a one-screen valley (game.js
+  - P2 (master's; fixed after the build): `g.tip` is both the tip on the title card and tidy.ts's heap in a one-screen valley (game.ts
     says so), so with a tip added, clicking through the tips leaves a different number there than master would. f9c3820
     added a tip the same way; the shared name is master's, not this plan's.
 - **Round 2, gameplay:**
@@ -1461,7 +1461,7 @@ log, until neither found a P0 or a P1:
   - P1 (both): **an ember just outside a burning house's walls, in its fire's reach but not its box, was not the house's**:
     the lift's first look at a site was by its box alone. For a site on fire it is by the box `iFlames` looks in. Tested
     (63).
-  - P1 (both): **a duck put down at the right-hand wall could not walk** (a duck walks no nearer than two cells: ducks.js
+  - P1 (both): **a duck put down at the right-hand wall could not walk** (a duck walks no nearer than two cells: ducks.ts
     `dStepX`): kept two and a half cells in. Tested (63).
   - P1 (gameplay): **a duck put down where its perch fits and it does not was buried**: as a rider is, it is put out on
     top and comes down thrown. (In the test's slot the duck's own `dWriggle` frees it too; the review's, closed all round,
@@ -1494,7 +1494,7 @@ log, until neither found a P0 or a P1:
     over the top, which came down onto the lump's own top row, outside the grid, with nowhere to land. They are put down
     at once beside it, on whatever is there (`handDrop`). Tested (65).
   - P1 (harness): **a press with HAND threw with where the cursor had been before the press**: the shell's pointer-down
-    clears the cursor's samples (game.js), and the harness's `_press` did not. It does (round 13 put this behind a
+    clears the cursor's samples (game.ts), and the harness's `_press` did not. It does (round 13 put this behind a
     version). Tested (65).
   - P1 (gameplay): **a fire the sky put out at a hut nobody lives in, before anybody asked, was thanked by nobody.**
     Whoever is nearest owes the thank-you (round 13: whoever lives nearest). Tested (65).
@@ -1620,7 +1620,7 @@ recorded again. Phase 3's bell on a ridge is still not one of `H_MOVES` (fixed a
 
 ### After the build: what the review found
 
-The review run on the finished work (the diff from b07c9b4, hand.js and its tests) found one P1, a gameplay one, and
+The review run on the finished work (the diff from b07c9b4, hand.ts and its tests) found one P1, a gameplay one, and
 it is fixed:
 
 - **An owner who fears the hand starved under her own house, held still.** Seed 6, Sue's finished house lifted (a
@@ -1685,7 +1685,7 @@ harness/soak-baseline.txt's in every column but ms/t.
   for each grain (`g.ph`, a `Uint8Array(PMAX)` beside the rest; `partAdd` writes 0 to it and `partKill` moves it
   with the grain), set only by `handGrain` and `handPane`. A marked grain that would be dropped (no room where it
   comes down, or its time up) or goes out through the floor or a side is put down instead in its column, kept in the
-  valley, or in the nearest column that has room, with its heat (world.js `partHand`, which calls `handLand`:
+  valley, or in the nearest column that has room, with its heat (world.ts `partHand`, which calls `handLand`:
   `handCaught`'s landing, taken out of it so both use it; it was the lowest free cell of the column, which is a mine's
   gallery or somebody's room, until the last review: below, test 93). An unmarked grain goes as it always did,
   cell for cell. A save from before the flag loads with none of its grains marked. So §0's "nothing lost: a heap" is
@@ -1744,7 +1744,7 @@ its hash as it was.
   So a house carried off without its right-hand lantern left the lantern standing in the air where the wall had been,
   still its house's: `iPlanLamp` counts a lantern by its `home`, wherever it is, and that side never had another. A
   lantern carried off alone went the other way: set down eighty columns along, still its house's, its door with none.
-  And a bell on the ridge (mines.js `mPlanBell`, `s.on` the house) was not one of `H_MOVES` at all: lifted with the
+  And a bell on the ridge (mines.ts `mPlanBell`, `s.on` the house) was not one of `H_MOVES` at all: lifted with the
   house it was a ruin at the old place, and left behind it stood over nothing, a bell for nobody, its gold nobody's.
   Now `H_MOVES` has the bell, and a lantern or a bell moves only with what it hangs from (`handOn`: a lantern's `home`,
   a bell's `on`). One whose house is not moving is taken out of the moving ones, in the same loop as `handBoxHit`, so
@@ -1827,13 +1827,13 @@ only ever given by one. Seed 3's master guard and test/valley.js's hash test pas
   `dMood` said "is being held. quack". A duck riding a lump in the hand is drawn as on the pond, sat with its feet
   tucked (`D_SPR.swim`, a duckling `babySwim`), and thrown with it flaps as before; `dMood`, given `g`, says "is
   sitting on a lump of the valley. quack", or "is flying, with the ground it was sitting on. quack", as `pMood` does
-  for a rider. Only hand.js sets `d.ride`. Drawing and the bar, no dice. Tested (87: seed 6's duck lifted with the
+  for a rider. Only hand.ts sets `d.ride`. Drawing and the bar, no dice. Tested (87: seed 6's duck lifted with the
   pond, held, then thrown, by the sprite `dBlit` is handed and the mood).
 - **The title card's tip was the village's heap** (P2, master's). `gameInit` set `g.tip = irnd(TIPS.length)`, and
   `ideasReset`'s `tReset`, straight after, set `g.tip = null` for the heap, so in a one-screen valley the tip line was
   "undefined" from the first frame. A click on it made `g.tip` 1, a heap that was a number; with a heap standing, a
   click made it `NaN` and the village forgot where its heap was. The tip's count is `g.tipN` now, in `SAVE_SKIP` and
-  the snapshot's `SKIP` together (it is the panel's, not the village's), and tidy.js keeps `g.tip`. The die is rolled
+  the snapshot's `SKIP` together (it is the panel's, not the village's), and tidy.ts keeps `g.tip`. The die is rolled
   where it always was, so a village that never clicks the tip goes as it did; only the broken click changes, and no
   recorded scenario clicks it in a one-screen valley (harness/playtests/hand.json and the duck scenarios replay to
   their hashes). Tested (in test/valley.js: seed 6's tip is one of `TIPS` at the start and after a click, and a click

@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  paths.js
+   PLEASAND  --  paths.ts
 
    finding the way. a peasant going somewhere on purpose (to a tree, a
    building site, its bed) used to walk straight at it, and give up at
@@ -24,17 +24,27 @@
    ===================================================================== */
 "use strict";
 
+/* (what this file keeps in g) */
+interface Game {
+  navSeen?: Uint32Array; navShut?: Uint32Array; navCost?: Float32Array; navFrom?: Int32Array; navHow?: Int8Array;
+  navHeapI?: Int32Array; navHeapF?: Float32Array; navGen?: number; navLad?: Int16Array; seenAt?: Uint32Array;
+}
+/* (what this file keeps on a villager) */
+interface Peasant {
+  nav?: any; ladNo?: any;
+}
+
 var NAV_CAP = 4000;                 /* places looked at, at most, per search */
 var NAV_REPLAN = 240;               /* ticks a route is trusted for */
 var NAV_NOROPE = false;             /* set while looking for a route for somebody who cannot use a rope just now */
 var NAV_NOLEAP = false;             /* and for somebody burning: no leaps, no ladders */
-var NAV_LADNO = null;               /* and for somebody a ladder would not have: {column: until}, no climbing it (build.js bClimbStart) */
+var NAV_LADNO = null;               /* and for somebody a ladder would not have: {column: until}, no climbing it (build.ts bClimbStart) */
 var NAV_HOTOK = false;              /* (while finding where a burning peasant starts from: hot ground will do) */
 var NAV_MOVES = ["walk", "drop", "leap", "jump", "rope", "ladder", "hook", "up", "down"];
 var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LADDER = 5, NAV_HOOK = 6, NAV_UP = 7, NAV_DOWN = 8;
 
 /* could a peasant stand with its feet at (x, y): 1 on something solid, 2 swimming at the top of some water, 0 not */
-function navStand(g, x, y) {
+function navStand(g: Game, x: number, y: number) {
   if (x < 1 || x > g.gw - 2 || y < 9 || y >= g.gh) return 0;
   /* (in the middle of a search, the world stands still: each place is looked at once, and then remembered. navFind) */
   if (NAV_SG && NAV_SGG === g && NAV_SHOT === NAV_HOTOK && !P_SINK) {
@@ -49,7 +59,7 @@ function navStand(g, x, y) {
 /* what one search has found out so far about where they could stand: NAV_SG (the search, 0 outside one) times four, plus
    navStand's answer, by cell. the world it was found in is that search's (NAV_SGG, NAV_SHOT), and is not kept after it */
 var NAV_SM = null, NAV_SG = 0, NAV_SN = 0, NAV_SGG = null, NAV_SHOT = false;
-function navStand1(g, x, y) {
+function navStand1(g: Game, x: number, y: number) {
   if (!pRoom(g, x, y) || navHazard(g, x, y)) return 0;
   /* (pRoom looks at four rows of them, not all nine: a slab a cell thick at their knees slips between, the roof of a
      furnace's hearth say, and a route goes in at its mouth and up through it, where nobody can follow. a village with
@@ -63,20 +73,20 @@ function navStand1(g, x, y) {
   return 0;
 }
 /* somewhere they would rather not be: fire, lava, acid or a drain in or under them, or ground too hot to stand on */
-function navBad(c) { return HOT[c] || c === MAT.ACID || c === MAT.DRAIN; }
-/* a drain where they stand, under them, or under either side: it has them (peasants.js pStep) */
-function navDrainAt(g, x, y) {
+function navBad(c: number) { return HOT[c] || c === MAT.ACID || c === MAT.DRAIN; }
+/* a drain where they stand, under them, or under either side: it has them (peasants.ts pStep) */
+function navDrainAt(g: Game, x: number, y: number) {
   return pCell(g, x, y) === MAT.DRAIN || pCell(g, x, y + 1) === MAT.DRAIN || pCell(g, x - 1, y + 1) === MAT.DRAIN || pCell(g, x + 1, y + 1) === MAT.DRAIN;
 }
 /* anything that would kill a peasant (navBad), within r cells of anywhere their body would be, standing at (x, y) */
-function navLethalNear(g, x, y, r) {
+function navLethalNear(g: Game, x: number, y: number, r: number) {
   for (var dx = -r; dx <= r; dx++) for (var dy = -9 - r; dy <= 1 + r; dy++) if (navBad(pCell(g, x + dx, y + dy))) return true;
   return false;
 }
 /* (NAV_BADM: navBad, by material) */
 var NAV_BADM = new Uint8Array(NMAT);
 (function () { for (var c = 0; c < NMAT; c++) NAV_BADM[c] = navBad(c) ? 1 : 0; })();
-function navHazard(g, x, y) {
+function navHazard(g: Game, x: number, y: number) {
   /* (all five rows in the grid: the same looks, straight off it, in the same order) */
   if (x >= 0 && x < g.gw && y >= 7 && y < g.gh - 1) {
     var m = g.m, gw = g.gw, j = y * gw + x;
@@ -88,7 +98,7 @@ function navHazard(g, x, y) {
 }
 
 /* every way on from (x, y), as add(x, y, cost, move) */
-function navEdges(g, x, y, add) {
+function navEdges(g: Game, x: number, y: number, add) {
   var s, j;
   /* (no grates (pNoGr), nobody sinking (as in a search: navFind), and every row the ways either side look at in the grid,
      but for the rope's, which navSidesQ sees to: the same looks, cell by cell straight off it. no grates now is no grates
@@ -107,14 +117,14 @@ function navEdges(g, x, y, add) {
   var dn = navSink(g, x, y);
   if (dn >= 0) add(x, dn, 2 + (dn - y) * 0.25 + (dn - y > 34 ? 40 : 0), NAV_DOWN);
   /* a ladder, up from the foot of it to wherever it lets them off at the top. (not burning: they would let go of it.
-     build.js bClimbStep) */
+     build.ts bClimbStep) */
   var cx = NAV_NOLEAP ? -1 : bLadderNear(g, x, y);
   if (cx >= 0 && NAV_LADNO && NAV_LADNO[cx] > g.tick) cx = -1;   /* (a ladder that would not have them on it, a while ago) */
-  if (cx >= 0 && g.know.storey && sOnLadder(g, cx, y) && sLadderHot(g, cx)) cx = -1;   /* (a flat's ladder, with a fire at it: storeys.js) */
+  if (cx >= 0 && g.know.storey && sOnLadder(g, cx, y) && sLadderHot(g, cx)) cx = -1;   /* (a flat's ladder, with a fire at it: storeys.ts) */
   if (cx >= 0) {
     for (j = y; j > 0 && pCell(g, cx, j) === MAT.LADDER && !pBody(g, cx, j - 9); j--);
     if (pCell(g, cx, j) === MAT.LADDER) j = y;   /* something overhead: the climber would stop under it (bClimbStep) */
-    /* (a ladder with a lift on it is a good deal quicker: mines.js) */
+    /* (a ladder with a lift on it is a good deal quicker: mines.ts) */
     var rate = navLift(g, cx, y) ? 0.3 : 1.2;
     for (s = -1; s <= 1; s += 2) if (j < y - 3 && bStepOff(g, cx, j, s) && navStand(g, cx + 2 * s, j)) add(cx + 2 * s, j, 2 + (y - j) * rate, NAV_LADDER, cx);
   }
@@ -133,7 +143,7 @@ function navEdges(g, x, y, add) {
    and rows are as they were when it began; the list goes when it ends (navFind), and the next search makes its own.
    outside a search, mLiftAt itself */
 var NAV_LIFTS = null;
-function navLift(g, cx, y) {
+function navLift(g: Game, cx: number, y: number) {
   if (!NAV_SG || NAV_SGG !== g) return !!mLiftAt(g, cx, y);
   var L = NAV_LIFTS, k;
   if (L === null) {
@@ -151,13 +161,13 @@ var NAV_FOOTM = (function () {
   return t;
 })();
 /* pRoom, pFoot and pGround with their feet at cell j, for navSidesQ: no grates, nobody sinking, and the rows in the grid */
-function navRoomQ(m, gw, j) { return !P_BODYM[m[j]] && !P_BODYM[m[j - 3 * gw]] && !P_BODYM[m[j - 6 * gw]] && !P_BODYM[m[j - 8 * gw]]; }
-function navFootQ(m, gw, j) { var f = NAV_FOOTM[m[j + gw]]; return f === 1 || (f === 2 && !P_SOFT[m[j]]); }
-function navGroundQ(m, gw, j) { return navFootQ(m, gw, j) || navFootQ(m, gw, j - 1) || navFootQ(m, gw, j + 1); }
+function navRoomQ(m: Uint8Array, gw: number, j: number) { return !P_BODYM[m[j]] && !P_BODYM[m[j - 3 * gw]] && !P_BODYM[m[j - 6 * gw]] && !P_BODYM[m[j - 8 * gw]]; }
+function navFootQ(m: Uint8Array, gw: number, j: number) { var f = NAV_FOOTM[m[j + gw]]; return f === 1 || (f === 2 && !P_SOFT[m[j]]); }
+function navGroundQ(m: Uint8Array, gw: number, j: number) { return navFootQ(m, gw, j) || navFootQ(m, gw, j - 1) || navFootQ(m, gw, j + 1); }
 /* navSides, with no grates (pNoGr), nobody sinking, 1 <= x <= gw - 2 and rows y - 18 to y + 4 in the grid (navEdges): the
    same looks in the same order, pStepUp's, pDuckUnder's, pBody's, pRoom's, pGround's and pSolid's straight off the grid.
    the rope looks up to 54 rows over their feet: straight off the grid too when those are in it, and as before when not */
-function navSidesQ(g, x, y, add) {
+function navSidesQ(g: Game, x: number, y: number, add) {
   var m = g.m, gw = g.gw, gh = g.gh, s, nx, k, f, d, dy, ny, j, jj, top, c, lx, hit, dn, room;
   for (s = -1; s <= 1; s += 2) {
     nx = x + s;
@@ -232,7 +242,7 @@ function navSidesQ(g, x, y, add) {
   }
 }
 /* the ways along, off the edge, over a gap, under a lintel, over a wall and up it, either side of (x, y) (navEdges) */
-function navSides(g, x, y, add) {
+function navSides(g: Game, x: number, y: number, add) {
   var s, nx, k, d, dy, ny, j, top, c;
   for (s = -1; s <= 1; s += 2) {
     nx = x + s;
@@ -289,7 +299,7 @@ function navSides(g, x, y, add) {
 }
 /* the top of the soft stuff overhead (feet out of it, standing on it), with the way up clear of anything hard: its row,
    or -1. no further up than the rope goes */
-function navUp(g, x, y) {
+function navUp(g: Game, x: number, y: number) {
   var k, ty;
   if (x >= 0 && x < g.gw && y < g.gh) {
     /* (nothing soft anywhere in rows y-44 to y-3 of the column: no top of anything to go up onto, whatever else is there.
@@ -320,7 +330,7 @@ function navUp(g, x, y) {
 }
 /* standing on something soft (in this column, and nothing hard under them either side): where they would come down,
    sinking through it, or -1. somewhere safe, and a real way down: not just into a skin of it lying on the ground */
-function navSink(g, x, y) {
+function navSink(g: Game, x: number, y: number) {
   if (!P_SOFT[pCell(g, x, y + 1)] || pFoot(g, x - 1, y) && !P_SOFT[pCell(g, x - 1, y + 1)] ||
       pFoot(g, x + 1, y) && !P_SOFT[pCell(g, x + 1, y + 1)]) return -1;
   var d;
@@ -340,11 +350,11 @@ function navSink(g, x, y) {
   }
   return -1;
 }
-function navCanLeap(g, x, y) { for (var k = 0; k <= 8; k++) if (pBody(g, x, y - 9 - k)) return false; return true; }
+function navCanLeap(g: Game, x: number, y: number) { for (var k = 0; k <= 8; k++) if (pBody(g, x, y - 9 - k)) return false; return true; }
 
 /* A*, from (sx, sy) to anywhere goal(x, y) likes, guided towards (tx, ty). a list of {x, y, m} (m: the move that gets
    there) not including the start, or null */
-function navFind(g, sx, sy, goal, tx, ty, cap) {
+function navFind(g: Game, sx: number, sy: number, goal, tx: number, ty: number, cap?: number) {
   var sink = P_SINK, sg = NAV_SG, sgg = NAV_SGG, shot = NAV_SHOT, n = g.gw * g.gh, r;
   P_SINK = false;   /* (the map is of the world as it stands, not as it is for somebody sinking through it) */
   /* (a fresh memory of where they could stand, for this search alone: navStand. the next one may come after somebody
@@ -357,7 +367,7 @@ function navFind(g, sx, sy, goal, tx, ty, cap) {
   P_SINK = sink;
   return r;
 }
-function navFind1(g, sx, sy, goal, tx, ty, cap) {
+function navFind1(g: Game, sx: number, sy: number, goal, tx: number, ty: number, cap: number) {
   cap = cap || NAV_CAP;
   var n = g.gw * g.gh, gw = g.gw, gh = g.gh, far = tx == null;
   if (!g.navSeen || g.navSeen.length !== n) {
@@ -368,7 +378,7 @@ function navFind1(g, sx, sy, goal, tx, ty, cap) {
   if (g.wAny && (!g.navLad || g.navLad.length !== n)) g.navLad = new Int16Array(n);
   var gen = ++g.navGen, seen = g.navSeen, shut = g.navShut, cost = g.navCost, from = g.navFrom, how = g.navHow, lad = g.wAny ? g.navLad : null;
   var HI = g.navHeapI, HF = g.navHeapF, hn = 0, looked = 0, start = sy * gw + sx, best = -1;
-  function push(i, f) {
+  function push(i: number, f: number) {
     if (hn >= HI.length) return;
     var k = hn++;
     while (k > 0) { var up = (k - 1) >> 1; if (HF[up] <= f) break; HI[k] = HI[up]; HF[k] = HF[up]; k = up; }
@@ -390,7 +400,7 @@ function navFind1(g, sx, sy, goal, tx, ty, cap) {
   seen[start] = gen; cost[start] = 0; from[start] = -1; how[start] = 0;
   push(start, far ? 0 : Math.abs(sx - tx) + Math.abs(sy - ty) * 0.5);
   var cur, cx, cy, base;
-  function add(x, y, c, m, lc) {
+  function add(x: number, y: number, c, m, lc) {
     if (x < 0 || y < 0 || x >= gw || y >= gh) return;
     var i = y * gw + x, nc = base + c;
     if (shut[i] === gen) return;
@@ -414,7 +424,7 @@ function navFind1(g, sx, sy, goal, tx, ty, cap) {
   if (best < 0) return null;
   var path = [];
   for (var i = best; i !== start && i >= 0 && path.length < n; i = from[i]) {
-    var st = { x: i % gw, y: (i / gw) | 0, m: how[i] };
+    var st: PathStep = { x: i % gw, y: (i / gw) | 0, m: how[i] };
     if (lad && how[i] === NAV_LADDER && lad[i] >= 0) st.lc = lad[i];   /* (the great works' villages: the ladder it goes by) */
     path.push(st);
   }
@@ -423,7 +433,9 @@ function navFind1(g, sx, sy, goal, tx, ty, cap) {
 }
 
 /* where p is standing, as far as the map is concerned: its feet, or the top of the water it is swimming in */
-function navHere(g, p) {
+/* a place on a route: where, the move that gets there (NAV_*), and the ladder it goes by */
+interface PathStep { x: number; y: number; m?: number; lc?: number; }
+function navHere(g: Game, p: Peasant): PathStep {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), d, s;
   for (d = 0; d <= 9; d++) for (s = 0; s < 2; s++) {
     var y = s ? fy - d : fy + d;
@@ -437,7 +449,7 @@ function navHere(g, p) {
    errand gets a new route. sets p.dir, and p.navMove for the walking. returns how many places are left on the route
    (0: they are standing somewhere goal likes already), or -1 if there is no route: then the caller does what it did
    before there were routes, and walks straight at it */
-function pathGo(g, p, key, tx, ty, goal) {
+function pathGo(g: Game, p: Peasant, key: string, tx: number, ty: number, goal) {
   var nv = p.nav, k;
   if (nv && nv.key === key && nv.none > g.tick) return -1;
   /* something nasty has turned up on the next few steps (a fire somebody just lit): look again */
@@ -472,7 +484,7 @@ function pathGo(g, p, key, tx, ty, goal) {
   if (g.wAny && (p.swimming || p.wade) && nv.i < P.length &&Math.abs(p.x - P[nv.i].x - 0.5) + Math.abs(py - P[nv.i].y) > 4)
     for (k = Math.min(P.length - 1, nv.i + 60); k > nv.i; k--) if (Math.abs(p.x - P[k].x - 0.5) < 0.7 && Math.abs(py - P[k].y) < 3.5) { nv.i = k; break; }
   while (nv.i < P.length) {
-    var here = P[nv.i], next = P[nv.i + 1];
+    var here: PathStep = P[nv.i], next = P[nv.i + 1];
     var vtol = next && (next.m === NAV_UP || next.m === NAV_DOWN || next.m === NAV_HOOK) ? 0.75 : 3.5;   /* (a hook, too: thrown from a row off, it does not catch) */
     if (!(Math.abs(p.x - here.x - 0.5) < 0.7 && Math.abs(py - here.y) < vtol)) break;
     nv.i++;
@@ -506,12 +518,12 @@ function pathGo(g, p, key, tx, ty, goal) {
   if (n.m === NAV_LADDER && !p.climb) {
     var fx = Math.floor(p.x), fy = Math.floor(p.y), cx = -1;
     /* (the ladder the route is for, as the search chose it: that one, in the great works' villages, and not the nearest,
-       which may be another, one that will not have them. build.js bClimbStart) */
+       which may be another, one that will not have them. build.ts bClimbStart) */
     if (n.lc != null) cx = n.lc;
     if (cx < 0 && n.y < fy) cx = bLadderNear(g, fx, fy);
     if (n.y > fy) for (k = -1; k <= 1 && cx < 0; k += 2) cx = bLadderMid(g, fx + k, fy + 1);
     /* (a ladder that will not have them on it, its column in the way of a body: not on any way of theirs, for a while, and
-       the way found again, round it if there is a way round. build.js bClimbStart) */
+       the way found again, round it if there is a way round. build.ts bClimbStart) */
     if (cx >= 0 && Math.abs(cx + 0.5 - p.x) < 2.5 && !bClimbStart(g, p, cx, n.y < fy ? -1 : 1)) {
       p.ladNo = p.ladNo || {}; p.ladNo[cx] = g.tick + 300; nv.t = -1e9;
     }
@@ -520,7 +532,7 @@ function pathGo(g, p, key, tx, ty, goal) {
 }
 /* walking on from (fx, fy) into column nx, with nothing under it: does the route's move still fit what is down there.
    a walk expects a short step down, a drop a fall onto somewhere safe; terrain changes, routes do not */
-function pathDropOk(g, p, nx, fy) {
+function pathDropOk(g: Game, p: Peasant, nx: number, fy: number) {
   var d, m = p.navMove;
   for (d = 1; d <= 86 && fy + d < g.gh; d++) if (pGround(g, nx, fy + d) || WET[pCell(g, nx, fy + d + 1)]) break;
   if (m === "walk" && d <= 6) return true;
@@ -529,11 +541,11 @@ function pathDropOk(g, p, nx, fy) {
   return false;
 }
 /* the route is wrong: they hit something it did not expect. look again next tick */
-function pathStale(p) { if (p.nav) p.nav.t = -1e9; }
+function pathStale(p: Peasant) { if (p.nav) p.nav.t = -1e9; }
 
 /* goals. a cell (tx, ty) to work at: somewhere to stand within rx of it across, with it no more than up above their
    feet and no more than down below */
-function pathNear(tx, ty, rx, up, down) {
+function pathNear(tx: number, ty: number, rx: number, up, down) {
   return function (x, y) { return Math.abs(x - tx) <= rx && ty >= y - up && ty <= y + down; };
 }
 
@@ -552,13 +564,13 @@ P_SAY.view = ["what a view!", "nobody's been up here before", "i can see my hous
   "i'm the king of the hill", "worth the climb", "huh. sand", "first!"];
 P_ACHIEVE.explorer = ["EXPLORERS", "somebody went up there just to have a look"];
 
-function exploreMap(g) {
+function exploreMap(g: Game) {
   var n = ((g.gw / EXP_B) | 0) + 1, m = ((g.gh / EXP_B) | 0) + 1;
   if (!g.seenAt || g.seenAt.length !== n * m) g.seenAt = new Uint32Array(n * m);
   return n;
 }
 /* a few times a second: where is everybody standing */
-function exploreNote(g) {
+function exploreNote(g: Game) {
   if (g.tick % 15) return;
   var n = exploreMap(g);
   for (var k = 0; k < g.peasants.length; k++) {
@@ -569,7 +581,7 @@ function exploreNote(g) {
 }
 /* somewhere to go and look at: everywhere they could get to from here, scored by how long since anyone stood there,
    how far up it is, and a little luck. true if they have set off */
-function explorePick(g, p) {
+function explorePick(g: Game, p: Peasant) {
   var here = navHere(g, p), n = exploreMap(g), best = null, bs = -1e9;
   if (!here) return false;
   navFind(g, here.x, here.y, function (x, y) {
@@ -585,7 +597,7 @@ function explorePick(g, p) {
   if (p.sayT <= 0) pSay(g, p, "explore");
   return true;
 }
-function exploreTask(g, p, k) {
+function exploreTask(g: Game, p: Peasant, k: Task) {
   if (++k.t > 3000) { p.task = null; return false; }
   var fx = Math.floor(p.x), fy = Math.floor(p.y);
   if (Math.abs(fx - k.x) <= 2 && Math.abs(fy - k.y) <= 3) {

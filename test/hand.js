@@ -1,7 +1,7 @@
 /* =====================================================================
    PLEASAND  --  test/hand.js
 
-   THE HAND (hand.js, docs/the-hand-plan.md): a lump of the valley
+   THE HAND (hand.ts, docs/the-hand-plan.md): a lump of the valley
    lifted, held, let go, set down whole or come down in pieces, with
    whoever was standing on it. and a valley that never lifts anything,
    which goes as it always went. required by test/run.js
@@ -178,7 +178,7 @@ module.exports = function (test, check, sim) {
     check(!gd.hand.fly && ip[0] < ip[1] * 0.3, "dropped from 40 rows, " + ip[0] + " of " + ip[1] + " of the house is in place");
     var c1 = JSON.parse(counts(hd)), q1 = heatAll(hd), lost = 0;
     /* (none of it: a grain of the hand's that comes down with no air left about it is put down in its column, not
-       dropped as a bang's is. world.js partHand) */
+       dropped as a bang's is. world.ts partHand) */
     Object.keys(mats).forEach(function (v) { check(c1[v] <= c0[v], "dropped, there is more " + v + " than there was"); lost += c0[v] - c1[v]; });
     check(lost === 0, "dropped, " + lost + " cells of it were lost: " + JSON.stringify(c0) + " / " + JSON.stringify(c1));
     check(Math.abs(q1 - q0) < 1e-6 * Math.abs(q0) + 1, "dropped, the heat went from " + q0 + " to " + q1);
@@ -387,7 +387,7 @@ module.exports = function (test, check, sim) {
   });
 
   test("hand: a deck held 1,000 ticks is left alone by plStep (no rung put on wait, no house planned on it), and a storey over a held house is still a storey", function () {
-    /* (a finished deck, its ladder up, and no house on it: platforms.js would plan one) */
+    /* (a finished deck, its ladder up, and no house on it: platforms.ts would plan one) */
     function deck(lifted) {
       var w = sim.load(1), g = w.g, p = g.peasants[0];
       know(g, ["farm", "masonry", "storey", "deck"]);
@@ -543,7 +543,7 @@ module.exports = function (test, check, sim) {
       /* (every tick, before it is stepped: is any grain in the air about to go over either side) */
       function over() { for (var q = 0; q < g.np; q++) { var x = g.ppx[q] + g.pvx[q] * 0.995; if (g.pk[q] === h.game.PK_DEBRIS && (x < 0 || x >= g.gw)) return true; } return false; }
       /* (and what came down, against what went up: all of it. a grain of the hand's with no air left about it, or going
-         out at the floor or a side, is put down in its column, world.js partHand. a bang's is lost there, as it was;
+         out at the floor or a side, is put down in its column, world.ts partHand. a bang's is lost there, as it was;
          before the hand's grains were marked, a handful of a lump coming down all at once at the edge was too) */
       function lost(c0, c1) { var a = JSON.parse(c0), b = JSON.parse(c1), n = 0; for (var k in a) { if ((b[k] || 0) > a[k]) return 1e9; n += a[k] - (b[k] || 0); } return n; }
       function go(x, y, vx, vy) {
@@ -1038,7 +1038,7 @@ module.exports = function (test, check, sim) {
     check(g.hand.wT === g.tick && free.every(function (p) { return p.handSeen === g.hand.lifts && p.idle >= 60; }), "the house went up, and " + free.filter(function (p) { return p.handSeen !== g.hand.lifts; }).map(function (p) { return p.name; }) + " did not stop to look");
   });
   /* ---- phase 5: the sky answers ---- */
-  /* a house on fire: embers along its roof, and the books saying so (ideas.js sees it within twenty ticks) */
+  /* a house on fire: embers along its roof, and the books saying so (ideas.ts sees it within twenty ticks) */
   function alight(C) {
     var g = C.g, w = C.w, s = C.s, M = C.M, top = 1e9, n = 0, t;
     know(g, ["bucket"]);
@@ -1731,7 +1731,7 @@ module.exports = function (test, check, sim) {
     var b = perch(120, 30);
     h.pause(true); at(h, FLAT, gy); h.step(1); h.flick(0, 0); h.up(); h.pause(false);
     for (t = 0; t < 300 && g.hand.fly; t++) h.step(1);
-    for (t = 0; t < 700; t++) h.step(1);   /* (a duck wedged in something gives up after 400: ducks.js) */
+    for (t = 0; t < 700; t++) h.step(1);   /* (a duck wedged in something gives up after 400: ducks.ts) */
     check(!b.dead && !w.dBlocked(g, b.x, b.y), "a duck set down with no room for it: dead " + b.dead + ", at " + b.x + "," + b.y);
   });
 
@@ -2561,7 +2561,7 @@ module.exports = function (test, check, sim) {
 
   test("hand: a hill dropped from sixty rows over a hollow in the rock, with somebody in it, and over a house, comes down a heap on top: none of it in the hollow or in the room, and nobody buried", function () {
     /* (the grains of it with no room where they come down are put down on the heap, on what is under them: not in the
-       lowest air in their column, through forty rows of rock or a roof. hand.js handLand) */
+       lowest air in their column, through forty rows of rock or a roof. hand.ts handLand) */
     var h = H.open({ seed: 6 }), g = h.g, w = h.game, M = w.MAT, gw = g.gw, gy = ground(w, g, FLAT) + 1, cy = gy + 45, x, y, t, i;
     g.peasants.length = 1; g.ducks.length = 0;
     for (x = 200; x <= 265; x++) for (y = cy; y < cy + 8; y++) w.sandSet(g, y * gw + x, M.EMPTY);

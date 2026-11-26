@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - run: npm ci
       # the sand and heat steps, as WebAssembly (wasm/): the toolchain is the one wasm/rust-toolchain.toml names
       - name: Build the WebAssembly step
         run: |
@@ -36,14 +38,16 @@ jobs:
           node test/run.js wasm
           node test/run.js heat:
           node test/run.js shortcuts
-      - name: Collect the site
+      - name: Check the types
+        run: npm run typecheck
+      # the scripts, joined into one module (vite.config.mts), with the WebAssembly in it ("AGFzbQ": "\0asm", base64)
+      - name: Build the site
         run: |
-          mkdir _site
-          cp index.html favicon.gif *.js _site/
-          test -s _site/simwasm-bin.js
+          npm run build
+          grep -q AGFzbQ dist/assets/*.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: dist
       - id: deployment
         uses: actions/deploy-pages@v4

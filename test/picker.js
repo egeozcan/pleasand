@@ -2,7 +2,7 @@
    PLEASAND  --  test/picker.js
 
    the picker's MORE row, under ERASE, and the flyout it opens: the rock
-   and the building stone you can paint now, and the hand (hand.js).
+   and the building stone you can paint now, and the hand (hand.ts).
    required by test/run.js
    ===================================================================== */
 "use strict";

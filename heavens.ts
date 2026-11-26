@@ -1,7 +1,7 @@
 /* =====================================================================
-   PLEASAND  --  heavens.js
+   PLEASAND  --  heavens.ts
 
-   the great works that look up (wonders.js has what they share):
+   the great works that look up (wonders.ts has what they share):
      THE OBSERVATORY  a brick dome on top of the watchtower (or on the
                       highest ground there is), with a slit in it and an
                       iron tube through the slit. an astronomer goes up
@@ -35,6 +35,28 @@
    ===================================================================== */
 "use strict";
 
+/* (what this file keeps in g) */
+interface Game {
+  looks?: any; moonLooks?: any; hConst?: any; hShower?: any; hRock?: any; hLake?: any; hLakeT?: number;
+  hLightFame?: number; packFlights?: any; hRockOut?: number; rocket?: any; moonCrew?: any; moonFlag?: any;
+  moonT?: number; rocketBooms?: any;
+}
+/* (what this file keeps on a villager) */
+interface Peasant {
+  moon?: number;
+  plate?: any; bell?: any; aboard?: number; looks?: any; smelts?: any; flights?: any; moonrock?: number; rockT?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  spot?: any; looks?: any; showerT?: number; everLit?: number; bars?: any; meltT0?: number; liqBest?: any;
+  phaseT?: number; liqT?: number; hold?: any; pourT?: number; pourLast?: number; bells?: any; plates?: any; walk?: any;
+  gone?: number; oil?: number; fuel?: number; lookT?: number; astro?: number; shower?: number; showers?: any; dropT?: number;
+  xl?: any; through?: boolean; Fr?: any; lx?: any; ly?: number; wasLit?: boolean; keeper?: any; noOil?: number;
+  G1?: number; xf?: number; R0?: number; casts?: number; mould?: string; phase?: number; meltT?: number; idleT?: number;
+  ironWaitT?: number; cutT?: number; founder?: any; streamT?: number; streamTo?: any; crew?: any; count?: number;
+  boardT?: number; countT?: number; rx?: number;
+}
+
 /* -------------------------------------------------------------------
    SHARED
    ------------------------------------------------------------------- */
@@ -54,9 +76,9 @@ var H_GLOW = hex32("#fff2c0"), H_STAR = hex32("#d8e4ff"), H_STREAK = hex32("#fff
 /* a dice-free scramble of a few numbers, for things that are only drawn (the streaks): the same every frame */
 function hHash(a, b) { var h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x632be5ab, 0xc2b2ae35); h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; return (h >>> 0) / 4294967296; }
 /* the ground at x: the first solid row (trees seen through) */
-function hGround(g, x) { return mGround(g, x, true); }
+function hGround(g: Game, x: number) { return mGround(g, x, true); }
 /* a peasant who is idle, and nearest (x), but for those in but */
-function hIdlest(g, x, R, but, ok, s) {
+function hIdlest(g: Game, x: number, R: number, but, ok, s?: Site) {
   var best = null, bd = R || 1e9;
   for (var k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
@@ -67,17 +89,17 @@ function hIdlest(g, x, R, but, ok, s) {
   return best;
 }
 /* somebody by id, alive and about (not in space) */
-function hWho(g, id) { var q = id ? lAlive(g, id) : null; return q && q.state !== "space" ? q : null; }
+function hWho(g: Game, id: number) { var q = id ? lAlive(g, id) : null; return q && q.state !== "space" ? q : null; }
 /* walk p to stand at (x, y), within dx columns and dy rows. true while still on the way */
-function hGo(g, p, k, key, x, y, dx, dy) {
+function hGo(g: Game, p: Peasant, k: Task, key: string, x: number, y: number, dx: number, dy: number) {
   if (Math.abs(p.x - x - 0.5) <= dx + 0.5 && Math.abs(Math.floor(p.y) - y) <= dy) return false;
   if (iWalk(g, p, k, key, x, y, function (X, Y) { return Math.abs(X - x) <= dx && Math.abs(Y - y) <= dy; })) pGiveUp(g, p, x);
   return true;
 }
 /* a barrel already in hand (a fetch that timed out, or the job taken off them): taken where it is wanted before anybody
-   fetches another, the rocket's tank or a lighthouse's lamp (wonders.js wPick, first). with nowhere wanting it yet, into
-   a well's tank with room, or the salvage (wonders.js). true if they have somewhere to take it */
-function hDeliverBarrel(g, p) {
+   fetches another, the rocket's tank or a lighthouse's lamp (wonders.ts wPick, first). with nowhere wanting it yet, into
+   a well's tank with room, or the salvage (wonders.ts). true if they have somewhere to take it */
+function hDeliverBarrel(g: Game, p: Peasant) {
   if (!p.barrel) return false;
   var k, s, best = null, bd = 1e9;
   for (k = 0; k < g.sites.length; k++) {
@@ -93,7 +115,7 @@ function hDeliverBarrel(g, p) {
 }
 /* room in s for one more barrel of oil, counting those already on their way to it (but p's): the rocket's tank, short
    of H_FUEL with the barrels coming; a lighthouse's lamp, low, with nobody else seeing to it */
-function hOilRoom(g, s, p) {
+function hOilRoom(g: Game, s: Site, p: Peasant) {
   if (!s.done || s.repair) return false;
   var n = 0, k, q;
   for (k = 0; k < g.peasants.length; k++) {
@@ -106,7 +128,7 @@ function hOilRoom(g, s, p) {
 }
 /* a barrel of oil out of the nearest well's tank, at its pump: for the keeper and the rocket. 1 once they have it, 0
    while they are on their way, -1 if there is none to be had */
-function hFetchBarrel(g, p, k) {
+function hFetchBarrel(g: Game, p: Peasant, k: Task) {
   if (p.barrel) return 1;
   var w = k.well ? bSite(g, k.well) : null;
   if (!w || w.kind !== "well" || !w.done || w.repair || w.tank < 1) { w = oTankFor(g, p, 1); if (!w) return -1; k.well = w.id; k.best = null; }
@@ -125,7 +147,7 @@ P_SAY.barrel = ["one barrel", "heavy, this", "*slosh*", "mind the oil", "a barre
    (sand shovelled, rock cut), and under R0, where the ground is lower, made up in stone (fill), so that it stands level.
    ph(u, h) is the order. {plan, work} or null if something is in the way. (rock where something of ours goes under the
    floor is taken for it; over the floor, it is in the way) */
-function hLevel(g, x0, gy, u0, u1, R0, hlo, hhi, cell, ph, extra) {
+function hLevel(g: Game, x0: number, gy: number, u0: number, u1: number, R0: number, hlo: number, hhi: number, cell, ph: (u: number, h: number) => number, extra) {
   var plan = [], work = 0, u, h, x, y, c, v, e;
   for (u = u0; u <= u1; u++) {
     x = x0 + u - u0;
@@ -161,7 +183,7 @@ function hLevel(g, x0, gy, u0, u1, R0, hlo, hhi, cell, ph, extra) {
   return { plan: plan, work: work };
 }
 /* the best level, from the lowest ground up to the highest: least work */
-function hBestLevel(g, x0, gy, hi, lo, make) {
+function hBestLevel(g: Game, x0: number, gy: number, hi, lo, make) {
   var best = null;
   /* (no more than three rows dug off the high side: a bank dug into any deeper comes down on whoever is digging. the
      low side is made up in stone instead, as far as it has to be) */
@@ -223,8 +245,8 @@ wDef({
   }
 });
 /* (looked out from the watchtower: counted, and the one who has looked out most wonders what the little lights are.
-   mines.js, at the end of a look) */
-function hLooked(g, p) {
+   mines.ts, at the end of a look) */
+function hLooked(g: Game, p: Peasant) {
   g.looks = (g.looks || 0) + 1; p.looks = (p.looks || 0) + 1;
   if (g.know.observatory || (g.looks || 0) < H_LOOKS) return;
   var best = null;
@@ -237,7 +259,7 @@ function hLooked(g, p) {
 var H_TUBE = [[3, 7], [4, 8], [5, 9], [6, 10], [7, 11], [8, 12], [4, 7], [5, 8], [6, 9], [7, 10]];   /* (the slit is where it goes through) */
 function hDomeOuter(u, r) { return r <= 10 ? u >= 0 && u <= 8 : (r === 11 ? u >= 1 && u <= 7 : (r === 12 ? u >= 2 && u <= 6 : (r === 13 ? u >= 3 && u <= 5 : false))); }
 function hDomeInner(u, r) { return r <= 8 ? u >= 1 && u <= 7 : (r <= 10 ? u >= 2 && u <= 6 : (r === 11 ? u >= 3 && u <= 5 : (r === 12 ? u === 4 : false))); }
-function hDomeCell(u, r, tower) {
+function hDomeCell(u, r, tower: boolean) {
   var k;
   for (k = 0; k < H_TUBE.length; k++) if (H_TUBE[k][0] === u && H_TUBE[k][1] === r) return MAT.GIRDER;
   if ((u === 9 && (r === 12 || r === 13))) return MAT.GLASS;
@@ -256,7 +278,7 @@ function hDomePh(u, r) {
   return 10 + r;
 }
 /* the plan for a dome at xl, floor F, or null if anything is in the way */
-function hDomePlan(g, xl, F, tower) {
+function hDomePlan(g: Game, xl, F, tower: boolean) {
   var plan = [], u, r, v, x, y, c;
   for (r = 1; r <= 13; r++) for (u = 0; u <= 9; u++) {
     v = hDomeCell(u, r, tower);
@@ -278,14 +300,14 @@ function hDomePlan(g, xl, F, tower) {
   return plan;
 }
 /* the watchtower's top is free: nothing of anybody's over it */
-function hTowerFree(g, t) {
+function hTowerFree(g: Game, t) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s !== t && s.x1 >= t.x0 - 2 && s.x0 <= t.x1 + 2 && s.y1 >= t.T - 14 && s.y0 <= t.T - 1) return false;
   }
   return true;
 }
-function hPlanObs(g, p) {
+function hPlanObs(g: Game, p: Peasant) {
   var T = mSites(g, "tower", true), best = null, bd = 1e9, k, t, plan, mid = wMiddle(g);
   for (k = 0; k < T.length; k++) {
     t = T[k];
@@ -318,7 +340,7 @@ function hPlanObs(g, p) {
 }
 /* the astronomer's look: up to the telescope, a long look, the moon looked at, a constellation named, and the falling
    stars foretold if they are due */
-function hTaskObserve(g, p, k) {
+function hTaskObserve(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair) return iDone(p, false);
   if (++k.t > 3600) { wBackoff(g, p, s.id, W_NOGO_T.observe); return iDone(p, false); }   /* (a look that never happened: let be, as a walk given up) */
@@ -339,10 +361,10 @@ function hTaskObserve(g, p, k) {
 }
 /* a constellation, named: a handful of real stars near one another, joined up for a while. sometimes after somebody
    lately dead */
-function hName(g, p) {
+function hName(g: Game, p: Peasant) {
   var S = g.stars || [], k, a, best;
   if (S.length < 5) return;
-  /* (in a wide valley, a star over the observatory's own stretch of sky to start from: one somebody could see. world.js) */
+  /* (in a wide valley, a star over the observatory's own stretch of sky to start from: one somebody could see. world.ts) */
   var C = S;
   if (g.gw > VIEW_GW) { var near = S.filter(function (st) { return Math.abs(st.i % g.gw - p.x) < VIEW_GW / 2 - 24; }); if (near.length >= 5) C = near; }
   var c = C[irnd(C.length)], cx = c.i % g.gw, cy = (c.i / g.gw) | 0, pts = [c.i], used = {};
@@ -367,7 +389,7 @@ function hName(g, p) {
   if (p.sayT <= 0 || Math.random() < 0.5) pSay(g, p, "that one's " + name.toLowerCase(), true);
 }
 /* the goings on, every W_STRIDE ticks: the astronomer up for a look now and then; the shower, when it was foretold */
-function hObsStep(g, s) {
+function hObsStep(g: Game, s: Site) {
   if (!s.done || s.repair) return;
   var k, q;
   if (g.tick >= (s.lookT || 0) && !mCrew(g, "observe", s.id)) {
@@ -405,14 +427,14 @@ function hObsStep(g, s) {
   }
 }
 /* watching the falling stars: stand still, look up, and say so */
-function hTaskStargaze(g, p, k) {
+function hTaskStargaze(g: Game, p: Peasant, k: Task) {
   if (g.tick > k.until || ++k.t > 900) { p.bored = 0; return iDone(p, true); }
   p.idle = 0; p.pose = "stand";
   if (p.sayT <= 0 && Math.random() < 0.01) pSay(g, p, "stars");
   return true;
 }
 /* the bored, when it stands: now and then up to have a look for themselves */
-function hObsPick(g, p, hungry) {
+function hObsPick(g: Game, p: Peasant, hungry) {
   var s = mSites(g, "observatory", true)[0];
   if (!s || hungry || s.repair || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "observe", s.id) || wNoGo(g, p, s.id)) return false;
   if (Math.random() >= 0.04) return false;
@@ -426,7 +448,7 @@ function hObsPick(g, p, hungry) {
    cold. g.hRock = {x, y, vx, vy, tx, ty, down, cells}
    ------------------------------------------------------------------- */
 /* where one may come down: on the ground, out in the open, nowhere near anybody's house */
-function hRockOk(g, x) {
+function hRockOk(g: Game, x: number) {
   if (x < 10 || x > g.gw - 11) return false;
   var y = hGround(g, x);
   if (y < 20 || !pSolid(g, x, y) || LIQUID[pCell(g, x, y)]) return false;
@@ -439,7 +461,7 @@ function hRockOk(g, x) {
 }
 /* where one flying in at column x would really come down: it comes in on a slant, and may hit something on the way (a
    roof, a hill) short of x. {x, y}, the cell it would come to rest over, as hSkyTick goes */
-function hRockLand(g, x) {
+function hRockLand(g: Game, x: number) {
   var ty = hGround(g, x), side = x < rMid(g) ? 1 : -1, sx = x - side * 70, vx = (x - sx) / 90, vy = (ty + 4) / 90, X = sx, Y = -4;
   for (var t = 0; t < 400; t++) {
     X += vx; Y += vy;
@@ -451,17 +473,17 @@ function hRockLand(g, x) {
 }
 /* does one aimed at x come down there in the open: on the ground (not short of it on something), nowhere near anybody's
    house or work (hRockOk) */
-function hRockAim(g, x) {
+function hRockAim(g: Game, x: number) {
   var at = hRockLand(g, x), vr = vRange(g);
   return hRockOk(g, at.x) && Math.abs(hGround(g, at.x) - 1 - at.y) <= 1 && (g.gw <= VIEW_GW || (at.x >= vr.x0 && at.x <= vr.x1));   /* (and in a wide valley, in the range where it lands) */
 }
 /* where it comes to rest, come down at x: on top of the ground there, not in it; and not on anything of value, gold or
    moon rock, or anybody's house or work, nor on anybody: the nearest column it can be, then, a little way off */
-function hRockRest(g, x) {
+function hRockRest(g: Game, x: number) {
   for (var d = 0; d <= 20; d++) for (var sd = -1; sd <= 1; sd += 2) {
     if (!d && sd > 0) continue;
     var c = x + d * sd;
-    if (c < vRange(g).x0 + 3 || c > vRange(g).x1 - 3) continue;   /* (in the village's range: world.js) */
+    if (c < vRange(g).x0 + 3 || c > vRange(g).x1 - 3) continue;   /* (in the village's range: world.ts) */
     var y = hGround(g, c) - 1, ok = y > 1, k;
     for (var u = -2; u <= 2 && ok; u++) { var under = pCell(g, c + u, y + 1); if (under === MAT.GOLD || under === MAT.MOONROCK || bMarked(g, c + u, y + 1) || bMarked(g, c + u, y)) ok = false; }
     if (ok && !hLumpFits(g, c, y)) ok = false;   /* (and room for the whole of it, gold and all) */
@@ -473,10 +495,10 @@ function hRockRest(g, x) {
 }
 /* a meteorite on its way down, to column x (or anywhere it may, x < 0): a column it would really come down at, on its
    slant, and fit. false if there is nowhere */
-function hMeteorite(g, x) {
+function hMeteorite(g: Game, x: number) {
   if (x < 0) {
     var ok = [];
-    for (var c = rLo(g, 10); c < rHi(g, 10); c++) if (hRockOk(g, c) && hRockAim(g, c)) ok.push(c);   /* (in the village's range: world.js) */
+    for (var c = rLo(g, 10); c < rHi(g, 10); c++) if (hRockOk(g, c) && hRockAim(g, c)) ok.push(c);   /* (in the village's range: world.ts) */
     if (!ok.length) return false;
     x = ok[irnd(ok.length)];
   }
@@ -486,7 +508,7 @@ function hMeteorite(g, x) {
   return true;
 }
 /* every tick, from wStep: the falling star, until it is down */
-function hSkyTick(g) {
+function hSkyTick(g: Game) {
   var R = g.hRock;
   if (!R || R.down) return;
   R.x += R.vx; R.y += R.vy;
@@ -505,7 +527,7 @@ function hSkyTick(g) {
   feed(g, R.cells.length ? "a falling star came down by " + hWhere(g, R.x) + ". cold already: iron" + (hasGold ? ", and a glint of gold" : "") : "a falling star broke up over " + hWhere(g, R.x), "#ffd27a", "meteorite", R.x);
 }
 /* somewhere a falling star came down by: the nearest of their things */
-function hWhere(g, x) {
+function hWhere(g: Game, x: number) {
   var best = null, bd = 1e9;
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k], d = Math.abs(s.cx - x); if (s.done && d < bd && s.kind !== "tunnel" && s.kind !== "quarry") { bd = d; best = s; } }
   return best ? bLabel(best) : "the edge of the valley";
@@ -514,7 +536,7 @@ function hWhere(g, x) {
 var H_LUMP = [2, 3, 4, 3, 2];
 /* is there room for the whole lump, resting at (x, y): each of its columns on ground not more than a step off, and
    nothing in the way of it but air, or a plant (which is cleared: hLump) */
-function hLumpFits(g, x, y) {
+function hLumpFits(g: Game, x: number, y: number) {
   for (var k = 0; k < 5; k++) {
     var cx = x + k - 2;
     if (cx < 1 || cx >= g.gw - 1) return false;
@@ -524,7 +546,7 @@ function hLumpFits(g, x, y) {
   }
   return true;
 }
-function hLump(g, R) {
+function hLump(g: Game, R) {
   var x0 = Math.floor(R.x), k, n, x, y, j;
   R.cells = [];
   for (k = 0; k < 5; k++) {
@@ -544,7 +566,7 @@ function hLump(g, R) {
 }
 /* to the meteorite: into the pocket, a lump at a time (it came down cold): iron (as any loose metal is, a fifth
    of a bar a cell) and the gold */
-function hTaskMeteorite(g, p, k) {
+function hTaskMeteorite(g: Game, p: Peasant, k: Task) {
   var R = g.hRock;
   if (!R || !R.down || ++k.t > 6000) return iDone(p, false);
   var left = R.cells.filter(function (j) { return g.m[j] === MAT.METAL || g.m[j] === MAT.GOLD; });
@@ -576,7 +598,7 @@ function hTaskMeteorite(g, p, k) {
   return true;
 }
 /* the sky, drawn: falling stars in a shower, the one coming down, and the constellation of the night */
-function hDrawSky(g) {
+function hDrawSky(g: Game) {
   var hot = 0, k, S = g.hShower;
   if (S && S.until > g.tick) {
     /* a few streaks at a time, each a short bright line going down and across, gone in a moment */
@@ -597,20 +619,20 @@ function hDrawSky(g) {
   return hot;
 }
 /* only over open sky */
-function hSkyPut(g, x, y, col, f) {
+function hSkyPut(g: Game, x: number, y: number, col: number, f: number) {
   if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) return;
   var i = y * g.gw + x;
   if (g.m[i] !== MAT.EMPTY) return;
   g.px[i] = blend32(g.px[i], col, f); if (f > 0.5) g.gpx[i] = blend32(0xff000000, col, f * 0.6);
 }
-function hSkyLine(g, x0, y0, x1, y1, col, f) {
+function hSkyLine(g: Game, x0: number, y0: number, x1: number, y1: number, col: number, f: number) {
   var n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1;
   for (var s = 1; s < n; s++) hSkyPut(g, Math.round(x0 + (x1 - x0) * s / n), Math.round(y0 + (y1 - y0) * s / n), col, f);
 }
 var H_SLIT = hex32("#141826"), H_SLIT_D = hex32("#0c0e18"), H_DOME = hex32("#e4e0d4"), H_DOME_D = hex32("#a8a498");
 var H_BRASS = hex32("#b8903a"), H_BRASS_HI = hex32("#e8c870"), H_BRASS_D = hex32("#7a5c22");
 /* the dome's inside, dark; the dome itself whitewashed, with its ribs; the telescope in brass; the lens catching the light */
-function hDrawObs(g, s) {
+function hDrawObs(g: Game, s: Site) {
   var u, r, x, y, i;
   /* (the room under the dome dark; the inside of the dome itself its own white, but for the slit along the telescope) */
   for (r = 1; r <= 12; r++) for (u = 1; u <= 7; u++) if (hDomeInner(u, r)) {
@@ -668,7 +690,7 @@ wDef({
    (H_LBL is scratch for the one call: nothing in it is looked at afterwards) */
 var H_LBL = null;
 /* is the water at cell j one body of n cells or more (filled out from j, no further than it has to) */
-function hBodyAtLeast(g, j, n) {
+function hBodyAtLeast(g: Game, j: number, n: number) {
   var gw = g.gw, m = g.m, seen = {}, st = [j], c = 0, i;
   seen[j] = 1;
   while (st.length && c < n) {
@@ -682,7 +704,7 @@ function hBodyAtLeast(g, j, n) {
   return c >= n;
 }
 /* (all: an array to put every water in the range in, as well, for a wide valley's lighthouse) */
-function hLakeScan(g, all) {
+function hLakeScan(g: Game, all?) {
   var n = g.m.length, gw = g.gw, m = g.m, k, j, st = [], id = 0, best = null, vr = vRange(g), lake;
   if (!H_LBL || H_LBL.length !== n) H_LBL = new Int32Array(n);
   H_LBL.fill(0);
@@ -700,7 +722,7 @@ function hLakeScan(g, all) {
       if (j >= gw && !H_LBL[j - gw] && WET[m[j - gw]]) { H_LBL[j - gw] = id; st.push(j - gw); }
       if (j + gw < n && !H_LBL[j + gw] && WET[m[j + gw]]) { H_LBL[j + gw] = id; st.push(j + gw); }
     }
-    if (x1 < vr.x0 || x0 > vr.x1) continue;   /* (the biggest water the village's range has any of: world.js) */
+    if (x1 < vr.x0 || x0 > vr.x1) continue;   /* (the biggest water the village's range has any of: world.ts) */
     lake = { n: c, x0: x0, x1: x1, top: top, id: id };
     if (all) all.push(lake);
     if (!best || c > best.n) best = lake;
@@ -710,13 +732,13 @@ function hLakeScan(g, all) {
 }
 /* every tick, from wStep: (on the stride) the lake looked at, the first swimmer in it given the idea; a bolt in the
    lantern */
-function hLightTick(g) {
+function hLightTick(g: Game) {
   if (g.tick % W_STRIDE) return;
   for (var j = 0; j < g.sites.length; j++) if (g.sites[j].kind === "lighthouse" && !g.sites[j].through) hLightThrough(g, g.sites[j]);
   if (g.know.oil && g.know.glass && g.know.masonry && !g.know.lighthouse) {
     /* (looked at now and then; and whenever somebody is in the water and it has not been looked at lately) */
     var swim = g.peasants.some(function (q) { return !q.dead && q.swimming; });
-    /* (in a wide valley, no lake in the range is an answer too, kept till the next look: world.js) */
+    /* (in a wide valley, no lake in the range is an answer too, kept till the next look: world.ts) */
     if ((!g.hLake && (g.gw <= VIEW_GW || g.hLakeT == null)) || g.tick - (g.hLakeT || 0) >= (swim ? 300 : 1200)) { hLakeScan(g); g.hLakeT = g.tick; }
     /* (whether the water they are in is a lake is looked at in the water as it is now: nothing kept off g, so a village
        loaded into a game that had another one open thinks what it would have thought) */
@@ -729,10 +751,10 @@ function hLightTick(g) {
   }
 }
 /* a lighthouse planned with a door on the land side only (an older one, before hLightPlan put one each side): a door
-   on the water side too, put in where the stonework is (the stone out, and into whoever does it's pocket: build.js
+   on the water side too, put in where the stonework is (the stone out, and into whoever does it's pocket: build.ts
    bPlace). the tower stands across the bank, and whoever got to the land side of it could only get back over the top,
    up a tree, or not at all: up and down the ladder inside, at a blank wall, for ever */
-function hLightThrough(g, s) {
+function hLightThrough(g: Game, s: Site) {
   s.through = true;
   var x = s.side > 0 ? s.x0 + 7 : s.x0 + 1, y, k, e;
   for (y = s.Fr - 9; y < s.Fr; y++) for (k = 0; k < s.plan.length; k++) {
@@ -741,7 +763,7 @@ function hLightThrough(g, s) {
   }
 }
 /* the lighthouse's plot: seven wide, on the bank of the biggest water, its door on the land side */
-function hPlanLight(g, p) {
+function hPlanLight(g: Game, p: Peasant) {
   var all = [], L0 = hLakeScan(g, all), r = null, k;
   if (!L0 || L0.n < H_LAKE) return false;
   /* (the biggest water; in a wide valley, if there is nowhere on its banks, the next biggest, and so on: looked for only
@@ -769,9 +791,9 @@ function hPlanLight(g, p) {
 /* the plan: a level floor (made up under the low end), walls and a ladder up the inside to the gallery, a door on each
    side; the gallery a cell out over the walls with iron rails; the watch room, iron-framed at the top; the lantern
    room on that, glass, two lamps and a reflector between them; a cap. {plan, Fr} or null */
-function hLightPlan(g, x0, gy, side) {
+function hLightPlan(g: Game, x0: number, gy: number, side: number) {
   var Fr = Math.min.apply(null, gy), G1 = Fr - 16, plan = [], u, y, x, c, bad = false;
-  function put(u, y, v, ph, a) {
+  function put(u, y: number, v: number, ph?: number, a?: number) {
     var x = x0 + u, c = pCell(g, x, y);
     if (v === MAT.EMPTY) { if (!AIRY[c]) { if (!mClear(g, x, y, c) || bMarked(g, x, y)) bad = true; else plan.push(bE(g, x, y, MAT.EMPTY, 0)); } return; }
     if ((!AIRY[c] && !B_DIG[c] && !(y >= Fr && ROCK[c])) || bMarked(g, x, y)) { bad = true; return; }
@@ -813,15 +835,15 @@ function hLightPlan(g, x0, gy, side) {
   return bad ? null : { plan: plan, Fr: Fr };
 }
 /* lit: oil in it, and its lamps still there */
-function hLit(g, s) {
+function hLit(g: Game, s: Site) {
   return !!s && s.done && !s.repair && s.fuel > 0 && (pCell(g, s.lx - 1, s.ly + 1) === MAT.LAMP || pCell(g, s.lx + 1, s.ly + 1) === MAT.LAMP);
 }
-function hLights(g) { var out = []; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "lighthouse" && hLit(g, g.sites[k])) out.push(g.sites[k]); return out; }
+function hLights(g: Game) { var out = []; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "lighthouse" && hLit(g, g.sites[k])) out.push(g.sites[k]); return out; }
 /* the beam, this tick: which way it points (-1, 1) and how far it reaches. it goes round, so from the side it sweeps
    out one way, shortens to a flash, and sweeps out the other */
-function hBeamNow(g, s) { var c = Math.cos(g.tick * 0.0125 + s.id); return { d: c < 0 ? -1 : 1, L: 12 + Math.abs(c) * 90, c: Math.abs(c) }; }
-/* is (x, y) in the beam of a lit lighthouse just now: lamplight, for thinking by (ideas.js iLampNear) */
-function hBeamLit(g, x, y) {
+function hBeamNow(g: Game, s: Site) { var c = Math.cos(g.tick * 0.0125 + s.id); return { d: c < 0 ? -1 : 1, L: 12 + Math.abs(c) * 90, c: Math.abs(c) }; }
+/* is (x, y) in the beam of a lit lighthouse just now: lamplight, for thinking by (ideas.ts iLampNear) */
+function hBeamLit(g: Game, x: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind !== "lighthouse" || !hLit(g, s)) continue;
@@ -832,8 +854,8 @@ function hBeamLit(g, x, y) {
   }
   return false;
 }
-/* a swimmer in trouble, within sight of a lit lighthouse: that way (peasants.js pSwim). 0 if there is none */
-function hBeacon(g, p) {
+/* a swimmer in trouble, within sight of a lit lighthouse: that way (peasants.ts pSwim). 0 if there is none */
+function hBeacon(g: Game, p: Peasant) {
   var best = null, bd = H_BEAM;
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
@@ -846,7 +868,7 @@ function hBeacon(g, p) {
   return best.cx < p.x ? -1 : 1;
 }
 /* the keeper: a barrel from the well's tank, up the ladder, into the lamp */
-function hTaskKeep(g, p, k) {
+function hTaskKeep(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || ++k.t > 6000) { if (s) wBackoff(g, p, s.id); return iDone(p, false); }
   var b = hFetchBarrel(g, p, k);
@@ -871,7 +893,7 @@ function hTaskKeep(g, p, k) {
   return iDone(p, true);
 }
 /* every W_STRIDE ticks: the oil burns down; the keeper goes for another barrel in good time; and going dark is news */
-function hLightStep(g, s) {
+function hLightStep(g: Game, s: Site) {
   if (!s.done || s.repair) return;
   var lit = hLit(g, s);
   if (lit) { s.fuel = Math.max(0, s.fuel - W_STRIDE); s.wasLit = true; }
@@ -887,13 +909,13 @@ function hLightStep(g, s) {
     if (q) { q.task = { kind: "keep", site: s.id, t: 0, act: 0 }; s.keeper = q.id; }
   }
 }
-/* (world.js sandLightning, as it strikes, at (x, y): in the lantern, with oil up there, the oil catches, and the fire is
+/* (world.ts sandLightning, as it strikes, at (x, y): in the lantern, with oil up there, the oil catches, and the fire is
    at the top of a tower. when it strikes, not when the bolt is drawn: a bolt is gone sooner at a slow speed) */
-function hLightStruck(g, s, x, y) {
+function hLightStruck(g: Game, s: Site, x: number, y: number) {
   if (!s.done || s.repair) return;
   if (s.fuel > 0 && x >= s.x0 - 1 && x <= s.x1 + 1 && y >= s.ly - 6 && y <= s.ly + 3) hLanternFire(g, s);
 }
-function hLanternFire(g, s) {
+function hLanternFire(g: Game, s: Site) {
   for (var u = -1; u <= 1; u++) for (var y = s.ly - 1; y <= s.ly + 1; y++) {
     var j = y * g.gw + s.lx + u;
     if (AIRY[g.m[j]]) { sandPlace(g, j, y === s.ly + 1 ? MAT.OIL : MAT.FIRE); heatAccept(g, j); }
@@ -905,7 +927,7 @@ function hLanternFire(g, s) {
 var H_BAND = hex32("#b8322a"), H_BEAM_C = hex32("#fff4c8"), H_WHITE = hex32("#e8e4dc"), H_WHITE_D = hex32("#c8c4bc"), H_WIN = hex32("#1a1e2c");
 /* the shaft is a solid round tower, whitewashed and banded red (what is inside it is seen only in the windows); the stripes
    go across the stonework too; the beam goes round */
-function hDrawLight(g, s) {
+function hDrawLight(g: Game, s: Site) {
   var y, u, i, x, hot = 0, x0 = s.x0 + 1;
   for (y = s.G1 - 15; y < s.Fr; y++) {
     var red = ((s.Fr - y) >> 2) % 2 === 1;
@@ -998,17 +1020,17 @@ wDef({
             "is waiting for the iron to set", "is prising plates out of the mould"][s.phase] || "is at the foundry";
   }
 });
-/* (iron made at the furnace: counted on whoever made it, for the foundry's idea. mines.js) */
-function hSmelted(g, p) {
+/* (iron made at the furnace: counted on whoever made it, for the foundry's idea. mines.ts) */
+function hSmelted(g: Game, p: Peasant) {
   p.smelts = (p.smelts || 0) + 1;
   if (g.know.foundry || !g.know.forge || !g.know.concrete) return;
   var best = null;
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && (!best || (q.smelts || 0) > (best.smelts || 0))) best = q; }
   wSpark(g, best, "foundry");
 }
-function hFX(s, u) { return s.xf + u; }
-function hFY(s, h) { return s.R0 - h; }
-function hFJ(g, s, u, h) { return (s.R0 - h) * g.gw + s.xf + u; }
+function hFX(s: Site, u) { return s.xf + u; }
+function hFY(s: Site, h) { return s.R0 - h; }
+function hFJ(g: Game, s: Site, u, h) { return (s.R0 - h) * g.gw + s.xf + u; }
 /* what goes at (u, h): a material, EMPTY for something kept clear, or -1 for nothing of ours (the ground as it is) */
 function hFoundryCell(u, h) {
   var FB = MAT.FIREBRICK, BR = MAT.BRICK, E = MAT.EMPTY;
@@ -1053,7 +1075,7 @@ function hFoundryCell(u, h) {
 }
 /* the plan on ground gy at x0 (u -1..10 across; its founder stands a column or two out from it, either side): level, the
    moulds sunk under its floor, the high ground dug off and the low made up. {plan, R0, score} or null */
-function hFoundryFit(g, x0, gy, hi, lo) {
+function hFoundryFit(g: Game, x0: number, gy: number, hi, lo) {
   var r = hBestLevel(g, x0, gy, hi, lo, function (R0) {
     return hLevel(g, x0, gy, H_U0, H_U1, R0, -4, 13, hFoundryCell, function (u, h) { return h <= -1 ? 1 : (h === 0 ? 2 : 10 + h); },
                   { dress: function (e, u, h) { if (h <= -1) e.rd = 6; } });
@@ -1064,7 +1086,7 @@ function hFoundryFit(g, x0, gy, hi, lo) {
   if (r) r.plan.forEach(function (e) { e.rd = Math.max(e.rd || 0, ((e.i / g.gw) | 0) - (r.R0 - 14) + 1); });
   return r ? { plan: r.plan, R0: r.R0, score: 30 - r.work * 0.2 } : null;
 }
-function hPlanFoundry(g, p) {
+function hPlanFoundry(g: Game, p: Peasant) {
   var f = mSites(g, "furnace", true)[0];
   /* (and only where the founder can stand to work both moulds' bellows, and get there from home: not one of them in the
      cliff next to it) */
@@ -1082,18 +1104,18 @@ function hPlanFoundry(g, p) {
   return true;
 }
 /* can the founder work a foundry at x0 (its row R0): both stations (hSpot, either mould's bellows), standing, and a way
-   from home to each (heavens.js hHome, bounded) */
-function hFoundryStations(g, x0, R0) {
+   from home to each (heavens.ts hHome, bounded) */
+function hFoundryStations(g: Game, x0: number, R0: number) {
   var home = hHome(g), xs = [x0 - H_U0 + H_SPOT[0], x0 - H_U0 + H_SPOT[1]];
   for (var k = 0; k < xs.length; k++) {
     var sx = xs[k], G = mGroundNear(g, sx, false, R0 - 1), sy = G > 0 && Math.abs(G - 1 - (R0 - 1)) <= 4 ? G - 1 : R0 - 1;
     if (sx < 1 || sx > g.gw - 2 || navStand(g, sx, sy) !== 1) return false;
-    var there = function (x, y) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 1; };
+    var there = function (x: number, y: number) { return Math.abs(x - sx) <= 1 && Math.abs(y - sy) <= 1; };
     if (!home.at(sx, sy) && !navFind(g, home.x, home.y, there, sx, sy, H_REACH * 4)) return false;
   }
   return true;
 }
-function hFoundryAt(g, p, x0, R0, plan) {
+function hFoundryAt(g: Game, p: Peasant, x0: number, R0: number, plan) {
   var s = bNew(g, "foundry", p, plan, [x0, R0 - 13, x0 + H_FW - 1, R0 + 3], { wonder: true, xf: x0 - H_U0, R0: R0, phase: 0, founder: p ? p.id : 0, casts: 0 });
   var cells = [];
   for (var h = 1; h <= 7; h++) for (var u = 6; u <= 8; u++) if (h > 1 || u !== 7) cells.push(hFJ(g, s, u, h));
@@ -1101,9 +1123,9 @@ function hFoundryAt(g, p, x0, R0, plan) {
   return s;
 }
 /* how hot the liquid iron in the chamber is, on the whole */
-function hLavaT(g, s) { var t = 0, n = 0; for (var k = 0; k < s.cells.length; k++) if (g.m[s.cells[k]] === MAT.LAVA) { t += g.T[s.cells[k]]; n++; } return n ? t / n : 0; }
+function hLavaT(g: Game, s: Site) { var t = 0, n = 0; for (var k = 0; k < s.cells.length; k++) if (g.m[s.cells[k]] === MAT.LAVA) { t += g.T[s.cells[k]]; n++; } return n ? t / n : 0; }
 /* what is in the chamber: liquid iron, solid iron, burning coal, ash, and how hot the hottest of it is */
-function hChamber(g, s) {
+function hChamber(g: Game, s: Site) {
   var o = { liq: 0, met: 0, emb: 0, ash: 0, hi: AMBIENT, gap: 0 };
   for (var k = 0; k < s.cells.length; k++) {
     var j = s.cells[k], c = g.m[j];
@@ -1117,17 +1139,17 @@ function hChamber(g, s) {
   return o;
 }
 /* the mould being poured into: its cells (and, for the bell, which are the cup and which the lip) */
-function hMould(g, s, which) {
+function hMould(g: Game, s: Site, which: string) {
   var out = [], u, h;
   /* (in the order it fills: from the bottom, from the tap's end) */
   if (which === "bell") { for (h = -3; h <= -1; h++) for (u = 7; u <= 9; u++) out.push(hFJ(g, s, u, h)); }
   else for (h = 0; h <= 1; h++) for (u = 4; u >= 0; u--) out.push(hFJ(g, s, u, h));
   return out;
 }
-function hMouldHot(g, s) { var t = AMBIENT; hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (j) { if (g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA) t = Math.max(t, g.T[j]); }); return t; }
+function hMouldHot(g: Game, s: Site) { var t = AMBIENT; hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (j) { if (g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA) t = Math.max(t, g.T[j]); }); return t; }
 /* a cast in the mould, not yet prised out (iron in it, set or running) */
-function hMouldFull(g, s, which) { return hMould(g, s, which).some(function (j) { return g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA; }); }
-function hMouldScrap(g, s) {
+function hMouldFull(g: Game, s: Site, which: string) { return hMould(g, s, which).some(function (j) { return g.m[j] === MAT.METAL || g.m[j] === MAT.LAVA; }); }
+function hMouldScrap(g: Game, s: Site) {
   hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (j) {
     if (g.m[j] !== MAT.METAL || g.T[j] >= H_PRISE) return;
     heatVanish(g, j);
@@ -1136,8 +1158,8 @@ function hMouldScrap(g, s) {
   });
 }
 /* whatever else has got into a mould (a drop of rain, ice, sand blown in): out, before it is cast into. water shoved out
-   of it (build.js bShove), anything else lifted out (hBail) */
-function hMouldSweep(g, s, which) {
+   of it (build.ts bShove), anything else lifted out (hBail) */
+function hMouldSweep(g: Game, s: Site, which: string) {
   var mo = hMould(g, s, which), not = {};
   hMould(g, s, "plate").concat(hMould(g, s, "bell")).forEach(function (q) { not[q] = 1; });   /* (nor into the other mould) */
   /* (and anything else in it, ice, sand blown in, a bit of glass: lifted out, and put down on the open air nearest,
@@ -1146,11 +1168,11 @@ function hMouldSweep(g, s, which) {
 }
 /* a cell of water with no way out through the water it is in (the bell's mould is shut in under the chamber), or of
    anything else in a mould: lifted out, and put down on the open air nearest it, heat and all */
-function hBail(g, j, not) {
+function hBail(g: Game, j: number, not) {
   var gw = g.gw, x0 = j % gw, y0 = (j / gw) | 0, r, x, y, i, cols = {};
   if (g.m[j] === MAT.INERT) return false;   /* (INERT stays exactly where it was put: only the eraser moves it) */
   /* (put down on something, clear of the mould's columns: not where it would only fall or run back in) */
-  for (var q in not || {}) { var qx = q % gw; for (x = qx - 2; x <= qx + 2; x++) cols[x] = 1; }
+  for (var q in not || {}) { var qx = +q % gw; for (x = qx - 2; x <= qx + 2; x++) cols[x] = 1; }
   cols[x0] = 1;
   for (r = 1; r < 30; r++) for (y = y0 - r; y <= y0 + r; y++) for (x = x0 - r; x <= x0 + r; x++) {
     if (Math.max(Math.abs(x - x0), Math.abs(y - y0)) !== r || x < 1 || y < 1 || x >= gw - 1 || y >= g.gh - 1 || cols[x]) continue;
@@ -1162,7 +1184,7 @@ function hBail(g, j, not) {
   return false;
 }
 /* what the foundry is wanted for: plates, or an engine bell, for a great work going up (more than is in pockets) */
-function hFoundryWant(g, s) {
+function hFoundryWant(g: Game, s: Site) {
   var bell = 0, plate = 0;
   for (var k = 0; k < g.sites.length; k++) {
     var t = g.sites[k];
@@ -1170,7 +1192,7 @@ function hFoundryWant(g, s) {
     bell += Math.max(0, bNeed(g, t, "bell")); plate += Math.max(0, bNeed(g, t, "plate"));
   }
   /* (less what is in the pockets of those who can get it there, and what is kept in the salvage where it can be got at,
-     a bell's ninths and all: fetched, not cast again. wonders.js wPocketedSure, wSalvageSure) */
+     a bell's ninths and all: fetched, not cast again. wonders.ts wPocketedSure, wSalvageSure) */
   bell -= wPocketedSure(g, "bell"); plate -= wPocketedSure(g, "plate");
   if (bell > 1e-6) bell -= wSalvageSure(g, "bell");
   if (plate > 0.5) plate -= wSalvageSure(g, "plate");
@@ -1182,14 +1204,14 @@ function hFoundryWant(g, s) {
 /* the plug of the tap for a mould, and where the founder stands to work it */
 /* (at the foot of the chamber, the side of the mould: the bottom row is a bed of coal, kept burning, that the iron runs
    down onto, and out of) */
-function hPlug(g, s) { return hFJ(g, s, s.mould === "bell" ? 9 : 5, 1); }
+function hPlug(g: Game, s: Site) { return hFJ(g, s, s.mould === "bell" ? 9 : 5, 1); }
 /* (out of the heat that comes off the chamber through the air: over a whole cast, measured, the air at head height falls
    below what even the brave can stand nine columns off its hot side and five off the other. the stations are there,
    with a column to spare either way: H_SPOT) */
 var H_SPOT = [-6, 21];
-function hSpot(s) { return { x: s.xf + (s.mould === "bell" ? H_SPOT[1] : H_SPOT[0]), y: s.R0 - 1 }; }
+function hSpot(s: Site) { return { x: s.xf + (s.mould === "bell" ? H_SPOT[1] : H_SPOT[0]), y: s.R0 - 1 }; }
 /* (whatever the ground is like out there, give or take a step or two) */
-function hSpotAt(g, s) {
+function hSpotAt(g: Game, s: Site) {
   var sp = hSpot(s), out = s.mould === "bell" ? 1 : -1, d;
   /* (and if something has been put up where they stand, a stair, a house's wall: the nearest standing a little further
      out, further from the heat, not nearer it) */
@@ -1204,28 +1226,28 @@ function hSpotAt(g, s) {
 /* every W_STRIDE ticks: a founder, when there is something to cast; and the pour put away when it has set */
 /* who a cast would cut off from all the food they can get to, hungry enough that they could starve before it is over: its
    roof is the way across it, and through a cast (3600 to 7000 ticks: H_CAST with some to spare) the roof is hotter than
-   anybody walks on (P_SCALD: paths.js navHazard, as any hot ground is). by the eating's own rules: food pEdible (no lone
+   anybody walks on (P_SCALD: paths.ts navHazard, as any hot ground is). by the eating's own rules: food pEdible (no lone
    flower), reached as the eat task reaches it, three across and ten up or two down from where they stand. reach is
    looked at with the roof as it will be, cooled and then hot: nobody who cannot get to food with it cool is the foundry's
    doing */
 var H_CAST = 8000, H_CUTWAIT = 6000;
 /* the roof's cells, the slab and the chimney's stub on it: where anybody crossing walks */
-function hRoofCells(g, s) {
+function hRoofCells(g: Game, s: Site) {
   var out = [], x, y, j;
   for (y = s.R0 - 13; y <= s.R0 - 11; y++) for (x = s.x0; x <= s.x1; x++) { j = y * g.gw + x; if (g.m[j] !== MAT.EMPTY) out.push(j); }
   return out;
 }
 /* is its roof too hot to walk on now (P_SCALD) */
-function hRoofHot(g, s) { return hRoofCells(g, s).some(function (j) { return g.T[j] > P_SCALD; }); }
+function hRoofHot(g: Game, s: Site) { return hRoofCells(g, s).some(function (j) { return g.T[j] > P_SCALD; }); }
 /* fn(), with its roof taken as at temperature t (a cool one, or one just too hot to walk on): and then as it was */
-function hRoofAs(g, s, t, fn) {
+function hRoofAs(g: Game, s: Site, t: number, fn) {
   var R = hRoofCells(g, s), was = R.map(function (j) { return g.T[j]; }), r;
   R.forEach(function (j) { g.T[j] = t; });
   r = fn();
   R.forEach(function (j, i) { g.T[j] = was[i]; });
   return r;
 }
-function hCutOff(g, s) {
+function hCutOff(g: Game, s: Site) {
   var hungry = [], k, p;
   for (k = 0; k < g.peasants.length; k++) {
     p = g.peasants[k];
@@ -1239,7 +1261,7 @@ function hCutOff(g, s) {
     for (dx = -3; dx <= 3; dx++) for (dy = -2; dy <= 10; dy++) { var sx = x + dx, sy = y + dy; if (sx >= 0 && sx < gw && sy >= 0 && sy < gh) mask[sy * gw + sx] = 1; }
   }
   if (!fx.length) return [];
-  var goal = function (x, y) { return mask[y * gw + x] === 1; }, out = [];
+  var goal = function (x: number, y: number) { return mask[y * gw + x] === 1; }, out = [];
   for (k = 0; k < hungry.length; k++) {
     p = hungry[k];
     var h = navHere(g, p);
@@ -1255,13 +1277,13 @@ function hCutOff(g, s) {
 }
 /* does its draught draw: the chamber shut all round in firebrick, its lining whole (the plug is a firebrick with a hole in
    it: shut, poured or not). a brick gone and the bellows only blow the fire out of it, and coal fed to it burns away */
-function hDraws(g, s) { return wClosed(g, s.cells); }
+function hDraws(g: Game, s: Site) { return wClosed(g, s.cells); }
 /* may a fire be lit in it now: its lining whole. every way a fire is first lit in it asks this: the charge, and the first
    coal stoked into a cold one */
-function hCanFire(g, s) { return hDraws(g, s); }
+function hCanFire(g: Game, s: Site) { return hDraws(g, s); }
 /* is there fire in its chamber */
-function hFired(g, s) { return s.cells.some(function (j) { var c = g.m[j]; return c === MAT.EMBER || c === MAT.FIRE || c === MAT.LAVA; }); }
-function hRoofWither(g, s) {
+function hFired(g: Game, s: Site) { return s.cells.some(function (j) { var c = g.m[j]; return c === MAT.EMBER || c === MAT.FIRE || c === MAT.LAVA; }); }
+function hRoofWither(g: Game, s: Site) {
   for (var y = Math.max(0, s.R0 - 16); y < s.R0; y++) for (var x = Math.max(0, s.x0 - 1); x <= Math.min(g.gw - 1, s.x1 + 1); x++) {
     if (y > s.R0 - 10 && x >= s.x0 && x <= s.x1) continue;   /* (the roof, and the face either side: not the inside) */
     var j = y * g.gw + x, v = g.m[j];
@@ -1269,7 +1291,7 @@ function hRoofWither(g, s) {
     if (v === MAT.PLANT || v === MAT.FLOWER || v === MAT.SEED) { g.m[j] = MAT.ASH; g.aux[j] = 0; g.lat[j] = 0; heatAccept(g, j); }
   }
 }
-function hFoundryStep(g, s) {
+function hFoundryStep(g: Game, s: Site) {
   if (!s.done || s.repair) return;
   /* (nothing grows on a warm foundry's roof, or up against its faces: a vine up the jacket and across the top is a fuse
      laid to the chimney's mouth, and the stone face on the plates' side is warmer than a leaf can stand. what has crept
@@ -1308,7 +1330,7 @@ function hFoundryStep(g, s) {
   s.founder = q.id;
 }
 /* the founder: whoever it was, if they are about; else whoever has worked the furnace most, of the idle */
-function hFounder(g, s) {
+function hFounder(g: Game, s: Site) {
   var q = hWho(g, s.founder);
   if (!q || !wIdle(g, q, s) || Math.abs(q.x - s.cx) > 260) {
     q = null;
@@ -1317,7 +1339,7 @@ function hFounder(g, s) {
   return q;
 }
 /* a coal for the fire: their own, off the foundry's pile, off the furnace's, or off whoever has one */
-function hCoal(g, p, s) {
+function hCoal(g: Game, p: Peasant, s: Site) {
   if ((p.coal || 0) >= 1) { p.coal--; return true; }
   if (s.stock && (s.stock.coal || 0) >= 1) { s.stock.coal--; return true; }
   var f = mSites(g, "furnace", true)[0];
@@ -1326,7 +1348,7 @@ function hCoal(g, p, s) {
 }
 /* the founder's shift: charge it (iron and coal in layers), work the bellows and keep the fire fed until it is mostly
    running, knock out the plug, let it run, put the plug back. then, once it has set, prise it out */
-function hTaskFound(g, p, k) {
+function hTaskFound(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || !s.phase || ++k.t > 9000) return iDone(p, false);
   var sp = hSpotAt(g, s);
@@ -1474,7 +1496,7 @@ function hTaskFound(g, p, k) {
 P_SAY.foundryNoIron = ["no iron", "not a bar to be had", "we need iron for it"];
 /* a cell of liquid iron out of the chamber (the lowest, the nearest the tap) and into the mould (the first room in it),
    heat and all */
-function hPourCell(g, s, p) {
+function hPourCell(g: Game, s: Site, p: Peasant) {
   var src = -1, best = -1e9, k, j, M = hMould(g, s, s.mould), tx = s.xf + (s.mould === "bell" ? 9 : 5);
   /* (ash that has floated out of the tap with it, skimmed off) */
   for (k = 0; k < M.length; k++) if (g.m[M[k]] === MAT.ASH) hRake(g, p, M[k]);
@@ -1499,17 +1521,17 @@ function hPourCell(g, s, p) {
   return true;
 }
 /* the ash out of the door, into a pocket (or the wind, if it is full): the valley's ash, as no campfire gives it */
-function hRake(g, p, j) {
+function hRake(g: Game, p: Peasant, j: number) {
   heatVanish(g, j);
   if ((p.ash || 0) < L_POCKET.ash) { p.ash = (p.ash || 0) + 1; g.found.ash = (g.found.ash || 0) + 1; }
   if (p.sayT <= 0 && Math.random() < 0.1) pSay(g, p, "rake");
 }
 /* a gap in the chamber with no liquid iron over it to run into it: coal can go in there */
-function hBelowIron(g, s, j) { var u = g.m[j - g.gw]; return !(u === MAT.LAVA); }
+function hBelowIron(g: Game, s: Site, j: number) { var u = g.m[j - g.gw]; return !(u === MAT.LAVA); }
 /* every tick, from wStep: nothing (the work is all in the founder's shift) */
-function hFoundryTick(g) {}
+function hFoundryTick(g: Game) {}
 /* a fire in the chamber is the foundry, not a fire: the brigade lets it be */
-function hInTheChamber(g, s, f) {
+function hInTheChamber(g: Game, s: Site, f) {
   for (var k = 0; k < f.length; k++) {
     var u = f[k] % g.gw - s.xf, h = s.R0 - ((f[k] / g.gw) | 0);
     if (!(u >= -1 && u <= 13 && h >= -3 && h <= 14)) return false;
@@ -1518,7 +1540,7 @@ function hInTheChamber(g, s, f) {
 }
 var H_BANDC = hex32("#4a4e58"), H_BELLOWS = hex32("#6a4a2a"), H_BELLOWS_D = hex32("#4a3218");
 /* iron bands round the stack, the bellows at each spot, and smoke out of the chimney while it is lit */
-function hDrawFoundry(g, s) {
+function hDrawFoundry(g: Game, s: Site) {
   if (!s.done) return 0;
   var u, h, i, hot = 0;
   for (h = 3; h <= 7; h += 4) for (u = 4; u <= 10; u++) { i = hFJ(g, s, u, h); if (g.m[i] === MAT.BRICK) g.px[i] = blend32(g.px[i], H_BANDC, 0.7); }
@@ -1556,7 +1578,7 @@ function hDrawFoundry(g, s) {
 var H_RW = 13;              /* the pad, across */
 var H_FUEL = 12;            /* barrels of oil in a rocket */
 var H_CREW = 3;             /* aboard, at most */
-var H_AWAY = 3000;          /* ticks on the moon (in space, as peasants.js has it) */
+var H_AWAY = 3000;          /* ticks on the moon (in space, as peasants.ts has it) */
 var H_WALK = 16;            /* the walkway's row, up from the ground */
 
 P_SAY.idea_moonrocket = ["the astronomer says the moon is a place. a place is somewhere you can go", "a rocket pack. but for the moon",
@@ -1610,8 +1632,8 @@ wDef({
     return "";
   }
 });
-/* (a flight on a rocket pack: counted, on the one who flew and on the valley. oil.js) */
-function hFlew(g, p) { g.packFlights = (g.packFlights || 0) + 1; p.flights = (p.flights || 0) + 1; }
+/* (a flight on a rocket pack: counted, on the one who flew and on the valley. oil.ts) */
+function hFlew(g: Game, p: Peasant) { g.packFlights = (g.packFlights || 0) + 1; p.flights = (p.flights || 0) + 1; }
 /* what goes at (u, h), and whether it is part of the rocket itself (it leaves with it) */
 function hRocketCell(u, h) {
   var P = MAT.METAL, FB = MAT.FIREBRICK;
@@ -1639,7 +1661,7 @@ function hRocketCell(u, h) {
 function hIsRocket(u, h) { return h >= 3 && h <= 24 && u >= 4 && u <= 10 && !(u === 4 && h === H_WALK) && !(u === 4 && (h === 10 || h === 22)); }
 /* the plan on ground gy at x0: level (the high ground dug off, the low made up), clear sky over it to the top of the
    world */
-function hRocketFit(g, x0, gy, hi, lo) {
+function hRocketFit(g: Game, x0: number, gy: number, hi, lo) {
   var r = hBestLevel(g, x0, gy, hi, lo, function (R0) {
     for (var u = 4; u <= 10; u++) for (var y = 0; y < R0 - 24; y++) if (!AIRY[pCell(g, x0 + u, y)]) return null;
     return hLevel(g, x0, gy, 0, H_RW - 1, R0, 0, 36, hRocketCell, function (u, h) { return h <= 2 ? 1 + h : (hIsRocket(u, h) ? 100 + h : 10 + h); },
@@ -1652,7 +1674,7 @@ function hRocketFit(g, x0, gy, hi, lo) {
   });
   return r ? { plan: r.plan, R0: r.R0, score: 30 - r.work * 0.2 } : null;
 }
-function hPlanRocket(g, p) {
+function hPlanRocket(g: Game, p: Peasant) {
   var r = wPlot(g, { w: H_RW, sky: 40, rough: 12, near: wMiddle(g), pad: 2, fit: hRocketFit });
   if (!r) return false;
   var s = hRocketAt(g, p, r.x0, r.r.R0, wGild(g, wCleared(g, r, r.r.plan)));
@@ -1661,11 +1683,11 @@ function hPlanRocket(g, p) {
   if (bCarries(p)) bJoin(g, p, s);
   return true;
 }
-function hRocketAt(g, p, x0, R0, plan) {
+function hRocketAt(g: Game, p: Peasant, x0: number, R0: number, plan) {
   return bNew(g, "moonrocket", p, plan, [x0, R0 - 36, x0 + H_RW - 1, R0], { wonder: true, R0: R0, oil: 0, rx: x0 + 7, walk: { x: x0 + 4, y: R0 - H_WALK - 1 } });
 }
 /* a barrel from the well's tank to the rocket's pile */
-function hTaskFuel(g, p, k) {
+function hTaskFuel(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || s.gone || ++k.t > 6000) { if (s) wBackoff(g, p, s.id); return iDone(p, false); }
   /* (full, or as good as, with the barrels on their way: not another fetched. one in hand: somewhere else with it) */
@@ -1682,7 +1704,7 @@ function hTaskFuel(g, p, k) {
   return iDone(p, true);
 }
 /* the crew: up the ladder to the walkway, and in */
-function hTaskBoard(g, p, k) {
+function hTaskBoard(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.gone || !s.crew || s.crew.indexOf(p.id) < 0 || ++k.t > 4000) return iDone(p, false);
   /* (at the hatch: on the walkway, or anywhere up against the top of it, where whoever built the nose may still be) */
@@ -1695,7 +1717,7 @@ function hTaskBoard(g, p, k) {
   return false;
 }
 /* the rocket p is aboard, while it stands on its pad whole to be aboard (null: gone, wanting mending, or never theirs) */
-function hAboardOf(g, p) {
+function hAboardOf(g: Game, p: Peasant) {
   var s = bSite(g, p.aboard);
   return s && s.kind === "moonrocket" && s.done && !s.repair && !s.gone && s.crew && s.crew.indexOf(p.id) >= 0 ? s : null;
 }
@@ -1706,7 +1728,7 @@ function hAboardOf(g, p) {
    it), they are held as they were aboard: out of sight, unhurt, not moving. every 60 ticks the valley is looked over
    for somewhere to let them out (hRelease); with nowhere, they stay held, and say so (wMood). one rule, for every way
    a rocket can fail them: nobody is ever dropped, or put down inside the hull */
-function hHeld(g, p) {
+function hHeld(g: Game, p: Peasant) {
   if ((g.tick + p.id) % 60) return;
   var at = hRelease(g, p);
   if (!at) return;
@@ -1715,12 +1737,12 @@ function hHeld(g, p) {
 }
 /* the nearest place to them in the valley that a peasant can stand, and be safe, and get away from: ground under it
    (the floor of the world too), room over it, nothing wet, and in nobody's site; nothing that would kill them
-   anywhere near (a drain, fire, acid: what the walking does, paths.js navLethalNear); and a way from it on foot to
+   anywhere near (a drain, fire, acid: what the walking does, paths.ts navLethalNear); and a way from it on foot to
    where the village lives (hHome: a house's floor, or the ground in the middle of them), not just out to the sky: a
    shaft open to the sky is no use with no way up it. open sky over it is tried first, however much nearer a roof is;
    every candidate is tried, each search bounded (H_REACH). {x, y} or null */
 var H_REACH = 2500;
-function hRelease(g, p) {
+function hRelease(g: Game, p: Peasant) {
   var C = [], x, y, k, px = p.x, py = p.y;
   for (x = rLo(g, 1); x < rHi(g, 1); x++) for (y = 9; y < g.gh; y++) {
     if (!SOLID[pCell(g, x, y + 1)] || !AIRY[g.m[y * g.gw + x]]) continue;
@@ -1737,7 +1759,7 @@ function hRelease(g, p) {
 }
 /* where the village lives, to be got to on foot: the floor of any house, or the ground at the middle of them (wMiddle).
    {x, y, at(x, y)} */
-function hHome(g) {
+function hHome(g: Game) {
   /* (the ground at the middle: the highest footing within ten columns of it, the lip of a pit and not the foot of it;
      or, with none there, the nearest column further out that has any) */
   var m0 = Math.round(wMiddle(g)), mx = -1, my = -1, d, x, y;
@@ -1755,12 +1777,12 @@ function hHome(g) {
   } };
 }
 /* nothing but air over (x, y), to the top of the world */
-function hSky(g, x, y) {
+function hSky(g: Game, x: number, y: number) {
   for (var j = (y - 1) * g.gw + x; j >= 0; j -= g.gw) if (!AIRY[g.m[j]]) return false;
   return true;
 }
 /* the bored, now and then: up the gantry to look at the moon */
-function hTaskGantry(g, p, k) {
+function hTaskGantry(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 3000 || (s.crew && s.crew.length)) return iDone(p, false);
   if (hGo(g, p, k, "gantry" + s.id, s.walk.x, s.walk.y, 1, 0)) return false;
@@ -1769,7 +1791,7 @@ function hTaskGantry(g, p, k) {
   if (k.act > 360) { p.bored = 0; return iDone(p, true); }
   return true;
 }
-function hRocketPick(g, p, hungry) {
+function hRocketPick(g: Game, p: Peasant, hungry) {
   if (hungry) return false;
   /* back from the moon with moon rock: set out where everybody can see it */
   if ((p.moonrock || 0) > 0 && p.state === "walk" && !p.fromSpace && !(p.rockT > g.tick) && !wNoGo(g, p, "moonrock")) { p.task = { kind: "moonrock", t: 0, act: 0 }; return true; }
@@ -1781,8 +1803,8 @@ function hRocketPick(g, p, hungry) {
 }
 /* the moon rock, set out at the foot of the statue (or of the gantry; or, with neither, on open ground near where they
    are). never thrown away: with nowhere to set it out, it is kept, and they try again in a while (and dead, it is set
-   into the salvage: wonders.js wDropAll) */
-function hTaskMoonRock(g, p, k) {
+   into the salvage: wonders.ts wDropAll) */
+function hTaskMoonRock(g: Game, p: Peasant, k: Task) {
   if (!(p.moonrock > 0)) return iDone(p, false);
   if (++k.t > 4000) { p.rockT = g.tick + 600; return iDone(p, false); }
   var fx = Math.floor(p.x), t = mSites(g, "statue", true)[0] || mSites(g, "moonrocket", true)[0] || { x0: fx, x1: fx, cx: fx, id: 0, kind: "" };
@@ -1806,9 +1828,9 @@ function hTaskMoonRock(g, p, k) {
   return true;
 }
 /* the crew: the one who has flown most on a rocket pack, the astronomer, and whoever has had the most ideas */
-function hCrew(g, s) {
+function hCrew(g: Game, s: Site) {
   var crew = [], k, q, best;
-  /* (not anybody who lately could not get up to it: let be a while, and the next one asked. wonders.js wBackoff) */
+  /* (not anybody who lately could not get up to it: let be a while, and the next one asked. wonders.ts wBackoff) */
   function ok(q) { return q && !q.dead && q.state === "walk" && crew.indexOf(q) < 0 && q.hunger < P_HUNGRY && !q.fire && !(s && wNoGo(g, q, s.id)); }
   for (best = null, k = 0; k < g.peasants.length; k++) { q = g.peasants[k]; if (ok(q) && (q.flights || 0) > 0 && (!best || q.flights > best.flights)) best = q; }
   if (best) crew.push(best);
@@ -1823,7 +1845,7 @@ function hCrew(g, s) {
   return crew.slice(0, H_CREW);
 }
 /* every W_STRIDE ticks: fuel fetched; fuelled, the crew called and the countdown; a fire by it, the end of it */
-function hRocketStep(g, s) {
+function hRocketStep(g: Game, s: Site) {
   var k, q;
   /* (a plate gone in the countdown, or before: it cannot go like that. the countdown is off, and the crew get out,
      till it is mended: hAboardOf) */
@@ -1875,10 +1897,10 @@ function hRocketStep(g, s) {
   }
 }
 /* every cell of the rocket itself in place */
-function hHullWhole(g, s) { for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (e.rk && !bOk(g, e)) return false; } return true; }
-function mHouseOf(g, s) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "audience" && q.task.site === s.id; }); }
+function hHullWhole(g: Game, s: Site) { for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (e.rk && !bOk(g, e)) return false; } return true; }
+function mHouseOf(g: Game, s: Site) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "audience" && q.task.site === s.id; }); }
 /* fire, embers or something molten by the rocket (not in its trench, once it is going) */
-function hRocketAlight(g, s) {
+function hRocketAlight(g: Game, s: Site) {
   for (var h = 0; h <= 26; h++) for (var u = 3; u <= 11; u++) {
     var c = pCell(g, s.x0 + u, s.R0 - h);
     if (c === MAT.FIRE || c === MAT.EMBER || c === MAT.LAVA || c === MAT.TORCH) return true;
@@ -1886,7 +1908,7 @@ function hRocketAlight(g, s) {
   return false;
 }
 /* up it goes: out of the grid (heat and all: heatVanish), into a thing of its own; the crew to the moon */
-function hLiftOff(g, s) {
+function hLiftOff(g: Game, s: Site) {
   var cells = [], k, e, x, y, bx = s.rx, by = s.R0 - 3;
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
@@ -1917,7 +1939,7 @@ function hLiftOff(g, s) {
   s.crew = [];
 }
 /* every tick, from wStep: the rocket going up, the flag going in */
-function hRocketTick(g) {
+function hRocketTick(g: Game) {
   var R = g.rocket, k;
   if (g.moonFlag && g.tick % W_STRIDE === 0) hMoonTalk(g);
   if (g.moonT && g.tick >= g.moonT) {
@@ -1956,7 +1978,7 @@ function hRocketTick(g) {
   }
 }
 /* the crew, thrown clear; the plates, flung; and a bang the size of the valley's patience */
-function hRocketBoom(g, s) {
+function hRocketBoom(g: Game, s: Site) {
   var k, e, q, x, y;
   var C = (s.crew || []).slice();
   C.forEach(function (id) { q = lAlive(g, id); if (q && q.aboard !== s.id && q.task && q.task.kind === "board") q.task = null; });
@@ -1990,14 +2012,14 @@ var H_HELM = hex32("#e8f4ff"), H_HELM_G = hex32("#a8d0f0");
 var H_SKIN = hex32("#e4e4e0"), H_SKIN_D = hex32("#b4b6b8"), H_FIN = hex32("#c0392e"), H_FIN_D = hex32("#8a2620"), H_BELL = hex32("#3e424c"), H_BELL_HI = hex32("#6a707c");
 /* the rocket's paint, by where the cell is in it (u across from the pad's left, h up from the ground): white plates, red
    fins, a dark engine bell. (null: as it is) */
-function hRocketCol(u, h, v) {
+function hRocketCol(u, h: number, v: number) {
   if (v !== MAT.METAL) return null;
   if (h >= 3 && h <= 5 && u >= 6 && u <= 8) return u === 6 ? H_BELL_HI : H_BELL;
   if (u === 4 || u === 10 || (h <= 5 && (u === 5 || u === 9)) || h === 22 || h === 23) return u >= 8 ? H_FIN_D : H_FIN;
   return u === 9 || (h === 6 && u === 8) ? H_SKIN_D : H_SKIN;
 }
 /* the inside of the rocket's shell, drawn; the hatch */
-function hDrawRocket(g, s) {
+function hDrawRocket(g: Game, s: Site) {
   var u, h, x, y, k, e, col;
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
@@ -2017,7 +2039,7 @@ function hDrawRocket(g, s) {
   return 0;
 }
 /* the rocket in flight, and the flag on the moon */
-function hDrawRocketSky(g) {
+function hDrawRocketSky(g: Game) {
   var R = g.rocket, hot = 0, k;
   if (R) {
     var bx = Math.floor(R.x), by = Math.round(R.y);
@@ -2042,7 +2064,7 @@ function hDrawRocketSky(g) {
   return hot;
 }
 /* those who have been: a glass helmet, for good */
-function hDrawHelmets(g, s) {
+function hDrawHelmets(g: Game, s: Site) {
   for (var k = 0; k < g.peasants.length; k++) {
     var p = g.peasants[k];
     if (!p.moon || p.dead || p.state !== "walk" || p.sleep > 0 || p.stun > 0 || p.slip > 0 || p.swimming) continue;
@@ -2052,7 +2074,7 @@ function hDrawHelmets(g, s) {
   }
 }
 /* the astronauts, back, now and then say so */
-function hMoonTalk(g) {
+function hMoonTalk(g: Game) {
   for (var k = 0; k < g.peasants.length; k++) {
     var p = g.peasants[k];
     if (p.moon && !p.dead && p.state === "walk" && wIdle(g, p) && p.sayT <= 0 && Math.random() < 0.01) pSay(g, p, "moon");

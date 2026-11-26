@@ -1,7 +1,7 @@
 /* =====================================================================
    PLEASAND  --  test/platforms.js
 
-   no ground left and no roof that will take a floor (platforms.js,
+   no ground left and no roof that will take a floor (platforms.ts,
    docs/platforms-plan.md): a deck high on trestle legs, a ladder up to
    it, and a house on top. and TRESTLE, the legs, which anybody can
    paint. required by test/run.js

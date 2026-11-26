@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  save.js
+   PLEASAND  --  save.ts
 
    putting the village in a file, and getting it back out again.
 
@@ -24,6 +24,12 @@
    ===================================================================== */
 "use strict";
 
+/* (what this file keeps in g) */
+interface Game {
+  pop?: any; sel?: number; moreOpen?: number; moreLast?: number; speed?: number; speedAcc?: number; lx?: any;
+  ax?: any; down?: number; keys?: any; btn?: number; samp?: any; ptr?: any[];
+}
+
 var SAVE_FORMAT = "pleasand-save", SAVE_VERSION = 1;
 /* the grids a village cannot go on without: a save without any of them, or with one the wrong size, is not loaded */
 var SAVE_GRID = ["m", "aux", "sh", "T", "lat", "stamp", "vy"];
@@ -43,7 +49,7 @@ var SAVE_SKIP = [
 ];
 /* and the hand on the mouse: a loaded village starts with nobody pressing anything */
 var SAVE_INPUT = ["down", "btn", "ptr", "keys", "samp", "lx", "ax", "pop", "popRect", "hdrHit", "fps", "ms",
-                  "whlAxis", "whlT", "edgeT", "edgeSide", "stripDrag", "arrowT", "feedHit", "svx", "camNote", "eaten", "tipW", "arrowEnd"];   /* (and the hand on the view: game.js) */
+                  "whlAxis", "whlT", "edgeT", "edgeSide", "stripDrag", "arrowT", "feedHit", "svx", "camNote", "eaten", "tipW", "arrowEnd"];   /* (and the hand on the view: game.ts) */
 /* and where the cursor is. peasants notice it, so the harness takes the saved one (to go on as the
    browser would have); the browser keeps the real one, under your hand */
 var SAVE_POINTER = ["mx", "my", "cx", "cy", "pcx", "pcy", "cvx", "cvy"];
@@ -73,8 +79,8 @@ var SAVE_KEY_EVERY = 900;       /* sand ticks between keyframes (15s) */
 /* -------------------------------------------------------------------
    1. TURNING THE GAME OBJECT INTO JSON, AND BACK
    ------------------------------------------------------------------- */
-function saveIsTyped(v) { return ArrayBuffer.isView(v) && !(v instanceof DataView); }
-function saveIsDrawing(v) {
+function saveIsTyped(v: any) { return ArrayBuffer.isView(v) && !(v instanceof DataView); }
+function saveIsDrawing(v: any) {
   return typeof v.getContext === "function" || (v.data instanceof Uint8ClampedArray && typeof v.width === "number");
 }
 
@@ -86,7 +92,7 @@ function saveConstMap() {
   }
   return m;
 }
-function saveConstGet(name, i) {
+function saveConstGet(name, i: number) {
   if (SAVE_CONSTS.indexOf(name) < 0) throw new Error("save: unknown constant table " + name);
   var list = eval(name);
   if (!list || !list[i]) throw new Error("save: " + name + "[" + i + "] is not there any more");
@@ -109,9 +115,9 @@ function saveUnB64(name, b64) {
 /* a value, as json. objects reached twice are written once, with an $id,
    and referred to after that with $r. odd numbers, undefined and holes
    are spelled out, because a NaN is exactly what somebody will be looking for */
-function saveEncode(root, skip) {
+function saveEncode(root, skip: string[]) {
   var consts = saveConstMap(), count = new Map(), ids = new Map(), next = 1;
-  function scan(v) {
+  function scan(v: any) {
     if (v === null || typeof v !== "object" || consts.has(v)) return;
     var n = count.get(v) || 0;
     count.set(v, n + 1);
@@ -119,7 +125,7 @@ function saveEncode(root, skip) {
     var ks = Object.keys(v), i;
     for (i = 0; i < ks.length; i++) if (!(skip && v === root && skip.indexOf(ks[i]) >= 0)) scan(v[ks[i]]);
   }
-  function enc(v) {
+  function enc(v: any) {
     if (v === undefined) return { $u: 1 };
     if (typeof v === "number") return isFinite(v) ? v : { $n: String(v) };
     if (typeof v === "function") return { $f: v.name || "anonymous" };
@@ -152,7 +158,7 @@ function saveEncode(root, skip) {
 
 function saveDecode(json) {
   var ids = new Map();
-  function dec(v) {
+  function dec(v: any) {
     if (v === null || typeof v !== "object") return v;
     if (Array.isArray(v)) return v.map(dec);
     if (v.$u === 1) return undefined;
@@ -175,9 +181,9 @@ function saveDecode(json) {
 
 /* a quick copy of the live village, kept in memory (a keyframe). cheap:
    no base64 until somebody saves */
-function saveClone(g) {
+function saveClone(g: Game) {
   var consts = saveConstMap(), memo = new Map();
-  function cl(v) {
+  function cl(v: any) {
     if (v === null || typeof v !== "object" || consts.has(v)) return v;
     if (memo.has(v)) return memo.get(v);
     if (saveIsTyped(v)) { var a = v.slice(); memo.set(v, a); return a; }
@@ -196,10 +202,10 @@ function saveClone(g) {
 /* -------------------------------------------------------------------
    2. WHAT THE VILLAGE LOOKS LIKE, FOR A READER
    ------------------------------------------------------------------- */
-function saveR(v) { return typeof v === "number" ? (isFinite(v) ? Math.round(v * 100) / 100 : String(v)) : v; }
+function saveR(v: any) { return typeof v === "number" ? (isFinite(v) ? Math.round(v * 100) / 100 : String(v)) : v; }
 /* the plain fields of a thing (numbers, strings, flags), and the ids of the things it points at */
-function saveFlat(o) {
-  var out = {}, k, v;
+function saveFlat(o: object) {
+  var out: Record<string, any> = {}, k, v;
   for (k in o) {
     v = o[k];
     if (v === null || typeof v !== "object") { if (typeof v !== "function") out[k] = saveR(v); }
@@ -211,14 +217,14 @@ function saveFlat(o) {
   }
   return out;
 }
-function saveMatName(i) { return (typeof MAT_NAME !== "undefined" && MAT_NAME[i]) || ("MATERIAL " + i); }
-function saveHistogram(g) {
+function saveMatName(i: number) { return (typeof MAT_NAME !== "undefined" && MAT_NAME[i]) || ("MATERIAL " + i); }
+function saveHistogram(g: Game) {
   var n = new Int32Array(256), i, out = {};
   for (i = 0; i < g.m.length; i++) n[g.m[i]]++;
   for (i = 0; i < 256; i++) if (n[i]) out[saveMatName(i)] = n[i];
   return out;
 }
-function saveSummary(g) {
+function saveSummary(g: Game) {
   var pe = g.peasants || [], du = g.ducks || [], st = g.sites || [];
   var res = {};
   ["iron", "barrels", "gold", "coal", "stone", "wood", "score", "astronauts", "rip", "duckRip", "popGoal", "np"].forEach(function (k) {
@@ -254,9 +260,9 @@ function saveSummary(g) {
 }
 
 /* things that should always be true. a failed one is the first place to look */
-function saveChecks(g) {
+function saveChecks(g: Game) {
   var out = [];
-  function check(id, fn) {
+  function check(id: string, fn: () => any) {
     var r;
     try { r = fn(); } catch (e) { out.push({ id: id, ok: false, error: String(e && e.message || e) }); return; }
     if (r === true) out.push({ id: id, ok: true });
@@ -291,7 +297,7 @@ function saveChecks(g) {
   });
   check("unique ids", function () {
     var bad = [];
-    [["peasants", g.peasants], ["ducks", g.ducks], ["sites", g.sites]].forEach(function (pair) {
+    [["peasants", g.peasants], ["ducks", g.ducks], ["sites", g.sites]].forEach(function (pair: [string, { id: number }[]]) {
       var seen = {};
       (pair[1] || []).forEach(function (o) { if (seen[o.id]) bad.push(pair[0] + " #" + o.id); seen[o.id] = 1; });
     });
@@ -317,23 +323,25 @@ function saveChecks(g) {
 /* -------------------------------------------------------------------
    3. THE JOURNAL: kept while you play (browser only)
    ------------------------------------------------------------------- */
-function saveKeep(list, item, max) { list.push(item); if (list.length > max) list.splice(0, list.length - max); }
-function saveStamp(g) { return { tick: g ? g.tick : 0, t: g ? saveR(g.t) : 0, at: new Date().toISOString() }; }
+function saveKeep(list, item, max: number) { list.push(item); if (list.length > max) list.splice(0, list.length - max); }
+/* a line in the journal: when, and the rest is what happened */
+interface SaveEntry { tick: number; t: number | string; at: string; [k: string]: any; }
+function saveStamp(g: Game): SaveEntry { return { tick: g ? g.tick : 0, t: g ? saveR(g.t) : 0, at: new Date().toISOString() }; }
 
-function saveNote(g, kind, data) {
+function saveNote(g: Game, kind: string, data) {
   if (!SAVE_J.on) return;
   var e = saveStamp(g), k;
   e.kind = kind;
   for (k in data) e[k] = data[k];
   saveKeep(SAVE_J.ev, e, SAVE_MAX.ev);
 }
-function saveInput(g, kind, data) {
+function saveInput(g: Game, kind: string, data) {
   if (!SAVE_J.on) return;
   var e = { tick: g.tick, t: saveR(g.t), kind: kind }, k;
   for (k in data) e[k] = data[k];
   saveKeep(SAVE_J.inputs, e, SAVE_MAX.inputs);
 }
-function saveError(g, err, where) {
+function saveError(g: Game, err, where: string) {
   if (!SAVE_J.on) return;
   var e = saveStamp(g);
   e.where = where || "update";
@@ -349,10 +357,10 @@ function saveError(g, err, where) {
 
 /* wrap the game's own news so the journal hears it too. `before` sees the
    arguments first (and may return false to say "not news"), `after` hears them once it is done */
-function saveHook(name, before, after) {
+function saveHook(name: string, before: (...args: any[]) => any, after: (...args: any[]) => void) {
   var orig = eval(name);   /* the game's own function, by name */
   if (typeof orig !== "function" || orig.saveHooked) return;
-  var w = function () {
+  var w: { (...args: any[]): any; saveHooked?: boolean } = function () {
     var news = true;
     try { if (before) news = before.apply(null, arguments) !== false; } catch (e) {}
     var r = orig.apply(null, arguments);
@@ -362,7 +370,7 @@ function saveHook(name, before, after) {
   w.saveHooked = true;
   eval(name + " = w");
 }
-function saveJournalStart(g) {
+function saveJournalStart(g: Game) {
   SAVE_J.on = true;
   SAVE_J.booted = new Date().toISOString();
   saveHook("feed", null, function (g, text) { saveNote(g, "feed", { text: String(text) }); });
@@ -377,7 +385,7 @@ function saveJournalStart(g) {
 
 /* one line of the trail: the counts, and where everybody is.
    p: [id, x, y, state, task] for each peasant, d: [id, x, y, state] for each duck */
-function saveTrailRow(g) {
+function saveTrailRow(g: Game) {
   var fire = 0, hot = -1e9, i;
   for (i = 0; i < g.m.length; i++) { if (g.m[i] === MAT.FIRE) fire++; if (g.T[i] > hot) hot = g.T[i]; }
   return {
@@ -388,9 +396,9 @@ function saveTrailRow(g) {
 }
 
 /* once a game update: the trail every couple of seconds, a keyframe every so often */
-function saveTick(g) {
+function saveTick(g: Game) {
   if (!SAVE_J.on) return;
-  /* (a drag over the field, not the strip under it: and where the view is, first, game.js) */
+  /* (a drag over the field, not the strip under it: and where the view is, first, game.ts) */
   if (g.down && !g.stripDrag && !g.eaten && ++SAVE_J.lastDrag % 6 === 0 && typeof camJournal === "function") camJournal(g);
   if (g.down && !g.stripDrag && !g.eaten && SAVE_J.lastDrag % 6 === 0) saveInput(g, "drag", { x: saveR(g.cx), y: saveR(g.cy), pick: curPick(g).name });
   if (g.tick < SAVE_J.lastTrail) SAVE_J.lastTrail = SAVE_J.lastKey = -1e9;   /* a new village, or a load */
@@ -409,7 +417,7 @@ function saveTick(g) {
    ------------------------------------------------------------------- */
 /* opts: source, rng, history ({events, inputs, errors, trail}), keyframes
    ([{why, tick, t, state}] of live-shaped copies), extra (anything else) */
-function saveDocument(g, opts) {
+function saveDocument(g: Game, opts?) {
   opts = opts || {};
   var browser = opts.source == null || opts.source === "browser";
   var keys = opts.keyframes || (browser ? SAVE_J.keys.slice().concat(SAVE_J.errKey ? [SAVE_J.errKey] : []) : []);
@@ -460,7 +468,7 @@ function saveDocument(g, opts) {
 }
 
 /* whatever the save is, is it one we can load? a string says why not */
-function saveProblem(g, doc) {
+function saveProblem(g: Game, doc) {
   if (!doc || typeof doc !== "object") return "that is not a save (not json)";
   if (doc.format !== SAVE_FORMAT) return "that is not a PLEASAND save";
   if (!(doc.version <= SAVE_VERSION)) return "that save is from a newer PLEASAND (version " + doc.version + ")";
@@ -473,13 +481,13 @@ function saveProblem(g, doc) {
 
 /* put a decoded state (or a keyframe's) into the live game object, in place */
 /* a count of the times a village has been put into the game, by loading or restoring. a cache kept outside g for the tick
-   (pleasures.js P_GRATE) goes by it as well: the same g, the same tick and the same number of sites, after a load, may be
+   (pleasures.ts P_GRATE) goes by it as well: the same g, the same tick and the same number of sites, after a load, may be
    another village altogether */
 var SAVE_GEN = 0;
 function saveScratchReset() { SAVE_GEN++; }
-function saveApplyState(g, state, keepPointer) {
+function saveApplyState(g: Game, state, keepPointer: boolean) {
   var ks = Object.keys(g), i;
-  function mine(k) { return SAVE_SKIP.indexOf(k) >= 0 || SAVE_INPUT.indexOf(k) >= 0 || (keepPointer && SAVE_POINTER.indexOf(k) >= 0); }
+  function mine(k: string) { return SAVE_SKIP.indexOf(k) >= 0 || SAVE_INPUT.indexOf(k) >= 0 || (keepPointer && SAVE_POINTER.indexOf(k) >= 0); }
   /* what this village had that the saved one did not: gone, as it would never have been set */
   for (i = 0; i < ks.length; i++) if (!mine(ks[i]) && !(ks[i] in state)) delete g[ks[i]];
   ks = Object.keys(state);
@@ -494,9 +502,9 @@ function saveApplyState(g, state, keepPointer) {
   saveScratchReset();
   if (g.pmark) { g.pmark.fill(0); g.pgen = 0; }
   if (g.zmark) g.zmark.fill(0);
-  /* (a save from before the hand's grains were marked: none of them is. world.js partInit) */
+  /* (a save from before the hand's grains were marked: none of them is. world.ts partInit) */
   if (!g.ph) g.ph = new Uint8Array(PMAX);
-  /* (and a lump that was in the hand is let go where it was, still: nobody is holding it now. hand.js) */
+  /* (and a lump that was in the hand is let go where it was, still: nobody is holding it now. hand.ts) */
   if (g.hand && g.hand.held) handLetGo(g, [0, 0]);
   return g;
 }
@@ -505,7 +513,7 @@ function saveApplyState(g, state, keepPointer) {
    by its name, for the save's own state (ui.sel); for a keyframe, by its place in the list the save was made with (ui.picks,
    or, in a save from before that was kept, the list as it was then: with wet concrete in it if it is a village with great
    works in it (g.tales), without if it is from before them). null if there is no knowing */
-function saveSelOf(doc, st, own) {
+function saveSelOf(doc, st, own: boolean) {
   if (typeof PICK === "undefined") return null;
   var names = (doc.ui && doc.ui.picks) || PICK.filter(function (q) { return !q.more; }).map(function (q) { return q.name; }).filter(function (n) { return "tales" in st || n !== "WET CONCRETE"; });
   var sel = own && doc.ui && doc.ui.sel ? doc.ui.sel : names[st.sel];
@@ -513,7 +521,7 @@ function saveSelOf(doc, st, own) {
   return null;
 }
 /* load a save (the parsed json) into g. opts.keyframe: an index into doc.keyframes, to load that instead */
-function saveLoad(g, doc, opts) {
+function saveLoad(g: Game, doc, opts) {
   opts = opts || {};
   var why = saveProblem(g, doc);
   if (why) throw new Error(why);
@@ -534,13 +542,13 @@ function saveLoad(g, doc, opts) {
     throw new Error("that save's world is not whole (no grid, or a grid of the wrong size)");
   /* (everything a village cannot go on without, there and the right size, before anything is touched) */
   SAVE_GRID.forEach(function (k) {
-    if (!st[k] || !ArrayBuffer.isView(st[k]) || st[k].length !== sw * sh) throw new Error("that save's world is not whole (" + k + (st[k] ? " is " + st[k].length + " long" : " is missing") + ")");
+    if (!st[k] || !ArrayBuffer.isView(st[k]) || (st[k] as Uint8Array).length !== sw * sh) throw new Error("that save's world is not whole (" + k + (st[k] ? " is " + st[k].length + " long" : " is missing") + ")");
   });
   ["peasants", "sites", "ducks", "feed", "banners", "ghosts"].forEach(function (k) { if (!Array.isArray(st[k])) throw new Error("that save has no " + k + " list"); });
   ["know", "got", "causes"].forEach(function (k) { if (!st[k] || typeof st[k] !== "object") throw new Error("that save has no " + k); });
   /* (and what the journal will want of it, made ready now: nothing after the village is put in may fail) */
   var hist = doc.history && typeof doc.history === "object" ? doc.history : {};
-  function list(v, n) { return Array.isArray(v) ? (n ? v.slice(-n) : v) : []; }
+  function list(v: any, n?: number) { return Array.isArray(v) ? (n ? v.slice(-n) : v) : []; }
   var prior = { meta: doc.meta, checksFailed: list(doc.checksFailed), events: list(hist.events, 100), errors: list(hist.errors), inputs: list(hist.inputs, 50) };
   /* (all or nothing: the game as it was is kept to hand, and put back if the save turns out not to be whole) */
   var was = {}, wasMoon = typeof SKY_MOON !== "undefined" ? SKY_MOON : null;
@@ -562,7 +570,7 @@ function saveLoad(g, doc, opts) {
      concrete, say) would otherwise come back with the one next to it picked */
   var ns = saveSelOf(doc, st, !kf);
   if (ns != null) g.sel = ns;
-  g.moreOpen = 0; g.moreLast = -1;   /* (MORE's flyout shut, and its row as new: game.js) */
+  g.moreOpen = 0; g.moreLast = -1;   /* (MORE's flyout shut, and its row as new: game.ts) */
   /* and the dice, where the save has them and this game owns its own (the browser; the harness sets its own) */
   var dice = kf ? kf.rng : doc.rng;
   if (RNG && dice != null) RNG.state = dice;
@@ -580,12 +588,12 @@ function saveLoad(g, doc, opts) {
 /* -------------------------------------------------------------------
    5. THE BROWSER: a file to keep, a file to open, a file dropped on it
    ------------------------------------------------------------------- */
-function saveFileName(g) {
-  var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+function saveFileName(g: Game) {
+  var d = new Date(), p = function (n: number) { return (n < 10 ? "0" : "") + n; };
   return "pleasand-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) +
     "-t" + g.tick + ".json";
 }
-function saveDownload(g) {
+function saveDownload(g: Game) {
   try {
     saveNote(g, "saved", {});
     var doc = saveDocument(g), name = saveFileName(g);
@@ -600,7 +608,7 @@ function saveDownload(g) {
     feed(g, "could not save: " + (e && e.message || e), "#ff7a6a");
   }
 }
-function saveLoadText(g, text, file) {
+function saveLoadText(g: Game, text: string, file) {
   var doc;
   try { doc = JSON.parse(text); } catch (e) { feed(g, "could not load " + file + ": not json", "#ff7a6a"); return false; }
   try {
@@ -613,14 +621,14 @@ function saveLoadText(g, text, file) {
     return false;
   }
 }
-function saveReadFile(g, f) {
+function saveReadFile(g: Game, f) {
   if (!f) return;
   var r = new FileReader();
   r.onload = function () { saveLoadText(g, String(r.result), f.name); };
   r.onerror = function () { feed(g, "could not read " + f.name, "#ff7a6a"); };
   r.readAsText(f);
 }
-function saveOpenFile(g) {
+function saveOpenFile(g: Game) {
   var inp = document.createElement("input");
   inp.type = "file"; inp.accept = ".json,application/json"; inp.style.display = "none";
   inp.addEventListener("change", function () { saveReadFile(g, inp.files && inp.files[0]); inp.remove(); });

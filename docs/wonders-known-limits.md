@@ -36,7 +36,7 @@ The kiln test for lime takes about 11,000 ticks, against about 7,000 before. The
 
 ## Dry-footing fallback (tested)
 
-The fallback in `wEvict` (wonders.js), which puts a person out on dry footing when no release spot exists, now has a test: "in a great work's stone with no way out to the floor, and a sealed chamber above". It fails if the fallback is removed.
+The fallback in `wEvict` (wonders.ts), which puts a person out on dry footing when no release spot exists, now has a test: "in a great work's stone with no way out to the floor, and a sealed chamber above". It fails if the fallback is removed.
 
 ## Wonders artifact
 
@@ -44,5 +44,5 @@ The "Pleasand Wonders" page has its status updated to the final state. Its pictu
 
 ## pi review of 4fbc88b (fixed)
 
-- Eviction fallback (`wonders.js`): it could put someone in a flooded ledge's room and drown them. It now refuses any spot with water in its headroom. Tested: "put out in a great work's stone under a lower pool".
-- Lens repair (`wonders.js` wKilnOrders): charcoal was ordered for a pane already in hand. Only glass still needed now counts, with the panes in hand counted once over all the works (not once per work, which would let one pane cancel two lenses' charcoal). Tested: "a pane already in hand" checks the kiln orders directly, and fails on the pre-fix code; its play-through part alone did not, since fitting the pane is picked before the charcoal. pi's exact 514-tick repro has not been rebuilt.
+- Eviction fallback (`wonders.ts`): it could put someone in a flooded ledge's room and drown them. It now refuses any spot with water in its headroom. Tested: "put out in a great work's stone under a lower pool".
+- Lens repair (`wonders.ts` wKilnOrders): charcoal was ordered for a pane already in hand. Only glass still needed now counts, with the panes in hand counted once over all the works (not once per work, which would let one pane cancel two lenses' charcoal). Tested: "a pane already in hand" checks the kiln orders directly, and fails on the pre-fix code; its play-through part alone did not, since fitting the pane is picked before the charcoal. pi's exact 514-tick repro has not been rebuilt.

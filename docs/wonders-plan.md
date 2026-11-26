@@ -163,7 +163,7 @@ have been checked, and the work comes in two phases.
     **bench** of 3 rows across a stretch of up to 16 columns.
     - It works one row at a time, from the shaft end outward.
     - It needs no new vertical room: the gallery's roof and props stay where they are.
-    - The gallery becomes 3 rows taller there. Props are drawn, not cells (mines.js draws them over the gallery's
+    - The gallery becomes 3 rows taller there. Props are drawn, not cells (mines.ts draws them over the gallery's
       air), so they simply draw down to the new floor: no timber or iron is spent on them.
     - The shaft's ladder is extended down to the new floor where the bench meets it, so the bench is always climbable
       out of.
@@ -386,7 +386,7 @@ cheap) and built up where it does not. About 21 × 7.
   "that's not how it happened". The dead are played by somebody in a hat.
 - **The audience** is the idle and the bored, up to everybody. They **sit** (the new pose) on the tiers and react
   from a pool of lines per tale kind: laughs, gasps, heckles ("too soon"). They applaud at the end (a new
-  `g.fx.clap` sound in audio.js: noise bursts).
+  `g.fx.clap` sound in audio.ts: noise bursts).
 - **Watching** is cosy (thinks twice as fast) and clears boredom.
 
 **Sandbox hook**: set fire to the stage during a play.
@@ -595,7 +595,7 @@ knows concrete).
   really boiling (100) when it starts.
 - The steam really rises up whichever pipes have their valves open. The organist opens the valves to a tune: a short
   sequence per show, from a little list (`W_TUNES`).
-- **Each steam cell that leaves a pipe's top plays that pipe's note** (a new `organ` voice in audio.js: a breathy
+- **Each steam cell that leaves a pipe's top plays that pipe's note** (a new `organ` voice in audio.ts: a breathy
   square wave, pitch by pipe height).
 - **A concert is about 30 notes**: a tune from `W_TUNES`, each note one or two steam cells. A 40-cell tank plays one
   concert per filling.
@@ -723,7 +723,7 @@ About 90 stone, 20 wood, 13 stained, 6 glass, 3 iron. The crypt is labour.
 - **The windows glow** in their colours when the candles are lit: the only coloured light in the valley.
 - **The crypt**: every name in `g.dead`, including the ones whose crosses weathered away, gets a niche, so the
   weathered names come back. The bored go down with a candle and visit (`iTaskVisit`, with the niche as the place).
-  - Flooded, it is **bailed**. This is a new bail target (tidy.js has none that fits: house floors are bailed out of
+  - Flooded, it is **bailed**. This is a new bail target (tidy.ts has none that fits: house floors are bailed out of
     a door, and mines are written off).
     - A bailer fills a pail in the crypt, climbs the crypt ladder, and pours it out on the nearest ground lower than
       the crypt's head, or into the nearest real water.
@@ -893,9 +893,9 @@ pumped. Sparked in the astronomer.
 - **The moon**: a few seconds later a tiny flag appears on the moon (`g.moonFlag`, drawn for good) and the banner
   `ONE SMALL STEP`: "{n} is on the moon. it is mostly dust. they wave".
 - **The way back already exists.** At lift-off the crew are sent to space by the existing `pSpace`, with `spaceT`
-  set to about 3000 and the re-entry x set over the pad (a new per-peasant `p.spaceX`, read where peasants.js
+  set to about 3000 and the re-entry x set over the pad (a new per-peasant `p.spaceX`, read where peasants.ts
   picks the re-entry x at random; about 5 lines). The moon crew get their own feed line ("{n} has gone to the moon"),
-  not the existing "has gone to space"; `g.astronauts` still counts them. peasants.js already brings them back in at the top of the
+  not the existing "has gone to space"; `g.astronauts` still counts them. peasants.ts already brings them back in at the top of the
   world as `fly`, and the existing parachute takes it from there (mostly it opens). Each brings 2 MOON ROCK.
 - **The moon rock** is set out at the foot of the statue, or of the gantry, where everybody can see it.
 
@@ -945,13 +945,13 @@ above, and whether it prefers an edge. It never touches a house, a field, a mine
 
 | file | what |
 |---|---|
-| `wonders.js` | **The framework.** The registry (`W_DEFS`) and dispatch (`wPick`, `wTask`, `wStep`, `wDraw`, `wDrawOver`, `wLabel`, `wFinish`, `wReadout`). The wonder IDEAS entries and banner. The great-work rule and crew cap. Valley-wide hauling. `wPlot`. Gold-as-gilding (`wGild`). Tales (`g.tales`, `wTale`) and their hooks at death, fire, space, lightning, rocket, nuke and ice. The header counter and hover. Achievements. The CONCRETE and STAINED GLASS ideas. Furnace recipes (lime, firebrick, stained) and mortar mixing and pouring. The lightning rod. Gatherings (`wGather`: a place, a cap, idle only, a time limit, seats). The `sit` pose. |
-| `monuments.js` | theatre, pyramid, cathedral & crypt |
-| `pleasures.js` | baths, hanging gardens, duck palace, ice palace, steam organ |
-| `heavens.js` | observatory (and meteorites), lighthouse, foundry, moon rocket (and the way back from space) |
+| `wonders.ts` | **The framework.** The registry (`W_DEFS`) and dispatch (`wPick`, `wTask`, `wStep`, `wDraw`, `wDrawOver`, `wLabel`, `wFinish`, `wReadout`). The wonder IDEAS entries and banner. The great-work rule and crew cap. Valley-wide hauling. `wPlot`. Gold-as-gilding (`wGild`). Tales (`g.tales`, `wTale`) and their hooks at death, fire, space, lightning, rocket, nuke and ice. The header counter and hover. Achievements. The CONCRETE and STAINED GLASS ideas. Furnace recipes (lime, firebrick, stained) and mortar mixing and pouring. The lightning rod. Gatherings (`wGather`: a place, a cap, idle only, a time limit, seats). The `sit` pose. |
+| `monuments.ts` | theatre, pyramid, cathedral & crypt |
+| `pleasures.ts` | baths, hanging gardens, duck palace, ice palace, steam organ |
+| `heavens.ts` | observatory (and meteorites), lighthouse, foundry, moon rocket (and the way back from space) |
 
-**Load order** in `index.html`: after `tidy.js` and before `ducks.js`: `wonders.js`, `monuments.js`,
-`pleasures.js`, `heavens.js`.
+**Load order** in `index.html`: after `tidy.ts` and before `ducks.ts`: `wonders.ts`, `monuments.ts`,
+`pleasures.ts`, `heavens.ts`.
 
 ### Registration
 
@@ -980,22 +980,22 @@ W_DEFS.push({ id, plan(g, p), pick(g, p, hungry), task(g, p, k), step(g), draw(g
 | `pSwim` | bathing |
 | `iPlanFarm` | no room for a field |
 | `dHeading` | the duck palace target |
-| `audio.js` | `clap`, `organ` voices |
-| `game.js` | header, readout, `MAT_NAME`, colours, picker entry for WET CONCRETE |
+| `audio.ts` | `clap`, `organ` voices |
+| `game.ts` | header, readout, `MAT_NAME`, colours, picker entry for WET CONCRETE |
 | peasant sprite | the `sit` pose |
 
 ### New engine work, sized
 
 | what | where | est. lines |
 |---|---|---|
-| `sit` and `fling` pose sprites, and seating | peasants.js | ~80 |
-| forced draught (per-chamber `HEAT_SRC` override list) | heat.js | ~40 |
-| rocket entity (draw, step, exhaust, edge) | heavens.js | ~150 |
+| `sit` and `fling` pose sprites, and seating | peasants.ts | ~80 |
+| forced draught (per-chamber `HEAT_SRC` override list) | heat.ts | ~40 |
+| rocket entity (draw, step, exhaust, edge) | heavens.ts | ~150 |
 | return from space | none: the existing `pSpace` / `spaceT` (a re-entry x, ~5 lines) | ~5 |
-| meteorite (particle streak, landing, cells, boom) | heavens.js | ~100 |
-| audio voices (clap, organ) | audio.js | ~40 |
-| bailing the crypt (pail up a ladder, out to low ground) | monuments.js, using tidy.js helpers | ~80 |
-| benching a gallery (`wQuarryPlot`, props lengthened, ladder extended) | wonders.js | ~140 |
+| meteorite (particle streak, landing, cells, boom) | heavens.ts | ~100 |
+| audio voices (clap, organ) | audio.ts | ~40 |
+| bailing the crypt (pail up a ladder, out to low ground) | monuments.ts, using tidy.ts helpers | ~80 |
+| benching a gallery (`wQuarryPlot`, props lengthened, ladder extended) | wonders.ts | ~140 |
 
 ### Tests
 
@@ -1024,7 +1024,7 @@ W_DEFS.push({ id, plan(g, p), pick(g, p, hungry), task(g, p, k), step(g), draw(g
 
 ## 6. Order of work
 
-1. **Phase 1 (framework + three wonders)**: wonders.js with everything in it, and the **theatre, pyramid and baths**.
+1. **Phase 1 (framework + three wonders)**: wonders.ts with everything in it, and the **theatre, pyramid and baths**.
    - Tests for each.
    - The full suite green.
    - Replay hashes checked (re-recorded with a reason if they move).

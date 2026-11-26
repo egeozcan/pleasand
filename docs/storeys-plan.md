@@ -53,7 +53,7 @@ What that says:
 - **The pressure is already there.** Eight people start in a valley. One screen has plots for four or five houses,
   the two old huts among them. Three or four sleep on the ground all game and say "backache" every morning.
 - **Land is the limit.** On one screen `bPlanHouse` runs out of plots before `B_HOUSES` (6). In a wide valley, or a
-  crowded one, the cap stops it instead, and `bPlanHouse` is never even tried (build.js:1089). Either way somebody
+  crowded one, the cap stops it instead, and `bPlanHouse` is never even tried (build.ts:1089). Either way somebody
   is homeless with nowhere to build.
 - **Food is the second limit.** A bigger village on the same ground goes without, then starves. Any growth has to
   stop when food runs short.
@@ -98,8 +98,8 @@ is gated on STOREYS being known (§8).
   - masonry is known (its own line is "squared stone stacks higher than wood ever did");
   - there is a finished house that is not a hut;
   - the village is *crowded*: somebody alive has no home, and either `bHouses(g) >= min(B_HOUSES, alive)` or a
-    `bPlanHouse` failed in the last 6,000 ticks (`g.noPlotT`, set where build.js:1091 sets `planCD`).
-- **Spark:** whoever wakes from a night on the ground (`bWake` with `rough`, build.js:1148) while it is ready gets
+    `bPlanHouse` failed in the last 6,000 ticks (`g.noPlotT`, set where build.ts:1091 sets `planCD`).
+- **Spark:** whoever wakes from a night on the ground (`bWake` with `rough`, build.ts:1148) while it is ready gets
   `wSpark(g, p, "storey")`.
 
 **ROOF GARDENS.**
@@ -107,14 +107,14 @@ is gated on STOREYS being known (§8).
   - STOREYS is known;
   - there is a stack that can grow no further (§3.2);
   - the village is short of fields: either `iPlanFarm` found no room in the last 6,000 ticks (`g.noFieldT`, set
-    where ideas.js:411 sets `planCD`), or the village is at its field cap (`iFields >= min(4, ceil(alive/3))`,
-    ideas.js:408) and somebody has been over 5,000 hunger in the last 6,000 ticks (`g.leanT`, §5).
+    where ideas.ts:411 sets `planCD`), or the village is at its field cap (`iFields >= min(4, ceil(alive/3))`,
+    ideas.ts:408) and somebody has been over 5,000 hunger in the last 6,000 ticks (`g.leanT`, §5).
 - **Spark:** whoever failed to plan that field; or, at the cap, whoever is hungriest when it is checked (every 600
   ticks, with no roll).
 
 Both ideas are `fresh`: in `iEureka` they go on the great works' side dice (`wRand`), never master's lottery. They
 are plain ideas (not `wonder`) and count under IDEAS. `"storey"` and `"roofgarden"` join the `wAny` line in
-`wStep` (wonders.js:1401), so that `g.wAny` is set from the tick either one is known.
+`wStep` (wonders.ts:1401), so that `g.wAny` is set from the tick either one is known.
 
 ## 3. A storey
 
@@ -130,7 +130,7 @@ A house and its storeys is a **stack**. `s.top` is the id of the topmost floor o
 
 ### 3.1 Geometry
 
-The house as it is (`bPlanHouse`, build.js:441), floor at row `F`, columns `x0 .. x1 = x0 + 10`. Here the first
+The house as it is (`bPlanHouse`, build.ts:441), floor at row `F`, columns `x0 .. x1 = x0 + 10`. Here the first
 storey's ladder is on the right (`d = +1`), and so the second's is on the left; everything mirrors for `d = -1`:
 
 ```
@@ -171,16 +171,16 @@ Exact rows, for a storey on a floor whose ceiling row is `C` (`C = F - 11` on a 
 The ladders:
 
 - Each is `bLadderPlan`'s own shape: three columns, aux 0..2, from the ground up to row `C`, against the end wall.
-  Its top is row `C`, so the pather's loop (paths.js:134) stops at `C - 1`, and `bStepOff` from the middle column
+  Its top is row `C`, so the pather's loop (paths.ts:134) stops at `C - 1`, and `bStepOff` from the middle column
   (`x1 + 2` on the right, `x0 - 2` on the left) lands on the door column: passable (`P_PASS[DOOR]`), with the end
   cell of the floor below's ceiling under it, which is solid.
 - **No other step-off on the way up.** `bClimbStep` gets off at the first place it can once three rows up
-  (build.js:1402). Up the right-hand ladder the wall beside it is the ground floor's door (no footing: the door
+  (build.ts:1402). Up the right-hand ladder the wall beside it is the ground floor's door (no footing: the door
   cells are `P_PASS`, so not ground), the lintel and the ceiling (no room), then the first storey's door at the
   top. Up the left-hand ladder it is the ground floor's door (no footing), the lintel and ceiling, the first
   storey's window wall (no room) and ceiling, and then the second storey's door.
 - The first storey's ladder stops at its floor, so the second storey's door is never beside it, and the other way
-  round. **Every ladder has one foot and one top**, which is all the pather's ladder edges can say (paths.js:131–146).
+  round. **Every ladder has one foot and one top**, which is all the pather's ladder edges can say (paths.ts:131–146).
 - The ladders stand in front of the ground floor's two doors. Ladders are `P_PASS`: everybody walks through them
   in and out of the house, as they walk through a lift's headframe.
 
@@ -189,9 +189,9 @@ How it is built:
 - **The roof comes off.** The fifteen gable cells (`C-1 .. C-3`: nine, five and the ridge) leave the plan of the
   floor below. They go into the storey's plan as phase-0 **strip** entries: a built cell that is to come out.
   - A strip entry has `v: EMPTY, strip: true`. `bOk` is true for it only when the cell is air (`AIRY`), not
-    whenever it is not loose, which is what `bOk` says of an ordinary empty entry (build.js:197). `bFree` lets a
-    builder at it (as at a `redo` board, build.js:210). `bPlace` sets the cell to `EMPTY` and puts the board or
-    half-stone in the builder's pocket (as at build.js:832).
+    whenever it is not loose, which is what `bOk` says of an ordinary empty entry (build.ts:197). `bFree` lets a
+    builder at it (as at a `redo` board, build.ts:210). `bPlace` sets the cell to `EMPTY` and puts the board or
+    half-stone in the builder's pocket (as at build.ts:832).
   - The floor below's box is cut back to its ceiling (`y0 = C`) and its marks are made again (`bMark`). So nothing
     of the floor below is ever missing, and `bInspect` never sends anybody to repair it.
   - **The ceiling is not touched.** The room below is never open to the sky, and nobody is unroofed in their sleep.
@@ -208,7 +208,7 @@ How it is built:
 ### 3.2 What a floor bears
 
 `bStony(g, s)`: at least 80% of the site's plank-or-brick entries are brick in the grid. Not `s.stone`, which
-`bInspect` sets when a single burnt board goes back in brick (build.js:1052–1056).
+`bInspect` sets when a single burnt board goes back in brick (build.ts:1052–1056).
 
 | the stack is | what can go on it |
 |---|---|
@@ -217,7 +217,7 @@ How it is built:
 | a house and one storey, either not stony | nothing yet; it can grow once both are done over in stone |
 | three floors | nothing, ever; a roof garden |
 
-`mRenovate` (mines.js:821) does storeys over in stone as it does houses, and `bInspect`'s brick re-laying applies to
+`mRenovate` (mines.ts:821) does storeys over in stone as it does houses, and `bInspect`'s brick re-laying applies to
 them too. Most houses in a masonry village are stone sooner or later, so most stacks get to three floors in the
 end. The villagers say what stops them: *"a board floor won't take another floor on top"*, *"three's enough. any
 higher and the ducks nest in it"*.
@@ -237,7 +237,7 @@ at every stack whose top floor `T` (with ceiling row `C`) has all of these:
 - On its side (the first storey picks the end that will do, the right if both; the second storey takes the other
   end), the three ladder columns from the ground up to `C` are air or loose, the ground under them is solid, and no
   other site's cell is on them (`bMarked`).
-  - The lanterns hang at `x1 + 1` and `x0 - 1` over the ground floor's doors, row `F-11` or so (ideas.js:1510).
+  - The lanterns hang at `x1 + 1` and `x0 - 1` over the ground floor's doors, row `F-11` or so (ideas.ts:1510).
     The one on the ladder's side is taken down first: a phase-0 strip, board to pocket, and its lamp site removed.
   - The storey's plan has its own lantern instead: a bracket board at the ladder side's outer column (`x1 + 1` on
     the right), row `C - 10`, beside its lintel, and a `LAMP` under it at `C - 9`, above the ladder's top and clear
@@ -245,11 +245,11 @@ at every stack whose top floor `T` (with ceiling row `C`) has all of these:
     on: `iPlanLamp` looks only at rows from `F - 11` up to the house's box, and the ladder is there. The feed says
     nothing; the lit lantern at the top of the ladder is the light on that end now.
 - `C - 15` is ten rows or more below the top of the valley.
-- Nothing else is hung on the house. The bell can hang from a post on a house's ridge (mines.js:1167–1176), and a
+- Nothing else is hung on the house. The bell can hang from a post on a house's ridge (mines.ts:1167–1176), and a
   house with the bell on it is the bell's: it is skipped, and the hover says so (*"the bell's house. it won't take
   another floor"*). The other way round, the bell planner skips any house with a storey on it.
   So is a house with a furnace, a heap or a street lamp's post (`iPlanPost` keeps only `x0-2 .. x1+2` clear,
-  ideas.js:1971) against the ladder end it would need, if the other end will not do either. A building beside the
+  ideas.ts:1971) against the ladder end it would need, if the other end will not do either. A building beside the
   ladder's outer column could offer a climber a step-off halfway up; the end-will-do check also wants the column
   outside the ladder clear of any site from the ground to `C`. (In seed 3 at 30k, one of the two houses carries the bell; in seed 1 the stone house has a furnace at one
   end and the bell at the other. Those valleys get fewer stacks, and §5 counts them.)
@@ -260,7 +260,7 @@ The best is the stack nearest the planner, and of those the shortest. A storey i
 ### 3.4 Living in it
 
 - **Moving in.** Whoever planned it owns it, and once it is done it is their home (`p.home = s.id`). When the owner
-  is gone, the nearest homeless peasant moves in, as for an empty house (build.js:998): *"Sam moved into the flat
+  is gone, the nearest homeless peasant moves in, as for an empty house (build.ts:998): *"Sam moved into the flat
   over Dot's house"*.
 - **Home.** Everything that finds a peasant's home goes through `bHome`, which checks only the owner. A storey
   carries the fields a house does (`F` = its floor `C`, `ix0`, `ix1`, `iy0`, `bed`, `win`, `cx`), so these work on
@@ -269,13 +269,13 @@ The best is the stack nearest the planner, and of those the shortest. A storey i
   - sleeping;
   - `bTaskHome` (run home and hide when things go bang);
   - the lit window and the warm back wall (`bDraw`). The lit-window draw lights a shuttered board only
-    (build.js:1461); once STOREYS is known, it lights a glass window cell too.
+    (build.ts:1461); once STOREYS is known, it lights a glass window cell too.
 
   A helper, `bDwelling(s)`, is true for `"house"` and `"storey"`. Each of the 70-odd `kind === "house"` sites (27
-  in build.js, 21 in tidy.js, 7 in mines.js, 5 in ideas.js, a few more elsewhere) is sorted into "somewhere somebody
+  in build.ts, 21 in tidy.ts, 7 in mines.ts, 5 in ideas.ts, a few more elsewhere) is sorted into "somewhere somebody
   lives", which uses `bDwelling`, or "a house on the ground", which stays `"house"`. The sorted list goes in the
   phase-1 commit.
-- **Getting there.** Up their own ladder, in at their door (§3.1). `paths.js` plans ladders already, and each
+- **Getting there.** Up their own ladder, in at their door (§3.1). `paths.ts` plans ladders already, and each
   storey's ladder is an ordinary one with a foot and a top. Test 3 pins both floors.
 - **Neighbours.** A storey's owner and the households below and above are neighbours. Each has a new line or two,
   said now and then (side dice) when both are home:
@@ -291,7 +291,7 @@ The best is the stack nearest the planner, and of those the shortest. A storey i
   *"lovely"*, *"bit small"*, *"you can see my house from here"*. Six people in a room nine wide, on a ladder, is the
   sight.
 - **Water upstairs: gardyloo.** A ladder is solid to water, and the storey's floor is the house's ceiling, so a
-  bucket spilt upstairs pools on that floor. Tidying's floor bailing (tidy.js:319–345) finds water by the dwelling's
+  bucket spilt upstairs pools on that floor. Tidying's floor bailing (tidy.ts:319–345) finds water by the dwelling's
   interior and pours it out at a door it reaches from the ground (`tDoors`). A storey's one door is up a ladder,
   so it gets a target of its own, `tUpstairs`:
   - The bailer goes up the storey's ladder and in, scoops a pail, and steps back into the doorway.
@@ -302,12 +302,12 @@ The best is the stack nearest the planner, and of those the shortest. A storey i
 - **Fire.** A storey is a site with a box, so the brigade answers a fire at it as at anything of theirs.
   - The alarm (`bAlarm`) wakes everybody in the stack, not only the floor on fire.
   - The way out of a storey is its door and its ladder, which is wood.
-  - **Nobody climbs a storey's ladder into a fire.** Once STOREYS is known, the pather's ladder edge (paths.js:131)
+  - **Nobody climbs a storey's ladder into a fire.** Once STOREYS is known, the pather's ladder edge (paths.ts:131)
     is refused for a storey's ladder (its middle column is in `g.stLad`, kept by the storeys) with fire or embers
     within two cells of it anywhere between its foot and its top. A ladder elsewhere (a mine's, a tower's) keeps
     master's rule, which is only that a cell of it already alight breaks it.
   - When their own ladder is burning, they step out of the door and drop. It is eleven to twenty
-    rows: no chute (`P_CHUTE_H` is 30), survivable (a fall kills over 85, peasants.js:820), and they land in a heap
+    rows: no chute (`P_CHUTE_H` is 30), survivable (a fall kills over 85, peasants.ts:820), and they land in a heap
     and say *"oof"*. The fun is in the ladder going up like a fuse, and the stack lit window by window.
   - *OUT THE TOP DOOR* is the achievement for dropping out of a burning stack.
 - **A wooden ladder up a stone stack** is the stack's weak point. Once the village has a forge and iron to spare,
@@ -350,13 +350,13 @@ On a stack that can grow no further (§3.2), once ROOF GARDENS is known:
   - a parapet, one brick at `x0` on row `C - 1` (at the far end, the hatch's ladder is the edge: `LADDER` is solid
     to sand and water);
   - a bed of sand, `x0+1 .. x0+5`, on row `C - 1`, five wide, clear of the step-off at `x0+6`. It is a free plan
-    entry, as the hanging gardens' terrace beds are (pleasures.js:549). Sand on a flat roof does not slide: a
+    entry, as the hanging gardens' terrace beds are (pleasures.ts:549). Sand on a flat roof does not slide: a
     grain only goes down or diagonally down, and there is roof under both.
   - Somebody who walks off the roof into the hatch falls through it into the room below, about eleven rows, which
     hurts nobody and is said about (*"who left the hatch open"*).
 - **The field.** When it is done, the bed is a field: a `"farm"` site with `free: true, roof: stackId`, a plan of
-  `SOIL` and `CROP` built exactly as `pTerraces` builds a terrace's (pleasures.js:637).
-  - `iFields` (ideas.js:518) is changed to leave out `.roof` fields as it leaves out `.terrace` ones.
+  `SOIL` and `CROP` built exactly as `pTerraces` builds a terrace's (pleasures.ts:637).
+  - `iFields` (ideas.ts:518) is changed to leave out `.roof` fields as it leaves out `.terrace` ones.
   - It is tilled, sown, reaped, watered, raided by ducks (they fly) and frosted like any field.
 - **Tidying.** Sand on a roof is swept off a roof. A roof garden's bed is a field's earth, which tidying already
   leaves be. `tRoof` returns nothing for a gardened stack.
@@ -369,7 +369,7 @@ On a stack that can grow no further (§3.2), once ROOF GARDENS is known:
 ## 5. Word gets round
 
 Once STOREYS is known, `pLife` raises `g.popGoal` by one, and a newcomer walks in by the existing arrival code
-(peasants.js:1432), when all of these hold:
+(peasants.ts:1432), when all of these hold:
 
 - every living peasant has a home (`bHome`);
 - nobody has been over 5,000 hunger in the last 6,000 ticks (`g.leanT`: the last tick anybody was, written in
@@ -453,7 +453,7 @@ The line is a small site, `"line"`, owned by the storey's household (a board's w
 
 - **The cord.** A row of `LINEN` cells from the window to the other end. Where the two ends are at different rows,
   it steps once, in the middle, straight down: it is 4-connected all the way, because fire spreads to the four next
-  cells only (world.js:702–710), and a diagonal step would stop it.
+  cells only (world.ts:702–710), and a diagonal step would stop it.
 - **The washing.** Now and then (side dice), whoever lives there "hangs out the washing": a few cells under the cord
   (never two in a row) turn to `LINEN` in shirt colours (aux picks the colour).
 - **Taking it in.** Later, the washing is taken in (those cells go back to air).
@@ -465,13 +465,13 @@ The line is a small site, `"line"`, owned by the storey's household (a board's w
 
 `LINEN` is a new material, appended to `MAT`:
 
-- **world.js:** static and solid (`SOLID`, `STILL`), so sand lands on it, and so do ducks. It burns like a plant
+- **world.ts:** static and solid (`SOLID`, `STILL`), so sand lands on it, and so do ducks. It burns like a plant
   (`LEAFY`: in flames, no embers). Its colours: an off-white cord and five shirt colours by aux.
-- **peasants.js:** walked through (`P_PASS`): they duck under the washing.
-- **heat.js:** a plank's heat capacity, and it catches at a plank's ignition point (`hi(MAT.LINEN, 300, 0)`) and
-  burns as plants do, in flames (the `default` case, heat.js:319).
-- **save.js:** a name in `saveMatName`, so a save keeps it by name.
-- **game.js:** in the picker, so the player can paint bunting.
+- **peasants.ts:** walked through (`P_PASS`): they duck under the washing.
+- **heat.ts:** a plank's heat capacity, and it catches at a plank's ignition point (`hi(MAT.LINEN, 300, 0)`) and
+  burns as plants do, in flames (the `default` case, heat.ts:319).
+- **save.ts:** a name in `saveMatName`, so a save keeps it by name.
+- **game.ts:** in the picker, so the player can paint bunting.
 - **A fire at one end runs along the cord to the other**: the street's new fire risk, and the brigade's.
 - **Achievement** *WASHING DAY*: "the street has a washing line. it is practically a town".
 
@@ -581,7 +581,7 @@ A line is not mended if it burns. It goes up again later if the window still fac
 
 ## 12. As built
 
-Where the code (`storeys.js`, and its hooks) differs from the plan above, and why:
+Where the code (`storeys.ts`, and its hooks) differs from the plan above, and why:
 
 - **Crowding is looked for, not waited for.** Homeless peasants with fewer than four logs never try `bPlanHouse`, so
   `g.noPlotT` was never set in a one-screen valley. `sPlotCheck` looks for a plot every 1,200 ticks once masonry is

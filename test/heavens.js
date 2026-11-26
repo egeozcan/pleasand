@@ -1,7 +1,7 @@
 /* =====================================================================
    PLEASAND  --  test/heavens.js
 
-   the great works that look up (heavens.js): the observatory and its
+   the great works that look up (heavens.ts): the observatory and its
    meteorites, the lighthouse, the foundry, the moon rocket. required by
    test/run.js
    ===================================================================== */
@@ -123,7 +123,7 @@ module.exports = function (test, check, sim) {
     g.peasants.forEach(function (q) { q.x = 140 + q.id % 10; q.y = G - 1; });
     return { w: w, g: g, G: G };
   }
-  /* a well, done, with oil in its tank, beside the lake (as oil.js keeps one: only its tank and pump matter here) */
+  /* a well, done, with oil in its tank, beside the lake (as oil.ts keeps one: only its tank and pump matter here) */
   function well(w, x, G, tank) {
     var g = w.g;
     var s = w.bNew(g, "well", null, [], [x - 3, G - 13, x + 3, G - 1], { pump: { x: x, y: G - 1 }, col: x, tank: tank, barrels: 0, dry: false });
@@ -505,7 +505,7 @@ module.exports = function (test, check, sim) {
     /* (and every job handed out by the great works' files asks wIdle with its site: but stargazing and a word about the moon,
        which take nobody anywhere) */
     var fs = require("fs"), path = require("path"), bare = [];
-    ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (f) {
+    ["wonders.ts", "heavens.ts", "monuments.ts", "pleasures.ts"].forEach(function (f) {
       fs.readFileSync(path.join(__dirname, "..", f), "utf8").split("\n").forEach(function (l, n) { if (/wIdle\(g, [a-z]+\)/.test(l) && !/stargaze|"moon"/.test(l)) bare.push(f + ":" + (n + 1)); });
     });
     check(!bare.length, "jobs handed out without asking after backoff: " + bare.join(", "));
@@ -534,8 +534,8 @@ module.exports = function (test, check, sim) {
        wPocketedSure. the one bare count left is the readout's "waiting for") */
     /* (every file, not only the great works': in those, no bare count of pockets at all; elsewhere, none in a line about a
        great work, and none of what only a great work wants) */
-    var fs = require("fs"), path = require("path"), bare = [], root = path.join(__dirname, ".."), W = ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"];
-    fs.readdirSync(root).filter(function (fn) { return /\.js$/.test(fn); }).forEach(function (fn) {
+    var fs = require("fs"), path = require("path"), bare = [], root = path.join(__dirname, ".."), W = ["wonders.ts", "heavens.ts", "monuments.ts", "pleasures.ts"];
+    require("../harness/loader.js").gameFiles().filter(function (fn) { return /\.ts$/.test(fn); }).forEach(function (fn) {
       fs.readFileSync(path.join(root, fn), "utf8").split("\n").forEach(function (l, n) {
         var t = l.trim();
         if (/^function wPocketed|return "waiting for/.test(t)) return;
@@ -873,7 +873,7 @@ module.exports = function (test, check, sim) {
     for (k = 0; k < 400; k++) { p.task = null; if (w.hObsPick(g, p, false)) n++; }
     check(n === 0, "a bored peasant backed off from the observatory asked to go up it " + n + " times");
     var fs = require("fs"), path = require("path"), bare = [];
-    ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (fn) {
+    ["wonders.ts", "heavens.ts", "monuments.ts", "pleasures.ts"].forEach(function (fn) {
       fs.readFileSync(path.join(__dirname, "..", fn), "utf8").split("\n").forEach(function (l, i) { if (/p\.bored [<>]/.test(l) && /return|kind:/.test(l) && !/wNoGo/.test(l) && /s\.cx/.test(l)) bare.push(fn + ":" + (i + 1)); });
     });
     check(!bare.length, "the bored sent to a great work without asking after backoff: " + bare.join(", "));
@@ -946,7 +946,7 @@ module.exports = function (test, check, sim) {
     w.bInspect(g, r, g.sites.indexOf(r));
     return r;
   }
-  /* a foundry made warm, or cold again: its chamber, and its roof (heavens.js hRoofHot) */
+  /* a foundry made warm, or cold again: its chamber, and its roof (heavens.ts hRoofHot) */
   function fWarm(w, s, t) { var g = w.g; s.cells.concat(w.hRoofCells(g, s)).forEach(function (j) { g.T[j] = t == null ? 600 : t; }); }
   function fCold(w, s) { fWarm(w, s, 25); }
   function fFoundry(F, x) {
@@ -1283,10 +1283,10 @@ module.exports = function (test, check, sim) {
     });
   });
   test("a cell taken away anywhere but the physics: through heatVacate or heatTaken, never left to cram its heat into the air", function () {
-    /* (eaten, chopped, mined, cleared, drained, demolished, taken down: every one asks heat.js heatTaken first. the physics
-       itself (world.js, heat.js), and a plant salt water kills, keep the books as they are) */
+    /* (eaten, chopped, mined, cleared, drained, demolished, taken down: every one asks heat.ts heatTaken first. the physics
+       itself (world.ts, heat.ts), and a plant salt water kills, keep the books as they are) */
     var fs = require("fs"), path = require("path"), root = path.join(__dirname, ".."), bare = [];
-    fs.readdirSync(root).filter(function (fn) { return /\.js$/.test(fn) && fn !== "world.js" && fn !== "heat.js"; }).forEach(function (fn) {
+    require("../harness/loader.js").gameFiles().filter(function (fn) { return /\.ts$/.test(fn) && fn !== "world.ts" && fn !== "heat.ts"; }).forEach(function (fn) {
       fs.readFileSync(path.join(root, fn), "utf8").split("\n").forEach(function (l, n) {
         if (/heatTaken\(|heatVacate\(|SALTWATER/.test(l)) return;
         /* (a cell emptied and set to the air's own temperature on the spot is no burn) */
@@ -1736,8 +1736,8 @@ module.exports = function (test, check, sim) {
        load; H_LBL is scratch for one call; W_GSHARE is scratch for one plan, what its plotting looked at, put back as
        it was when the plan is done; P_OQ is the organ's notes waiting to be heard) */
     var fs = require("fs"), path = require("path"), root = path.join(__dirname, ".."), found = [];
-    ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (f) {
-      var re = /^var ([A-Z_0-9]+) = (\[\]|\{\}|null|new )/gm, m, src = fs.readFileSync(path.join(root, f), "utf8");
+    ["wonders.ts", "heavens.ts", "monuments.ts", "pleasures.ts"].forEach(function (f) {
+      var re = /^var ([A-Z_0-9]+)(?::[^=]+)? = (\[\]|\{\}|null|new )/gm, m, src = fs.readFileSync(path.join(root, f), "utf8");
       while ((m = re.exec(src))) found.push(m[1]);
     });
     check(found.sort().join() === "H_LBL,P_OQ,W_DEFS,W_GSHARE", "the great works keep this outside g: " + found.join());

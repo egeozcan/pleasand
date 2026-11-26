@@ -1,0 +1,13 @@
+{
+  /* the build's own config, which runs in node */
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "files": ["vite.config.mts"]
+}

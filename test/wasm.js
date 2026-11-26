@@ -1,7 +1,7 @@
 /* =====================================================================
    PLEASAND  --  test/wasm.js
 
-   the WebAssembly step (simwasm.js, wasm/src/lib.rs) plays the world the
+   the WebAssembly step (simwasm.ts, wasm/src/lib.rs) plays the world the
    JS step does: two villages of one seed, through the harness (its dice
    are a mulberry32 the module rolls itself), one played by the JS and
    one by the module, the same things done to both, the whole state

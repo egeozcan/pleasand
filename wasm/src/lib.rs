@@ -2,8 +2,8 @@
    PLEASAND  --  wasm/src/lib.rs
 
    the sand step's walk over the valley and the heat step, in Rust, for
-   WebAssembly. a port, statement for statement, of world.js sandStep
-   (and the rules it hands each cell to) and heat.js heatStep: the same
+   WebAssembly. a port, statement for statement, of world.ts sandStep
+   (and the rules it hands each cell to) and heat.ts heatStep: the same
    sums in the same order, the same dice in the same order, the same
    world, bit for bit. the JS stays the reference: anything changed in
    one is changed in the other, and harness/same.js and test/wasm.js say
@@ -21,7 +21,7 @@
    of a temperature see any NaN as out of every band. a valley that
    plays as it should has no NaN in it, either)
 
-   the dice. mulberry32, as rng.js has it, its state here (RNG_STATE)
+   the dice. mulberry32, as rng.ts has it, its state here (RNG_STATE)
    while the step runs and handed back to the JS generator when it calls
    out; or, when the game's Math.random is not one whose state can be
    read (test/sim.js's), every die is asked of JS.
@@ -42,7 +42,7 @@ fn panic(_: &PanicInfo) -> ! {
 }
 
 /* -------------------------------------------------------------------
-   THE MATERIALS (world.js MAT: sim.js checks there are as many)
+   THE MATERIALS (world.ts MAT: sim.js checks there are as many)
    ------------------------------------------------------------------- */
 const EMPTY: u8 = 0;
 const SAND: u8 = 1;
@@ -114,7 +114,7 @@ extern "C" {
     fn js_launch(j: i32);
     fn js_nuke(j: i32);
     fn js_bloom(x: i32, y: i32);
-    /* (for the picture: Math.sin, and wonders.js wLitGlass) */
+    /* (for the picture: Math.sin, and wonders.ts wLitGlass) */
     fn js_sin(x: f64) -> f64;
     fn js_lit(x: i32, y: i32) -> i32;
 }
@@ -258,7 +258,7 @@ struct G {
     fast: P<i32>,
     dmask: P<u8>,
     plist: P<i32>,
-    /* the heat step's scratch: which rows it passed by, and its bitsets (heat.js heatBits) */
+    /* the heat step's scratch: which rows it passed by, and its bitsets (heat.ts heatBits) */
     skip: P<u8>,
     ba: P<i32>,
     bb: P<i32>,
@@ -293,7 +293,7 @@ fn scratch_layout(gw: i32, gh: i32) -> (i32, i32) {
 fn rnd() -> f64 {
     unsafe {
         if RNG_INTERNAL {
-            /* mulberry32 (rng.js rngMake) */
+            /* mulberry32 (rng.ts rngMake) */
             RNG_STATE = RNG_STATE.wrapping_add(0x6d2b79f5);
             let mut t = RNG_STATE;
             t = (t ^ (t >> 15)).wrapping_mul(t | 1);
@@ -320,7 +320,7 @@ const C_HISS: usize = 1;
 const C_WHOOSH: usize = 2;
 
 /* -------------------------------------------------------------------
-   THE BOOKS (heat.js)
+   THE BOOKS (heat.ts)
    ------------------------------------------------------------------- */
 #[inline(always)]
 fn heat_f(sh: u8) -> f64 {
@@ -403,7 +403,7 @@ fn heat_vanish(g: &G, j: i32) {
     heat_accept(g, j);
 }
 
-/* neighbour index: 0 up, 1 down, 2 left, 3 right. -1 if off the edge (world.js sandNb) */
+/* neighbour index: 0 up, 1 down, 2 left, 3 right. -1 if off the edge (world.ts sandNb) */
 #[inline(always)]
 fn nb(g: &G, x: i32, y: i32, k: i32) -> i32 {
     match k {
@@ -466,7 +466,7 @@ fn heat_spawn(g: &G, i: i32, j: i32, v: u8) -> f64 {
     heat_q(g, j) - before
 }
 
-/* past the top of its range: melt, boil, catch (heat.js heatUp) */
+/* past the top of its range: melt, boil, catch (heat.ts heatUp) */
 fn heat_up(g: &G, i: i32, v: u8) -> f64 {
     let m = g.m;
     g.lat.s(i, 0.0);
@@ -577,7 +577,7 @@ fn heat_up(g: &G, i: i32, v: u8) -> f64 {
     }
 }
 
-/* past the bottom of its range: freeze, condense, set (heat.js heatDown) */
+/* past the bottom of its range: freeze, condense, set (heat.ts heatDown) */
 fn heat_down(g: &G, i: i32, v: u8) -> f64 {
     let m = g.m;
     let gw = g.gw;
@@ -629,14 +629,14 @@ fn heat_down(g: &G, i: i32, v: u8) -> f64 {
 }
 
 /* -------------------------------------------------------------------
-   THE HEAT STEP (heat.js heatStep, the walk by words: every row starts
+   THE HEAT STEP (heat.ts heatStep, the walk by words: every row starts
    on a word, and every view lines up, as they always do here)
    ------------------------------------------------------------------- */
 #[inline(always)]
 fn l64_zero(b: u64) -> bool {
     (b << 1) == 0
 }
-/* the word at cell i is cold now (heat.js heatWordCold) */
+/* the word at cell i is cold now (heat.ts heatWordCold) */
 #[inline(always)]
 fn word_cold(g: &G, i: i32) -> bool {
     unsafe {
@@ -706,7 +706,7 @@ fn row_cold_fresh(g: &G, a: i32, nw: i32) -> bool {
     }
     true
 }
-/* heat.js heatIdleWord */
+/* heat.ts heatIdleWord */
 fn idle_word(g: &G, i: i32) -> bool {
     let tt = g.t;
     let m = g.m;
@@ -773,7 +773,7 @@ fn idle_word(g: &G, i: i32) -> bool {
     }
     true
 }
-/* heat.js heatAirWord */
+/* heat.ts heatAirWord */
 fn air_word(g: &G, i0: i32) {
     let tt = g.t;
     let m = g.m;
@@ -827,7 +827,7 @@ fn air_word(g: &G, i0: i32) {
         tt.s(i, t as f32);
     }
 }
-/* heat.js heatSteadyScan */
+/* heat.ts heatSteadyScan */
 #[inline(always)]
 fn steady_word(g: &G, i: i32, bh: u32) -> bool {
     unsafe {
@@ -1303,7 +1303,7 @@ fn heat_step(g: &G) {
 }
 
 /* -------------------------------------------------------------------
-   CELL PLUMBING (world.js)
+   CELL PLUMBING (world.ts)
    ------------------------------------------------------------------- */
 #[inline(always)]
 fn held(g: &G, j: i32) -> bool {
@@ -1432,7 +1432,7 @@ fn fall(g: &G, i: i32, _x: i32, y: i32, v: u8) -> bool {
 }
 
 /* -------------------------------------------------------------------
-   THE RULES (world.js, one function per family of thing)
+   THE RULES (world.ts, one function per family of thing)
    ------------------------------------------------------------------- */
 fn fire(g: &G, i: i32, x: i32, y: i32) {
     let m = g.m;
@@ -2022,7 +2022,7 @@ fn liquid(g: &G, i: i32, x: i32, y: i32) {
         return;
     }
     if v == LAVA {
-        /* clamp((T - LAVA_LO) / 1000, 0.04, 0.45), as world.js clamp has it (a NaN stays a NaN) */
+        /* clamp((T - LAVA_LO) / 1000, 0.04, 0.45), as world.ts clamp has it (a NaN stays a NaN) */
         let c = (g.t.g(i) as f64 - tf(unsafe { &LAVA_LO }, g.aux.g(i) & 31)) / 1000.0;
         let c = if c < 0.04 { 0.04 } else if c > 0.45 { 0.45 } else { c };
         if rnd() > c {
@@ -2077,7 +2077,7 @@ fn grow(g: &G, i: i32, x: i32, y: i32, b: i32) {
     }
 }
 
-/* things that do not move, but do things anyway (world.js sandStatic: cloners, saplings and crops are JS's) */
+/* things that do not move, but do things anyway (world.ts sandStatic: cloners, saplings and crops are JS's) */
 fn statics(g: &G, i: i32, x: i32, y: i32, v: u8) {
     let m = g.m;
     let gw = g.gw;
@@ -2228,7 +2228,7 @@ fn statics(g: &G, i: i32, x: i32, y: i32, v: u8) {
     }
 }
 
-/* one cell's go (world.js sandTurn) */
+/* one cell's go (world.ts sandTurn) */
 fn turn(g: &G, i: i32, x: i32, y: i32, v: u8) {
     match v {
         FIRE => fire(g, i, x, y),
@@ -2250,7 +2250,7 @@ fn still_word(w: u32) -> bool {
     w == 0 || unsafe { STILL2[(w & 0xffff) as usize] != 0 && STILL2[(w >> 16) as usize] != 0 }
 }
 
-/* a cell at rest, seen to be at rest before it is handed a turn (world.js sandStep): true if it took its rest */
+/* a cell at rest, seen to be at rest before it is handed a turn (world.ts sandStep): true if it took its rest */
 #[inline(always)]
 fn rests(g: &G, i: i32, x: i32, y: i32, v: u8) -> bool {
     let m = g.m;
@@ -2389,7 +2389,7 @@ fn sand_step(g: &G, parity: i32) {
 }
 
 /* -------------------------------------------------------------------
-   THE PICTURE (game.js drawWorld: the loop over the cells in view, each
+   THE PICTURE (game.ts drawWorld: the loop over the cells in view, each
    given its colour, and the glow under the hot ones). the same colours,
    from the same tables, with the same sums and the same side dice, as
    JS: the picture is drawing only, but a picture that is the JS's to the
@@ -2448,7 +2448,7 @@ fn pal(v: u8, s: i32) -> u32 {
 fn lit(v: u8, s: i32) -> u32 {
     unsafe { *LIT.get_unchecked((((v as usize) << 8) | (s as usize & 255)) & 16383) }
 }
-/* heat.js blend32: each channel a + (b - a) * f, as JS truncates it (ToInt32, then & 255) */
+/* heat.ts blend32: each channel a + (b - a) * f, as JS truncates it (ToInt32, then & 255) */
 #[inline(always)]
 fn blend32(a: u32, b: u32, f: f64) -> u32 {
     let ar = (a & 255) as f64;
@@ -2493,7 +2493,7 @@ fn glow_mix(t: f64) -> f64 {
         }
     }
 }
-/* game.js lavaCol */
+/* game.ts lavaCol */
 fn lava_col(t: f64, a: u8, flick: u32) -> u32 {
     let mut c = if t < 1250.0 {
         blend32(col(K_LCOOL), col(K_LWARM), clampf((t - 900.0) / 350.0, 0.0, 1.0))
@@ -2991,7 +2991,7 @@ pub extern "C" fn sim_rng_mode(internal: i32) {
         RNG_INTERNAL = internal != 0;
     }
 }
-/* one sand step's walk and its pressure tries (world.js sandStep, but for the heat step, which JS asks for after) */
+/* one sand step's walk and its pressure tries (world.ts sandStep, but for the heat step, which JS asks for after) */
 #[no_mangle]
 pub extern "C" fn sim_sand(tick: i32, parity: i32, pgen: i32, has_dmask: i32) {
     unsafe {

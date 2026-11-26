@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  world.js
+   PLEASAND  --  world.ts
 
    a grid of cells. every tick, every cell with something in it gets to
    do one thing: fall, flow, rise, burn, grow, or nothing. the element
@@ -10,12 +10,22 @@
    speeds up, like falling things do), one byte of memory, aux, for
    the few things that need to remember something: a cloner's recipe, a
    stalk's height, a fuse, what a puddle of lava used to be. and a
-   temperature, which goes where the cell goes: that is all in heat.js.
+   temperature, which goes where the cell goes: that is all in heat.ts.
 
    on top of the grid live particles: grains thrown by explosions, sparks,
    and firework rockets. they fly free and turn back into cells on landing.
    ===================================================================== */
 "use strict";
+
+/* the game: everything about the village is in one object, g, handed to nearly every function. each file says here
+   what it keeps in it */
+interface Game {
+  tick?: number; sites?: Site[]; duckArriveT?: number; cloneSrc?: any; shake?: number; flash?: number; fwGlow?: any;
+  held?: Peasant; zn?: number; zt?: number; pgen?: number; pressN?: number; vrange?: any; helloT?: number; helloP?: Peasant;
+  np?: number; ppx?: Float32Array; ppy?: Float32Array; pk?: Uint8Array; pl?: Int16Array; pc?: Uint32Array;
+  pm?: Uint8Array; popGoal?: number; pt?: Float32Array; ps?: Uint8Array; ph?: Uint8Array; score?: number;
+  booms?: any; arriveT?: number; pvx?: Float32Array; pvy?: Float32Array;
+}
 
 /* -------------------------------------------------------------------
    0. GEOMETRY + SMALL MATH
@@ -25,24 +35,24 @@ var PANEL = 96;                  /* the picker on the left */
 var PLAY_Y = 14, BAR_H = 14;     /* header on top, description bar underneath */
 var CELL = 2;                    /* game pixels per cell */
 /* the field: one screen of it is VIEW_GW columns by GH rows. the valley itself is wider (WORLD_GW, four screens), and
-   you look along it (game.js). under the field, a strip with the whole valley in it, then the description bar */
+   you look along it (game.ts). under the field, a strip with the whole valley in it, then the description bar */
 var VIEW_GW = (VW - PANEL) / CELL, GH = 186, WORLD_GW = 4 * VIEW_GW;
 var PLAY_H = GH * CELL, PLAY_B = PLAY_Y + PLAY_H;
 var MAP_Y = PLAY_B, MAP_H = 10, BAR_Y = MAP_Y + MAP_H;
 var VH = BAR_Y + BAR_H;          /* (and down) */
 
-function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
-function irnd(n) { return (Math.random() * n) | 0; }
+function clamp(v: number, a, b) { return v < a ? a : (v > b ? b : v); }
+function irnd(n: number) { return (Math.random() * n) | 0; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function pick(a) { return a[(Math.random() * a.length) | 0]; }
 function hexRGB(h) { var n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
-function rgb32(c, f) {
+function rgb32(c, f: number) {
   var r = clamp(Math.round(c[0] * f), 0, 255), gg = clamp(Math.round(c[1] * f), 0, 255), b = clamp(Math.round(c[2] * f), 0, 255);
   return ((255 << 24) | (b << 16) | (gg << 8) | r) >>> 0;
 }
-function hex32(h, f) { return rgb32(hexRGB(h), f == null ? 1 : f); }
+function hex32(h, f?: number) { return rgb32(hexRGB(h), f == null ? 1 : f); }
 /* half-and-half of two packed pixels */
-function mix32(a, b) { return ((((a & 0xfefefe) >>> 1) + ((b & 0xfefefe) >>> 1)) | 0xff000000) >>> 0; }
+function mix32(a: number, b: number) { return ((((a & 0xfefefe) >>> 1) + ((b & 0xfefefe) >>> 1)) | 0xff000000) >>> 0; }
 
 /* -------------------------------------------------------------------
    1. THE MATERIALS
@@ -53,20 +63,20 @@ var MAT = { EMPTY: 0, SAND: 1, WATER: 2, OIL: 3, WOOD: 4, FIRE: 5, LAVA: 6, STON
             SEED: 23, FLOWER: 24, FIREWORK: 25, NUKE: 26, SALTWATER: 27, METAL: 28, SNOW: 29, INERT: 30,
             /* things only peasants make, out of the wood they chop: you will not find these in the picker */
             PLANK: 31, DOOR: 32, LADDER: 33, STAIRS: 34, BED: 35, SAPLING: 36,
-            /* and what a well-fed village thinks of next (ideas.js): tilled earth, wheat growing and ripe, a lantern */
+            /* and what a well-fed village thinks of next (ideas.ts): tilled earth, wheat growing and ripe, a lantern */
             SOIL: 37, CROP: 38, WHEAT: 39, LAMP: 40,
             /* what is in the rock, for a village that digs deep enough to find it: coal, iron ore, gold. and what
                they make of it: dressed stone, and iron girders (a lift's headframe, which they walk through) */
             COAL: 41, ORE: 42, GOLD: 43, BRICK: 44, GIRDER: 45,
-            /* and what is left over, made something of (leftovers.js): snow packed hard enough to stand up on its own (a
+            /* and what is left over, made something of (leftovers.ts): snow packed hard enough to stand up on its own (a
                snowman), and the beds of rock salt in the stone, which come up out of a mine as salt */
             PACKSNOW: 46, ROCKSALT: 47,
-            /* and what they build their great works of (wonders.js): wet concrete, set concrete, coloured glass, a brick that
+            /* and what they build their great works of (wonders.ts): wet concrete, set concrete, coloured glass, a brick that
                will stand a furnace, and what comes back from the moon */
             MORTAR: 48, CONCRETE: 49, STAINED: 50, FIREBRICK: 51, MOONROCK: 52,
-            /* and what a crowded street hangs out between its flats (storeys.js): washing, on a line */
+            /* and what a crowded street hangs out between its flats (storeys.ts): washing, on a line */
             LINEN: 53,
-            /* and what a crowded valley stands its platforms on (platforms.js): cross-braced timber legs, which they
+            /* and what a crowded valley stands its platforms on (platforms.ts): cross-braced timber legs, which they
                walk through, as they do a lift's girders */
             TRESTLE: 54 };
 /* how many kinds of thing there may ever be: the size of every per-thing table */
@@ -108,7 +118,7 @@ var PICK = [
   { m: MAT.CLONER,     name: "CLONER",    key: "",  desc: "does not move. remembers the first thing it touches, then makes it forever. try a nuke." },
   { m: MAT.INERT,      name: "INERT",     key: "",  desc: "magic. stays exactly where you put it. does not burn, melt, dissolve, conduct or care. only erase moves it." },
   { m: MAT.EMPTY,      name: "ERASE",     key: "E", desc: "removes whatever it touches. right-drag erases from anywhere, too." },
-  /* and MORE, under ERASE (game.js): a row that opens onto these, the rock the mines find and the stone the great works
+  /* and MORE, under ERASE (game.ts): a row that opens onto these, the rock the mines find and the stone the great works
      are built of. after ERASE, so every brush above keeps its place in the list (saves, and recordings, count on it) */
   { m: MAT.COAL,       name: "COAL",      key: "", more: "rock",  desc: "black rock that burns. slow to catch, at 400, then smoulders a long while. it is what a mine is for." },
   { m: MAT.ORE,        name: "IRON ORE",  key: "", more: "rock",  desc: "rock shot through with rust. runs at 1250, and what runs out of it sets as iron." },
@@ -119,7 +129,7 @@ var PICK = [
   { m: MAT.FIREBRICK,  name: "FIREBRICK", key: "", more: "build", desc: "a pale brick that stands a furnace. carries heat badly, and lasts to 2000." },
   { m: MAT.STAINED,    name: "STAINED GLASS", key: "", more: "build", desc: "ruby, green and amber, a pane to a grain. glows with a light behind it. melts at 1400." },
   { m: MAT.TRESTLE,    name: "TRESTLE",   key: "", more: "build", desc: "timber legs, cross-braced. peasants walk through it. sand and water do not. it burns." },
-  /* (and a tool, last of all, so that every brush above keeps its place: hand.js) */
+  /* (and a tool, last of all, so that every brush above keeps its place: hand.ts) */
   { tool: "hand",      name: "HAND",      key: "Y", more: "hand", desc: "lifts what is under it, ground, people and all. let go to set it down. flick it, and it flies." }
 ];
 /* how many rows the panel itself has: everything before the first of MORE's */
@@ -194,27 +204,27 @@ var SAND_SHADES = [
   ["#1e1e24", "#2a2a32", "#16161a", "#3c3c48"],
   ["#8a5034", "#5c6270", "#a8643a", "#6e4a3c"],
   ["#f0c040", "#ffd860", "#d8a028", "#fff0a0"],
-  /* dressed stone, squared off and mortared (the mortar is drawn in game.js). an iron girder */
+  /* dressed stone, squared off and mortared (the mortar is drawn in game.ts). an iron girder */
   ["#c2b9a2", "#b6ad96", "#cbc3ad", "#ada48c"],
   ["#4a5260", "#555e6c", "#3e4652"],
   /* packed snow: whiter than snow, and a little blue in the shadows. rock salt: pinkish, glassy, in the grey of the stone */
   ["#f4f8fc", "#e6eef8", "#fcfeff", "#dce6f2"],
   ["#d8c4c8", "#e8d8d8", "#c4aeb4", "#f0e6e4"],
   /* wet concrete: grey porridge. set concrete: paler, and dry. stained glass: ruby, green, amber (its aux says which:
-     game.js). firebrick: pale yellow. moon rock: pale, pitted, a faint shimmer */
+     game.ts). firebrick: pale yellow. moon rock: pale, pitted, a faint shimmer */
   ["#7e7a70", "#86827a", "#767268", "#8c887e"],
   ["#aaa69b", "#b2aea3", "#a29e93", "#b8b4a9"],
   ["#c0283c", "#3a9a52", "#e0a030"],
   ["#e6d49a", "#dccb8f", "#efdea8", "#d2c084"],
   ["#c8c6c0", "#b8b6b0", "#d4d2cc", "#a8a6a0"],
-  /* linen: the cord (aux 6), and five shirts (aux 1 to 5: game.js) */
+  /* linen: the cord (aux 6), and five shirts (aux 1 to 5: game.ts) */
   ["#e4dcc4", "#d8484c", "#4a78d4", "#e8c040", "#58b45a", "#f2f0ea"],
-  /* trestle: sawn timber, a little darker than a board, in a lattice (game.js) */
+  /* trestle: sawn timber, a little darker than a board, in a lattice (game.ts) */
   ["#9a6a3c", "#8e6036", "#a67444", "#855a32"]
 ];
 
 /* every (thing, shade) pair is worked out once, up here, not sixty times a second */
-function sandTable(list, f) {
+function sandTable(list: string[], f: number) {
   var out = new Uint32Array(256);
   for (var s = 0; s < 256; s++) out[s] = rgb32(hexRGB(list[s % list.length]), f * (0.92 + ((s >> 3) & 15) / 15 * 0.16));
   return out;
@@ -239,7 +249,7 @@ var SOLID = new Uint8Array(NMAT), LIQUID = new Uint8Array(NMAT), HOT = new Uint8
  MAT.PLANK, MAT.DOOR, MAT.LADDER, MAT.STAIRS, MAT.BED, MAT.SAPLING, MAT.SOIL, MAT.CROP, MAT.WHEAT, MAT.LAMP,
  MAT.COAL, MAT.ORE, MAT.GOLD, MAT.BRICK, MAT.GIRDER, MAT.PACKSNOW, MAT.ROCKSALT,
  MAT.CONCRETE, MAT.STAINED, MAT.FIREBRICK, MAT.MOONROCK, MAT.LINEN, MAT.TRESTLE].forEach(function (v) { SOLID[v] = 1; });
-/* rock: what a pick is for (mines.js). it all stays where it is, whatever is dug out from under it */
+/* rock: what a pick is for (mines.ts). it all stays where it is, whatever is dug out from under it */
 var ROCK = new Uint8Array(NMAT);
 [MAT.STONE, MAT.COAL, MAT.ORE, MAT.GOLD, MAT.ROCKSALT].forEach(function (v) { ROCK[v] = 1; });
 /* wood, and everything a peasant has made out of wood: it all burns the same way, down to embers */
@@ -249,7 +259,7 @@ var WOODY = new Uint8Array(NMAT);
 var LEAFY = new Uint8Array(NMAT);
 [MAT.PLANT, MAT.FLOWER, MAT.SEED, MAT.BED, MAT.SAPLING, MAT.CROP, MAT.WHEAT].forEach(function (v) { LEAFY[v] = 1; });
 /* (linen is not: hot enough, it catches, as anything does; on a washing line it smoulders along it like a fuse.
-   storeys.js sFuse) */
+   storeys.ts sFuse) */
 /* things that never move and never do anything on their own: the step skips them */
 var STILL = new Uint8Array(NMAT);
 [MAT.EMPTY, MAT.STONE, MAT.WOOD, MAT.GLASS, MAT.FLOWER, MAT.METAL, MAT.INERT,
@@ -284,21 +294,21 @@ var SAND_CANT = new Uint8Array(NMAT * NMAT), SAND_NOFLOAT = new Uint8Array(NMAT 
    2. CELL PLUMBING
    ------------------------------------------------------------------- */
 /* neighbour index: 0 up, 1 down, 2 left, 3 right. -1 if off the edge */
-function sandNb(g, x, y, k) {
+function sandNb(g: Game, x: number, y: number, k) {
   if (k === 0) return y > 0 ? (y - 1) * g.gw + x : -1;
   if (k === 1) return y < g.gh - 1 ? (y + 1) * g.gw + x : -1;
   if (k === 2) return x > 0 ? y * g.gw + x - 1 : -1;
   return x < g.gw - 1 ? y * g.gw + x + 1 : -1;
 }
 /* index of a touching cell holding t, or -1 */
-function sandHas(g, x, y, t) {
+function sandHas(g: Game, x: number, y: number, t: number) {
   for (var k = 0; k < 4; k++) {
     var j = sandNb(g, x, y, k);
     if (j >= 0 && g.m[j] === t) return j;
   }
   return -1;
 }
-function sandHotNb(g, x, y) {
+function sandHotNb(g: Game, x: number, y: number) {
   for (var k = 0; k < 4; k++) {
     var j = sandNb(g, x, y, k);
     if (j >= 0 && HOT[g.m[j]]) return j;
@@ -308,27 +318,27 @@ function sandHotNb(g, x, y) {
 /* can something of kind src move into cell j. empty space always takes it; a lighter
    thing can be pushed aside, but only if it has not already had its turn this tick,
    and only if one of the two flows: grains part a liquid, they do not part other grains */
-function sandCan(g, src, j) {
+function sandCan(g: Game, src: number, j: number) {
   var t = g.m[j];
   return t === MAT.EMPTY ||
          (g.stamp[j] !== g.tick && SAND_FREE[t] === 1 && SAND_DENS[t] < SAND_DENS[src] && (FLUID[t] || FLUID[src]) && !sandHeld(g, j));
 }
-/* wet concrete poured into its form (the top bit of aux: wonders.js) is held where it was put, while it sets: nothing
+/* wet concrete poured into its form (the top bit of aux: wonders.ts) is held where it was put, while it sets: nothing
    pushes it out of the way, floats up past it or bubbles through it */
-function sandHeld(g, j) { return g.m[j] === MAT.MORTAR && (g.aux[j] & 128) !== 0; }
+function sandHeld(g: Game, j: number) { return g.m[j] === MAT.MORTAR && (g.aux[j] & 128) !== 0; }
 /* index of a touching cell holding water of either kind, or -1 */
-function sandWet(g, x, y) {
+function sandWet(g: Game, x: number, y: number) {
   for (var k = 0; k < 4; k++) {
     var j = sandNb(g, x, y, k);
     if (j >= 0 && WET[g.m[j]]) return j;
   }
   return -1;
 }
-function sandEmpty(g, j) { return g.m[j] === MAT.EMPTY; }
+function sandEmpty(g: Game, j: number) { return g.m[j] === MAT.EMPTY; }
 /* swap two cells, everything included. the thing that moved has had its turn, and so
    has anything it shoved out of the way. the empty space it left behind has not: that
    is free for the next grain down the stream, or a pour stutters. */
-function sandSwap(g, i, j) {
+function sandSwap(g: Game, i: number, j: number) {
   var m = g.m, t = m[j];
   m[j] = m[i]; m[i] = t;
   t = g.sh[j]; g.sh[j] = g.sh[i]; g.sh[i] = t;
@@ -343,18 +353,18 @@ function sandSwap(g, i, j) {
   if (m[i] !== MAT.EMPTY) g.stamp[i] = g.tick;
 }
 /* a new thing in a cell, made out of what the world was already doing there (a flame licking into the
-   air, a plant growing, a puff of smoke). it has exactly the heat the cell had: see heat.js */
+   air, a plant growing, a puff of smoke). it has exactly the heat the cell had: see heat.ts */
 /* something new where j is: it keeps the heat that was there, but not the heat it took to melt or boil what was there.
    a stalk growing up through a pond, a board put in where some steam was, takes the place of the water or the steam,
    and that heat goes with them (as down a drain, or drunk by a plant): as temperature, in one cell of plant, the
    melting heat of a cell of water is well over a thousand degrees, and it bursts into flame */
-function sandSet(g, j, v) {
+function sandSet(g: Game, j: number, v: number) {
   var q = heatQ(g, j) - HEAT_HLAT[g.hm[j]] * heatF(g.hs[j]);
   g.m[j] = v; g.vy[j] = 0; g.aux[j] = 0; g.sh[j] = irnd(256);
   heatSetQ(g, j, q);
 }
 /* a new thing from outside: painted, poured, dropped from a faucet or a cloner. it comes at its own temperature */
-function sandPlace(g, j, v) {
+function sandPlace(g: Game, j: number, v: number) {
   g.m[j] = v; g.vy[j] = 0; g.aux[j] = 0; g.sh[j] = irnd(256);
   g.T[j] = HEAT_T0[v]; g.lat[j] = 0;
   heatAccept(g, j);
@@ -362,7 +372,7 @@ function sandPlace(g, j, v) {
 
 /* falling, with speed. it gains a little every tick it keeps falling and loses it all
    the moment it lands. sinking through a liquid is slow: one cell, then stop. */
-function sandFall(g, i, x, y, v) {
+function sandFall(g: Game, i: number, x: number, y: number, v: number) {
   var gw = g.gw, m = g.m, sp = g.vy[i], n = 1 + (sp >> 2), cur = i, s, j, moved = 0, t;
   for (s = 0; s < n && y + s + 1 < g.gh; s++) {
     j = cur + gw;
@@ -384,15 +394,15 @@ var PMAX = 5000;
 var FW_COLORS = ["#ff4060", "#40c0ff", "#ffd040", "#60ff80", "#c070ff", "#ffffff", "#ff8a30", "#ff70d0"].map(function (h) { return hex32(h); });
 var SPARK_HOT = ["#ffd060", "#ffb020", "#ff7a1a", "#fff0a0"].map(function (h) { return hex32(h); });
 
-function partInit(g) {
+function partInit(g: Game) {
   g.np = 0;
   g.ppx = new Float32Array(PMAX); g.ppy = new Float32Array(PMAX);
   g.pvx = new Float32Array(PMAX); g.pvy = new Float32Array(PMAX);
   g.pl = new Int16Array(PMAX); g.pk = new Uint8Array(PMAX); g.pm = new Uint8Array(PMAX);
   g.pc = new Uint32Array(PMAX); g.pt = new Float32Array(PMAX); g.ps = new Uint8Array(PMAX);
-  g.ph = new Uint8Array(PMAX);   /* a grain of something the hand threw: it lands in the valley, whatever it comes down on (hand.js handLand) */
+  g.ph = new Uint8Array(PMAX);   /* a grain of something the hand threw: it lands in the valley, whatever it comes down on (hand.ts handLand) */
 }
-function partAdd(g, kind, x, y, vx, vy, life, col, mat) {
+function partAdd(g: Game, kind: number, x: number, y: number, vx: number, vy: number, life: number, col: number, mat?: number) {
   if (g.np >= PMAX) return -1;
   var q = g.np++;
   g.ppx[q] = x; g.ppy[q] = y; g.pvx[q] = vx; g.pvy[q] = vy;
@@ -401,7 +411,7 @@ function partAdd(g, kind, x, y, vx, vy, life, col, mat) {
   g.pt[q] = kind === PK_DEBRIS ? HEAT_C[mat || 0] * (HEAT_T0[mat || 0] - AMBIENT) + heatH0(mat || 0, 0, g.ps[q]) : 0;
   return q;
 }
-function partKill(g, q) {
+function partKill(g: Game, q: number) {
   var l = --g.np;
   if (q === l) return;
   g.ppx[q] = g.ppx[l]; g.ppy[q] = g.ppy[l]; g.pvx[q] = g.pvx[l]; g.pvy[q] = g.pvy[l];
@@ -411,7 +421,7 @@ function partKill(g, q) {
    nearest one that will take heat (inert will not). off the edge of the room, the heat goes with it. false if
    there is nowhere at all to leave it, yet: then the grain hangs on to it */
 /* the nearest cell of air to (ix, iy), a few cells at most: its index, or -1 */
-function partRoom(g, ix, iy) {
+function partRoom(g: Game, ix, iy) {
   for (var r = 1; r <= 3; r++) for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
     if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
     var nx = ix + dx, ny = iy + dy;
@@ -419,7 +429,7 @@ function partRoom(g, ix, iy) {
   }
   return -1;
 }
-function partDrop(g, q, x, y) {
+function partDrop(g: Game, q: number, x: number, y: number) {
   var ix = Math.floor(x), iy = Math.floor(y), gw = g.gw, r, dx, dy, j;
   if (g.pk[q] !== PK_DEBRIS || !g.pt[q] || ix < 0 || iy < 0 || ix >= gw || iy >= g.gh) return true;
   for (r = 0; r <= 6; r++) for (dy = -r; dy <= r; dy++) for (dx = -r; dx <= r; dx++) {
@@ -435,14 +445,14 @@ function partDrop(g, q, x, y) {
   return false;
 }
 /* a grain the hand threw, that would be lost (no room where it comes down, its time up, or off the edge of the room): put
-   down in the valley instead, in its column, on what is under where it got to, as hand.js puts down what it throws. a
+   down in the valley instead, in its column, on what is under where it got to, as hand.ts puts down what it throws. a
    grain of anything else never is */
-function partHand(g, q, x, y) {
+function partHand(g: Game, q: number, x: number, y: number) {
   return handLand(g, g.pm[q], 0, g.ps[q], g.pt[q], Math.floor(x), y);
 }
 /* turn a cell into a flying grain of itself. it takes all its heat with it, and its shade; the air that
    rushes in behind it is room air, with no heat of its own to speak of */
-function sandFling(g, j, vx, vy) {
+function sandFling(g: Game, j: number, vx: number, vy: number) {
   if (g.m[j] === MAT.INERT) return false;   /* (INERT: stays exactly where it was put) */
   var v = g.m[j], q = partAdd(g, PK_DEBRIS, (j % g.gw) + 0.5, ((j / g.gw) | 0) + 0.5, vx, vy, 240, SAND_PAL[v][g.sh[j]], v);
   if (q < 0) return false;
@@ -452,14 +462,14 @@ function sandFling(g, j, vx, vy) {
   return true;
 }
 /* a burst of sparks. real ones (they light what they land on) unless kind says PK_GLINT: a puff that only looks like it */
-function sparks(g, x, y, n, speed, cols, life, up, kind) {
+function sparks(g: Game, x: number, y: number, n: number, speed: number, cols: number[], life: number, up: number, kind?: number) {
   for (var k = 0; k < n; k++) {
     var a = Math.random() * 6.2832, s = speed * (0.3 + Math.random() * 0.7);
     partAdd(g, kind == null ? PK_SPARK : kind, x, y, Math.cos(a) * s, Math.sin(a) * s - (up || 0), life + irnd(life), pick(cols));
   }
 }
 /* a spark landing on something. some things take it personally */
-function sandIgnite(g, j) {
+function sandIgnite(g: Game, j: number) {
   var t = g.m[j], r = Math.random();
   if (t === MAT.GAS) { g.m[j] = MAT.FIRE; g.sh[j] = SAND_CLEAN; g.fx.whoosh++; }
   else if (t === MAT.GUNPOWDER) sandBoom(g, j);
@@ -470,7 +480,7 @@ function sandIgnite(g, j) {
   else if (WOODY[t] && r < 0.06) g.m[j] = MAT.EMBER;
 }
 
-function partStep(g) {
+function partStep(g: Game) {
   var gw = g.gw, gh = g.gh, m = g.m, q = 0, k, x, y, vx, vy, n, s, ix, iy, j, hit;
   while (q < g.np) {
     k = g.pk[q]; x = g.ppx[q]; y = g.ppy[q]; vx = g.pvx[q]; vy = g.pvy[q];
@@ -535,7 +545,7 @@ function partStep(g) {
    ------------------------------------------------------------------- */
 /* an explosion of radius R and push P. small ones are gunpowder grains, big ones are
    nukes. inside: things burn, boil, shatter or vanish. the outer shell is thrown. */
-function sandBoom(g, i, R, P) {
+function sandBoom(g: Game, i: number, R?: number, P?: number) {
   R = R || 6; P = P || 1.5;
   var m = g.m, gw = g.gw, x0 = i % gw, y0 = (i / gw) | 0, big = R >= 12, R2 = R * R;
   var dx, dy, d2, x, y, j, t, r, inner, d, room = g.np < PMAX - 400;
@@ -607,13 +617,13 @@ function sandBoom(g, i, R, P) {
   if (ring && g.rings.length < 8) g.rings.push({ x: x0, y: y0, r: 0, R: R * (big ? 3 : 2.2), t: 0 });
   peasantsBlast(g, x0, y0, R, P);
   ducksBlast(g, x0, y0, R, P);
-  /* (a note of it, for anybody who wants to know what just happened round here: leftovers.js) */
+  /* (a note of it, for anybody who wants to know what just happened round here: leftovers.ts) */
   if (!g.booms) g.booms = [];
   g.booms.push({ x: x0, y: y0, R: R, t: g.tick });
   if (g.booms.length > 8) g.booms.shift();
 }
 
-function sandNuke(g, i) {
+function sandNuke(g: Game, i: number) {
   var gw = g.gw, x0 = i % gw, y0 = (i / gw) | 0, x, y, j;
   g.m[i] = MAT.EMPTY;
   sandBoom(g, i, 34, 4.2);
@@ -633,19 +643,19 @@ function sandNuke(g, i) {
   }
   peasantsReact(g, "nuke", x0, y0);
   achieve(g, "nuke");
-  wTale(g, "nuke", null, "", x0, y0);   /* (wonders.js) */
+  wTale(g, "nuke", null, "", x0, y0);   /* (wonders.ts) */
 }
 
 /* fireworks: a cell becomes a rocket, a rocket becomes a flower made of sparks */
-function sandLaunch(g, j) {
+function sandLaunch(g: Game, j: number) {
   var x = j % g.gw, y = (j / g.gw) | 0;
   g.m[j] = MAT.EMPTY;
   partAdd(g, PK_ROCKET, x + 0.5, y, (Math.random() - 0.5) * 0.5, -1, 35 + irnd(35), SPARK_HOT[3], 0);
   g.fx.whistle++;
 }
-function fwBurst(g, x, y) {
+function fwBurst(g: Game, x: number, y: number) {
   var c1 = pick(FW_COLORS), c2 = pick(FW_COLORS), style = irnd(3), n = 70 + irnd(50), k, a, s;
-  if (g.goldBurst > g.tick) { c1 = SAND_PAL[MAT.GOLD][0]; c2 = hex32("#fff6c0"); n += 40; }   /* (gold, for a finale: ideas.js) */
+  if (g.goldBurst > g.tick) { c1 = SAND_PAL[MAT.GOLD][0]; c2 = hex32("#fff6c0"); n += 40; }   /* (gold, for a finale: ideas.ts) */
   for (k = 0; k < n; k++) {
     a = Math.random() * 6.2832;
     s = style === 0 ? 0.4 + Math.random() * 1.3 : (style === 1 ? 1.3 + Math.random() * 0.15 : (k & 1 ? 1.4 : 0.7));
@@ -660,7 +670,7 @@ function fwBurst(g, x, y) {
 }
 
 /* lightning: walks down out of the sky at x until it hits something */
-function sandLightning(g, cx) {
+function sandLightning(g: Game, cx: number) {
   var gw = g.gw, gh = g.gh, m = g.m, x = clamp(Math.round(cx) + irnd(11) - 5, 0, gw - 1), y = -6, pts = [[x, y]], hit = null, s;
   while (!hit) {
     var step = 2 + irnd(5);
@@ -675,9 +685,9 @@ function sandLightning(g, cx) {
     x = clamp(x + irnd(5) - 2 + (x < cx - 3 ? 1 : (x > cx + 3 ? -1 : 0)), 0, gw - 1);
   }
   /* a lightning rod, near enough what it was going to hit, and what it was going to hit one of theirs: it goes down the
-     rod instead (wonders.js). the bolt bends to it, and nothing else happens */
+     rod instead (wonders.ts). the bolt bends to it, and nothing else happens */
   if (!hit.p && wRod(g, hit, pts)) return;
-  wStruck(g, hit.x, hit.y);   /* (what a great work does about being struck, it does now: wonders.js) */
+  wStruck(g, hit.x, hit.y);   /* (what a great work does about being struck, it does now: wonders.ts) */
   /* a couple of forks, for looks */
   var forks = [];
   for (s = 0; s < 3; s++) {
@@ -721,7 +731,7 @@ function sandLightning(g, cx) {
 var CONDUCTS = new Uint8Array(NMAT);
 [MAT.WATER, MAT.SALTWATER, MAT.ACID, MAT.METAL, MAT.GIRDER, MAT.GOLD].forEach(function (v) { CONDUCTS[v] = 1; });
 /* flood out through connected water (and metal), mark it, light it up for a moment */
-function sandConduct(g, start) {
+function sandConduct(g: Game, start: number) {
   var gw = g.gw, gh = g.gh, m = g.m, mark = g.zmark, list = g.zlist, n = 0, head = 0, j, x, y, k, nb, t;
   list[n++] = start; mark[start] = 1;
   while (head < n && n < list.length - 4) {
@@ -742,7 +752,7 @@ function sandConduct(g, start) {
 /* -------------------------------------------------------------------
    5. THE RULES, one function per family of thing
    ------------------------------------------------------------------- */
-function sandFire(g, i, x, y) {
+function sandFire(g: Game, i: number, x: number, y: number) {
   var m = g.m, j, k, n, r, fed = false;
   /* eats whatever is next to it first, so a spark never dies before it touches the powder.
      a fire with something to eat beside it does not burn out while it is eating */
@@ -780,11 +790,11 @@ function sandFire(g, i, x, y) {
   }
 }
 
-/* steam rises. it turns back into water when it has cooled off enough: that is in heat.js */
+/* steam rises. it turns back into water when it has cooled off enough: that is in heat.ts */
 /* a bubble: a gas with a liquid over it swaps up through it (or up past it on a slant), every tick, by itself. left to
    the liquid to fall into it, it never gets the chance: the liquid beside it flows into it sideways first, every tick,
    and a bubble shuttled from side to side is a bubble that never gets to the top */
-function sandBubble(g, i, x, y) {
+function sandBubble(g: Game, i: number, x: number, y: number) {
   var m = g.m, gw = g.gw, j = i - gw, dd, k, nx;
   if (y === 0) return false;
   if (LIQUID[m[j]] && g.stamp[j] !== g.tick && !sandHeld(g, j)) { sandSwap(g, i, j); return true; }
@@ -798,7 +808,7 @@ function sandBubble(g, i, x, y) {
   return false;
 }
 
-function sandSteam(g, i, x, y) {
+function sandSteam(g: Game, i: number, x: number, y: number) {
   var j, t, nx, dd;
   if (y === 0) return;
   if (sandBubble(g, i, x, y)) return;
@@ -821,7 +831,7 @@ function sandSteam(g, i, x, y) {
 
 /* smoke: rises like steam, wobbles, and just goes away. it never rains. smoke with a
    number in aux (a mushroom cloud) hangs about for that many ticks first, and rises slowly */
-function sandSmoke(g, i, x, y) {
+function sandSmoke(g: Game, i: number, x: number, y: number) {
   var j, dd, nx, t, a = g.aux[i];
   if (a) {
     /* mushroom smoke holds its shape and drifts up as one */
@@ -845,7 +855,7 @@ function sandSmoke(g, i, x, y) {
 
 /* gas: a lazy random walk with a slight lean upward, so it pools under ceilings.
    it does not fade. it waits. anything warm next to it and it all goes at once. */
-function sandGas(g, i, x, y) {
+function sandGas(g: Game, i: number, x: number, y: number) {
   var m = g.m, j, r, nx = x, ny = y;
   if (sandHotNb(g, x, y) >= 0) { m[i] = MAT.FIRE; g.sh[i] = SAND_CLEAN; g.fx.whoosh++; return; }
   if (sandBubble(g, i, x, y)) return;
@@ -861,7 +871,7 @@ function sandGas(g, i, x, y) {
    liquid: that would starve the lighter one of its turn to rise. and never a bubble: a gas in the liquid (liquid over
    it, or liquid both sides of it, as steam coming off the top of a pond has) is on its way up. shoved sideways every
    tick by the liquid round it, it would never get there */
-function sandFlows(g, v, j) {
+function sandFlows(g: Game, v: number, j: number) {
   var t = g.m[j], m = g.m, gw = g.gw, x = j % gw;
   if (t === MAT.EMPTY) return true;
   if (LIQUID[t] || !sandCan(g, v, j)) return false;
@@ -872,7 +882,7 @@ function sandFlows(g, v, j) {
    one cell a tick looks like treacle; this is what makes a puddle level out.
    it stops at the first hole it comes to and drops into it next tick, instead of
    skating over the hole, or off the end of a ledge into thin air. */
-function sandSpread(g, i, x, y, range) {
+function sandSpread(g: Game, i: number, x: number, y: number, range: number) {
   var gw = g.gw, v = g.m[i], dd = Math.random() < 0.5 ? -1 : 1, t, s, nx, j, best, reach = 1 + irnd(range);
   for (t = 0; t < 2; t++, dd = -dd) {
     best = -1;
@@ -891,7 +901,7 @@ function sandSpread(g, i, x, y, range) {
 
 /* down and to one side, for when straight down is blocked. without it a liquid
    cannot find its way through a crack that runs diagonally. */
-function sandSlide(g, i, x, y) {
+function sandSlide(g: Game, i: number, x: number, y: number) {
   var v = g.m[i], dd = Math.random() < 0.5 ? -1 : 1, t, nx, j;
   if (y + 1 >= g.gh) return false;
   for (t = 0; t < 2; t++, dd = -dd) {
@@ -913,12 +923,12 @@ function sandSlide(g, i, x, y) {
    conjure spray out of thin air. the surface cells to try are picked at random,
    during the step, from all of them. */
 var PRESS_TRIES = 12, PRESS_SCAN = 1500;
-function sandPressureCandidate(g, i) {
+function sandPressureCandidate(g: Game, i: number) {
   var n = ++g.pressN;
   if (n <= PRESS_TRIES) g.pressList[n - 1] = i;
   else { n = irnd(n); if (n < PRESS_TRIES) g.pressList[n] = i; }
 }
-function sandPressure(g, i) {
+function sandPressure(g: Game, i: number) {
   var gw = g.gw, gh = g.gh, m = g.m, vy = g.vy, v = m[i], x = i % gw, y = (i / gw) | 0;
   var mark = g.pmark, stack = g.pstack, gen = ++g.pgen, sp = 0, seen = 0, j, jx, jy, k, nb, t;
   /* left or right first is decided once per search, so it sweeps instead of wandering */
@@ -946,7 +956,7 @@ function sandPressure(g, i) {
 }
 
 /* a light thing under a heavier one swaps places with it: that is floating */
-function sandFloat(g, i, x, y) {
+function sandFloat(g: Game, i: number, x: number, y: number) {
   var j = sandNb(g, x, y, 0), v = g.m[i];
   if (j >= 0 && g.stamp[j] !== g.tick && SAND_FREE[g.m[j]] === 1 && SAND_DENS[g.m[j]] > SAND_DENS[v] &&
       (FLUID[g.m[j]] || FLUID[v]) && !sandHeld(g, j) && Math.random() < 0.5) {
@@ -956,7 +966,7 @@ function sandFloat(g, i, x, y) {
 }
 
 /* sand, ash, gunpowder, salt, seeds, fireworks, nukes: fall, slide off piles, sink */
-function sandPowder(g, i, x, y) {
+function sandPowder(g: Game, i: number, x: number, y: number) {
   var m = g.m, v = m[i], j, t, nx, ny, dd, sp, gw, r;
   /* a heap at rest, which is most of the valley: nothing under it, or under it to either side, that it could go into,
      and nothing over it that floats. it stops, and rolls for which side to try first, as it would the long way round */
@@ -1015,7 +1025,7 @@ function sandPowder(g, i, x, y) {
 
 /* water, oil, acid, lava: fall, float, then spread sideways into empty air. lava does it slowly.
    liquids never shove each other sideways: that would starve the lighter one of its turn to rise. */
-function sandLiquid(g, i, x, y) {
+function sandLiquid(g: Game, i: number, x: number, y: number) {
   var m = g.m, v = m[i], j, k, t, r, p, gone = false, gw;
   /* a pond at rest: nothing it can sink into, nothing floating up through it, nowhere to slide or spread. it rolls
      what it would have rolled finding that out (the slide's side, the spread's side and reach), and may feel for pressure */
@@ -1029,7 +1039,7 @@ function sandLiquid(g, i, x, y) {
       return;
     }
   }
-  /* water freezing, boiling, and melting ice is all heat now: see heat.js */
+  /* water freezing, boiling, and melting ice is all heat now: see heat.ts */
   if (v === MAT.SALTWATER) {
     /* salt spreads through fresh water, slowly, a swap at a time */
     if (Math.random() < 0.03) {
@@ -1067,8 +1077,8 @@ function sandLiquid(g, i, x, y) {
     if (m[i] !== v) return;   /* a neighbouring explosion got to it */
   } else if (v === MAT.MORTAR) {
     /* wet concrete goes off: a little every eight ticks, twice as fast warm, and set at 112 (about 900 ticks). frozen, it
-       is ruined: that is the cold (heat.js). the top bit of aux is the form: poured into a site's plan by a builder, it
-       stays where it was put while it sets (wonders.js) */
+       is ruined: that is the cold (heat.ts). the top bit of aux is the form: poured into a site's plan by a builder, it
+       stays where it was put while it sets (wonders.ts) */
     if (((g.tick + i) & 7) === 0) {
       var ma = g.aux[i], mc = (ma & 127) + (g.T[i] > 30 ? 2 : 1);
       if (mc >= W_SET) { heatBecome(g, i, MAT.CONCRETE); return; }
@@ -1107,7 +1117,7 @@ function sandLiquid(g, i, x, y) {
 
 /* a growing stalk: the tip carries a number, puts a new tip above itself (or a
    little to one side) with one less, and hands over. at zero it flowers. */
-function sandGrow(g, i, x, y, b) {
+function sandGrow(g: Game, i: number, x: number, y: number, b: number) {
   var m = g.m, gw = g.gw, r = Math.random(), nx = x + (r < 0.6 ? 0 : (r < 0.8 ? -1 : 1)), ny = y - 1, j, lx, lj;
   if (ny < 0 || nx < 0 || nx >= gw) { g.aux[i] = 0; return; }
   j = ny * gw + nx;
@@ -1127,7 +1137,7 @@ function sandGrow(g, i, x, y, b) {
     }
   }
 }
-function sandBloom(g, x, y) {
+function sandBloom(g: Game, x: number, y: number) {
   var c = 1 + irnd(5), P5 = [[0, 0], [-1, 0], [1, 0], [0, -1], [-1, -1], [1, -1], [0, -2], [-2, -1], [2, -1], [0, 1]];
   for (var k = 0; k < P5.length; k++) {
     var nx = x + P5[k][0], ny = y + P5[k][1];
@@ -1143,7 +1153,7 @@ function sandBloom(g, x, y) {
 }
 
 /* things that do not move, but do things anyway */
-function sandStatic(g, i, x, y) {
+function sandStatic(g: Game, i: number, x: number, y: number) {
   var m = g.m, v = m[i], j, k, t, r;
   if (v === MAT.PLANT) {
     if (g.aux[i]) { if (Math.random() < 0.15) sandGrow(g, i, x, y, g.aux[i]); return; }
@@ -1192,7 +1202,7 @@ function sandStatic(g, i, x, y) {
     j = sandNb(g, x, y, 0);
     if (j >= 0 && m[j] === MAT.EMPTY && Math.random() < 0.05) sandSet(g, j, Math.random() < 0.3 ? MAT.SMOKE : MAT.FIRE);
     /* (a lump of coal, aux 1, burns a good deal longer than a stick does) */
-    /* (and under the bellows twice as fast: wonders.js wDraught) */
+    /* (and under the bellows twice as fast: wonders.ts wDraught) */
     if (Math.random() < (g.aux[i] ? 0.0012 : 0.005) * (g.dmask && g.dmask[i] ? 2 : 1)) { m[i] = MAT.ASH; g.aux[i] = 0; }
   } else if (v === MAT.TORCH) {
     j = sandNb(g, x, y, 0);
@@ -1256,7 +1266,7 @@ function sandStatic(g, i, x, y) {
 }
 
 /* one cell's go, in the step's order of asking */
-function sandTurn(g, i, x, y, v) {
+function sandTurn(g: Game, i: number, x: number, y: number, v: number) {
   if (v === MAT.FIRE) sandFire(g, i, x, y);
   else if (v === MAT.SMOKE) sandSmoke(g, i, x, y);
   else if (v === MAT.STEAM) sandSteam(g, i, x, y);
@@ -1281,8 +1291,8 @@ var STILL2 = new Uint8Array(65536), sandM32 = null, sandM32Of = null;
    finds the same. (g.vy and g.aux are made only with the grid: gameGrid, and a load, never during a step) */
 var REST_KIND = new Uint8Array(NMAT);
 REST_KIND[MAT.SAND] = REST_KIND[MAT.ASH] = REST_KIND[MAT.SNOW] = 1; REST_KIND[MAT.WATER] = REST_KIND[MAT.OIL] = 2; REST_KIND[MAT.PLANT] = 3;
-/* (the JS step: simwasm.js sandStep plays it by WebAssembly where it can, the same world, and this where it cannot) */
-function sandStepJs(g) {
+/* (the JS step: simwasm.ts sandStep plays it by WebAssembly where it can, the same world, and this where it cannot) */
+function sandStepJs(g: Game) {
   var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, w, row, m32, r, j, q, q0, q1, vy = g.vy, aux = g.aux;
   g.parity ^= 1;
   g.pressN = 0;
@@ -1388,18 +1398,18 @@ function sandStepJs(g) {
       lowest dip, a tree that is asking for it, a couple of huts, and
       the people who live in them
    ------------------------------------------------------------------- */
-function sandClear(g) {
+function sandClear(g: Game) {
   g.m.fill(0); g.aux.fill(0); g.vy.fill(0); g.np = 0;
   g.T.fill(AMBIENT); g.lat.fill(0); heatAcceptAll(g);
   /* and the bangs still in the air */
   g.bolts.length = 0; g.rings.length = 0; g.flash = 0; g.shake = 0; g.fwGlow = null; g.zn = 0; g.zt = 0;
   g.cloneSrc = {};
   g.sites = []; if (g.bmark) g.bmark.fill(0);
-  /* and what was left over in it: charges, snowballs in the air, snowmen (leftovers.js) */
+  /* and what was left over in it: charges, snowballs in the air, snowmen (leftovers.ts) */
   if (typeof lClearWorld === "function") lClearWorld(g);
-  /* and the great works' things in the air or due in it: a rocket going up, a flag due on the moon (wonders.js) */
+  /* and the great works' things in the air or due in it: a rocket going up, a flag due on the moon (wonders.ts) */
   if (typeof wClearWorld === "function") wClearWorld(g);
-  /* and a lump in the air: gone with the valley it came from. one in the hand is kept (hand.js) */
+  /* and a lump in the air: gone with the valley it came from. one in the hand is kept (hand.ts) */
   if (g.hand) handClear(g);
 }
 
@@ -1407,7 +1417,7 @@ function sandClear(g) {
    where the ground is flattest. a bowl, six deep, whose sides slope in a cell at a time (as steep as sand will stand,
    and it is only sand on the top five), a bit of flat floor, and water up to the row under the lowest bit of bank.
    {x0, x1, L (the top of the water)} or null if there is no room */
-function sandPool(g, top, huts, hutW, a, b) {
+function sandPool(g: Game, top, huts, hutW: number, a: number, b: number) {
   var gw = g.gw, D = 6, W = 4 + 2 * D, best = -1, bs = 1e9, c0, k, x, y, lo, hi, L, ok, B, depth;
   if (a == null) { a = 0; b = gw; }
   for (c0 = a + 16; c0 + W < b - 16; c0++) {
@@ -1431,9 +1441,9 @@ function sandPool(g, top, huts, hutW, a, b) {
 /* the rock is not all rock: flat seams of coal not far into it, lumps of iron ore further down, and here and there,
    deep, a speck of gold. painted into the stone, where it is stone, with a skin of plain rock over all of it (rock is
    the top of the stone at each column) */
-function sandOres(g, rock) {
+function sandOres(g: Game, rock) {
   var gw = g.gw, gh = g.gh, k, x, y, dx, dy, cx, cy, n, r, len;
-  function put(x, y, v) {
+  function put(x: number, y: number, v: number) {
     if (x < 0 || x >= gw || y < 0 || y >= gh - 1 || y < rock[x] + 2) return;
     var j = y * gw + x;
     if (g.m[j] === MAT.STONE) g.m[j] = v;
@@ -1470,7 +1480,7 @@ function sandOres(g, rock) {
      from the lie of the rock, so the rest of the valley (which the shared dice lay out) comes out the same as ever */
   var h = 2166136261;
   for (x = 0; x < gw; x++) h = Math.imul(h ^ (rock[x] + x * 31), 16777619) >>> 0;
-  function die(n) { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return (h >>> 8) % n; }
+  function die(n: number) { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return (h >>> 8) % n; }
   for (k = 0; k < 5; k++) {
     cx = 20 + die(gw - 40); cy = rock[cx] + 5 + die(10); len = 7 + die(8);
     for (dx = -len; dx <= len; dx++) for (dy = -2; dy <= 2; dy++)
@@ -1478,7 +1488,7 @@ function sandOres(g, rock) {
   }
 }
 
-function sandLandscape(g) {
+function sandLandscape(g: Game) {
   var gw = g.gw, gh = g.gh, m = g.m, x, y, top = [], ph = Math.random() * 6, lo = -1, k, dx, dy;
   /* (a valley wider than the screen: S screens of it. the village is made in the middle one, where you first look, and
      in a valley one screen wide that is all of it, and everything comes out as it always did) */
@@ -1512,7 +1522,7 @@ function sandLandscape(g) {
     top[x] = hgt[x] - 5;
   }
   sandOres(g, hgt);
-  oSeedOil(g, hgt);   /* and the odd pool of oil, sealed deep in the rock (oil.js) */
+  oSeedOil(g, hgt);   /* and the odd pool of oil, sealed deep in the rock (oil.ts) */
   /* fill the deepest dip, away from the huts, up to just under its lip */
   for (x = V0, lo = V0; x < V1; x++) {
     var nearHut = false;
@@ -1620,7 +1630,7 @@ function sandLandscape(g) {
       in a valley one screen wide it is the whole valley, always
    ------------------------------------------------------------------- */
 var R_MARGIN = 96;
-function vRangeSet(g) {
+function vRangeSet(g: Game) {
   var gw = g.gw, lo = 1e9, hi = -1, k, s;
   if (gw <= VIEW_GW) { g.vrange = { x0: 0, x1: gw - 1 }; return g.vrange; }
   for (k = 0; k < g.sites.length; k++) { s = g.sites[k]; if (s.x0 == null || s.x1 == null) continue; lo = Math.min(lo, s.x0); hi = Math.max(hi, s.x1); }
@@ -1632,12 +1642,12 @@ function vRangeSet(g) {
   g.vrange = { x0: lo, x1: hi };
   return g.vrange;
 }
-function vRange(g) { return g.vrange || vRangeSet(g); }
+function vRange(g: Game) { return g.vrange || vRangeSet(g); }
 /* the range's bounds, as a loop over the whole valley had them: x from rLo(g, a) while x < rHi(g, b) is, in a valley
    one screen wide, x from a while x < g.gw - b */
-function rLo(g, m) { return vRange(g).x0 + m; }
-function rHi(g, m) { return vRange(g).x1 + 1 - m; }
-function rMid(g) { var r = vRange(g); return (r.x0 + r.x1 + 1) / 2; }
+function rLo(g: Game, m) { return vRange(g).x0 + m; }
+function rHi(g: Game, m) { return vRange(g).x1 + 1 - m; }
+function rMid(g: Game) { var r = vRange(g); return (r.x0 + r.x1 + 1) / 2; }
 /* a column anywhere in the range: irnd(g.gw), in a valley one screen wide */
-function rCol(g) { var r = vRange(g); return r.x0 + irnd(r.x1 - r.x0 + 1); }
-function rSpan(g) { var r = vRange(g); return r.x1 - r.x0 + 1; }
+function rCol(g: Game) { var r = vRange(g); return r.x0 + irnd(r.x1 - r.x0 + 1); }
+function rSpan(g: Game) { var r = vRange(g); return r.x1 - r.x0 + 1; }

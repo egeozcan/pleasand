@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  wonders.js
+   PLEASAND  --  wonders.ts
 
    when there is nothing much left to think of, they build something
    nobody needs and everybody wants. a great work is an idea, like any
@@ -36,18 +36,36 @@
      THE ROD          a lightning rod takes a bolt that was going to
                       hit something of theirs, and nothing else
      GATHERINGS       the idle and the bored, come to sit and watch
-   and the wonders themselves are in monuments.js (the theatre, the
-   pyramid) and pleasures.js (the baths).
+   and the wonders themselves are in monuments.ts (the theatre, the
+   pyramid) and pleasures.ts (the baths).
    ===================================================================== */
 "use strict";
 
-var W_DEFS = [];            /* every wonder there is: each module registers its own (wDef) */
+/* (what this file keeps in g) */
+interface Game {
+  dmask?: Uint8Array; ironSpare?: number; tales?: any; lastKing?: any; thinkerDied?: any; wNo?: any; wQuarryFar?: any;
+  wQuarryNo?: number; wSalvNo?: number; wSandNo?: any; draught?: any; kiln?: any; wDone?: Record<string, any>; swims?: number; wRngS?: any;
+  kingDied?: any; lastSwim?: number; salvage?: any; wPlanT?: number; wChar?: number; kilnN?: any; wLump?: number;
+  wSalv?: number; wIronTest?: any; wQuarryOk?: boolean;
+}
+/* (what this file keeps on a villager) */
+interface Peasant {
+  stained?: any; mortar?: number; barrel?: number; cosyT?: number; hotBath?: number; noGo?: any; lime?: number; tints?: any;
+  mortarT?: number; salvT?: number; bathT?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  fails?: number; cols?: any; bench?: any;
+  progT?: number; progN?: any; progD?: number; laid?: boolean; setting?: boolean; gilding?: boolean;
+}
+
+var W_DEFS: WonderDef[] = [];            /* every wonder there is: each module registers its own (wDef) */
 var W_TOTAL = 12;           /* wonders there will be, in the end */
 var W_STRIDE = 30;          /* ticks between looks at the great work */
-var W_SET = 112;            /* wet concrete's clock: set at this (an eighth of a tick at a time: world.js) */
+var W_SET = 112;            /* wet concrete's clock: set at this (an eighth of a tick at a time: world.ts) */
 var W_POUR = 900;           /* ticks a pail of it keeps, before it goes off in the pail */
 var W_PAIL = 5;             /* cells of wet concrete to a pail (a bucket of water's worth) */
-var W_DRAUGHT = 1800;       /* how hot a fire burns under the bellows (heat.js) */
+var W_DRAUGHT = 1800;       /* how hot a fire burns under the bellows (heat.ts) */
 var W_TALES = 24;           /* tales kept, at most */
 var W_BENCH = 3;            /* rows a bench cuts a floor down */
 var W_BENCH_W = 16;         /* and how far along it goes */
@@ -58,7 +76,7 @@ var W_NOFURNACE = ["theatre", "pyramid", "icepalace"];   /* the great works that
 /* which is looked for room for first, when the valley could start more than one: the two that want the most open ground
    while there is still some; then the quick ones, which a crowded valley still has a corner for; the long ones last */
 var W_ORDER = ["theatre", "pyramid", "observatory", "foundry", "baths", "organ", "moonrocket", "duckpalace", "lighthouse", "gardens", "cathedral", "icepalace"];
-function wRank(d) { var r = W_ORDER.indexOf(d.id); return r < 0 ? W_ORDER.length + W_DEFS.indexOf(d) : r; }
+function wRank(d: WonderDef) { var r = W_ORDER.indexOf(d.id); return r < 0 ? W_ORDER.length + W_DEFS.indexOf(d) : r; }
 
 P_SAY.haul = ["for the great work", "where does this go", "one more for the pile", "it's for the wonder", "heavy, this"];
 P_SAY.quarry = ["*tink*", "stone for the wonder", "deeper. always deeper", "a bench, they said", "it's honest work"];
@@ -85,7 +103,7 @@ P_SAY.sitDown = ["ooh, a good seat", "budge up", "is this taken?", "front row!"]
 P_SAY.clap = ["bravo", "BRAVO", "*clap clap clap*", "again!", "more!", "very good. very good"];
 P_ACHIEVE.seven = ["SEVEN WONDERS", "seven great works standing at once. nobody needed any of them"];
 P_ACHIEVE.concrete = ["CONCRETE", "stone you can pour. it goes off in the pail if you dawdle"];
-P_ACHIEVE.moon = ["ONE SMALL STEP", "a peasant stood on the moon. it is mostly dust. they waved"];   /* (reserved: the rocket, heavens.js) */
+P_ACHIEVE.moon = ["ONE SMALL STEP", "a peasant stood on the moon. it is mostly dust. they waved"];   /* (reserved: the rocket, heavens.ts) */
 
 /* two plain ideas the wonders need */
 IDEAS.push(
@@ -101,43 +119,51 @@ IDEAS.push(
        label(s), readout(g, s), mood(g, p, k) }
    all but id are optional. the site's kind is the id, and it carries wonder: true
    ------------------------------------------------------------------- */
-function wDef(d) {
+interface WonderDef {
+  id: string; idea?: Partial<Idea>; achieve?: string[]; exempt?: any;
+  plan?(g: Game, p: Peasant, near?: any): any; pick?(g: Game, p: Peasant, hungry?: boolean): any; task?(g: Game, p: Peasant, k: Task): any;
+  step?(g: Game, s: Site): any; draw?(g: Game, s: Site): any; drawOver?(g: Game, s: Site): any;
+  finish?(g: Game, s: Site, p?: Peasant): any; label?(s: Site): string; readout?(g: Game, s: Site): any;
+  mood?(g: Game, p: Peasant, k?: any): any;
+  [k: string]: any;
+}
+function wDef(d: WonderDef) {
   W_DEFS.push(d);
-  if (d.idea) { d.idea.id = d.id; d.idea.wonder = true; IDEAS.push(d.idea); }
+  if (d.idea) { d.idea.id = d.id; d.idea.wonder = true; IDEAS.push(d.idea as Idea); }
   if (d.achieve) P_ACHIEVE[d.id] = d.achieve;
   return d;
 }
-function wOf(id) { for (var k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].id === id) return W_DEFS[k]; return null; }
-function wIsWonder(id) { return !!wOf(id); }
-function wIdea(id) { for (var k = 0; k < IDEAS.length; k++) if (IDEAS[k].id === id) return IDEAS[k]; return null; }
+function wOf(id: string) { for (var k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].id === id) return W_DEFS[k]; return null; }
+function wIsWonder(id: string) { return !!wOf(id); }
+function wIdea(id: string) { for (var k = 0; k < IDEAS.length; k++) if (IDEAS[k].id === id) return IDEAS[k]; return null; }
 /* a new village: nothing of the old one's great works left over, in the air or due (a rocket going up, a flag due on
    the moon, the iron kept back for them) */
 var W_GKEYS = ["curseSlips", "dmask", "draught", "hConst", "hLake", "hLakeT", "hLightFame", "hRock", "hRockOut", "hShower", "kilnN",
   "kingDied", "lastKing", "lastSwim", "looks", "moonCrew", "moonFlag", "moonLooks", "moonT", "noField", "noFieldT", "packFlights",
   "rocket", "rocketBooms", "thinkerDied", "wChar", "wDuckPalace", "wIceN", "wLump", "wNo", "wPlanT", "wPyrFame", "wQuarryFar",
   "wQuarryNo", "wQuarryOk", "wTick", "wIronTest", "ironSpare", "salvage", "wSalv", "wSalvNo", "festX", "wRngS", "wSandNo"];   /* (only keys of the great works': resow and the rest are the village's, as on master) */
-/* lightning, as it strikes at (x, y) (world.js sandLightning, not taken down a rod): any great work standing that
+/* lightning, as it strikes at (x, y) (world.ts sandLightning, not taken down a rod): any great work standing that
    answers it (the lighthouse's lantern) */
-function wStruck(g, x, y) {
+function wStruck(g: Game, x: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k], d = s.wonder && wOf(s.kind); if (d && d.struck) d.struck(g, s, x, y); }
 }
-/* the world cleared (C, and a new village: world.js sandClear): what of the great works was in it, in the air over it,
+/* the world cleared (C, and a new village: world.ts sandClear): what of the great works was in it, in the air over it,
    or due in it, gone with it; and what was found out about where things are in it (no room for one yet, a quarry too far
    off or none left, no room for a field just now), to be looked at afresh. what the village knows and has done is its
    own, and stays: and what the dead left for the great works (g.salvage) is the village's, and stays too (wSalvageAt
    finds it somewhere to be). a new village (wReset, W_GKEYS) starts with none of it */
-function wClearWorld(g) {
-  delete g.rocket; delete g.moonT; delete g.hRock; delete g.hRockOut; delete g.wDuckPalace;   /* (and a falling star on its way down: heavens.js) */
+function wClearWorld(g: Game) {
+  delete g.rocket; delete g.moonT; delete g.hRock; delete g.hRockOut; delete g.wDuckPalace;   /* (and a falling star on its way down: heavens.ts) */
   delete g.wNo; delete g.wQuarryFar; delete g.wQuarryNo; delete g.noFieldT; delete g.festX; delete g.wSalvNo; delete g.wSandNo;
   g.draught = {}; if (g.dmask) g.dmask.fill(0);
   g.kiln = [];
 }
-function wReset(g) {
+function wReset(g: Game) {
   for (var k = 0; k < W_GKEYS.length; k++) delete g[W_GKEYS[k]];
   g.tales = []; g.kiln = []; g.wDone = {}; g.wAny = false; g.swims = 0;
 }
 /* DESTINATIONS: a great work (or the salvage, the moon rock's spot) somebody could not get to, or gave up on, is let be
-   by them a while, and the next one tried (peasants.js pGiveUp; the tasks' own timeouts). id: a site's, or a task's kind */
+   by them a while, and the next one tried (peasants.ts pGiveUp; the tasks' own timeouts). id: a site's, or a task's kind */
 /* the great works' own jobs: given up on, let be (the site, or with none, the job). the kiln at the furnace, a mixer at
    the water, too: the furnace is no great work, but the job is theirs. (not "skate": master skates on frozen ponds) */
 var W_KINDS = (function () {   /* (a constant, filled once) */
@@ -151,10 +177,10 @@ var W_NOGO = 1500;   /* (as long as bFail lets a site be, for a walk given up) *
 /* (and for a job that comes round again only now and then, longer than the wait for it to come round: or the backoff is
    over by the time it does, and the same one is sent again. the astronomer's look, every 2400 to 3600 ticks) */
 var W_NOGO_T = { observe: 8000 };
-function wBackoff(g, p, id, t) { (p.noGo || (p.noGo = {}))[id] = g.tick + (t || W_NOGO); }
-function wNoGo(g, p, id) { return !!(p.noGo && p.noGo[id] > g.tick); }
+function wBackoff(g: Game, p: Peasant, id: number | string, t?: number) { (p.noGo || (p.noGo = {}))[id] = g.tick + (t || W_NOGO); }
+function wNoGo(g: Game, p: Peasant, id: number | string) { return !!(p.noGo && p.noGo[id] > g.tick); }
 /* what of r is on its way to s already, in the pockets of whoever is hauling to it or building it (but p) */
-function wInbound(g, s, r, p) {
+function wInbound(g: Game, s: Site, r: string, p: Peasant) {
   var n = 0, k, q;
   for (k = 0; k < g.peasants.length; k++) {
     q = g.peasants[k];
@@ -163,9 +189,9 @@ function wInbound(g, s, r, p) {
   return n;
 }
 /* THE GREAT WORKS' OWN DICE: for what of theirs must not roll the village's dice before they are thought of (which of
-   their ideas comes, and when: ideas.js iEureka), and must not be rolled by drawing or sound either (rng.js RNG_SIDE is
-   theirs). one number on g (g.wRngS), so it is saved, snapshotted and rewound with the village. mulberry32, as rng.js */
-function wRand(g) {
+   their ideas comes, and when: ideas.ts iEureka), and must not be rolled by drawing or sound either (rng.ts RNG_SIDE is
+   theirs). one number on g (g.wRngS), so it is saved, snapshotted and rewound with the village. mulberry32, as rng.ts */
+function wRand(g: Game) {
   var st = g.wRngS == null ? 0x2b7e1516 : g.wRngS;
   st = (st + 0x6d2b79f5) >>> 0;
   g.wRngS = st;
@@ -175,7 +201,7 @@ function wRand(g) {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 /* the wonder sites: every one, or only those standing (done) */
-function wSites(g, done) {
+function wSites(g: Game, done?: boolean) {
   var out = [];
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].wonder && (!done || g.sites[k].done)) out.push(g.sites[k]);
   return out;
@@ -183,16 +209,16 @@ function wSites(g, done) {
 /* the great works going up: the wonders not yet finished that the W_GREAT-at-a-time rule applies to (not one laid by,
    being mended, or exempt) */
 var W_GREAT = 2;
-function wGreats(g) {
+function wGreats(g: Game) {
   var out = [];
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && !s.repair && !s.laid && !(wOf(s.kind) || {}).exempt) out.push(s); }
   return out;
 }
 /* is there room for another great work to be begun (or one laid by to be taken up) */
-function wRoomFor(g) { return wGreats(g).length < W_GREAT; }
+function wRoomFor(g: Game) { return wGreats(g).length < W_GREAT; }
 /* the wonder sites going up, the great work (and anything not laid by) first: whoever is looking for something to do
    at one, or the kiln, or the quarry, looks there first */
-function wUp(g) {
+function wUp(g: Game) {
   var a = [], b = [];
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done) (s.laid ? b : a).push(s); }
   return a.concat(b);
@@ -201,10 +227,10 @@ function wUp(g) {
    a great work, and another can be planned. it is still worked at whenever there is something it can have, and once
    it comes on again it is taken up again (when there is room for another great work) */
 var W_LAYBY = 10000;
-/* (a cell put in counts, every one (s.puts: build.js bPlace); a cell dug out only once the digging is well past the
+/* (a cell put in counts, every one (s.puts: build.ts bPlace); a cell dug out only once the digging is well past the
    most it has ever been: sand that runs back into a hole as fast as it is dug is not getting anywhere) */
-function wDug(g, s) { var n = 0; for (var k = 0; k < s.plan.length; k++) if (s.plan[k].v === MAT.EMPTY && bOk(g, s.plan[k])) n++; return n; }
-function wLayBy(g, s) {
+function wDug(g: Game, s: Site) { var n = 0; for (var k = 0; k < s.plan.length; k++) if (s.plan[k].v === MAT.EMPTY && bOk(g, s.plan[k])) n++; return n; }
+function wLayBy(g: Game, s: Site) {
   if (s.done || s.repair || (wOf(s.kind) || {}).exempt || g.tick % 300) return;
   var n = s.puts || 0, d = wDug(g, s);
   if (s.progT == null || n > (s.progN || 0) || d > (s.progD || 0) + 2) {
@@ -222,9 +248,9 @@ function wLayBy(g, s) {
   feed(g, bLabel(s) + " is laid by for now" + (w ? ". it wants " + w.replace(/ \(.*\)$/, "") + ", and there is none to be had" : ". nobody can get on with it") +
        ". something else, meanwhile", "#c8d0dc", "laid" + s.id);
 }
-/* a great work whose hole the sand keeps pouring back into (build.js bDig): given up, what is on its pile back in p's
+/* a great work whose hole the sand keeps pouring back into (build.ts bDig): given up, what is on its pile back in p's
    pockets, and no great work planned on that stretch of ground for a good while */
-function wGiveUpSand(g, s, p) {
+function wGiveUpSand(g: Game, s: Site, p: Peasant) {
   var j = g.sites.indexOf(s);
   if (j < 0) return;
   feed(g, "the sand keeps pouring back into " + bLabel(s) + ". the village gives it up, and will try somewhere firmer", "#c8d0dc", "plan" + s.id);
@@ -233,26 +259,26 @@ function wGiveUpSand(g, s, p) {
   bGiveBack(s, p);
   bRemove(g, j);
 }
-function wSandNo(g, x0, x1) {
+function wSandNo(g: Game, x0: number, x1: number) {
   var L = g.wSandNo;
   if (!L) return false;
   for (var k = 0; k < L.length; k++) if (L[k].t > g.tick && x1 >= L[k].x0 && x0 <= L[k].x1) return true;
   return false;
 }
 /* how many wonders stand */
-function wCount(g) { var n = 0, seen = {}; for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && s.done && !seen[s.kind]) { seen[s.kind] = 1; n++; } } return n; }
+function wCount(g: Game) { var n = 0, seen = {}; for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && s.done && !seen[s.kind]) { seen[s.kind] = 1; n++; } } return n; }
 /* a crew: a third of the village, two at the least */
-function wCap(g) { return Math.max(2, Math.floor(bAlive(g) / 3)); }
+function wCap(g: Game) { return Math.max(2, Math.floor(bAlive(g) / 3)); }
 /* (not one swimming about in a pond on the way, the job still in hand: they are not at it, and in a small village they
    would be the whole crew allowed, and nobody else let near it until they got out) */
-function wCrew(g, s, but) {
+function wCrew(g: Game, s: Site, but?: Peasant) {
   var n = 0;
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k], t = q.task; if (q !== but && !q.dead && !q.swimming && t && t.kind === "build" && t.site === s.id) n++; }
   return n;
 }
 /* is site s's crew full, as far as p is concerned (they are not in it already): its own cap, or the great works' crews
    between them half the village already */
-function wFull(g, s, p) {
+function wFull(g: Game, s: Site, p: Peasant) {
   if (!s.wonder || (wOf(s.kind) || {}).exempt) return false;
   if (p.task && p.task.kind === "build" && p.task.site === s.id) return false;
   if (wCrew(g, s, p) >= wCap(g)) return true;
@@ -261,14 +287,14 @@ function wFull(g, s, p) {
   return n >= Math.max(1, Math.floor(bAlive(g) / 2));   /* (half the village; but a lone villager can be a crew of one) */
 }
 /* can it be called finished: no wet concrete in it still going off */
-function wReady(g, s) {
+function wReady(g: Game, s: Site) {
   for (var k = 0; k < s.plan.length; k++) if (g.m[s.plan[k].i] === MAT.MORTAR) { s.setting = true; return false; }
   s.setting = false;
   return true;
 }
 /* something has happened to p that puts wonder (or new idea) id into their head: only if it could be thought of now
    (an idea that is not ready yet is not in anybody's head; and iSpark hurries a thought along) */
-function wSpark(g, p, id) {
+function wSpark(g: Game, p: Peasant, id: string) {
   if (!p || p.dead || g.know[id]) return;
   var I = wIdea(id);
   /* (on its own: p.wspark, not p.spark, nor their musing. what they are thinking of for the village is as on master) */
@@ -282,7 +308,7 @@ var W_HOW = { starve: "starved", old: "died of old age", fire: "caught fire", la
   acid: "dissolved", fall: "fell from very high up", splat: "was thrown too hard", nuke: "was in the nuke", drain: "went down the drain",
   buried: "was buried in sand", zap: "was struck by lightning twice", chute: "packed their own parachute",
   reentry: "came back from space too fast", freeze: "froze solid" };
-function wTale(g, kind, p, also, x, y) {
+function wTale(g: Game, kind: string, p: Peasant, also?, x?: number, y?: number) {
   if (!g.tales) g.tales = [];
   if (kind === "idea" && g.tales.some(function (t) { return t.kind === "idea" && t.also === also; })) return;
   g.tales.push({ kind: kind, who: p ? p.short : "", also: also || "", tick: g.tick, x: x != null ? x : (p ? Math.floor(p.x) : 0),
@@ -309,7 +335,7 @@ function wTold(t) {
     case "idea": return n + " thought of " + t.also;
     case "wonder": return "we finished " + t.also;
     case "stagefire": return "the stage caught fire";
-    case "moved": return "the hand moved " + (t.also || n + "'s house");   /* (hand.js) */
+    case "moved": return "the hand moved " + (t.also || n + "'s house");   /* (hand.ts) */
     case "flew": return (t.also || n + "'s house") + " flew";
     case "rode": return n + " rode on the hand";
     case "saved": return "the hand put out the fire at " + (t.also || n + "'s house");
@@ -317,22 +343,22 @@ function wTold(t) {
   return n + " did something";
 }
 /* a tale told at a campfire, once the village thinks of plays: the oldest one nobody has told lately */
-function wTellTale(g, p) {
+function wTellTale(g: Game, p: Peasant) {
   var T = g.tales || [];
   if (!T.length) return;
   var t = T[(p.id + ((g.tick / 600) | 0)) % T.length];
   pSay(g, p, pick(P_SAY.tale).replace("{t}", wTold(t)), true);
 }
-/* the king is dead, and the heir is crowned: something BIG (monuments.js) */
-function wCrowned(g, dead, heir) { g.kingDied = (g.kingDied || 0) + 1; g.lastKing = { name: dead.name, hat: dead.hat }; wSpark(g, heir, "pyramid"); }
-/* out of the water, onto the bank: a swim (pleasures.js counts them) */
-function wSwam(g, p) {
+/* the king is dead, and the heir is crowned: something BIG (monuments.ts) */
+function wCrowned(g: Game, dead: Peasant, heir) { g.kingDied = (g.kingDied || 0) + 1; g.lastKing = { name: dead.name, hat: dead.hat }; wSpark(g, heir, "pyramid"); }
+/* out of the water, onto the bank: a swim (pleasures.ts counts them) */
+function wSwam(g: Game, p: Peasant) {
   g.swims = (g.swims || 0) + 1; g.lastSwim = p.id;
   wSpark(g, p, "baths");   /* (brr. what if it were warm) */
 }
 /* a bucket spilt (cell fx, fy): at the furnace, by somebody who knows masonry, it is the first anybody has seen a
    thing warm itself (lime and water) */
-function wSpilt(g, p, fx, fy) {
+function wSpilt(g: Game, p: Peasant, fx: number, fy: number) {
   if (!g.know.masonry || g.know.concrete) return;
   var f = mSites(g, "furnace", true)[0];
   if (f && Math.abs(fx - f.cx) < 10 && Math.abs(fy - f.G) < 12) wSpark(g, p, "concrete");
@@ -342,10 +368,10 @@ function wSpilt(g, p, fx, fy) {
    WHAT TO DO ABOUT IT. from iPick, before the mine. true if they found
    something
    ------------------------------------------------------------------- */
-function wPick(g, p, hungry) {
+function wPick(g: Game, p: Peasant, hungry: boolean) {
   if (hungry || p.cold > 80) return false;
   var S = wUp(g), k, s, d;
-  /* a barrel of oil in hand: where it is wanted, before anything else (heavens.js) */
+  /* a barrel of oil in hand: where it is wanted, before anything else (heavens.ts) */
   if (p.barrel && hDeliverBarrel(g, p)) return true;
   /* what the dead left for a great work, wanted by one: fetched (wGoSalvage) */
   if (g.salvage && wGoSalvage(g, p)) return true;
@@ -368,13 +394,13 @@ function wPick(g, p, hungry) {
     if ((p.failSite === s.id && p.failT > g.tick) || wNoGo(g, p, s.id)) continue;
     if (!wFull(g, s, p) && bUseful(g, p, s)) { bJoin(g, p, s); return true; }
     if (bBrings(g, p, s) || ((p.lime || 0) >= 1 && wLimeWant(g, s) > 0)) { p.task = { kind: "haul", site: s.id, t: 0, act: 0 }; return true; }
-    /* the next of it wants wet concrete, and there is lime for it: somebody mixes some (pleasures.js uses this) */
+    /* the next of it wants wet concrete, and there is lime for it: somebody mixes some (pleasures.ts uses this) */
     if (!wFull(g, s, p) && wMixWanted(g, s) && wGoMix(g, p, s)) return true;
   }
   /* the kiln: something asked of the furnace */
   if (g.kiln && g.kiln.length && wGoKiln(g, p)) return true;
   /* glass, for a wonder's windows (and for the kiln's coloured glass): blown at the furnace before the mine gets
-     everybody (leftovers.js counts what the wonders want: monuments.js) */
+     everybody (leftovers.ts counts what the wonders want: monuments.ts) */
   if (g.know.glass && lGlassShort(g, mSites(g, "furnace", true)[0]) > 0 && lGlassPick(g, p)) return true;
   /* short of stone, and nowhere to get it but the rock: a quarryman */
   if (wGoQuarry(g, p)) return true;
@@ -386,7 +412,7 @@ function wPick(g, p, hungry) {
       d = O[k];
       if (!d.plan || !g.know[d.id] || (g.wDone && g.wDone[d.id] && !d.again) || iCount(g, d.id) || (!d.exempt && !wRoomFor(g))) continue;
       if (g.wNo && g.wNo[d.id] > g.tick) continue;
-      if (d.wait && d.wait(g)) continue;   /* (not for want of room: the ice palace, waiting for a freeze. pleasures.js) */
+      if (d.wait && d.wait(g)) continue;   /* (not for want of room: the ice palace, waiting for a freeze. pleasures.ts) */
       /* (nor before there is a furnace, for anything that wants what only a furnace makes: it would take the ground the
          furnace wants, and then wait for ever for its firebrick, its glass and its iron) */
       if (W_NOFURNACE.indexOf(d.id) < 0 && !mSites(g, "furnace").length) continue;
@@ -407,11 +433,11 @@ function wPick(g, p, hungry) {
 var W_TOOHOT = P_IGNITE * 1.3, W_FEETHOT = P_IGNITE;   /* (for somebody at a brave job, who catches fire at twice P_IGNITE) */
 var W_TOOHOT_ANY = P_IGNITE * 0.65, W_FEETHOT_ANY = P_IGNITE * 0.65;   /* (for anybody else, who catches fire at P_IGNITE: 150) */
 /* the limits for p: a brave job's, or anybody's. a third short of where they would catch fire, either way */
-function wLim(p) { var b = !!(p && p.task && p.task.brave); return { body: b ? W_TOOHOT : W_TOOHOT_ANY, feet: b ? W_FEETHOT : W_FEETHOT_ANY }; }
-function wTooHot(g, p) { return wHotAt(g, Math.floor(p.x), Math.floor(p.y), 1, p); }
+function wLim(p: Peasant) { var b = !!(p && p.task && p.task.brave); return { body: b ? W_TOOHOT : W_TOOHOT_ANY, feet: b ? W_FEETHOT : W_FEETHOT_ANY }; }
+function wTooHot(g: Game, p: Peasant) { return wHotAt(g, Math.floor(p.x), Math.floor(p.y), 1, p); }
 /* too hot to stand at (x, y), or (f under 1) at that much of too hot: the body there (and a column either side), and
    the ground under it */
-function wHotAt(g, fx, fy, f, p) {
+function wHotAt(g: Game, fx: number, fy: number, f: number, p?: Peasant) {
   var hi = -1e9, d, dx, L = wLim(p);
   for (dx = -1; dx <= 1; dx++) {
     var x = fx + dx;
@@ -421,10 +447,10 @@ function wHotAt(g, fx, fy, f, p) {
   var feet = fy + 1 < g.gh && fx >= 0 && fx < g.gw ? g.T[(fy + 1) * g.gw + fx] : AMBIENT;
   return hi > L.body * f || feet > L.feet * f;
 }
-/* every tick, before the heat is felt (peasants.js pStep, ahead of pHeat): somebody at a great work's job with the whole
+/* every tick, before the heat is felt (peasants.ts pStep, ahead of pHeat): somebody at a great work's job with the whole
    of them, feet to head, in air or on ground too hot to stay in, here or a step on the way they are going, steps back
    (wStepBack). caught a step early, not a tick too late */
-function wHeatGuard(g, p) {
+function wHeatGuard(g: Game, p: Peasant) {
   var k = p.task;
   if (p.state !== "walk" || p.fire) return;
   /* (anybody else, about their own business or none: not a step onto what a great work has just made hot, a fresh casting
@@ -435,10 +461,10 @@ function wHeatGuard(g, p) {
     if (wHotWork(g, fx0, fy0, p)) {
       /* (standing in it, or it come up under them, a casting just poured: off it, now, the way with the least heat on it.
          the job they had waits; they are back for it in a moment) */
-      var kc = { kind: "wcool", t: 0, was: k || null };
+      var kc: Task = { kind: "wcool", t: 0, was: k || null };
       wStepBack(g, p, kc); kc.hotX = fx0; kc.hotY = fy0; p.task = kc; p.dir = kc.backX < p.x ? -1 : 1;
     }
-    return;   /* (and a step into it is never taken: peasants.js, where they step) */
+    return;   /* (and a step into it is never taken: peasants.ts, where they step) */
   }
   var fx = Math.floor(p.x), fy = Math.floor(p.y), xs = [fx, fx + (p.dir || 1)], i, dy;
   /* (already stepping back: only a step on into heat turns them again) */
@@ -453,7 +479,7 @@ function wHeatGuard(g, p) {
 }
 /* a great work's own heat at (x, y), where somebody would stand: too hot underfoot or about the body, and inside (or
    right by) a great work's box */
-function wHotWork(g, x, y, p) {
+function wHotWork(g: Game, x: number, y: number, p: Peasant) {
   if (x < 0 || x >= g.gw || y < 0 || y >= g.gh) return false;
   /* (underfoot a step up or a step down too: walking onto a casting that stands a cell proud of the ground, or into a
      mould of it running) */
@@ -464,19 +490,19 @@ function wHotWork(g, x, y, p) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && x >= s.x0 - 12 && x <= s.x1 + 12 && y >= s.y0 - 4 && y <= s.y1 + 6) return true; }
   return false;
 }
-function wStepBack(g, p, k) {
+function wStepBack(g: Game, p: Peasant, k: Task) {
   var fx = Math.floor(p.x), fy = Math.floor(p.y), side = 0;
-  function heat(x) { var t = 0; for (var dy = 0; dy <= 7; dy += 3) { var y = fy - dy; if (x >= 0 && x < g.gw && y >= 0 && y < g.gh) t += g.T[y * g.gw + x]; } return t; }
+  function heat(x: number) { var t = 0; for (var dy = 0; dy <= 7; dy += 3) { var y = fy - dy; if (x >= 0 && x < g.gw && y >= 0 && y < g.gh) t += g.T[y * g.gw + x]; } return t; }
   /* (the way out with the least heat on it all the way, not only at the far end: walking out through the hot air is no
      way out of it) */
-  function worst(sd) { var m = 0; for (var d = 1; d <= 6; d++) m = Math.max(m, heat(fx + sd * d)); return m; }
+  function worst(sd: number) { var m = 0; for (var d = 1; d <= 6; d++) m = Math.max(m, heat(fx + sd * d)); return m; }
   side = worst(-1) <= worst(1) ? -1 : 1;
   k.backT = g.tick + 120;   /* (and stay back a while: it does not cool in a tick) */
   if (k.hotX == null) { k.hotX = fx; k.hotY = fy; }   /* (where it was too hot: not back into it till it has cooled well down. wTask) */
   k.backX = Math.max(1, Math.min(g.gw - 2, fx + side * 6));
   return false;
 }
-function wTask(g, p, k) {
+function wTask(g: Game, p: Peasant, k: Task) {
   /* (too hot here: back, the cooler way, and wait. then on with it) */
   if (W_KINDS[k.kind] && !W_AWAY[k.kind] && p.state === "walk") {
     if (wTooHot(g, p)) wStepBack(g, p, k);
@@ -502,28 +528,28 @@ function wTask(g, p, k) {
   return undefined;
 }
 /* somewhere to stand by site s, to put things on its pile: about the foot of it */
-function wFoot(g, s) {
+function wFoot(g: Game, s: Site) {
   var x = Math.round(s.cx - 0.5), G = mGroundNear(g, x, false, s.y1);
   return { x: x, y: G > 0 ? G - 1 : s.y1 };
 }
-function wNear(g, s, R) {
+function wNear(g: Game, s: Site, R: number) {
   var x0 = s.x0 - 2, x1 = s.x1 + 2, y0 = s.y0 - 4, y1 = s.y1 + 4;
   return function (x, y) { return x >= x0 - (R || 0) && x <= x1 + (R || 0) && y >= y0 && y <= y1; };
 }
 /* carrying what a wonder is short of: there, and on the pile with it */
-function wTaskHaul(g, p, k) {
+function wTaskHaul(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || s.done || ++k.t > 4000) return iDone(p, false);
   var f = wFoot(g, s), at = wNear(g, s, 2);
   /* (to a foundry: on the ground by it, not up on its roof or its chimney, where its heat comes out) */
-  if (s.kind === "foundry") { var near = at; at = function (x, y) { return near(x, y) && y >= s.R0 - 2; }; }
+  if (s.kind === "foundry") { var near = at; at = function (x: number, y: number) { return near(x, y) && y >= s.R0 - 2; }; }
   if (!at(Math.floor(p.x), Math.floor(p.y))) {
     if (iWalk(g, p, k, "haul" + s.id, f.x, f.y, at)) bFail(g, p, s, 1500, "walk");   /* (failSite: let be a while) */
     return false;
   }
   bDeposit(g, p, s);
   wDepositLime(g, p, s);
-  /* (a lump of concrete gone off: on the pile, to go in set where wet concrete would have: build.js bPay) */
+  /* (a lump of concrete gone off: on the pile, to go in set where wet concrete would have: build.ts bPay) */
   var lumps = Math.min(p.lump || 0, Math.max(0, Math.floor(bNeed(g, s, "mortar"))));
   if (lumps > 0) { s.stock = s.stock || {}; s.stock.lump = (s.stock.lump || 0) + lumps; p.lump -= lumps; }
   /* (what is left over, that no other great work wants either: into the salvage, not carried about for ever) */
@@ -532,7 +558,7 @@ function wTaskHaul(g, p, k) {
   p.bored = 0;
   return iDone(p, true);
 }
-function wDepositLime(g, p, s) {
+function wDepositLime(g: Game, p: Peasant, s: Site) {
   var n = Math.min(p.lime || 0, Math.max(0, wLimeWant(g, s)));
   if (n > 0) { s.stock = s.stock || {}; s.stock.lime = (s.stock.lime || 0) + n; p.lime -= n; }
 }
@@ -547,16 +573,16 @@ function wDepositLime(g, p, s) {
    ------------------------------------------------------------------- */
 /* stone a wonder still wants that is neither on its pile nor in anybody's pocket (and the kiln's, for its lime and
    firebrick) */
-function wStoneShort(g, s) {
+function wStoneShort(g: Game, s: Site) {
   var need = bNeed(g, s, "stone") + Math.ceil(Math.max(0, wLimeWant(g, s)) / 2) + Math.ceil(Math.max(0, bNeed(g, s, "firebrick") - wHandFor(g, s, "firebrick")) / 2);
   return need - wPocketedSure(g, "stone");   /* (the stone in pockets that can get there: wPocketedSure) */
 }
-function wPocketed(g, r) { var n = 0; for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k][r] || 0; return n; }
+function wPocketed(g: Game, r) { var n = 0; for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k][r] || 0; return n; }
 /* the floor of column x, under a gallery whose feet are at row B: as far down as the dug-out air goes */
-function wFloorAt(g, x, B) { var y = B; while (y + 1 < g.gh && (AIRY[pCell(g, x, y + 1)] || pCell(g, x, y + 1) === MAT.LADDER)) y++; return y; }
+function wFloorAt(g: Game, x: number, B) { var y = B; while (y + 1 < g.gh && (AIRY[pCell(g, x, y + 1)] || pCell(g, x, y + 1) === MAT.LADDER)) y++; return y; }
 /* can a bench go down from floor F at column x, depth rows: rock in every row of it, nobody's, a firm floor under the
    new floor and two more rows of rock under that (no cave just under it), and nothing loose about that would pour in */
-function wBenchOk(g, x, F, depth) {
+function wBenchOk(g: Game, x: number, F, depth: number) {
   var y, c, k;
   if (x < 4 || x > g.gw - 5 || !AIRY[pCell(g, x, F)]) return false;
   for (y = F + 1; y <= F + depth; y++) { c = pCell(g, x, y); if (!ROCK[c] || bMarked(g, x, y)) return false; }
@@ -574,9 +600,9 @@ function wBenchOk(g, x, F, depth) {
    of rock a row deep about it, and one brick wants half a stone) */
 /* NOBODY IN THE STONE: anybody whose feet are in a solid cell of a great work (let go of over its wall by a hand, say),
    or in a place inside one that is nobody's (an organ's pipes and tank: its def's inside), is put out, at once, where the
-   rocket's crew are let off (heavens.js hRelease): footing, nothing wet, nothing that kills anywhere near, out of every
+   rocket's crew are let off (heavens.ts hRelease): footing, nothing wet, nothing that kills anywhere near, out of every
    site, and a way home from it on foot */
-function wEvict(g) {
+function wEvict(g: Game) {
   var solid = null, k, s, e, d;
   for (k = 0; k < g.peasants.length; k++) {
     var p = g.peasants[k];
@@ -590,7 +616,7 @@ function wEvict(g) {
         for (var n = 0; n < s.plan.length; n++) { e = s.plan[n]; if (e.v !== MAT.EMPTY && pBody(g, e.i % g.gw, (e.i / g.gw) | 0)) solid[e.i] = 1; }
       }
     }
-    /* (buried in it, as the game counts it: peasants.js pBuriedIn, p.buried. so not diving through a plank, or flying, or
+    /* (buried in it, as the game counts it: peasants.ts pBuriedIn, p.buried. so not diving through a plank, or flying, or
        on a ladder or in a doorway, or in a bush; and under a low roof, a head in the stone is only stooping) */
     if (p.buried > 0 && fy >= 0 && solid[fy * g.gw + fx]) stuck = true;
     for (var q2 = 0; q2 < g.sites.length && !stuck; q2++) {
@@ -601,28 +627,28 @@ function wEvict(g) {
     var at = hRelease(g, p);
     /* (nowhere in the valley that will do: straight up out of it, then, to the first room there is over them that nothing
        near would kill them in, with footing to stand on there (not left in the air, to fall back down by a drain): a drain,
-       fire, acid, as the walking keeps off them, paths.js navLethalNear) */
+       fire, acid, as the walking keeps off them, paths.ts navLethalNear) */
     if (!at) for (var uy = fy - 1; uy > 9 && !at; uy--) { var room = true; for (d = 0; d <= 8 && room; d++) if (pBody(g, fx, uy - d) || LIQUID[pCell(g, fx, uy - d)]) room = false; if (room && navStand(g, fx, uy) === 1 && !navLethalNear(g, fx, uy, 3) && !navDrainAt(g, fx, uy)) at = { x: fx, y: uy }; }   /* (dry footing: 2 is afloat, and a flooded ledge with water in the room over it is not dry) */
     /* (and nowhere at all: held, as the crew of a rocket that cannot go are, out of sight and unhurt, and let out as soon as
-       there is somewhere: heavens.js hHeld) */
+       there is somewhere: heavens.ts hHeld) */
     if (!at) { p.state = "space"; p.aboard = -1; p.task = null; p.vx = p.vy = 0; p.climb = null; p.rope = null; continue; }
     p.x = at.x + 0.5; p.y = at.y; p.vx = p.vy = 0; p.falling = false; p.fallY = p.y; p.jumping = false; p.climb = null; p.rope = null;
     if (p.state === "fly") p.state = "walk";
   }
 }
-/* a gallery with water standing in it (as mines.js mFlooded counts it: more than four wet cells of its plan), looked at
+/* a gallery with water standing in it (as mines.ts mFlooded counts it: more than four wet cells of its plan), looked at
    and nothing more: no flood written on it, no news. this is asked while a plain village is only being watched for
    whether a pyramid could be thought of, and must leave it as it is */
-function wWet(g, s) {
+function wWet(g: Game, s: Site) {
   var n = 0, seen = {};
   for (var k = 0; k < s.plan.length; k++) { var i = s.plan[k].i; if (LIQUID[g.m[i]] && !seen[i]) { seen[i] = 1; if (++n > 4) return true; } }
   return false;
 }
-function wQuarryPlot(g, near, p) {
+function wQuarryPlot(g: Game, near, p?: Peasant) {
   for (var depth = W_BENCH; depth >= 1; depth--) { var r = wQuarryPlotAt(g, near, p, depth); if (r) return r; }
   return null;
 }
-function wQuarryPlotAt(g, near, p, W_BENCH) {
+function wQuarryPlotAt(g: Game, near, p: Peasant, W_BENCH: number) {
   var T = mSites(g, "tunnel", true), best = null, k, t, m, x, d, F, n, cols, sc;
   for (k = 0; k < T.length; k++) {
     t = T[k]; m = bSite(g, t.of);
@@ -651,7 +677,7 @@ function wQuarryPlotAt(g, near, p, W_BENCH) {
     for (n = 0; n < L.length; n++) {
       F = L[n];
       if (!ROCK[pCell(g, x, F + 1)] || !pRoom(g, x, F) || wByHouse(g, x, F) || (g.wQuarryFar && g.wQuarryFar[x + ":" + F] > g.tick)) continue;
-      for (cols = [], d = x; cols.length < W_BENCH_W && d < rHi(g, 6); d++) {   /* (in the range: world.js) */
+      for (cols = [], d = x; cols.length < W_BENCH_W && d < rHi(g, 6); d++) {   /* (in the range: world.ts) */
         if (mGroundNear(g, d, false, F) !== F + 1 || !pRoom(g, d, F) || !wBenchOk(g, d, F, W_BENCH) || wByHouse(g, d, F)) break;
         cols.push(d);
       }
@@ -673,12 +699,12 @@ function wQuarryPlotAt(g, near, p, W_BENCH) {
   return null;
 }
 /* a house near (x, y): within eight columns, and about level with it (a cave under the village is not the village) */
-function wByHouse(g, x, y) {
+function wByHouse(g: Game, x: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.kind === "house" && x >= s.x0 - 8 && x <= s.x1 + 8 && y > s.y0 - 20 && y < s.y1 + 20) return true; }
   return false;
 }
 /* a bench as a site: a row at a time, from the shaft end outward */
-function wPlanQuarry(g, p, r) {
+function wPlanQuarry(g: Game, p: Peasant, r) {
   var plan = [], k, y, x, e, n = r.cols.length, c;
 
   for (y = 1; y <= r.depth; y++) {
@@ -697,7 +723,7 @@ function wPlanQuarry(g, p, r) {
   return s;
 }
 /* a wonder short of stone, and the valley's pockets short of it too: one quarryman, on top of its crew */
-function wGoQuarry(g, p) {
+function wGoQuarry(g: Game, p: Peasant) {
   if (!g.know.mine) return false;
   var W = null, k, q = null, U = wUp(g);
   for (k = 0; k < U.length; k++) if (wStoneShort(g, U[k]) > 1e-6) { W = U[k]; break; }   /* (a single brick is half a stone: any shortage at all) */
@@ -716,7 +742,7 @@ function wGoQuarry(g, p) {
   if (p.sayT <= 0) pSay(g, p, "quarry");
   return true;
 }
-function wTaskQuarry(g, p, k) {
+function wTaskQuarry(g: Game, p: Peasant, k: Task) {
   var W = bSite(g, k.of), q = bSite(g, k.site);
   if (!W || W.done) { if ((p.stone || 0) >= 1 && W) k.haul = true; else return iDone(p, true); }
   /* a pocketful (or the bench done): up with it, to the pile */
@@ -760,8 +786,8 @@ function wTaskQuarry(g, p, k) {
   if (p.task === null && (p.stone || 0) >= 1 && W && !W.done) { p.task = k; k.haul = true; }   /* (done, or stuck: up with what they have) */
   return r;
 }
-/* a bench done: the gallery is deeper there, and its props are drawn down to the new floor (mines.js) */
-function wBenched(g, q) {
+/* a bench done: the gallery is deeper there, and its props are drawn down to the new floor (mines.ts) */
+function wBenched(g: Game, q) {
   var t = q.of ? bSite(g, q.of) : null;
   if (!t) return;
   t.bench = t.bench || {};
@@ -778,22 +804,22 @@ function wBenched(g, q) {
 var W_KILN = 150;   /* ticks at the bellows for a batch */
 /* what of r in pockets is left for s, once the great works before it (wUp's order, as the kiln's orders go) have had
    theirs: in hand counted once over all of them, not once for each */
-function wHandFor(g, s, r) {
+function wHandFor(g: Game, s: Site, r: string) {
   var hand = wPocketedSure(g, r), U = wUp(g);
   for (var k = 0; k < U.length && hand > 0 && U[k] !== s; k++) hand -= Math.min(hand, Math.max(0, bNeed(g, U[k], r)));
   return hand;
 }
 /* lime a wonder still wants for its wet concrete, over what is on its pile and its share of what is in mixers' pockets */
-function wLimeWant(g, s) {
+function wLimeWant(g: Game, s: Site) {
   var n = Math.ceil(Math.max(0, bNeed(g, s, "mortar") - wHandFor(g, s, "mortar")) / W_PAIL);
   return n - ((s.stock && s.stock.lime) || 0);
 }
-function wKilnOrders(g) {
+function wKilnOrders(g: Game) {
   var out = [], k, s, n, U = wUp(g);
   /* (what is in pockets is counted once over all the works, the first ones first, not once for each: three firebricks
      in hand are not three for every foundry) */
   var hand = { firebrick: wPocketedSure(g, "firebrick"), lime: wPocketedSure(g, "lime"), stained: wPocketedSure(g, "stained") };
-  function short(r, want) { var t = Math.min(hand[r], Math.max(0, want)); hand[r] -= t; return want - t; }
+  function short(r: string, want: number) { var t = Math.min(hand[r], Math.max(0, want)); hand[r] -= t; return want - t; }
   for (k = 0; k < U.length; k++) {
     s = U[k];
     if ((n = short("firebrick", bNeed(g, s, "firebrick"))) > 0) out.push({ r: "firebrick", n: n, site: s.id });
@@ -804,7 +830,7 @@ function wKilnOrders(g) {
      furnace's pile. last, so that a coal that does turn up goes on the order it was wanted for */
   var f = mSites(g, "furnace", true)[0];
   if (f && U.length && wPocketedSure(g, "coal") + ((f.stock && f.stock.coal) || 0) < W_CHAR) {
-    /* (plain glass too, the observatory's lens say: blowing it takes a coal, leftovers.js. but not for panes already in
+    /* (plain glass too, the observatory's lens say: blowing it takes a coal, leftovers.ts. but not for panes already in
        pockets, and those counted once over all the works, not once for each: one pane in hand is not two lenses mended) */
     var glass = -wPocketedSure(g, "glass");
     for (k = 0; k < U.length; k++) glass += bNeed(g, U[k], "glass");
@@ -818,10 +844,10 @@ function wKilnOrders(g) {
 var W_CHAR = 4;     /* coals of charcoal burnt at a time, when there is no coal (two logs to a coal) */
 /* what colours a pane of coloured glass for site s, as the kiln takes it (wTaskKiln) and as it is sent for (wGoKiln):
    a pocket's gold, for a red one the window wants; ore, out of a pocket or off the furnace's pile st; or a coal */
-function wTintable(g, p, s, st) {
+function wTintable(g: Game, p: Peasant, s: Site, st) {
   return (wCells(p.gold) >= 1 && wRubyWanted(g, s)) || (p.ore || 0) + (st.ore || 0) >= 1 || (p.coal || 0) + (st.coal || 0) >= 1;
 }
-function wGoKiln(g, p) {
+function wGoKiln(g: Game, p: Peasant) {
   var f = mSites(g, "furnace", true)[0], k;
   if (!f || f.repair || mFurnaceFar(g, f, p, 260) || wNoGo(g, p, f.id)) return false;
   /* (one at the bellows; two, with a long order in: forty firebricks for a foundry, say) */
@@ -846,7 +872,7 @@ function wGoKiln(g, p) {
   }
   return false;
 }
-function wTaskKiln(g, p, k) {
+function wTaskKiln(g: Game, p: Peasant, k: Task) {
   var f = bSite(g, k.site), s = bSite(g, k.of), st, ws;
   if (!f || !f.done || f.repair || !s || s.done || ++k.t > 5000 + (k.trek || 0)) return iDone(p, (k.n || 0) > 0);
   st = f.stock || (f.stock = {}); ws = s.stock || (s.stock = {});
@@ -900,32 +926,32 @@ function wTaskKiln(g, p, k) {
   if (k.act === 30 && p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, "kiln");
   if (k.act < W_KILN) return true;
   k.act = 0;
-  function burn(r) { if ((st[r] || 0) >= 1) st[r]--; else p[r]--; }
+  function burn(r: string) { if ((st[r] || 0) >= 1) st[r]--; else p[r]--; }
   if (k.r === "coal") {
     /* (two logs, smothered and burnt slow: a coal of charcoal, onto the furnace's pile) */
     p.logs -= 2; st.coal = (st.coal || 0) + 1; k.n++;
     if (!g.wChar) { g.wChar = 1; feed(g, p.name + " burnt logs down to charcoal. there was no coal left in the valley", "#e0e0d4", "char"); }
   } else if (k.r === "stained") {
     if ((st.glass || 0) >= 1) st.glass--; else p.glass--;
-    var tint;
+    var tint: number;
     if (wCells(p.gold) >= 1 && wRubyWanted(g, s)) { p.gold = (wTenths(p.gold) - 2) / 10; tint = 0; }
     else if ((p.ore || 0) + (st.ore || 0) >= 1) { burn("ore"); tint = 1; } else { burn("coal"); tint = 2; }
     p.stained = (p.stained || 0) + 1; k.n++;
     /* (the pane is the colour of what went into it: red for gold, green for ore, amber for coal. the colour goes with
-       the pane, in a pocket, on a pile, and into whichever window it is put in: build.js bTints) */
+       the pane, in a pocket, on a pile, and into whichever window it is put in: build.ts bTints) */
     (p.tints || (p.tints = [])).push(tint);
   } else {
     burn("stone"); burn("coal");
     var out = 2;   /* (two of lime to a stone burnt; a stone cut in two and fired, two firebricks) */
     p[k.r] = (p[k.r] || 0) + out; k.n += out;
   }
-  g.fx.clang++; g.kilnN = (g.kilnN || 0) + 1;   /* (a batch: the furnace worked once more. the organ counts them: pleasures.js) */
+  g.fx.clang++; g.kilnN = (g.kilnN || 0) + 1;   /* (a batch: the furnace worked once more. the organ counts them: pleasures.ts) */
   sparks(g, f.fc + 0.5, f.G - 2, 8, 0.6, SPARK_HOT, 10, 0.4, PK_GLINT);
   if (k.r === "lime" && !g.got.concrete) { feed(g, p.name + " burnt the first lime. add sand and water, and stir", "#e0e0d4", "lime"); }
   if (k.n >= k.want) { if (k.r === "coal") { p.bored = 0; return iDone(p, true); } k.carry = true; }
   return true;
 }
-function wRubyWanted(g, s) { for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (e.v === MAT.STAINED && e.a === 0 && !bOk(g, e)) return true; } return false; }
+function wRubyWanted(g: Game, s: Site) { for (var k = 0; k < s.plan.length; k++) { var e = s.plan[k]; if (e.v === MAT.STAINED && e.a === 0 && !bOk(g, e)) return true; } return false; }
 
 /* -------------------------------------------------------------------
    WET CONCRETE: a lime off the pile, two spadefuls of sand, and a
@@ -934,7 +960,7 @@ function wRubyWanted(g, s) { for (var k = 0; k < s.plan.length; k++) { var e = s
    off in the pail
    ------------------------------------------------------------------- */
 /* the next cell of s is concrete, and nobody is carrying any for it, nor mixing it */
-function wMixWanted(g, s) {
+function wMixWanted(g: Game, s: Site) {
   var e = bNext(g, s, null);
   if (!e || e.v !== MAT.CONCRETE || ((s.stock && s.stock.lime) || 0) < 1) return false;
   for (var k = 0; k < g.peasants.length; k++) {
@@ -944,14 +970,14 @@ function wMixWanted(g, s) {
   }
   return true;
 }
-function wGoMix(g, p, s) {
+function wGoMix(g: Game, p: Peasant, s: Site) {
   if ((p.mortar || 0) >= 1 || p.pail) return false;
   var w = iFindWater(g, p, 200, null, true, iBarred(g, true), false);
   if (!w) { s.note = "waiting for water to mix the concrete with"; return false; }
   p.task = { kind: "mix", site: s.id, w: w, t: 0, act: 0, water: 0, sand: 0 };
   return true;
 }
-function wTaskMix(g, p, k) {
+function wTaskMix(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), fx = Math.floor(p.x), fy = Math.floor(p.y), j;
   if (!s || s.done || ++k.t > 4000) return iDone(p, false);
   /* a bucket of water first: from real water, never out of a pond being filled */
@@ -961,7 +987,7 @@ function wTaskMix(g, p, k) {
     j = iScoopAt(g, fx, fy, true, bar);
     if (j >= 0 && !p.swimming && !LIQUID[pCell(g, fx, fy)]) {
       p.pose = (k.act >> 3) & 1 ? "eatB" : "stand";
-      /* (the water in the pail, in their hands, heat and all, until it is mixed in: dropped, it is spilt. ideas.js iSpill) */
+      /* (the water in the pail, in their hands, heat and all, until it is mixed in: dropped, it is spilt. ideas.ts iSpill) */
       if (++k.act === 16) { var load = iScoop(g, j, true); if (load && load.length) p.pail = load; k.water = load ? load.length : 0; k.act = 0; k.best = null; }
       return true;
     }
@@ -974,7 +1000,7 @@ function wTaskMix(g, p, k) {
      can be under the water, or at the far end of the valley) */
   if ((p.sand || 0) < 2) {
     if (!k.sx || !lSandy(g, k.sx, k.sy)) {
-      var f0 = wFoot(g, s), ok0 = function (g2, x, y) { return !pAvoid(g2, p, x) && lSandy(g2, x, y); };
+      var f0 = wFoot(g, s), ok0 = function (g2, x: number, y: number) { return !pAvoid(g2, p, x) && lSandy(g2, x, y); };
       var t = pFind(g, { x: f0.x + 0.5, y: f0.y, dir: p.x < f0.x ? -1 : 1 }, P_SANDY, 60, ok0, 10) || pFind(g, p, P_SANDY, 60, ok0, 10);
       if (!t) return iDone(p, false);
       k.sx = t.x; k.sy = t.y;
@@ -1005,10 +1031,10 @@ function wTaskMix(g, p, k) {
 }
 /* a pail gone off: tipped out, and a lump of concrete stands where they were */
 /* CARRIED: what a peasant carries for a great work is never put down by them while they live but into its own cell of
-   a plan (as it is paid for: build.js bPay). wet concrete that goes off in the pail is a lump, carried (p.lump): it is
+   a plan (as it is paid for: build.ts bPay). wet concrete that goes off in the pail is a lump, carried (p.lump): it is
    paid for a concrete cell with as wet concrete is, and goes in set, or onto a wonder's pile (wTaskHaul). dead, all of
    it goes into the salvage (wDropAll), and none of it is lost */
-function wWentOff(g, p) {
+function wWentOff(g: Game, p: Peasant) {
   p.lump = (p.lump || 0) + (p.mortar || 0); p.mortar = 0;
   pSay(g, p, "wentOff", true);
   if (!g.wLump) { g.wLump = 1; feed(g, "the concrete went off in " + p.name + "'s pail. it is a lump now, and they are carrying it about", "#c8d0dc", "lump"); }
@@ -1020,14 +1046,14 @@ function wWentOff(g, p) {
 var W_KEEP = ["firebrick", "stained", "lime", "plate", "bell"];
 var W_SALVAGE = W_KEEP.concat(["lump", "moonrock", "barrel"]);
 /* dead: everything of a great work's they had, into the salvage. a barrel of oil, into the nearest well's tank with room
-   in it, if there is one (peasants.js pDie) */
-function wDropAll(g, p) {
+   in it, if there is one (peasants.ts pDie) */
+function wDropAll(g: Game, p: Peasant) {
   if ((p.mortar || 0) > 0) { p.lump = (p.lump || 0) + p.mortar; p.mortar = 0; }
   if (p.barrel && wTankIn(g, p)) p.barrel = 0;
   wSalvage(g, p);
 }
 /* the nearest well with room in its tank for a barrel, and the barrel in it. true if there was one */
-function wTankIn(g, p) {
+function wTankIn(g: Game, p: Peasant) {
   var best = null, bd = 1e9, k, s;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
@@ -1039,7 +1065,7 @@ function wTankIn(g, p) {
   return true;
 }
 /* what p has of a great work's (or of rs, only), into the salvage */
-function wSalvage(g, p, rs) {
+function wSalvage(g: Game, p: Peasant, rs?: string[]) {
   var sv = null;
   (rs || W_SALVAGE).forEach(function (r) {
     if (!((p[r] || 0) > 0)) return;
@@ -1052,7 +1078,7 @@ function wSalvage(g, p, rs) {
 }
 /* where the salvage is kept: {x, y, name}. at the store by the furnace; with no furnace, by the first great work; with
    neither, where the last of it was left */
-function wSalvageAt(g) {
+function wSalvageAt(g: Game) {
   var f = mSites(g, "furnace", true)[0];
   if (f) return { x: f.sx, y: mSpotRow(g, f), name: "the store by the furnace" };
   var W = wSites(g);
@@ -1062,7 +1088,7 @@ function wSalvageAt(g) {
 }
 /* what of a great work's p carries that none of them wants now (less what is on its way): into the salvage, where it is
    fetched from when one does */
-function wSurplus(g, p) {
+function wSurplus(g: Game, p: Peasant) {
   var U = wSites(g).filter(function (t) { return !t.done || t.repair; });
   W_KEEP.concat(["lump"]).forEach(function (r) {
     if (!((p[r] || 0) > 1e-6)) return;
@@ -1073,7 +1099,7 @@ function wSurplus(g, p) {
 }
 /* where to stand to fetch from the salvage: the standing cell (navStand: ground, room, nothing deadly; in the world, not
    over the top of it) nearest where it is kept (wSalvageAt), beside the store. {x, y} or null */
-function wSalvageSpot(g) {
+function wSalvageSpot(g: Game) {
   var a = wSalvageAt(g), C = [], d, x, y, k;
   /* (beside it: a few columns off, a few rows up or down. not at the foot of the cliff it stands on) */
   for (d = 0; d <= 12; d++) for (var sd = -1; sd <= 1; sd += 2) {
@@ -1084,21 +1110,21 @@ function wSalvageSpot(g) {
   }
   C.sort(function (u, v) { return u.c - v.c; });
   /* (and one that can be walked to from where the village lives, and back: not the top of a shelf of rock over it, nor
-     the far side of a drop nobody can climb back up. heavens.js hHome) */
+     the far side of a drop nobody can climb back up. heavens.ts hHome) */
   var home = hHome(g);
   for (k = 0; k < C.length && k < 200; k++) {
-    var c = C[k], there = function (x2, y2) { return Math.abs(x2 - c.x) <= 2 && Math.abs(y2 - c.y) <= 4; };
+    var c = C[k], there = function (x2: number, y2: number) { return Math.abs(x2 - c.x) <= 2 && Math.abs(y2 - c.y) <= 4; };
     if (home.at(c.x, c.y) || (navFind(g, home.x, home.y, there, c.x, c.y, H_REACH) && navFind(g, c.x, c.y, home.at, home.x, home.y, H_REACH))) return { x: c.x, y: c.y };
   }
   return null;
 }
 /* someone who has lately given up getting to a great work (wBackoff, or bFail's failSite): what they carry is not to be
    counted on, for ordering more of it or leaving the salvage be */
-function wStranded(g, q, r) {
+function wStranded(g: Game, q: Peasant, r: string) {
   /* (a great work they could not get to: not the furnace's kiln, nor a job of no site, which says nothing of whether what
      they carry can get to a great work. and with r, one that wants r: kept off a foundry while it casts says nothing of
      whether the ninth of a bell in their pocket can get to the rocket) */
-  function wants(t) { return t && t.wonder && (!r || (r === "iron" ? t.kind === "foundry" : bNeed(g, t, r) > 1e-6)); }
+  function wants(t: Site) { return t && t.wonder && (!r || (r === "iron" ? t.kind === "foundry" : bNeed(g, t, r) > 1e-6)); }
   if (q.failSite && q.failT > g.tick && wants(bSite(g, q.failSite))) return true;
   for (var id in q.noGo || {}) if (q.noGo[id] > g.tick && wants(bSite(g, +id))) return true;
   return false;
@@ -1110,18 +1136,18 @@ function wStranded(g, q, r) {
    floats being off by a hundred-millionth at worst), never as a sum of fractions of bars. a cell is then counted out of the
    pooled tenths (wCells of a sum, not a sum of wCells: a bar and a half and half a bar are ten cells, not nine or eleven).
    a bell is in ninths (wNinths) */
-function wTenths(v) { return Math.round((v || 0) * 10); }
-function wCells(v) { return Math.floor(wTenths(v) / 2); }
-function wNinths(v) { return Math.round((v || 0) * 9); }
+function wTenths(v: number) { return Math.round((v || 0) * 10); }
+function wCells(v: number) { return Math.floor(wTenths(v) / 2); }
+function wNinths(v: number) { return Math.round((v || 0) * 9); }
 /* the tenths of r in the pockets of the living who can get there; and the cells in them, counted from the pool */
-function wTenthsSure(g, r) {
+function wTenthsSure(g: Game, r: string) {
   var n = 0;
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q, r)) n += wTenths(q[r]); }
   return n;
 }
-function wCellsSure(g, r) { return Math.floor(wTenthsSure(g, r) / 2); }
+function wCellsSure(g: Game, r: string) { return Math.floor(wTenthsSure(g, r) / 2); }
 /* up to n tenths of r into p's pocket from the pockets of the living who can get there: how many came (tenths, exactly) */
-function wGatherTenths(g, p, r, n) {
+function wGatherTenths(g: Game, p: Peasant, r: string, n: number) {
   var got = 0;
   for (var k = 0; k < g.peasants.length && got < n; k++) {
     var q = g.peasants[k];
@@ -1132,13 +1158,13 @@ function wGatherTenths(g, p, r, n) {
   return got;
 }
 /* what of r is in the pockets of the living who are not stranded: to be counted on */
-function wPocketedSure(g, r) {
+function wPocketedSure(g: Game, r: string) {
   var n = 0;
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && !wStranded(g, q, r)) n += q[r] || 0; }
   return n;
 }
 /* what of r there is in the salvage that can be got at (a spot to fetch it from that the village can walk to) */
-function wSalvageSure(g, r) {
+function wSalvageSure(g: Game, r: string) {
   var sv = g.salvage;
   if (!sv || !((sv[r] || 0) > 1e-6)) return 0;
   /* (and not while a fetch from it has lately come to nothing: wTaskSalvage, pGiveUp. it is the proof of it) */
@@ -1146,9 +1172,9 @@ function wSalvageSure(g, r) {
   return wSalvageSpot(g) ? sv[r] : 0;
 }
 /* a fetch from the salvage that came to nothing: not counted on, for a while (wSalvageSure) */
-function wSalvageFailed(g, p) { g.wSalvNo = g.tick + 6000; wBackoff(g, p, "salvage"); }
+function wSalvageFailed(g: Game, p: Peasant) { g.wSalvNo = g.tick + 6000; wBackoff(g, p, "salvage"); }
 /* how much of r in the salvage is wanted now, by a great work, or (moon rock) by everybody */
-function wSalvageWant(g, r) {
+function wSalvageWant(g: Game, r: string) {
   var sv = g.salvage, n = 0, k, s;
   if (!sv || !((sv[r] || 0) >= (r === "bell" ? 1e-6 : 1))) return 0;
   if (r === "moonrock") return sv[r];
@@ -1165,14 +1191,14 @@ function wSalvageWant(g, r) {
   return Math.min(sv[r], r === "bell" ? n : Math.ceil(n - 1e-6));
 }
 /* somebody to fetch what is wanted out of the salvage: one at a time */
-function wGoSalvage(g, p) {
+function wGoSalvage(g: Game, p: Peasant) {
   if (!g.salvage || p.salvT > g.tick || p.barrel || wNoGo(g, p, "salvage")) return false;
   p.salvT = g.tick + 300;
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "salvage") return false; }
   for (var i = 0; i < W_SALVAGE.length; i++) if (wSalvageWant(g, W_SALVAGE[i]) >= (W_SALVAGE[i] === "bell" ? 1e-6 : 1)) { p.task = { kind: "salvage", t: 0 }; return true; }
   return false;
 }
-function wTaskSalvage(g, p, k) {
+function wTaskSalvage(g: Game, p: Peasant, k: Task) {
   if (!g.salvage) return iDone(p, false);
   if (++k.t > 3000) { wSalvageFailed(g, p); return iDone(p, false); }
   var at = k.at;
@@ -1201,14 +1227,14 @@ function wTaskSalvage(g, p, k) {
 /* -------------------------------------------------------------------
    IRON, AND GOLD
    ------------------------------------------------------------------- */
-/* a wonder going up wants iron: new tools wait for iron to spare (mines.js mGoForge), props and posts wait as they do */
-function wIronHeld(g) {
+/* a wonder going up wants iron: new tools wait for iron to spare (mines.ts mGoForge), props and posts wait as they do */
+function wIronHeld(g: Game) {
   if (g.wIronTest) return true;
-  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && (bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01)) return true; }   /* (plates and an engine bell are iron, cast: heavens.js) */
+  for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.wonder && !s.done && (bNeed(g, s, "iron") > 0.01 || bNeed(g, s, "plate") > 0.01 || bNeed(g, s, "bell") > 0.01)) return true; }   /* (plates and an engine bell are iron, cast: heavens.ts) */
   return false;
 }
 /* gold in a plan is gilding: with no gold about (in pockets, or on piles), a stone stand-in, gilded later */
-function wGild(g, plan) {
+function wGild(g: Game, plan) {
   var gold = wPocketedSure(g, "gold"), k, e;
   for (k = 0; k < g.sites.length; k++) gold += (g.sites[k].stock && g.sites[k].stock.gold) || 0;
   for (k = 0; k < plan.length; k++) {
@@ -1223,7 +1249,7 @@ function wGild(g, plan) {
 /* gilding still to go in, and no gold in the valley for it now (spent, or gone with whoever carried it): its stand-in
    instead (stone, or what the plan says: e.alt), gilded later if gold turns up. gold is never what a great work waits
    for. every W_STRIDE ticks, for one going up */
-function wGoldGone(g, s) {
+function wGoldGone(g: Game, s: Site) {
   var gold = -1;
   for (var k = 0; k < s.plan.length; k++) {
     var e = s.plan[k];
@@ -1234,7 +1260,7 @@ function wGoldGone(g, s) {
   }
 }
 /* a wonder with a stand-in in it, and gold about now: gilded, as a repair */
-function wRegild(g, s) {
+function wRegild(g: Game, s: Site) {
   var n = 0, k, e;
   /* (the gold gone again, on something else, before the gilding was done: left as it is, stone where the gold was to go,
      until there is gold again. a mending that waits for ever is a great work going up for ever) */
@@ -1260,7 +1286,7 @@ function wRegild(g, s) {
    which the heat pass looks up for burning cells only
    ------------------------------------------------------------------- */
 /* is the chamber (a list of cells) closed: everything round it that is not in it is firebrick */
-function wClosed(g, cells) {
+function wClosed(g: Game, cells) {
   var inside = {}, k, d, x, y, j;
   for (k = 0; k < cells.length; k++) inside[cells[k]] = 1;
   for (k = 0; k < cells.length; k++) {
@@ -1270,14 +1296,14 @@ function wClosed(g, cells) {
   return true;
 }
 /* somebody works the bellows of chamber cells (for key): for the next ticks ticks the fire in it burns hotter */
-function wDraught(g, key, cells, ticks) {
+function wDraught(g: Game, key: string, cells, ticks: number) {
   if (!g.dmask || g.dmask.length !== g.m.length) g.dmask = new Uint8Array(g.m.length);
   if (!g.draught) g.draught = {};
   var d = g.draught[key];
   if (!d) { d = g.draught[key] = { cells: cells.slice(), until: 0 }; for (var k = 0; k < cells.length; k++) g.dmask[cells[k]] = 1; }
   d.until = Math.max(d.until, g.tick + ticks);
 }
-function wDraughtStep(g) {
+function wDraughtStep(g: Game) {
   if (!g.draught) return;
   var any = false;
   for (var key in g.draught) {
@@ -1293,7 +1319,7 @@ function wDraughtStep(g) {
    WARM WATER: a bath. nobody is cold in it, they think twice as fast,
    and they gossip. too hot (P_SWEAT) and they are out of it, fast
    ------------------------------------------------------------------- */
-function wBathe(g, p, fx, fy) {
+function wBathe(g: Game, p: Peasant, fx: number, fy: number) {
   if (fx < 0 || fx >= g.gw || fy < 1) return;
   var j = fy * g.gw + fx, c = g.m[j];
   if (!WET[c]) { j -= g.gw * 3; c = j >= 0 ? g.m[j] : 0; }
@@ -1310,8 +1336,8 @@ function wBathe(g, p, fx, fy) {
   p.cold = 0; p.cosyT = g.tick + 30; p.bathT = g.tick;
   if (p.sayT <= 0 && (p.anim % 200) === 0) pSay(g, p, Math.random() < 0.5 ? "gossip" : "bathe");
 }
-/* cold, and there is a warm bath: that, before a campfire (pleasures.js) */
-function wWarmBath(g, p) { var d = wOf("baths"); return !!(d && d.warm && d.warm(g, p)); }
+/* cold, and there is a warm bath: that, before a campfire (pleasures.ts) */
+function wWarmBath(g: Game, p: Peasant) { var d = wOf("baths"); return !!(d && d.warm && d.warm(g, p)); }
 
 /* -------------------------------------------------------------------
    THE LIGHTNING ROD: on a site, s.rod = {x, top, bot} (a girder column,
@@ -1319,7 +1345,7 @@ function wWarmBath(g, p) { var d = wOf("baths"); return !!(d && d.warm && d.warm
    (a marked cell) within ten columns of a rod goes down the rod instead
    ------------------------------------------------------------------- */
 var W_ROD = 10;
-function wRod(g, hit, pts) {
+function wRod(g: Game, hit, pts) {
   if (!g.sites || !bMarked(g, hit.x, hit.y)) return false;
   var best = null, bd = W_ROD + 1, k, s;
   for (k = 0; k < g.sites.length; k++) {
@@ -1346,9 +1372,9 @@ function wRod(g, hit, pts) {
 
 /* -------------------------------------------------------------------
    STAINED GLASS, lit from behind: a lantern, a fire or an ember within
-   six cells (game.js asks, cell by cell; there are never many)
+   six cells (game.ts asks, cell by cell; there are never many)
    ------------------------------------------------------------------- */
-function wLitGlass(g, x, y) {
+function wLitGlass(g: Game, x: number, y: number) {
   for (var dy = -6; dy <= 6; dy++) for (var dx = -6; dx <= 6; dx++) {
     var c = pCell(g, x + dx, y + dy);
     if (c === MAT.LAMP || c === MAT.FIRE || c === MAT.EMBER) return true;
@@ -1368,14 +1394,14 @@ P_BODY.fling = pParse([".sse..", ".sss..", ".ccccs", ".cCc..", ".p.p..", "f...f.
    failSite, which is set for a cell that could not be done, as much as for a site that could not be got to). EVERY job a great work hands somebody goes through here, with its site: the cast, the crypt's bailer, the
    preacher, the astronomer, the founder, the keeper, the fueller, the crew, the stoker, the gardens' turner and filler,
    the organist, the ice palace's hands, an audience. so nobody is sent, time after time, where they cannot get */
-function wIdle(g, p, s) {
+function wIdle(g: Game, p: Peasant, s?: Site) {
   return !p.dead && p.state === "walk" && !p.sleep && !p.fire && p.panic <= 0 && p.hunger < P_HUNGRY && p.cold < 60 &&
          !p.climb && !p.rope && !p.swimming && (!p.task || I_FUN[p.task.kind]) &&
          !(s && wNoGo(g, p, s.id));
 }
 /* a gathering at site s: up to cap of the idle within R of (x), each to a seat ({x, y}: where their feet go) if there
    are seats, else to stand about in front, until until. kind names it, for their mood. how many came */
-function wGather(g, s, o) {
+function wGather(g: Game, s: Site, o) {
   var n = 0, k, q, seats = o.seats || [], used = {};
   for (k = 0; k < g.peasants.length; k++) if (g.peasants[k].task && g.peasants[k].task.kind === "audience" && g.peasants[k].task.site === s.id) { n++; if (g.peasants[k].task.seat >= 0) used[g.peasants[k].task.seat] = 1; }
   for (k = 0; k < g.peasants.length && n < (o.cap || 99); k++) {
@@ -1389,7 +1415,7 @@ function wGather(g, s, o) {
   }
   return n;
 }
-function wTaskAudience(g, p, k) {
+function wTaskAudience(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || g.tick > k.until || ++k.t > 6000) { p.bored = 0; return iDone(p, true); }
   var fx = Math.floor(p.x), fy = Math.floor(p.y);
@@ -1407,10 +1433,10 @@ function wTaskAudience(g, p, k) {
 /* -------------------------------------------------------------------
    THE GOINGS ON: every W_STRIDE ticks (from peasantsStep)
    ------------------------------------------------------------------- */
-function wStep(g) {
-  /* (a wonder that wants a look every tick, while it stands: the organ, listening at its pipes. pleasures.js) */
+function wStep(g: Game) {
+  /* (a wonder that wants a look every tick, while it stands: the organ, listening at its pipes. pleasures.ts) */
   if (g.wTick) for (var t = 0; t < g.sites.length; t++) { var ts = g.sites[t], td = ts.wonder && wOf(ts.kind); if (td && td.tick) td.tick(g, ts); }
-  /* (and every tick: whatever of theirs is in the air, a falling star or a rocket, or a beam going round. heavens.js) */
+  /* (and every tick: whatever of theirs is in the air, a falling star or a rocket, or a beam going round. heavens.ts) */
   for (var k0 = 0; k0 < W_DEFS.length; k0++) if (W_DEFS[k0].air) W_DEFS[k0].air(g);
   if (g.tick % W_STRIDE) return;
   wDraughtStep(g);
@@ -1418,16 +1444,16 @@ function wStep(g) {
      until then, nothing in here rolls a single die */
   var any = false, k, s, p, d;
   for (k = 0; k < W_DEFS.length && !any; k++) if (g.know[W_DEFS[k].id]) any = true;
-  if (g.know.concrete || g.know.stained || g.know.storey) any = true;   /* (and storeys: storeys.js) */
+  if (g.know.concrete || g.know.stained || g.know.storey) any = true;   /* (and storeys: storeys.ts) */
   for (k = 0; k < g.sites.length && !any; k++) if (g.sites[k].wonder) any = true;
   g.wAny = any;
   /* (is there anywhere to cut stone, for a pyramid: looked at now and then, once it could matter) */
   if (g.know.masonry && (g.kingDied || g.thinkerDied) && !g.know.pyramid && g.tick % 600 === 0) g.wQuarryOk = !!mSites(g, "quarry").length || !!wQuarryPlot(g, g.gw >> 1);
-  /* (a wonder's own look at whether anybody has had it put into their head: no dice. pleasures.js) */
+  /* (a wonder's own look at whether anybody has had it put into their head: no dice. pleasures.ts) */
   for (k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].watch && !g.know[W_DEFS[k].id]) W_DEFS[k].watch(g);
   if (!any) return;
   wEvict(g);
-  g.ironSpare = wIronHeld(g) ? W_IRON_HOLD : M_IRON_SPARE;   /* (on g: kept with the village it is about. mines.js mIronSpare) */
+  g.ironSpare = wIronHeld(g) ? W_IRON_HOLD : M_IRON_SPARE;   /* (on g: kept with the village it is about. mines.ts mIronSpare) */
   g.kiln = wKilnOrders(g);
   for (k = 0; k < g.peasants.length; k++) {
     p = g.peasants[k];
@@ -1441,7 +1467,7 @@ function wStep(g) {
     s = g.sites[k];
     if (s.kind === "quarry" && s.done && !s.benched) { s.benched = true; wBenched(g, s); }
     if (!s.wonder) continue;
-    if (s.handH || s.handD) continue;   /* (in the hand, some of it: looked at when it comes down. hand.js) */
+    if (s.handH || s.handD) continue;   /* (in the hand, some of it: looked at when it comes down. hand.ts) */
     d = wOf(s.kind);
     /* set at last: finished (bFinish waited for it). or under repair with nothing left to put right, the sand that silted
        it gone again by itself, say: mended (else nobody has anything to do at it, so nobody comes to say so, and it is
@@ -1455,7 +1481,7 @@ function wStep(g) {
   if (wCount(g) >= 7) achieve(g, "seven");
 }
 /* what a wonder going up is waiting for, for the readout */
-function wNote(g, s) {
+function wNote(g: Game, s: Site) {
   var d = wOf(s.kind);
   if (d && d.readout) { var r = d.readout(g, s); if (r) return r; }
   if (s.done) return "";
@@ -1468,9 +1494,9 @@ function wNote(g, s) {
   if (pr && !bCanPay(g, null, s, e) && wPocketed(g, pr.r === "wood" ? "boards" : pr.r) + (pr.r === "wood" ? wPocketed(g, "logs") * B_BOARDS : 0) < pr.n) return "waiting for " + pr.r;
   return Math.round(bShare(g, s) * 100) + "% up, " + wCrew(g, s) + " of " + wCap(g) + " at it";
 }
-function wLabel(s) { var d = wOf(s.kind); return d ? (d.label ? d.label(s) : "the " + d.id) : (s.kind === "quarry" ? "the quarry" : ""); }
+function wLabel(s: Site) { var d = wOf(s.kind); return d ? (d.label ? d.label(s) : "the " + d.id) : (s.kind === "quarry" ? "the quarry" : ""); }
 /* a wonder of ours is finished: news, a tale, an achievement. true if it was one of ours */
-function wFinish(g, s, p) {
+function wFinish(g: Game, s: Site, p: Peasant) {
   if (s.kind === "quarry") return true;
   var d = wOf(s.kind);
   if (!d) return false;
@@ -1488,7 +1514,7 @@ function wFinish(g, s, p) {
   }
   return true;
 }
-function wMood(g, p) {
+function wMood(g: Game, p: Peasant) {
   var k = p.task, s;
   if (p.aboard && !hAboardOf(g, p)) return "is shut in the rocket, waiting for somewhere to get out to";
   if (!k) return (p.mortar || 0) >= 1 ? "is carrying a pail of wet concrete. it is going off" : ((p.lump || 0) >= 1 ? "is carrying a lump of concrete that went off. it wants putting down" : "");
@@ -1503,7 +1529,7 @@ function wMood(g, p) {
   return "";
 }
 /* a fire on site s (flames f): part of the show? true while it is (and the brigade is not to come yet) */
-function wPartOfIt(g, s, f) { var d = wOf(s.kind); return !!(d && d.partOfIt && d.partOfIt(g, s, f)); }
+function wPartOfIt(g: Game, s: Site, f) { var d = wOf(s.kind); return !!(d && d.partOfIt && d.partOfIt(g, s, f)); }
 
 /* -------------------------------------------------------------------
    WHERE: wPlot, for any wonder. o = {w (columns), sky (rows of open air
@@ -1517,13 +1543,13 @@ function wPartOfIt(g, s, f) { var d = wOf(s.kind); return !!(d && d.partOfIt && 
    or anything that goes bang. {x0, gy (the ground, column by column),
    hi, lo, score, r (what fit said)} or null
    ------------------------------------------------------------------- */
-function wPlot(g, o) {
+function wPlot(g: Game, o) {
   var prev = wShareOpen(g);
   try { return wPlotIn(g, o, W_GSHARE); } finally { W_GSHARE = prev; }
 }
-function wPlotIn(g, o, S) {
+function wPlotIn(g: Game, o, S) {
   var best = null, W = o.w, pad = o.pad == null ? 3 : o.pad, sky = o.sky || 12, x0, x, y, k, gy, hi, lo, ok, r, sc, pen, top = o.top != null;
-  /* (in the village's range: world.js. o.lo, o.hi: only plots starting at or after lo, and ending before hi) */
+  /* (in the village's range: world.ts. o.lo, o.hi: only plots starting at or after lo, and ending before hi) */
   var xa = Math.max(rLo(g, 6 + pad), o.lo == null ? -1e9 : o.lo), xb = Math.min(rHi(g, 6 + pad), o.hi == null ? 1e9 : o.hi);
   var G = wGroundCols(S, o.floor);
   for (x0 = xa; x0 + W - 1 < xb; x0++) {
@@ -1542,7 +1568,7 @@ function wPlotIn(g, o, S) {
       pen = o.edge ? Math.min(x0 - vRange(g).x0, vRange(g).x1 + 1 - x0 - W) * 0.15 : Math.abs(x0 + W / 2 - (o.near || rMid(g))) * 0.1;
       if ((best && o.top - pen <= best.score) || (o.over != null && o.top - pen <= o.over)) continue;
     }
-    if (g.tip && x0 <= g.tip.x + 8 && x0 + W - 1 >= g.tip.x - 8) continue;   /* (the heap: tidy.js. its site has room about it already) */
+    if (g.tip && x0 <= g.tip.x + 8 && x0 + W - 1 >= g.tip.x - 8) continue;   /* (the heap: tidy.ts. its site has room about it already) */
     if (wSandNo(g, x0, x0 + W - 1)) continue;   /* (where a great work was given up to the sand lately) */
     for (k = 0; k < g.sites.length && ok; k++) {
       var t = g.sites[k];
@@ -1568,16 +1594,16 @@ function wPlotIn(g, o, S) {
    them for anything in the way; the next plot over, one column along, looks at all but one of the same columns again.
    nothing a plot looks at changes the world while it looks (a fit only reads it), so each column is looked down once
    and remembered while the plotting lasts: W_GSHARE, {g, cols (the ground, by floor: wGroundCols), hz and nx (each
-   column's hazards, and the next thing in it that is not air: wLookCol), rows (the floors: monuments.js mPlotAny)}.
+   column's hazards, and the next thing in it that is not air: wLookCol), rows (the floors: monuments.ts mPlotAny)}.
    wPlot keeps one while it plots, and so does a plan that plots more than once over the same world (mPlotAny, every
    floor; the theatre, either way about: mPlanTheatre). wShareOpen gives back the one before, to put back after (in a
    finally): never kept over anything that changes the world */
 var W_GSHARE = null;
 /* (what a plot is not to be over, by material: wet, hot, a drain, or something that goes bang) */
 var W_HZ = AIRY.map(function (v, c) { return LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c] ? 1 : 0; });
-function wShareOpen(g) {
+function wShareOpen(g: Game) {
   var prev = W_GSHARE;
-  if (!prev || prev.g !== g) W_GSHARE = { g: g, gw: g.gw, gh: g.gh, cols: {}, hz: null, nx: null, seen: null, rows: null, mk: null, mkSeen: null, mkOf: null };   /* (mk: build.js bMarkedCol) */
+  if (!prev || prev.g !== g) W_GSHARE = { g: g, gw: g.gw, gh: g.gh, cols: {}, hz: null, nx: null, seen: null, rows: null, mk: null, mkSeen: null, mkOf: null };   /* (mk: build.ts bMarkedCol) */
   return prev;
 }
 /* the ground wPlot stands a plot on, column by column: mGround (or the floor's, mGroundNear), if it is firm and not too
@@ -1586,19 +1612,19 @@ function wGroundCols(S, floor) {
   var key = floor == null ? "sky" : "f" + floor;
   return S.cols[key] || (S.cols[key] = new Int32Array(S.gw).fill(-2));
 }
-function wGroundCol(g, G, x, floor) {
+function wGroundCol(g: Game, G, x: number, floor) {
   if (x < 0 || x >= G.length) return wGroundAt(g, x, floor);
   var y = G[x];
   if (y === -2) y = G[x] = wGroundAt(g, x, floor);
   return y;
 }
-function wGroundAt(g, x, floor) {
-  var y = floor != null ? mGroundNear(g, x, true, floor) : mGround(g, x, true);   /* (floor: the floor about level with that row, under a shelf, say: monuments.js) */
+function wGroundAt(g: Game, x: number, floor) {
+  var y = floor != null ? mGroundNear(g, x, true, floor) : mGround(g, x, true);   /* (floor: the floor about level with that row, under a shelf, say: monuments.ts) */
   return y < 10 || !pSolid(g, x, y) ? -1 : y;
 }
 /* column x, looked down once: hz, how many cells wet, hot, a drain or that go bang there are over each row (a running
    count, gh + 1 to a column), and nx, the first row at or under each that is not air (gh if none) */
-function wLookCol(g, S, x) {
+function wLookCol(g: Game, S, x: number) {
   var gw = S.gw, gh = S.gh, m = g.m, H = W_HZ, base = x * (gh + 1), y, n = 0;
   if (!S.hz) { S.hz = new Uint16Array(gw * (gh + 1)); S.nx = new Uint16Array(gw * (gh + 1)); S.seen = new Uint8Array(gw); }
   var hz = S.hz, nx = S.nx;
@@ -1610,7 +1636,7 @@ function wLookCol(g, S, x) {
   return base;
 }
 /* anything wet, hot, a drain or that goes bang in column x, rows a .. b (under the bottom of the world: stone) */
-function wHazardCol(g, S, x, a, b) {
+function wHazardCol(g: Game, S, x: number, a, b) {
   var y, c;
   if (x < 0 || x >= S.gw || a < 0) {
     for (y = a; y <= b; y++) { c = pCell(g, x, y); if (LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c]) return true; }
@@ -1622,7 +1648,7 @@ function wHazardCol(g, S, x, a, b) {
 }
 /* column x clear from row a down to the ground (row e, not included): every cell in it air, or what a spade or an axe
    clears and nobody's (each of those put on clear, top down). false at the first that is not */
-function wClearCol(g, S, x, a, e, clear) {
+function wClearCol(g: Game, S, x: number, a: number, e, clear) {
   var y, c;
   if (x < 0 || x >= S.gw || a < 0) {
     for (y = a; y < e; y++) {
@@ -1644,7 +1670,7 @@ function wClearCol(g, S, x, a, e, clear) {
 /* would plan (by a lake, on its bank or out over it) leave somebody in the water with no way out of it that they had
    before: a deck laid over the only beach, say. looked at from the water's top and its floor, a few columns out
    from xa .. xb, with the plan put in for the moment it looks (and taken out again) */
-function wSeals(g, plan, xa, xb) {
+function wSeals(g: Game, plan, xa: number, xb) {
   var starts = [], x, y, k, j, d, sd, held = [], ok = true, G = pDryGoal(g);
   for (sd = -1; sd <= 1; sd += 2) for (d = 1; d <= 30; d += 4) {
     x = sd < 0 ? xa - d : xb + d;
@@ -1665,7 +1691,7 @@ function wSeals(g, plan, xa, xb) {
 }
 /* the ground under a great work made level at row F (the floor's row: solid, under it all): dug off where it is higher,
    made up in stone where it is lower, a terrace, from the ground up. {plan, work} or null */
-function wTerrace(g, x0, gy, F) {
+function wTerrace(g: Game, x0: number, gy: number[], F) {
   var plan = [], work = 0, u, x, y, c, e;
   for (u = 0; u < gy.length; u++) {
     x = x0 + u;
@@ -1684,15 +1710,15 @@ function wTerrace(g, x0, gy, F) {
 /* a terrace's phase, row by row: the bottom row first, all the way along, then the next. built a cell at a time
    wherever it touches something, it would go in from the side walls over the rows under it, and leave those where
    nobody standing on top can reach them (a phase between the clearing, 0, and anything of the wonder's own, 1 on) */
-function wFillPh(y) { return 1 - y / 1000; }
+function wFillPh(y: number) { return 1 - y / 1000; }
 /* the clearing of a plot: every bush and tree over it out first (phase 0), then the plan */
-function wCleared(g, r, plan) {
+function wCleared(g: Game, r, plan) {
   var out = [];
   for (var k = 0; k < r.clear.length; k++) out.push(bE(g, r.clear[k][0], r.clear[k][1], MAT.EMPTY, 0));
   return out.concat(plan);
 }
 /* the houses' middle: where the village is */
-function wMiddle(g) {
+function wMiddle(g: Game) {
   var n = 0, x = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "house") { n++; x += g.sites[k].cx; }
   return n ? x / n : rMid(g);
@@ -1701,7 +1727,7 @@ function wMiddle(g) {
 /* -------------------------------------------------------------------
    THE HEADER: WONDERS n/12, and the hover
    ------------------------------------------------------------------- */
-function wRows(g, R) {
+function wRows(g: Game, R) {
   var k, d, s, n = wCount(g);
   R.push(["=", "standing", n, W_TOTAL, "#ffd94a"]);
   var up = wSites(g).filter(function (s) { return !s.done; });
@@ -1728,21 +1754,21 @@ function wRows(g, R) {
 /* -------------------------------------------------------------------
    DRAWING
    ------------------------------------------------------------------- */
-function wPut(g, x, y, col, glow) {
+function wPut(g: Game, x: number, y: number, col: number, glow?: boolean) {
   if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) return;
   var i = y * g.gw + x;
   g.px[i] = col;
   if (glow) g.gpx[i] = col;
 }
 /* only over thin air: something drawn behind the world (a colonnade, a backdrop) */
-function wBack(g, x, y, col, f) {
+function wBack(g: Game, x: number, y: number, col: number, f?) {
   if (x < 0 || y < 0 || x >= g.gw || y >= g.gh) return;
   var i = y * g.gw + x;
   if (g.m[i] === MAT.EMPTY) g.px[i] = f == null ? col : blend32(g.px[i], col, f);
 }
-function wDraw(g) {
+function wDraw(g: Game) {
   var hot = 0, k, s, d;
-  /* (and what is in the sky, whatever site it came of: falling stars, a rocket, a flag on the moon. heavens.js) */
+  /* (and what is in the sky, whatever site it came of: falling stars, a rocket, a flag on the moon. heavens.ts) */
   for (k = 0; k < W_DEFS.length; k++) if (W_DEFS[k].sky) hot += W_DEFS[k].sky(g) || 0;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
@@ -1751,7 +1777,7 @@ function wDraw(g) {
   }
   return hot;
 }
-function wDrawOver(g) {
+function wDrawOver(g: Game) {
   var k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];

@@ -1,7 +1,7 @@
 /* =====================================================================
    PLEASAND  --  test/storeys.js
 
-   a crowded valley (storeys.js, docs/storeys-plan.md): a flat on top of
+   a crowded valley (storeys.ts, docs/storeys-plan.md): a flat on top of
    a house, its gable off and its ladder up, a second one on top of a
    stone one, and who lives in them.
    required by test/run.js

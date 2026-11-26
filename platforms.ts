@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  platforms.js
+   PLEASAND  --  platforms.ts
 
    when the ground is full and the roofs will take no more floors
    (docs/platforms-plan.md). somebody sleeping rough, with nowhere left
@@ -18,6 +18,15 @@
    ===================================================================== */
 "use strict";
 
+/* (what this file keeps in g) */
+interface Game {
+  plSpotT?: number; plSpotOk?: boolean; plJoinNo?: number; noDeckT?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  grow?: any; joins?: any; hx0?: any; P?: any; fy?: any;
+}
+
 var PL_W = 19;               /* a deck: a house (11) and four either side, for its doors and a flat's ladders */
 var PL_LEG = 36;             /* rows, at most, from a deck down to whatever a leg stands on: lowered from the deck (§3.3) */
 var PL_LAD = 40;             /* and down to the foot of its ladder, which is built from itself, a rung at a time */
@@ -28,7 +37,7 @@ var PL_ROOM = 16;            /* rows of air over a deck: a house's room and roof
 var PL_NEAR = 70;            /* how far along the valley a planner looks */
 /* what a deck may come down to three rows over: roofs, which nobody stands on (a lantern hangs under the eaves) */
 var PL_ROOFED = { house: 1, storey: 1, lamp: 1 };
-function plRoofed(g, x, y) {
+function plRoofed(g: Game, x: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (PL_ROOFED[s.kind] && x >= s.x0 && x <= s.x1 && y >= s.y0 && y <= s.y1) return true; }
   return false;
 }
@@ -41,10 +50,10 @@ var PL_UNDER = { deck: 1, foundry: 1, furnace: 1, moonrocket: 1, observatory: 1,
    WHERE A DECK GOES
    ------------------------------------------------------------------- */
 var PL_WHY = "";
-function plWhy(w) { PL_WHY = w; return null; }
+function plWhy(w: string) { PL_WHY = w; return null; }
 /* the top of what is under column x, from row y0 down: {y, clear} (the row a deck must be above, by how much), or null
    if something there will not have a deck over it */
-function plTop(g, x, y0) {
+function plTop(g: Game, x: number, y0: number) {
   var y, c, k, s, top = 1e9, clear = PL_OVER_GROUND;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
@@ -75,7 +84,7 @@ function plTop(g, x, y0) {
 }
 /* a column of a leg or a ladder, from row y0 down to the ground: the ground's row (the first solid cell), or -1. a leg
    (roof: true) may stand on a house's roof, the top of it, with air over it: a post on the ridge */
-function plFoot(g, x, y0, most, roof) {
+function plFoot(g: Game, x: number, y0: number, most: number, roof?: boolean) {
   for (var y = y0; y <= y0 + most && y < g.gh - 1; y++) {
     var c = pCell(g, x, y);
     if (roof && bMarked(g, x, y) && SOLID[c] && !P_PASS[c] && (c === MAT.PLANK || c === MAT.BRICK) && plRoofAt(g, x, y)) return y;
@@ -87,7 +96,7 @@ function plFoot(g, x, y0, most, roof) {
   return -1;
 }
 /* is (x, y) the top of a house's (or a flat's) roof */
-function plRoofAt(g, x, y) {
+function plRoofAt(g: Game, x: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if ((s.kind === "house" || s.kind === "storey") && !s.hut && s.done && x >= s.x0 && x <= s.x1 && y >= s.y0 && y <= s.F - 11) return true;
@@ -95,7 +104,7 @@ function plRoofAt(g, x, y) {
   return false;
 }
 /* the row of a deck at xa .. xb: over what is under it, and up over whatever is just beyond its ends; or null */
-function plRow(g, xa, xb, tops0, Pmax) {
+function plRow(g: Game, xa: number, xb: number, tops0, Pmax: number) {
   var x, y, t, P = 1e9;
   for (x = xa; x <= xb; x++) {
     t = tops0 ? (x in tops0 ? tops0[x] : (tops0[x] = plTop(g, x, 10))) : plTop(g, x, 10);   /* (plFind's: worked out once a column) */
@@ -119,7 +128,7 @@ function plRow(g, xa, xb, tops0, Pmax) {
 }
 /* a deck at columns xa .. xa + W - 1, its ladder at end d (-1 left, +1 right): outside that end, or (inside) up through
    the deck near it. the house goes at the other end. the plan's geometry, or null */
-function plPlan(g, xa, W, d, inside, tops0, Pmax) {
+function plPlan(g: Game, xa: number, W: number, d: number, inside: boolean, tops0, Pmax?: number) {
   var gw = g.gw, xb = xa + W - 1, x, y, k, t, P = 1e9;
   if (xa < 8 || xb > gw - 9) return plWhy("edge");
   var memo = tops0 && Pmax == null ? "a" + xa + "w" + W : null;   /* (the row and the air over it: the same whichever end the ladder is at. plFind's) */
@@ -149,7 +158,7 @@ function plPlan(g, xa, W, d, inside, tops0, Pmax) {
 /* the legs of a deck at xa .. xb, row P, held up at its near end d (by its ladder, or the deck it meets): one wherever
    a span with nothing under it would be too long, and one under the far end. rest: columns of its own (an inside
    ladder) that hold it up too. a list of {x, gy}, or null */
-function plLegs(g, xa, xb, P, d, rest) {
+function plLegs(g: Game, xa, xb: number, P, d: number, rest) {
   var legs = [], last = d > 0 ? xb + 1 : xa - 1, far = d > 0 ? xa : xb, step = -d, k;
   for (var guard = 0; ; guard++) {
     if (guard > 8) return plWhy("legs");
@@ -173,7 +182,7 @@ function plLegs(g, xa, xb, P, d, rest) {
 }
 /* a ladder up to row P with its middle column cx, from the deck end d: the row its climber stands at the foot of it, or
    -1 */
-function plLadder(g, cx, P, d, inside) {
+function plLadder(g: Game, cx: number, P: number, d: number, inside: boolean) {
   var k, y, fy = -1;
   for (k = -1; k <= 1; k++) {
     var f = plFoot(g, cx + k, P + (inside ? 1 : 0), PL_LAD);
@@ -191,15 +200,15 @@ function plLadder(g, cx, P, d, inside) {
   return fy;
 }
 /* which way a deck can be run on from: away from its ladder, or the way the street it is the end of grows */
-function plGrow(s) { return s.grow || -s.d; }
+function plGrow(s: Site) { return s.grow || -s.d; }
 /* the deck that has been run on from deck D's growing end, if any */
-function plNext(g, D) {
+function plNext(g: Game, D) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "deck" && g.sites[k].joins && g.sites[k].joins[0] === D.id) return g.sites[k];
   return null;
 }
 /* a deck W wide run on from the growing end of deck D, at its row: the high street. no ladder: the way up is D's (or the
    ladder of the deck D was run on from, and so on). the plan's geometry, or null */
-function plJoin(g, D, W, tops0, rows) {
+function plJoin(g: Game, D, W: number, tops0, rows?: number[]) {
   var gw = g.gw, grow = plGrow(D), xa = grow > 0 ? D.xb + 1 : D.xa - W, xb = xa + W - 1, x, t;
   if (xa < 8 || xb > gw - 9 || plNext(g, D) || !D.done) return plWhy("edge");
   var lo = 1e9, why = "under";
@@ -224,7 +233,7 @@ function plJoin(g, D, W, tops0, rows) {
 var PL_STEP = 3, PL_HOP = 12, PL_JOIN_ROWS = [0];
 for (var plk = 1; plk <= PL_HOP; plk++) PL_JOIN_ROWS.push(-plk, plk);
 var PL_STEP_ROWS = PL_JOIN_ROWS.slice(0, 2 * PL_STEP + 1);
-function plJoinAt(g, D, xa, xb, P, grow) {
+function plJoinAt(g: Game, D, xa, xb: number, P, grow) {
   var x, y, xn = grow > 0 ? xa : xb, xd = grow > 0 ? xa - 1 : xb + 1;   /* (its near end, and D's own end cell) */
   var hop = Math.abs(P - D.P) > PL_STEP, y0 = Math.min(P, D.P), y1 = hop ? P : Math.max(P, D.P), jl = null;
   if (hop) { jl = plJoinLadder(g, D, xa, xb, P, grow); if (!jl) return null; y0 = Math.min(P, jl.top); }
@@ -249,7 +258,7 @@ function plJoinAt(g, D, xa, xb, P, grow) {
    lower deck up to the upper one's row, the top rung beside the upper deck's end cell, so a climber steps off onto it
    (bStepOff). higher: it stands on D's last three cells. lower: it hangs from beside D's end, over the new deck's
    first three, and is put up from the top. {cx, top, bot, hang}, or null */
-function plJoinLadder(g, D, xa, xb, P, grow) {
+function plJoinLadder(g: Game, D, xa, xb: number, P, grow) {
   var up = P < D.P, cx, top, bot, x, y;
   if (up) { cx = grow > 0 ? D.xb - 1 : D.xa + 1; top = P; bot = D.P - 1; }
   else { cx = grow > 0 ? xa + 1 : xb - 1; top = D.P; bot = P - 1; }
@@ -264,13 +273,13 @@ function plJoinLadder(g, D, xa, xb, P, grow) {
 }
 var PL_WIDTHS = [19, 23, 27, 31], PL_STREET_UP = 8;
 /* could a deck be run on from r's far end, once it is built (plJoin, on a deck that is not there yet) */
-function plStreetReady(g, r, tops0) {
+function plStreetReady(g: Game, r, tops0) {
   /* (at its row, or a step from it: the hops are not looked at for every deck plFind weighs. they are slow, and a
      street that hops is the lucky kind) */
   return !!plJoin(g, { kind: "deck", id: -1, xa: r.xa, xb: r.xb, P: r.P, d: r.d, done: true }, PL_WIDTHS[0], tops0, PL_STEP_ROWS);
 }
 /* the row a deck run on from r's far end (the narrowest) would want: what is under it there, or null if nothing can go */
-function plStreetRow(g, r, tops0) {
+function plStreetRow(g: Game, r, tops0) {
   var W = PL_WIDTHS[0], xa = r.d > 0 ? r.xa - W : r.xb + 1, P = 1e9, t;
   if (xa < 8 || xa + W - 1 > g.gw - 9) return null;
   for (var x = xa; x < xa + W; x++) {
@@ -283,7 +292,7 @@ function plStreetRow(g, r, tops0) {
 /* everywhere within reach of x, best first: a deck run on from one already there (the high street), then the shortest
    legs, then the shortest deck, then the nearest */
 /* the best deck run on from one already there, within reach of x: the high street (or null). cheap: a handful of plJoins */
-function plFindJoin(g, fx, tops) {
+function plFindJoin(g: Game, fx: number, tops?) {
   var best = null, bs = 1e9;
   tops = tops || {};
   for (var k = 0; k < g.sites.length; k++) {
@@ -298,7 +307,7 @@ function plFindJoin(g, fx, tops) {
   }
   return best;
 }
-function plFind(g, fx) {
+function plFind(g: Game, fx: number) {
   var tops = {}, best = plFindJoin(g, fx, tops), bs = 1e9;
   if (best) return best;
   for (var xa = fx - PL_NEAR - 31; xa <= fx + PL_NEAR; xa++) for (var d = -1; d <= 1; d += 2) for (var j = 0; j < PL_WIDTHS.length; j++) for (var n = 0; n < 2; n++) {
@@ -336,12 +345,12 @@ IDEAS.push({ id: "deck", fresh: true, name: "the platform", title: "PLATFORMS",
   hint: "storeys with nowhere left to go, and a night on the ground",
   ready: function (g) { return plReady(g); } });
 
-function plReady(g) {
+function plReady(g: Game) {
   return !!g.know.storey && g.noStoreyT != null && g.tick - g.noStoreyT < S_CROWD_T && sCrowded(g) && plSomewhere(g);
 }
 /* is there anywhere, near somebody sleeping rough, for a deck: nobody thinks of one there is no room for (looked for
    once in a while: plFind is not cheap) */
-function plSomewhere(g) {
+function plSomewhere(g: Game) {
   if (g.plSpotT != null && g.tick - g.plSpotT < 3000) return !!g.plSpotOk;
   var ok = false, n = 0;
   for (var k = 0; k < g.peasants.length && !ok && n < 3; k++) {
@@ -351,13 +360,13 @@ function plSomewhere(g) {
   g.plSpotT = g.tick; g.plSpotOk = ok;
   return ok;
 }
-function plGoingUp(g) {
+function plGoingUp(g: Game) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "deck" && !g.sites[k].done) return true;
   return false;
 }
 /* somebody homeless, crowded out of the ground and the roofs, with the wood to start: a deck, the best within reach.
    (cd0: their planCD before sTry looked for a storey this tick, and set it when it found none) */
-function plTry(g, p, cd0) {
+function plTry(g: Game, p: Peasant, cd0: number) {
   if (!g.know.deck || (arguments.length > 2 ? cd0 : p.planCD) || bHome(g, p) || bOwnsSite(g, p) || !sCrowded(g)) return false;
   if (sGoingUp(g) || plGoingUp(g) || bOpenCount(g) >= B_OPEN) return false;
   /* (with the wood to start, anywhere; without it, only the high street run on: the cheap one, no ladder to the ground,
@@ -371,7 +380,7 @@ function plTry(g, p, cd0) {
   return true;
 }
 /* the plan, from plPlan's geometry, and the site */
-function plCommit(g, p, r) {
+function plCommit(g: Game, p: Peasant, r) {
   var plan = [], x, y, k, e, L, W = g.know.masonry && bStoneToHand(g) >= 30 ? MAT.BRICK : MAT.PLANK;
   /* the ladder, a rung at a time from its foot */
   var xl = r.lad - 1;
@@ -416,12 +425,12 @@ function plCommit(g, p, r) {
   return s;
 }
 /* finished: a house goes up on it, for whoever planned it (or whoever has no home) */
-function plFinish(g, s, p) {
+function plFinish(g: Game, s: Site, p: Peasant) {
   feed(g, (p ? p.name : "the village") + " finished the platform", "#a8e08a", "plan" + s.id);
   if (s.joins.length) achieve(g, "highstreet");
   plHouseOn(g, s);
 }
-function plHouseOn(g, s) {
+function plHouseOn(g: Game, s: Site) {
   if (s.house && bSite(g, s.house)) return null;
   var q = bOwner(g, s);
   if (!q || q.dead || bHome(g, q) || bOwnsSite(g, q)) {
@@ -443,12 +452,12 @@ function plHouseOn(g, s) {
 /* -------------------------------------------------------------------
    THE GOINGS ON: every 30 ticks, from sStep
    ------------------------------------------------------------------- */
-function plStep(g) {
+function plStep(g: Game) {
   if (!g.know.deck) return;
   plChatter(g);
   for (var k = g.sites.length - 1; k >= 0; k--) {
     var s = g.sites[k];
-    if (s.handH || s.handD) continue;   /* (in the hand, or in the lake and not yet out: looked at when it comes down. hand.js) */
+    if (s.handH || s.handD) continue;   /* (in the hand, or in the lake and not yet out: looked at when it comes down. hand.ts) */
     /* a house on a deck that is gone: gone with it */
     if (s.kind === "house" && s.deck && !bSite(g, s.deck)) {
       var o = bOwner(g, s);
@@ -466,7 +475,7 @@ function plStep(g) {
   }
 }
 var PL_DIG = 10;   /* how far down a builder stood on a heap digs for a buried rung */
-function plTrim(g, s) {
+function plTrim(g: Game, s: Site) {
   var gw = g.gw, cut = 0, k, e;
   /* (a rung left waiting is still waiting while what is over it is loose stuff, the rungs over it put back or not) */
   for (k = 0; k < s.plan.length; k++) {
@@ -495,44 +504,44 @@ function plTrim(g, s) {
   }
   return cut;
 }
-/* could a home come of a deck: one going up, or finished and waiting for its house (storeys.js sAnyHome) */
-function plAnyHome(g) {
+/* could a home come of a deck: one going up, or finished and waiting for its house (storeys.ts sAnyHome) */
+function plAnyHome(g: Game) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind === "deck" && (!s.done || !(s.house && bSite(g, s.house)))) return true;
   }
   return false;
 }
-/* a deck carries a house: it is mended, never given up (build.js bInspect) */
-function plCarries(g, s) {
+/* a deck carries a house: it is mended, never given up (build.ts bInspect) */
+function plCarries(g: Game, s: Site) {
   if (s.kind !== "deck") return false;
   /* (and a deck the street runs on from carries the houses further along: their only way up is its ladder) */
   for (var b = s, n = 0; b && n++ < 30; b = plNext(g, b)) if (b.house && bSite(g, b.house)) return true;
   return false;
 }
-function plLabel(s) { return s.who ? pTitle(s.who) + "'s platform" : "the platform"; }
+function plLabel(s: Site) { return s.who ? pTitle(s.who) + "'s platform" : "the platform"; }
 /* the decks of the street deck s is in, from its ladder's end (s itself, alone, if it meets no other) */
-function plStreet(g, s) {
+function plStreet(g: Game, s: Site) {
   var out = [s], b = s, n = 0, nx;
   while (b.joins && b.joins.length && (nx = bSite(g, b.joins[0])) && n++ < 30) { out.unshift(nx); b = nx; }
   for (b = s, n = 0; (nx = plNext(g, b)) && n++ < 30; b = nx) out.push(nx);
   return out;
 }
 /* (the hover) */
-function plNote(g, s) {
+function plNote(g: Game, s: Site) {
   if (s.kind !== "deck") return "";
   var st = plStreet(g, s);
   if (st.length < 2) return "";
   var houses = st.filter(function (d) { return d.house && bSite(g, d.house); }).length;
   return " (THE HIGH STREET: " + st.length + " PLATFORMS, " + houses + (houses === 1 ? " HOUSE)" : " HOUSES)");
 }
-/* (tidy.js) a site other than a deck whose box is at (x, y) */
-function plSiteUnder(g, x, y) {
+/* (tidy.ts) a site other than a deck whose box is at (x, y) */
+function plSiteUnder(g: Game, x: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.kind !== "deck" && x >= s.x0 && x <= s.x1 && y >= s.y0 && y <= s.y1) return s; }
   return null;
 }
-/* (tidy.js) a house or a flat with a deck within nine rows over its roof: nobody can stand up there to sweep it */
-function plOverRoof(g, s) {
+/* (tidy.ts) a house or a flat with a deck within nine rows over its roof: nobody can stand up there to sweep it */
+function plOverRoof(g: Game, s: Site) {
   if (s.kind !== "house" && s.kind !== "storey") return false;
   for (var k = 0; k < g.sites.length; k++) {
     var d = g.sites[k];
@@ -550,7 +559,7 @@ P_SAY.underWake = ["no backache! well. less", "slept like a plank", "the ducks s
 var PL_UNDER_R = 60;
 /* (bTaskSleep, for somebody with no home) one tick of going to sleep under a deck: true or false as bTaskSleep would say,
    or undefined if there is nowhere (so they nap where they stand, as they always did) */
-function plUnder(g, p, k) {
+function plUnder(g: Game, p: Peasant, k: Task) {
   if (k.t > 1500 || k.ux === -1) return undefined;
   if (k.ux == null) {
     var best = null, bd = 1e9;
@@ -591,7 +600,7 @@ P_SAY.wheee = ["WHEEE", "shortcut!", "the ladder's for visitors", "GERONIMOOO"];
 P_SAY.deckOver = ["mind your heads down there!", "sorry about the stomping", "lovely view of your chimney"];
 P_SAY.deckUnder = ["who's that walking about up there", "you're dripping on my roof", "keep it down up there!"];
 /* (every 30 ticks, from plStep) */
-function plChatter(g) {
+function plChatter(g: Game) {
   var k, j, s, p;
   for (k = 0; k < g.peasants.length; k++) {
     p = g.peasants[k];

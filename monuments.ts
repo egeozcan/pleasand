@@ -1,7 +1,7 @@
 /* =====================================================================
-   PLEASAND  --  monuments.js
+   PLEASAND  --  monuments.ts
 
-   the great works in stone (wonders.js has what they share):
+   the great works in stone (wonders.ts has what they share):
      THE THEATRE   a plank stage with a backdrop and two lanterns, and
                    three tiers of stone seats, stepped into a slope (or
                    built up where there is none). every so often, a
@@ -32,6 +32,20 @@
                    home when things go bang, it is where they hide
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps in g) */
+interface Game {
+  wPyrFame?: number;
+  curseSlips?: any;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  rodHits?: number;
+  bailed?: any;
+  wonder?: boolean; d?: number; tw?: number; play?: any; playT?: number; seats?: any; cx0?: any; cy0?: number;
+  capWatch?: boolean; sealed?: boolean; open?: boolean; tomb?: any; cursedOne?: number; servT?: number; niches?: any;
+  serv?: any; glazed?: boolean; glazes?: any; bailNo?: number; floodNews?: number; named?: any; services?: any;
+}
 
 /* -------------------------------------------------------------------
    THE THEATRE
@@ -66,7 +80,7 @@ var M_SCRIPTS = {
   death: [{ r: 0, pose: "stand", line: "{line}" }, { r: 0, fall: 1, line: "oh" }, { r: 1, pose: "eatB", line: "we'll remember you, {s}" }],
   ice: [{ r: 0, pose: "walkA", dx: 3, line: "la la la" }, { r: 0, fall: 1, line: "WHOA" }, { r: 1, pose: "eatB", line: "salt. we need salt" }],
   zap: [{ r: 0, pose: "stand", line: "what a lovely sky" }, { r: 1, pose: "fling", line: "*CRACK*" }, { r: 0, fall: 1, line: "ow" }],
-  /* (the hand, played by the second actor: hand.js) */
+  /* (the hand, played by the second actor: hand.ts) */
   flew: [{ r: 0, pose: "stand", line: "i am {s}. this is my house" }, { r: 1, pose: "fling", line: "*is the hand*" },
          { r: 0, pose: "panicA", line: "MY HOUSE" }, { r: 1, leap: 1.2, line: "*throws it*" }, { r: 0, fall: 1, line: "oh" }],
   moved: [{ r: 0, pose: "sleep", line: "zzz" }, { r: 1, dx: 4, pose: "walkA", line: "*is the hand, carrying a house*" },
@@ -104,7 +118,7 @@ wDef({
 /* the plot cleared first (wCleared), but not where something of the plan goes in anyway: a bush where the stone goes
    is built over, and a hole cleared there on a slope only fills up again with whatever runs down into it. and leaves
    in the air over it are let be (peasants walk through leaves; and the top of a tree beside it is out of reach) */
-function mCleared(g, r, plan) {
+function mCleared(g: Game, r, plan) {
   var at = {}, k;
   for (k = 0; k < plan.length; k++) if (plan[k].v !== MAT.EMPTY) at[plan[k].i] = 1;
   return wCleared(g, r, plan).filter(function (e, k2) {
@@ -115,12 +129,12 @@ function mCleared(g, r, plan) {
 }
 /* wPlot, on the ground under open sky, and on every other floor of the valley too (under a shelf of rock, on a ledge):
    whichever is best. a crowded valley has room on some floor more often than on the top one */
-function mPlotAny(g, o) {
-  /* (every floor's plotting looks at the same world: what it looks at is looked at once. wonders.js W_GSHARE) */
+function mPlotAny(g: Game, o) {
+  /* (every floor's plotting looks at the same world: what it looks at is looked at once. wonders.ts W_GSHARE) */
   var prev = wShareOpen(g);
   try { return mPlotAnyIn(g, o, W_GSHARE); } finally { W_GSHARE = prev; }
 }
-function mPlotAnyIn(g, o, S) {
+function mPlotAnyIn(g: Game, o, S) {
   var best = wPlot(g, o), rows = S.rows, x, k, L, F;
   if (!rows) {
     rows = S.rows = {};
@@ -137,9 +151,9 @@ function mPlotAnyIn(g, o, S) {
 }
 /* the theatre's columns, stage end first: u (0 .. M_TW - 1) to x */
 var M_TW = 17;   /* the theatre, across: the stage (seven), the pit (one), three tiers of three */
-function mU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + (s.tw || M_TW) - 1 - u; }   /* (s.tw: its own width, kept on it when planned) */
-function mPlanTheatre(g, p) {
-  var best = null, prev = wShareOpen(g);   /* (either way about, the same world looked at: looked at once, for both. wonders.js W_GSHARE) */
+function mU(s: Site, u) { return s.d > 0 ? s.x0 + u : s.x0 + (s.tw || M_TW) - 1 - u; }   /* (s.tw: its own width, kept on it when planned) */
+function mPlanTheatre(g: Game, p: Peasant) {
+  var best = null, prev = wShareOpen(g);   /* (either way about, the same world looked at: looked at once, for both. wonders.ts W_GSHARE) */
   try {
     for (var d = -1; d <= 1; d += 2) {
       var r = mPlotAny(g, { w: M_TW, sky: 14, rough: 14, near: wMiddle(g), fit: function (g, x0, gy) { return mTheatreFit(g, x0, gy, d); } });
@@ -147,7 +161,7 @@ function mPlanTheatre(g, p) {
     }
   } finally { W_GSHARE = prev; }
   if (!best) return false;
-  var f = best.r, plan = mCleared(g, best, f.plan), G = f.G, x0 = best.x0, d = best.d;
+  var f = best.r, plan = mCleared(g, best, f.plan), G = f.G, x0 = best.x0, d: number = best.d;
   var s = bNew(g, "theatre", p, plan, [x0, G - 14, x0 + M_TW - 1, f.lo], { wonder: true, d: d, G: G, seats: f.seats, playT: 0, tw: M_TW });
   feed(g, p.name + " is building a theatre", "#ffd94a", "plan" + s.id);
   pSay(g, p, "planTheatre", true);
@@ -162,11 +176,11 @@ function mPlanTheatre(g, p) {
      u 8..16   three tiers, three columns each, two up each, stone, with a seat at either end of each
    the stage wants level ground (made up, or dug down, a row or two). the tiers like it rising away from the stage (they
    are cut into it), and do with it flat (built up) */
-function mTheatreFit(g, x0, gy, d) {
+function mTheatreFit(g: Game, x0: number, gy: number, d: number) {
   function X(u) { return d > 0 ? x0 + u : x0 + M_TW - 1 - u; }
   function Gy(u) { return gy[X(u) - x0]; }
   var G = Gy(3), u, y, k, plan = [], seats = [], work = 0, lo = -1, c, e;
-  function dig(x, y) { c = pCell(g, x, y); if (!B_DIG[c] && !AIRY[c] && !mFellable(g, x, y, c)) return false; plan.push(bE(g, x, y, MAT.EMPTY, 0)); work += 0.3; return true; }
+  function dig(x: number, y: number) { c = pCell(g, x, y); if (!B_DIG[c] && !AIRY[c] && !mFellable(g, x, y, c)) return false; plan.push(bE(g, x, y, MAT.EMPTY, 0)); work += 0.3; return true; }
   for (u = 0; u <= 7; u++) if (Math.abs(Gy(u) - G) > 4) return null;
   /* the stage and the pit: the ground under them made level (dug down where it is high, made up in stone where low) */
   for (u = 0; u <= 7; u++) {
@@ -197,9 +211,9 @@ function mTheatreFit(g, x0, gy, d) {
   return { plan: plan, G: G, seats: seats, lo: lo, score: 30 - work + Math.min(rise, 4) * 3 };
 }
 /* the stage: where the actors stand (u 2, 5 and 4), feet on the planks */
-function mMark(s, r) { return { x: mU(s, [2, 5, 4][r] || 3), y: s.G - 3 }; }
+function mMark(s: Site, r) { return { x: mU(s, [2, 5, 4][r] || 3), y: s.G - 3 }; }
 /* the goings on, every W_STRIDE ticks: a play now and then, and the beats of it */
-function mTheatreStep(g, s) {
+function mTheatreStep(g: Game, s: Site) {
   if (!s.done || s.repair) { if (s.play) mEndPlay(g, s, false); return; }
   var P = s.play;
   if (!P) {
@@ -248,8 +262,8 @@ function mTheatreStep(g, s) {
   else if (H.length) { var q = H[irnd(H.length)]; pSay(g, q, pick(M_REACT[P.kind] || M_REACT.any), true); }
 }
 /* the audience: everybody in the seats (or standing at the back) for this play */
-function mHouse(g, s) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "audience" && q.task.site === s.id; }); }
-function mStartPlay(g, s) {
+function mHouse(g: Game, s: Site) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "audience" && q.task.site === s.id; }); }
+function mStartPlay(g: Game, s: Site) {
   var T = (g.tales || []).filter(function (t) { return !t.staged; });
   if (!T.length) { s.playT = g.tick + 2000; return; }
   /* the director: the boredest of the idle. the best tale nobody has staged: not a death, three times in four */
@@ -269,12 +283,12 @@ function mStartPlay(g, s) {
              hat: !subj && tale.dead };
   cast.forEach(function (q, r) { q.task = { kind: "act", site: s.id, r: r, t: 0, on: false }; q.idle = 0; });
   feed(g, "TONIGHT AT THE THEATRE: " + s.play.title.toUpperCase(), "#ffd94a", "play" + s.id);
-  if (typeof pOrganPlay === "function") pOrganPlay(g, "play");   /* (the organ fires up for the interval, if there is one: pleasures.js) */
+  if (typeof pOrganPlay === "function") pOrganPlay(g, "play");   /* (the organ fires up for the interval, if there is one: pleasures.ts) */
   var but = {}; cast.forEach(function (q) { but[q.id] = 1; });
   var front = mU(s, 7);
   wGather(g, s, { seats: s.seats, cap: 99, x: front + s.d, y: s.G - 1, until: g.tick + 3200, kind: "play", face: -s.d, but: but, R: 220 });
 }
-function mEndPlay(g, s, ok) {
+function mEndPlay(g: Game, s: Site, ok: boolean) {
   var P = s.play;
   s.play = null;
   if (P && P.fireT) wTale(g, "stagefire", null, "", s.cx, s.G);   /* (the night the stage caught fire: the next play is about it) */
@@ -290,7 +304,7 @@ function mEndPlay(g, s, ok) {
   if (!g.got.play) { achieve(g, "play"); feed(g, "the first play at the theatre: " + P.title + ". everybody clapped", "#ffd94a", "play" + s.id); }
 }
 /* an actor: onto the mark, facing the house, and doing what the beat says */
-function mTaskAct(g, p, k) {
+function mTaskAct(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.play || ++k.t > 6000) return iDone(p, false);
   var m = mMark(s, k.r), gx = m.x + (k.dx ? -s.d * k.dx : 0);
@@ -306,7 +320,7 @@ function mTaskAct(g, p, k) {
 }
 /* a fire on the stage in the middle of a play: applauded, for a little while. then somebody notices. and that is a
    tale too */
-function mOnStage(g, s, f) {
+function mOnStage(g: Game, s: Site, f) {
   var P = s.play;
   if (!P || !P.on) return false;
   if (!P.fireT) {
@@ -326,7 +340,7 @@ var M_HAT = hex32("#1a1a1a"), M_HAT_BAND = hex32("#a8322a");
 /* the proscenium: a post at the front of the stage, up to the beam. the curtains: one hung full at the back, one tied
    back at the front, and a pelmet along the beam. between them, a painted cloth (a hill, a night, a moon). and the
    lanterns' light. all drawn behind, over thin air: nobody bumps into a curtain */
-function mDrawTheatre(g, s) {
+function mDrawTheatre(g: Game, s: Site) {
   if (!s.done) return 0;
   var G = s.G, u, y, dy, k, hot = 0, x;
   /* (the cloth first, then the drapes over its edges) */
@@ -353,7 +367,7 @@ function mDrawTheatre(g, s) {
   return hot;
 }
 /* somebody in a hat: whoever is playing the dead */
-function mDrawCast(g, s) {
+function mDrawCast(g: Game, s: Site) {
   var P = s.play;
   if (!P || !P.hat || !P.on) return;
   var a = lAlive(g, P.cast[0]);
@@ -398,7 +412,7 @@ wDef({
   readout: function (g, s) { return s.open ? "the tomb is open" : ""; },
   mood: function (g, p, k) { return k.kind === "apex" ? (k.act ? "is on top of the pyramid, looking out" : "is climbing the pyramid") : (k.kind === "audience" && k.of === "capstone" ? "is watching the capstone go on" : ""); }
 });
-function mPlanPyramid(g, p) {
+function mPlanPyramid(g: Game, p: Peasant) {
   var r = wPlot(g, { w: M_PYR_W, sky: 14, rough: 20, edge: true, pad: 2, fit: mPyramidFit });
   if (!r) return false;
   var x0 = r.x0, G = r.r.G, plan = wGild(g, wCleared(g, r, r.r.plan)), lk = g.lastKing || { name: g.thinkerDied || "THE KING", hat: P_HATS[6] };
@@ -411,7 +425,7 @@ function mPlanPyramid(g, p) {
 }
 /* course by course on ground gy at x0: a level row to stand it on (dug down at the high end, made up at the low, as the
    statue's is), each course a cell in on either side, the chamber left in courses two and three, and the capstone */
-function mPyramidFit(g, x0, gy, hi, lo) {
+function mPyramidFit(g: Game, x0: number, gy: number, hi, lo) {
   /* the row it stands on: as low as will keep the chamber and the top of it out in the air, and no more than eight
      courses of made-up ground under the low end */
   var best = null;
@@ -423,7 +437,7 @@ function mPyramidFit(g, x0, gy, hi, lo) {
   for (var k = 0; best && k < g.sites.length; k++) if (g.sites[k].kind === "house" && Math.abs(g.sites[k].cx - (x0 + 11)) < 24) return null;
   return best;
 }
-function mPyramidAt(g, x0, gy, G) {
+function mPyramidAt(g: Game, x0: number, gy: number, G) {
   var plan = [], x, y, c, work = 0, buried = 0;
   for (x = 0; x < M_PYR_W; x++) for (y = gy[x] - 1; y >= G; y--) { plan.push(bE(g, x0 + x, y, MAT.BRICK, 1 + gy[x] - y)); work++; }
   for (c = 0; c < M_PYR_H; c++) {
@@ -443,14 +457,14 @@ function mPyramidAt(g, x0, gy, G) {
   return { plan: plan, G: G, score: 30 - work - buried * 0.5 };
 }
 /* the cells round the chamber: if any of them has gone, the tomb is open */
-function mTombOpen(g, s) {
+function mTombOpen(g: Game, s: Site) {
   for (var x = s.cx0 - 1; x <= s.cx0 + 3; x++) for (var y = s.cy0 - 2; y <= s.cy0 + 1; y++) {
     var inside = x >= s.cx0 && x <= s.cx0 + 2 && y >= s.cy0 && y <= s.cy0 + 1;
     if (!inside && !SOLID[pCell(g, x, y)]) return true;
   }
   return false;
 }
-function mPyramidStep(g, s) {
+function mPyramidStep(g: Game, s: Site) {
   var k, q;
   if (!s.done) {
     /* the capstone, the last of it: everybody idle comes to watch it go on */
@@ -489,7 +503,7 @@ function mPyramidStep(g, s) {
   }
 }
 /* the bored, and the explorers, climb it and look out. the king, now and then, climbs it to say a word for the last one */
-function mPyramidPick(g, p, hungry) {
+function mPyramidPick(g: Game, p: Peasant, hungry) {
   var s = mSites(g, "pyramid", true)[0];
   if (!s || hungry || p.bored < 500 || Math.abs(s.cx - p.x) > 220 || mCrew(g, "apex", s.id) || wNoGo(g, p, s.id)) return false;
   var king = pKing(g) === p;
@@ -497,7 +511,7 @@ function mPyramidPick(g, p, hungry) {
   p.task = { kind: "apex", site: s.id, t: 0, act: 0, spot: s.px, king: king };
   return true;
 }
-function mTaskApex(g, p, k) {
+function mTaskApex(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done) return iDone(p, false);
   var r = mTaskLookout(g, p, k);
@@ -512,7 +526,7 @@ function mTaskApex(g, p, k) {
 }
 var M_TOMB = hex32("#1e1812"), M_TOMB_D = hex32("#161210"), M_SARC = hex32("#8a7a5a");
 /* the chamber: dark, a stone box in it, and the crown on the box */
-function mDrawPyramid(g, s) {
+function mDrawPyramid(g: Game, s: Site) {
   var x, y, hot = 0;
   for (y = s.cy0; y <= s.cy0 + 1; y++) for (x = s.cx0; x <= s.cx0 + 2; x++) wBack(g, x, y, (x + y) & 1 ? M_TOMB : M_TOMB_D);
   if (pCell(g, s.cx0 + 1, s.cy0 + 1) === MAT.EMPTY) wPut(g, s.cx0 + 1, s.cy0 + 1, M_SARC);
@@ -587,9 +601,9 @@ wDef({
   }
 });
 /* the columns, x to u and back */
-function mCX(s, u) { return s.x0 + u; }
+function mCX(s: Site, u) { return s.x0 + u; }
 /* what goes at column u, h rows up from the floor: [what, aux], or null for thin air. ruby: gold for the heart of the rose */
-function mCathCell(u, h, ruby) {
+function mCathCell(u, h, ruby: boolean) {
   var a = Math.abs(u - 8), d;
   if (h <= 9) {
     if (u === 1 || u === 15) return [MAT.DOOR, 10 - h];
@@ -627,18 +641,18 @@ function mCryptCell(u, r) {
   return u >= 5 && u <= 14 ? MAT.EMPTY : -1;
 }
 /* the niches in the crypt's back wall: a lattice, five and four to a row */
-function mNiche(s, n) {
+function mNiche(s: Site, n: number) {
   var row = 0, k = n;
   while (k >= (row & 1 ? 4 : 5)) { k -= row & 1 ? 4 : 5; row++; }
   return { x: s.x0 + 6 + 2 * k + (row & 1), y: s.F + 2 + row };
 }
 /* the middle of the graveyard, if there is one: the cathedral goes by it */
-function mGraveyard(g) {
+function mGraveyard(g: Game) {
   var n = 0, x = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "grave") { n++; x += g.sites[k].cx; }
   return n ? x / n : 0;
 }
-function mPlanCathedral(g, p, near) {
+function mPlanCathedral(g: Game, p: Peasant, near) {
   var r = mPlotAny(g, { w: M_CATH_W, sky: 38, rough: 12, near: near || mGraveyard(g) || wMiddle(g), pad: 2, fit: mCathFit, top: 60 });   /* (top: mCathAt never scores over 60) */
   if (!r) return false;
   r.r.plan = mCathAt(g, r.x0, r.gy, r.r.F, true).plan;   /* (only weighed till now, every plot of it: mCathAt) */
@@ -652,7 +666,7 @@ function mPlanCathedral(g, p, near) {
 }
 /* on ground gy at x0: the floor at whichever row is the least work (no more than four under the highest of it: the
    ground beside it would only pour in). {plan: null (only weighed: mCathAt), F, deep, score} or null */
-function mCathFit(g, x0, gy, hi, lo) {
+function mCathFit(g: Game, x0: number, gy: number, hi, lo) {
   var best = null;
   for (var F = hi; F <= Math.min(lo, hi + 4); F++) { var r = mCathAt(g, x0, gy, F, false); if (r && (!best || r.score > best.score)) best = r; }
   return best;
@@ -662,12 +676,12 @@ function mCathFit(g, x0, gy, hi, lo) {
    the one that is built: mPlanCathedral builds that one's plan after, over the same world). what is looked at to make an
    entry, and not to say yes or no or to score (the gold for the rose: wCellsSure), is not looked at. nothing here, nor in
    bE, changes anything */
-function mCathAt(g, x0, gy, F, build) {
+function mCathAt(g: Game, x0: number, gy: number, F, build: boolean) {
   var plan = build ? [] : null, work = 0, ruby = build && wCellsSure(g, "gold") >= 1, u, x, y, h, r, c, v, e, k, t;
   /* (the crypt goes down ten under the floor: nothing of anybody's down there, and nothing wet, hot or bang about it) */
   for (k = 0; k < g.sites.length; k++) { t = g.sites[k]; if (x0 + 17 >= t.x0 && x0 - 1 <= t.x1 && F + 12 >= t.y0 && F <= t.y1) return null; }
   if (!mCathOpen(g, x0, F)) return null;
-  function cut(x, y, ph) {   /* dug out (sand), or cut (rock): true if it can be */
+  function cut(x: number, y: number, ph: number) {   /* dug out (sand), or cut (rock): true if it can be */
     c = pCell(g, x, y);
     if (AIRY[c]) return true;
     if (ROCK[c]) { if (plan) { e = bE(g, x, y, MAT.EMPTY, ph); e.mine = true; plan.push(e); } work += 1; return true; }
@@ -711,9 +725,9 @@ function mCathAt(g, x0, gy, F, build) {
 }
 /* nothing wet, hot, a drain or that goes bang in columns x0 - 1 .. x0 + 17, rows F .. F + 12, nor anybody's in x0 .. x0 + 16,
    rows F .. F + 10 (only looked at: whichever is looked at first, the answer is the same). while a plot is looked for, each
-   column of it is looked down once (wonders.js W_GSHARE: wHazardCol, and build.js bMarkedCol), not cell by cell for every
+   column of it is looked down once (wonders.ts W_GSHARE: wHazardCol, and build.ts bMarkedCol), not cell by cell for every
    plot and floor that has it */
-function mCathOpen(g, x0, F) {
+function mCathOpen(g: Game, x0: number, F) {
   var S = W_GSHARE, u, y, c;
   if (S && S.g === g && S.gw === g.gw && S.gh === g.gh) {
     for (u = -1; u <= 17; u++) if (wHazardCol(g, S, x0 + u, F, F + 12)) return false;
@@ -727,7 +741,7 @@ function mCathOpen(g, x0, F) {
   return true;
 }
 /* finished: the names go down into the crypt, the bell is rehung in the belfry, and a service is not far off */
-function mCathFinished(g, s, p) {
+function mCathFinished(g: Game, s: Site, p: Peasant) {
   feed(g, "the cathedral is finished. the names go down into the crypt, a candle each", "#ffd94a", "plan" + s.id);
   mNiches(g, s, true);
   mRehang(g, s, p);
@@ -735,7 +749,7 @@ function mCathFinished(g, s, p) {
 }
 /* the bell, from wherever it hung, to the belfry: the old one taken down (its gold kept, for the new). what it hung
    from, the brick brackets, is let be where it is: paid for, and nobody's to throw away */
-function mRehang(g, s, p) {
+function mRehang(g: Game, s: Site, p: Peasant) {
   var B = mSites(g, "bell", true), b = null, k, e, gold = 0;
   for (k = 0; k < B.length; k++) if (B[k].on !== s.id) b = B[k];
   if (!b || mSites(g, "bell").some(function (o) { return o.on === s.id; })) return;
@@ -752,7 +766,7 @@ function mRehang(g, s, p) {
   feed(g, "the old bell is down. it is going up again in the belfry of the cathedral", "#ffd94a", "plan" + nb.id);
 }
 /* every name in g.dead gets a niche, the weathered ones too: they come back */
-function mNiches(g, s, quiet) {
+function mNiches(g: Game, s: Site, quiet: boolean) {
   var N = s.niches || (s.niches = []), k, d, back = [];
   for (k = 0; k < (g.dead || []).length && N.length < M_NICHES; k++) {
     d = g.dead[k];
@@ -764,22 +778,22 @@ function mNiches(g, s, quiet) {
   else if (back.length) feed(g, "the names whose crosses weathered away are in the crypt too: " + back.join(", "), "#c8d0dc", "niche" + s.id);
 }
 /* the cells of the crypt, inside its walls (for its water) */
-function mCryptAt(g, x, y) {
+function mCryptAt(g: Game, x: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind === "cathedral" && x >= s.x0 + 2 && x <= s.x0 + 14 && y > s.F && y < s.F + 10) return s;
   }
   return null;
 }
-function mCryptWater(g, s) {
+function mCryptWater(g: Game, s: Site) {
   var n = 0;
   for (var y = s.F + 1; y < s.F + 10; y++) for (var x = s.x0 + 2; x <= s.x0 + 14; x++) if (WET[g.m[y * g.gw + x]]) n++;
   return n;
 }
 /* every W_STRIDE ticks: the names, the water in the crypt, the services, and the glazier */
-function mCathStep(g, s) {
+function mCathStep(g: Game, s: Site) {
   var k, q;
-  /* being mended: no services. the windows, melted and set plain, and the glazier putting the colours back (build.js
+  /* being mended: no services. the windows, melted and set plain, and the glazier putting the colours back (build.ts
      lets plain glass be taken out for it, and the kiln makes the coloured) */
   if (s.repair) {
     if (s.serv) mEndService(g, s, false);
@@ -812,9 +826,9 @@ function mCathStep(g, s) {
   mServiceStep(g, s);
 }
 /* the eldest of the idle, who says the words */
-function mEldest(g, list) { var e = null; for (var k = 0; k < list.length; k++) if (!e || pAge(g, list[k]) > pAge(g, e)) e = list[k]; return e; }
+function mEldest(g: Game, list: Peasant[]) { var e = null; for (var k = 0; k < list.length; k++) if (!e || pAge(g, list[k]) > pAge(g, e)) e = list[k]; return e; }
 /* the dead, as the eldest names them: by name and how, from the tales; and the rest by name */
-function mNamesOf(g, s) {
+function mNamesOf(g: Game, s: Site) {
   var out = [], seen = {}, k, t;
   for (k = (g.tales || []).length - 1; k >= 0 && out.length < 4; k--) {
     t = g.tales[k];
@@ -833,7 +847,7 @@ function mNamesOf(g, s) {
 }
 /* a service: the bell, the idle filing in to the pews, the eldest at the front naming the dead, and after it everybody
    thinks the better for it a while */
-function mServiceStep(g, s) {
+function mServiceStep(g: Game, s: Site) {
   var S = s.serv, k;
   if (!S) {
     if (g.tick < (s.servT || 0) || g.blaze.length) return;
@@ -847,7 +861,7 @@ function mServiceStep(g, s) {
     var seats = [6, 7, 10, 11, 12, 13].map(function (u) { return { x: s.x0 + u, y: s.F - 2 }; });
     s.serv = { t: 0, who: el.id, names: names, i: 0, bt: 0 };
     mRing(g, 3);
-    /* (and the steam organ plays, if there is one: pleasures.js) */
+    /* (and the steam organ plays, if there is one: pleasures.ts) */
     if (typeof pOrganPlay === "function") pOrganPlay(g, "service");
     wGather(g, s, { seats: seats, cap: 99, x: s.x0 + 4, y: s.F - 1, until: g.tick + M_SERVICE, kind: "service", but: but, R: 240 });
     feed(g, "the bell is ringing for a service at the cathedral. " + el.name + " is to say the words", "#ffd94a", "serv" + s.id);
@@ -871,8 +885,8 @@ function mServiceStep(g, s) {
   pSay(g, e, "amen", true);
   mEndService(g, s, true);
 }
-function mFlock(g, s) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "audience" && q.task.site === s.id; }); }
-function mEndService(g, s, ok) {
+function mFlock(g: Game, s: Site) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "audience" && q.task.site === s.id; }); }
+function mEndService(g: Game, s: Site, ok: boolean) {
   var S = s.serv;
   s.serv = null;
   s.servT = g.tick + M_SERVICE_GAP + (ok ? irnd(2000) : 1200);
@@ -888,7 +902,7 @@ function mEndService(g, s, ok) {
   }
 }
 /* the eldest: to the front, between the pews, and facing them, turn and turn about */
-function mTaskPreach(g, p, k) {
+function mTaskPreach(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.serv || ++k.t > M_SERVICE + 600) return iDone(p, false);
   var gx = s.x0 + 8, gy = s.F - 1;
@@ -902,7 +916,7 @@ function mTaskPreach(g, p, k) {
   return true;
 }
 /* the bored, now and then: down to the crypt with a candle, to somebody's niche */
-function mCathPick(g, p, hungry) {
+function mCathPick(g: Game, p: Peasant, hungry) {
   var s = mSites(g, "cathedral", true)[0];
   if (!s || s.repair || hungry || s.serv || s.flood || !(s.niches || []).length || p.bored < 600 || Math.abs(s.cx - p.x) > 220 || wNoGo(g, p, s.id) || mCrew(g, "crypt", s.id) >= 2) return false;
   if (Math.random() >= 0.06) return false;
@@ -910,7 +924,7 @@ function mCathPick(g, p, hungry) {
   p.task = { kind: "crypt", site: s.id, n: n, name: s.niches[n].name, x: at.x, t: 0, act: 0, on: false };
   return true;
 }
-function mTaskCrypt(g, p, k) {
+function mTaskCrypt(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 3000 || s.flood) return iDone(p, false);
   var gx = k.x, gy = s.F + 9;
@@ -927,7 +941,7 @@ function mTaskCrypt(g, p, k) {
 /* bailing the crypt: a pail filled down there, up the ladder with it, and out: onto the nearest ground lower than the
    head of the crypt (where it will not run back in), or into the nearest real water. nothing dries up at twenty
    degrees, so it is never just left */
-function mTaskCryptBail(g, p, k) {
+function mTaskCryptBail(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), fx = Math.floor(p.x), fy = Math.floor(p.y);
   if (!s || !s.done || ++k.t > 8000) { mTipOut(g, p, k, true); return iDone(p, false); }
   if (!p.pail) {
@@ -941,7 +955,7 @@ function mTaskCryptBail(g, p, k) {
     p.pose = (k.act >> 3) & 1 ? "eatB" : "stand"; p.idle = 0;
     if (++k.act < 16) return true;
     k.act = 0; k.best = null;
-    /* (in their pail, heat and all, not in the job: dropped, it is spilt where they are. ideas.js iSpill, iPail) */
+    /* (in their pail, heat and all, not in the job: dropped, it is spilt where they are. ideas.ts iSpill, iPail) */
     p.pail = mScoopCrypt(g, s, p);
     if (!p.pail) return iDone(p, true);
     if (p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "bailCrypt");
@@ -967,11 +981,11 @@ function mTaskCryptBail(g, p, k) {
 }
 /* the pail, emptied in front of them (iSpill finds the air for it). what finds no room stays in the pail, for the next
    try; unless the job is over (all), when it goes in the first air over them */
-function mTipOut(g, p, k, all) {
+function mTipOut(g: Game, p: Peasant, k: Task, all?: boolean) {
   if (p.pail) iSpill(g, p, !!all);
 }
 /* a pailful out of the crypt: the cells of water nearest p, each with its heat */
-function mScoopCrypt(g, s, p) {
+function mScoopCrypt(g: Game, s: Site, p: Peasant) {
   var cells = [], x, y, j, load = [];
   for (y = s.F + 1; y < s.F + 10; y++) for (x = s.x0 + 2; x <= s.x0 + 14; x++) { j = y * g.gw + x; if (WET[g.m[j]]) cells.push(j); }
   cells.sort(function (a, b) { return Math.abs(a % g.gw - p.x) + Math.abs(((a / g.gw) | 0) - p.y) - Math.abs(b % g.gw - p.x) - Math.abs(((b / g.gw) | 0) - p.y); });
@@ -986,7 +1000,7 @@ function mScoopCrypt(g, s, p) {
 }
 /* where a pail out of the crypt goes: the nearest of ground lower than the crypt's head (where it will not run back in)
    and real water, out of the cathedral and a little way off, that p can get to. {x, y (where to stand), water, wx} */
-function mDumpAt(g, s, p) {
+function mDumpAt(g: Game, s: Site, p: Peasant) {
   var C = [], d, sd, x, G, k, n = [0, 0], last = [-99, -99], cx = Math.round(s.cx);
   for (d = 12; d <= 160; d++) for (sd = 0; sd < 2; sd++) {
     x = cx + (sd ? d : -d);
@@ -1011,8 +1025,8 @@ function mDumpAt(g, s, p) {
   for (k = 0; k < C.length && k < 4; k++) if (mReachable(g, p, C[k].x, C[k].y)) return C[k];
   return null;
 }
-/* far from home with things going bang: the cathedral, if it is near enough (build.js bHide). true if that is the plan */
-function mHide(g, p) {
+/* far from home with things going bang: the cathedral, if it is near enough (build.ts bHide). true if that is the plan */
+function mHide(g: Game, p: Peasant) {
   var s = mSites(g, "cathedral", true)[0];
   if (!s || Math.abs(s.cx - p.x) > 160 || Math.abs(s.F - p.y) > 50 || (g.know.bucket && iBlazeOf(g, s.id))) return false;
   if (bInside(s, p)) {
@@ -1029,7 +1043,7 @@ var M_NAVE = hex32("#3e3832"), M_NAVE_L = hex32("#4c453d"), M_CRYPT = hex32("#22
 var M_ALTAR = hex32("#8a7a5a"), M_CROSS = hex32("#c8a848"), M_FLAME = [hex32("#ffe08a"), hex32("#ffc860"), hex32("#fff0b0")];
 /* the inside of the nave (the back wall, its pillars and arches, the altar and a cross over it), the crypt (dark, and a
    niche in the wall for every name, a candle burning in each), and the candles' light */
-function mDrawCathedral(g, s) {
+function mDrawCathedral(g: Game, s: Site) {
   var x0 = s.x0, F = s.F, u, h, y, x, k, hot = 0;
   if (!s.done && !s.repair) return 0;
   /* the nave's back wall: pillars at 4 and 12, the arches springing from them */
@@ -1058,7 +1072,7 @@ function mDrawCathedral(g, s) {
   return hot;
 }
 /* over everybody: a candle in the hand of whoever is down in the crypt, and a pail for whoever is bailing it */
-function mDrawCathOver(g, s) {
+function mDrawCathOver(g: Game, s: Site) {
   for (var k = 0; k < g.peasants.length; k++) {
     var p = g.peasants[k], t = p.task;
     if (p.dead || !t || t.site !== s.id || p.state !== "walk") continue;

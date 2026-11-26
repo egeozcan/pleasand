@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  heat.js
+   PLEASAND  --  heat.ts
 
    every cell has a temperature, in degrees, that travels with it when it
    moves. once a tick, heat flows between touching cells, from hot to
@@ -36,6 +36,11 @@
    ===================================================================== */
 "use strict";
 
+/* (what this file keeps in g) */
+interface Game {
+  T?: Float32Array; lat?: Float32Array; fastList?: Int32Array; hm?: Uint8Array; ha?: Uint8Array; hs?: Uint8Array;
+}
+
 var AMBIENT = 20;
 var BORDER_K = 0.12;     /* how well the edges of the room let heat out to the outside (or in from it) */
 var HEAT_FAST = 8;       /* extra passes for metal, which carries heat faster than one pass a tick can */
@@ -53,7 +58,7 @@ var LAVA_LO = new Float32Array(NMAT).fill(950);
 LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
 
 (function () {
-  function def(v, c, k, t0) { HEAT_C[v] = c; HEAT_K[v] = k; if (t0 != null) HEAT_T0[v] = t0; }
+  function def(v: number, c: number, k: number, t0?: number) { HEAT_C[v] = c; HEAT_K[v] = k; if (t0 != null) HEAT_T0[v] = t0; }
   def(MAT.EMPTY, 0.5, 0.004);
   def(MAT.SAND, 1.0, 0.08);
   def(MAT.WATER, 4.0, 0.25);
@@ -92,17 +97,17 @@ LAVA_LO[MAT.GLASS] = 1150; LAVA_LO[MAT.METAL] = 1400;
   def(MAT.LAMP, 1.5, 0.1);     /* a little glass and a little oil */
   def(MAT.COAL, 1.3, 0.06); def(MAT.ORE, 1.8, 0.16); def(MAT.GOLD, 1.0, 0.4);
   def(MAT.BRICK, 2.0, 0.1); def(MAT.GIRDER, 1.5, 0.36);
-  /* (leftovers.js) snow packed hard, cold as the snow it was packed from; and rock salt, which is salt, in the rock */
+  /* (leftovers.ts) snow packed hard, cold as the snow it was packed from; and rock salt, which is salt, in the rock */
   def(MAT.PACKSNOW, 1.0, 0.02, -10);   /* (packed hard, it keeps its cold a good while) */ def(MAT.ROCKSALT, 1.6, 0.14);
-  /* (wonders.js) wet concrete is mostly water and stone; set, it carries heat as stone does. stained glass is glass. a
+  /* (wonders.ts) wet concrete is mostly water and stone; set, it carries heat as stone does. stained glass is glass. a
      firebrick is light and slow (insulating firebrick: a furnace keeps its heat in it). moon rock is rock */
   def(MAT.MORTAR, 2.6, 0.15); def(MAT.CONCRETE, 2.0, 0.12); def(MAT.STAINED, 1.5, 0.1);
   def(MAT.FIREBRICK, 0.8, 0.03); def(MAT.MOONROCK, 2.0, 0.1);
-  def(MAT.LINEN, 1.5, 0.03);   /* (storeys.js) washing: cloth, and the air in it */
-  def(MAT.TRESTLE, 2.0, 0.04);   /* (platforms.js) a trestle leg: timber, as a board is */
+  def(MAT.LINEN, 1.5, 0.03);   /* (storeys.ts) washing: cloth, and the air in it */
+  def(MAT.TRESTLE, 2.0, 0.04);   /* (platforms.ts) a trestle leg: timber, as a board is */
 
-  function hi(v, t, l) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
-  function lo(v, t, l) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
+  function hi(v: number, t: number, l: number) { HEAT_HI[v] = t; HEAT_HI_L[v] = l; }
+  function lo(v: number, t: number, l: number) { HEAT_LO[v] = t; HEAT_LO_L[v] = l; }
   /* water: freezes at 0, boils at 100. boiling takes a lot more than warming up did */
   lo(MAT.WATER, 0, 640); hi(MAT.WATER, 100, 1200);
   /* salt water freezes colder and boils hotter, and leaves its salt behind either way */
@@ -164,7 +169,7 @@ function heatTables() {
 var LAVA_QUENCH = 0.2;
 heatTables();
 
-function heatInit(g) {
+function heatInit(g: Game) {
   var n = g.gw * g.gh;
   g.T = new Float32Array(n).fill(AMBIENT);
   g.lat = new Float32Array(n);
@@ -173,7 +178,7 @@ function heatInit(g) {
   g.hm = new Uint8Array(n); g.ha = new Uint8Array(n); g.hs = new Uint8Array(n);
 }
 /* everything at the temperature it would have been made at */
-function heatReset(g) {
+function heatReset(g: Game) {
   for (var i = 0; i < g.m.length; i++) g.T[i] = HEAT_T0[g.m[i]];
   g.lat.fill(0);
   heatAcceptAll(g);
@@ -206,9 +211,9 @@ var HEAT_HS = new Float32Array(NMAT), HEAT_HLAT = new Float32Array(NMAT);
   HEAT_HLAT[MAT.SALTWATER] = HEAT_LO_L[MAT.SALTWATER];
 })();
 function heatF(sh) { return 0.7 + (sh & 63) / 105; }
-function heatLat(g, i, L) { return L * heatF(g.sh[i]); }
+function heatLat(g: Game, i: number, L) { return L * heatF(g.sh[i]); }
 /* what being v (with aux, and shade sh) is worth. lava is worth the heat it took to melt whatever it sets back into */
-function heatH0(v, aux, sh) {
+function heatH0(v: number, aux, sh) {
   if (v === MAT.LAVA) {
     var x = aux === MAT.GLASS || aux === MAT.METAL ? aux : MAT.STONE;
     return (HEAT_C[x] - HEAT_C[MAT.LAVA]) * (HEAT_HI[x] - AMBIENT) + HEAT_HI_L[x] * heatF(sh);
@@ -216,13 +221,13 @@ function heatH0(v, aux, sh) {
   return HEAT_HS[v] + HEAT_HLAT[v] * heatF(sh);
 }
 /* the heat in cell j, counted as if it were v / aux / sh (what it is now, unless told otherwise) */
-function heatQ(g, j, v, aux, sh) {
+function heatQ(g: Game, j: number, v?: number, aux?: number, sh?: number) {
   /* by default, as it was when last counted: if it has changed since, its temperature has not caught up yet */
   if (v === undefined) { v = g.hm[j]; aux = g.ha[j]; sh = g.hs[j]; }
   return HEAT_C[v] * (g.T[j] - AMBIENT) + g.lat[j] + heatH0(v, aux, sh);
 }
 /* give cell j (whatever it is now) exactly q of heat, and write it into the books */
-function heatSetQ(g, j, q) {
+function heatSetQ(g: Game, j: number, q) {
   var v = g.m[j];
   g.T[j] = AMBIENT + (q - heatH0(v, g.aux[j], g.sh[j])) * HEAT_IC[v];
   g.lat[j] = 0;
@@ -230,39 +235,39 @@ function heatSetQ(g, j, q) {
 }
 /* this cell is what it is now, at the temperature it is now. for things that bring their own heat: a brush, a
    bang, a bolt, paint, a faucet. and for the books once a change has been paid for */
-function heatAccept(g, j) { g.hm[j] = g.m[j]; g.ha[j] = g.aux[j]; g.hs[j] = g.sh[j]; }
-function heatAcceptAll(g) { g.hm.set(g.m); g.ha.set(g.aux); g.hs.set(g.sh); }
+function heatAccept(g: Game, j: number) { g.hm[j] = g.m[j]; g.ha[j] = g.aux[j]; g.hs[j] = g.sh[j]; }
+function heatAcceptAll(g: Game) { g.hm.set(g.m); g.ha.set(g.aux); g.hs.set(g.sh); }
 /* anything that changed since it was last counted (a flame catching, acid eating, a peasant chewing) gets its new
    temperature from the heat it had */
-function heatRecount(g, i) {
+function heatRecount(g: Game, i: number) {
   var q = heatQ(g, i, g.hm[i], g.ha[i], g.hs[i]);
   heatSetQ(g, i, q);
 }
 /* bring one cell's books up to date now, rather than at the next heat step */
-function heatSync(g, j) { if (g.m[j] !== g.hm[j]) heatRecount(g, j); }
+function heatSync(g: Game, j: number) { if (g.m[j] !== g.hm[j]) heatRecount(g, j); }
 /* turn a cell into something else on the spot, keeping its heat */
-function heatBecome(g, j, v) {
+function heatBecome(g: Game, j: number, v: number) {
   var q = heatQ(g, j);
   g.m[j] = v; g.aux[j] = 0;
   heatSetQ(g, j, q);
 }
 /* the same, by force, for a bang or a bolt: the energy it takes to get the new thing into the
    range it can exist at (steam out of cold water is at least boiling hot) comes from the bang */
-function heatForce(g, j, v) {
+function heatForce(g: Game, j: number, v: number) {
   var t = g.T[j], lo = v === MAT.LAVA ? LAVA_LO[0] : HEAT_LO[v], hi = HEAT_HI[v];
   g.m[j] = v; g.aux[j] = 0; g.lat[j] = 0;
   if (t < lo) g.T[j] = lo + 1; else if (t > hi) g.T[j] = hi - 1;
   heatAccept(g, j);
 }
 /* two cells come to the same temperature at once, as when an ember is dropped in water. neither changes what it is */
-function heatShare(g, i, j) {
+function heatShare(g: Game, i: number, j: number) {
   heatSync(g, i); heatSync(g, j);
   var ci = HEAT_C[g.m[i]] || 1, cj = HEAT_C[g.m[j]] || 1;
   var q = ci * (g.T[i] - AMBIENT) + g.lat[i] + cj * (g.T[j] - AMBIENT) + g.lat[j];
   g.T[i] = g.T[j] = AMBIENT + q / (ci + cj); g.lat[i] = g.lat[j] = 0;
 }
 /* pour some heat into a cell (or take some out), as an explosion, a bolt or a brush does */
-function heatAdd(g, j, dt) {
+function heatAdd(g: Game, j: number, dt) {
   if (g.m[j] === MAT.INERT) return;
   var t = g.T[j] + dt;
   g.T[j] = t > T_MAX ? T_MAX : (t < T_MIN ? T_MIN : t);
@@ -271,7 +276,7 @@ function heatAdd(g, j, dt) {
 /* a little room next to cell i for a puff of steam: empty, or a gas. up first, then
    either side (whichever first, at random), then down */
 var ROOM_ORDER = [[0, 2, 3, 1], [0, 3, 2, 1]];
-function heatRoom(g, i) {
+function heatRoom(g: Game, i: number) {
   var x = i % g.gw, y = (i / g.gw) | 0, order = ROOM_ORDER[irnd(2)], k, j;
   for (k = 0; k < 4; k++) {
     j = sandNb(g, x, y, order[k]);
@@ -282,7 +287,7 @@ function heatRoom(g, i) {
 
 /* cell i pushes some of itself out into cell j as a new v (salt out of freezing brine, steam off boiling brine), as
    hot as i is. returns how much more heat j holds now than before: i pays it, once it has finished changing */
-function heatSpawn(g, i, j, v) {
+function heatSpawn(g: Game, i: number, j: number, v: number) {
   var before = heatQ(g, j);
   g.m[j] = v; g.vy[j] = 0; g.aux[j] = 0; g.sh[j] = g.sh[i]; g.T[j] = g.T[i]; g.lat[j] = 0;
   heatAccept(g, j);
@@ -290,7 +295,7 @@ function heatSpawn(g, i, j, v) {
 }
 
 /* past the top of its range: melt, boil, catch. returns any heat spent on things it pushed out */
-function heatUp(g, i, v) {
+function heatUp(g: Game, i: number, v: number) {
   var m = g.m, j, paid = 0;
   g.lat[i] = 0;
   switch (v) {
@@ -323,7 +328,7 @@ function heatUp(g, i, v) {
 }
 
 /* past the bottom of its range: freeze, condense, set. returns any heat spent on things it pushed out */
-function heatDown(g, i, v) {
+function heatDown(g: Game, i: number, v: number) {
   var m = g.m, j, paid = 0, gw = g.gw;
   g.lat[i] = 0;
   /* water freezes. falling water, with nothing under it, freezes as it falls: snow */
@@ -377,7 +382,7 @@ function heatQuietTables() {
                  isFinite(HEAT_BK[v]) && isFinite(HEAT_IC[v]) ? 1 : 0;
   for (var a = 0; a < 256; a++) for (var b = 0; b < 256; b++) HEAT_AQ2[a | (b << 8)] = HEAT_AQ[a] & HEAT_AQ[b];
 }
-function heatViews(g) {
+function heatViews(g: Game) {
   var m = g.m, T = g.T, lat = g.lat, n = m.length, nw, NB;
   if (heatT32 === null || heatT32.buffer !== T.buffer || heatT32.byteOffset !== T.byteOffset || heatT32.length !== T.length)
     heatT32 = new Int32Array(T.buffer, T.byteOffset, T.length);
@@ -405,7 +410,7 @@ function heatViews(g) {
 }
 /* 1 if cells a..b-1 are all quiet, at exactly room temperature (its bits: a NaN or a hair off is not), with exactly
    nothing soaked up (+0, bit for bit), else 0. (the walk by words reads rows as bits instead: see COLD WORDS) */
-function heatColdRow(m, a, b) {
+function heatColdRow(m: Uint8Array, a, b) {
   var T32 = heatT32, L32 = heatL32, M32 = heatM32, AQ = HEAT_AQ, AQ2 = HEAT_AQ2, AB = HEAT_AMB32, i, w;
   if (M32 !== null) {
     for (i = a; i < b; i += 4) {
@@ -448,7 +453,7 @@ function heatColdRow(m, a, b) {
    double. (one thing reads differently: a pair whose second cell has -0 soaked up reads as nothing soaked up. step 1
    never reads what is soaked up, and step 2 leaves a -0 as it is, as it does a +0: neither is over or under 0) */
 /* read the bits of the nw words from cell a into Cf */
-function heatSnapBits(Cf, a, nw) {
+function heatSnapBits(Cf, a, nw: number) {
   var M32 = heatM32, T64 = heatT64, L64 = heatL64, AQ2 = HEAT_AQ2, A64 = HEAT_AMB64;
   var b, o, lim, bits, w, s = a >> 1, k = a >> 2, NB = (nw + 31) >> 5;
   for (b = 0; b < NB; b++) {
@@ -462,13 +467,13 @@ function heatSnapBits(Cf, a, nw) {
   }
 }
 /* true if the word at cell i is cold now */
-function heatWordCold(i) {
+function heatWordCold(i: number) {
   var w = heatM32[i >> 2], s = i >> 1, T64 = heatT64, L64 = heatL64, A64 = HEAT_AMB64;
   return T64[s] === A64 && T64[s + 1] === A64 && L64[s] === 0 && L64[s + 1] === 0 && (HEAT_AQ2[w & 0xffff] & HEAT_AQ2[w >>> 16]) !== 0;
 }
 /* 1 if the row from cell a is cold now. Cc: its bits as read before the row over it was worked; Sp: the words of the row
    over it that did nothing (so wrote nothing into it): the bits under those still hold, the rest are read again */
-function heatRowColdNow(Cc, Sp, a, nw) {
+function heatRowColdNow(Cc, Sp, a, nw: number) {
   var NB = (nw + 31) >> 5, b, k, s;
   for (b = 0; b < NB; b++) if ((Cc[b] | ~Sp[b]) !== -1) return 0;
   for (b = 0; b < NB; b++) {
@@ -481,7 +486,7 @@ function heatRowColdNow(Cc, Sp, a, nw) {
   return 1;
 }
 /* 1 if the row from cell a is cold now, read afresh */
-function heatRowColdFresh(a, nw) {
+function heatRowColdFresh(a: number, nw: number) {
   for (var k = 0; k < nw; k++) if (!heatWordCold(a + (k << 2))) return 0;
   return 1;
 }
@@ -516,7 +521,7 @@ function heatRangeBand() {
 /* the first i at or after i (a multiple of 4) whose word step 2 must look at, cell by cell; end if none. a word passed
    over is four things counted in the band, each in it, with nothing soaked up: each would have done nothing. read off
    the world as it is when the step comes to it, so a change further back that pushed steam or salt into it is seen */
-function heatSteadyScan(T32, L32, M32, BQ2, BH, i, end) {
+function heatSteadyScan(T32, L32, M32, BQ2, BH: number, i: number, end) {
   var w;
   for (; i < end; i += 4) {
     w = M32[i >> 2];
@@ -527,7 +532,7 @@ function heatSteadyScan(T32, L32, M32, BQ2, BH, i, end) {
 }
 /* the same, but passing over without a look the words whose bit is set in K (k: the word's place in its row, from the
    row's first cell r): words known to be cold and untouched since step 1 passed them by (see STEADY WORDS, in heatStep) */
-function heatSteadyScanK(T32, L32, M32, BQ2, BH, i, end, K, r) {
+function heatSteadyScanK(T32, L32, M32, BQ2, BH: number, i: number, end, K, r: number) {
   var w, k;
   for (; i < end; i += 4) {
     k = (i - r) >> 2;
@@ -572,7 +577,7 @@ function heatIdleTables() {
 }
 /* 1 if no cell of the word at cell i (inside the room, nothing burning, no metal) would do anything in step 1, as the
    cells stand now; else 0 */
-function heatIdleWord(m, T, i, gw, LIQ) {
+function heatIdleWord(m: Uint8Array, T: Float32Array, i: number, gw: number, LIQ: Uint8Array) {
   var t0 = T[i], t1 = T[i + 1], t2 = T[i + 2], t3 = T[i + 3], d, b = i + gw, u, c, t, v;
   if (t0 !== t0 || t1 !== t1 || t2 !== t2 || t3 !== t3) return 0;
   d = t1 - t0; if (d > 0.05 || d < -0.05) return 0;
@@ -599,7 +604,7 @@ function heatIdleWord(m, T, i, gw, LIQ) {
    is not a liquid, and is not at an edge of the room (so every test of
    x and y comes out the same way, and the outside is not touched)
    ------------------------------------------------------------------- */
-function heatAirWord(T, m, i0, gw, KP, IC, rnd) {
+function heatAirWord(T: Float32Array, m: Uint8Array, i0, gw: number, KP: Float32Array, IC: Float32Array, rnd) {
   var c, i, t, up, d, j, w, f, ic = IC[0];
   for (c = 0; c < 4; c++) {
     i = i0 + c; t = T[i]; up = i - gw;
@@ -620,13 +625,13 @@ function heatAirWord(T, m, i0, gw, KP, IC, rnd) {
   }
 }
 
-/* (the JS step: simwasm.js heatStep plays it by WebAssembly where it can, the same world, and this where it cannot) */
-function heatStepJs(g) {
+/* (the JS step: simwasm.ts heatStep plays it by WebAssembly where it can, the same world, and this where it cannot) */
+function heatStepJs(g: Game) {
   var m = g.m, T = g.T, lat = g.lat, gw = g.gw, gh = g.gh, KP = HEAT_KP, IC = HEAT_IC, SRC = HEAT_SRC, POW = HEAT_POW, BK = HEAT_BK, C = HEAT_C;
   var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL, hm = g.hm;
   /* (the hot loops below look these up once, not once a cell: the same dice, the same tables) */
   var rnd = Math.random, LIQ = LIQUID, FIRE = MAT.FIRE, LAVA = MAT.LAVA, CLEAN = SAND_CLEAN, gw1 = gw - 1, gh1 = gh - 1, n = m.length;
-  /* (a fire in a closed chamber somebody is working the bellows of burns hotter: wonders.js wDraught) */
+  /* (a fire in a closed chamber somebody is working the bellows of burns hotter: wonders.ts wDraught) */
   var DM = g.dmask || null;
 
   /* 0. anything that turned into something else since it was last counted gets its new temperature from its heat.
@@ -882,15 +887,15 @@ function heatStepJs(g) {
    or a puddle's worth of latent heat in one cell of air, at over a thousand), it is no hotter than the thing itself was:
    the heat goes with it (heatVanish). otherwise, and in every plain village, the books are kept as they always have
    been. heatTaken: true if it was taken so; heatVacate: taken, one way or the other */
-function heatTaken(g, j) {
+function heatTaken(g: Game, j: number) {
   if (!g.wAny) return false;
   var air = AMBIENT + (heatQ(g, j) - heatH0(MAT.EMPTY, 0, g.sh[j])) * HEAT_IC[MAT.EMPTY];
   if (air <= 150) return false;
   heatVanish(g, j);
   return true;
 }
-function heatVacate(g, j) { if (!heatTaken(g, j)) { g.m[j] = MAT.EMPTY; heatSync(g, j); } }
-function heatVanish(g, j) {
+function heatVacate(g: Game, j: number) { if (!heatTaken(g, j)) { g.m[j] = MAT.EMPTY; heatSync(g, j); } }
+function heatVanish(g: Game, j: number) {
   var t = g.T[j];
   g.m[j] = MAT.EMPTY; g.vy[j] = 0; g.aux[j] = 0; g.lat[j] = 0;
   g.T[j] = t > T_MAX ? T_MAX : (t < T_MIN ? T_MIN : t);
@@ -900,7 +905,7 @@ function heatVanish(g, j) {
 /* the HEAT and COOL brushes: pour heat in (or draw it out) around the cursor. it is heat,
    not degrees, so air and steam change fast and a pond takes a while, as with a real
    stove. cooling slows as it nears the bottom, and air never gets hotter than a flame */
-function heatBrush(g, cx, cy, sign) {
+function heatBrush(g: Game, cx: number, cy: number, sign: number) {
   var r = g.size + 1, ix = Math.round(cx), iy = Math.round(cy), dx, dy, x, y, d2, j, f, v, t, e;
   for (dy = -r; dy <= r; dy++) for (dx = -r; dx <= r; dx++) {
     d2 = dx * dx + dy * dy;
@@ -926,7 +931,7 @@ function blend32(a, b, f) {
       bb = ((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255)) * f);
   return ((255 << 24) | ((bb & 255) << 16) | ((gg & 255) << 8) | (r & 255)) >>> 0;
 }
-function rampTable(stops, t0, t1, step) {
+function rampTable(stops, t0: number, t1: number, step: number) {
   var n = Math.ceil((t1 - t0) / step) + 1, out = new Uint32Array(n), k, s, c;
   for (k = 0; k < n; k++) {
     var t = t0 + k * step;
@@ -955,4 +960,4 @@ function glowCol(t) { return GLOW_PAL[clamp(((t - GLOW_T0) / GLOW_STEP) | 0, 0, 
 var COLD_TINT = hex32("#e4f6ff"), HAZE_TINT = hex32("#ff9a50"), CHILL_TINT = hex32("#a8d8ff");
 
 /* how a temperature reads, for people */
-function heatLabel(t) { return Math.round(t) + "\u00b0"; }
+function heatLabel(t: number) { return Math.round(t) + "\u00b0"; }

@@ -4,3 +4,5 @@ test/.timings.json
 harness/warm/
 wasm/target/
 simwasm-bin.js
+node_modules/
+dist/

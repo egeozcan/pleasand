@@ -1,7 +1,7 @@
 /* =====================================================================
    PLEASAND  --  test/monuments.js
 
-   the great works in stone (monuments.js): the theatre and the pyramid.
+   the great works in stone (monuments.ts): the theatre and the pyramid.
    required by test/run.js
    ===================================================================== */
 "use strict";

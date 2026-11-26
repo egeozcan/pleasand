@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  storeys.js
+   PLEASAND  --  storeys.ts
 
    a crowded valley, and what they do about it (docs/storeys-plan.md).
    with nowhere left on the ground for a house, and squared stone to
@@ -20,6 +20,20 @@
    has not thought of storeys: a plain village is master's.
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps in g) */
+interface Game {
+  lines?: any; wordDue?: number; noStoreyT?: number; leanT?: number; wordT?: number; leftT?: number; letters?: any;
+}
+/* (what this file keeps on a villager) */
+interface Peasant {
+  leaving?: any; roughT?: number; left?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  roof?: number;
+  house?: number; base?: any; floor?: any; overWho?: any; C?: number; bedA?: any; bedB?: any; was?: any;
+}
 
 var S_ROWS = 11;                 /* a floor, floor to floor */
 var S_MAX = 3;                   /* floors in a stack, the house among them */
@@ -43,25 +57,25 @@ IDEAS.push({ id: "storey", fresh: true, name: "the upper storey", title: "STOREY
 /* -------------------------------------------------------------------
    STACKS
    ------------------------------------------------------------------- */
-function sDwelling(s) { return !!s && (s.kind === "house" || s.kind === "storey"); }
+function sDwelling(s: Site) { return !!s && (s.kind === "house" || s.kind === "storey"); }
 /* the storey on top of site s, if there is one */
-function sOver(g, s) {
+function sOver(g: Game, s: Site) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "storey" && g.sites[k].base === s.id) return g.sites[k];
   return null;
 }
 /* the house at the foot of s's stack (s itself, if it is one) */
-function sHouseOf(g, s) {
+function sHouseOf(g: Game, s: Site) {
   for (var n = 0; s && s.kind === "storey" && n < 8; n++) s = bSite(g, s.base);
   return s && s.kind === "house" ? s : null;
 }
 /* the floors of the stack on house h, from the ground up */
-function sStack(g, h) {
+function sStack(g: Game, h) {
   var out = [h], s = h;
   for (var n = 0; n < 8 && (s = sOver(g, s)); n++) out.push(s);
   return out;
 }
 /* is site s, to all intents, stone: most of its walls, floor and roof in brick, where they are */
-function sStony(g, s) {
+function sStony(g: Game, s: Site) {
   var n = 0, b = 0;
   for (var k = 0; k < s.plan.length; k++) {
     var e = s.plan[k];
@@ -72,7 +86,7 @@ function sStony(g, s) {
   return n > 0 && b >= n * S_STONY;
 }
 /* could the stack on house h take another floor: by what its floors are made of, and how many there are already */
-function sBears(g, h) {
+function sBears(g: Game, h) {
   var st = sStack(g, h);
   if (st.length >= S_MAX) return false;
   if (st.length === 1) return true;
@@ -81,7 +95,7 @@ function sBears(g, h) {
 }
 /* is the village crowded: somebody alive with no home and nothing going up for them, and no more room for a house,
    or none found lately */
-function sHomeless(g) {
+function sHomeless(g: Game) {
   var n = 0;
   for (var k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
@@ -90,12 +104,12 @@ function sHomeless(g) {
   return n;
 }
 /* (bHome, without bHome's tidying of a home that is gone: a village that has not thought of storeys is as on master) */
-function sHasHome(g, p) { var s = p.home && bSite(g, p.home); return !!(s && s.owner === p.id); }
-function sCrowded(g) {
+function sHasHome(g: Game, p: Peasant) { var s = p.home && bSite(g, p.home); return !!(s && s.owner === p.id); }
+function sCrowded(g: Game) {
   if (!sHomeless(g)) return false;
   return bHouses(g) >= Math.min(B_HOUSES, bAlive(g)) || (g.noPlotT != null && g.tick - g.noPlotT < S_CROWD_T);
 }
-function sReady(g) {
+function sReady(g: Game) {
   if (!g.know.masonry || !sCrowded(g)) return false;
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.kind === "house" && s.done && !s.hut) return true; }
   return false;
@@ -103,7 +117,7 @@ function sReady(g) {
 /* now and then, once they know masonry: is there a plot for a house anywhere near somebody who has no home. if there is
    none, the village is crowded (g.noPlotT), whether or not anybody has the wood to try. nothing rolled, nothing changed but
    that (bPlot looks and does not touch) */
-function sPlotCheck(g) {
+function sPlotCheck(g: Game) {
   var p = null, k, d, sd;
   for (k = 0; k < g.peasants.length && !p; k++) { var q = g.peasants[k]; if (!q.dead && q.state === "walk" && !sHasHome(g, q) && !bOwnsSite(g, q)) p = q; }
   if (!p || bHouses(g) >= Math.min(B_HOUSES, bAlive(g))) return;
@@ -111,12 +125,12 @@ function sPlotCheck(g) {
   for (d = 0; d <= 70; d++) for (sd = -1; sd <= 1; sd += 2) if (bPlot(g, fx + d * sd - 5, fy)) return;
   g.noPlotT = g.tick;
 }
-/* the bell hangs on a house's ridge: that house is the bell's (mines.js mPlanBell) */
-function sBelled(g, h) {
+/* the bell hangs on a house's ridge: that house is the bell's (mines.ts mPlanBell) */
+function sBelled(g: Game, h) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "bell" && g.sites[k].on === h.id) return true;
   return false;
 }
-function sGoingUp(g) {
+function sGoingUp(g: Game) {
   var n = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "storey" && !g.sites[k].done) n++;
   return n;
@@ -127,8 +141,8 @@ function sGoingUp(g) {
    house H, its door and its ladder at end d (+1: x1, -1: x0)
    ------------------------------------------------------------------- */
 var S_WHY = "";   /* (why the last storey planned would not do: for whoever is debugging it) */
-function sWhy(w) { S_WHY = w; return null; }
-function sPlan(g, H, T, d, n) {
+function sWhy(w: string) { S_WHY = w; return null; }
+function sPlan(g: Game, H, T, d: number, n: number) {
   var gw = g.gw, x0 = H.x0, x1 = H.x0 + 10, Fs = T.F - S_ROWS, x, y, k, c, e, i;
   if (Fs - 15 < 10) return sWhy("1");
   /* what of T comes off: its gable, over its ceiling */
@@ -205,13 +219,13 @@ function sPlan(g, H, T, d, n) {
                     base: T.id, house: H.id, d: d, lad: cx, floor: n, fy: fy, hx0: x0 } };
 }
 /* is there a pane of glass to hand, for a window */
-function sPane(g) {
+function sPane(g: Game) {
   for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead && (g.peasants[k].glass || 0) >= 1) return true;
   return false;
 }
 /* somebody homeless, crowded out, with the wood for it: a storey on the nearest stack that will take one. true if they
    started one (or joined one: the one going up nearest) */
-function sTry(g, p) {
+function sTry(g: Game, p: Peasant) {
   if (!g.know.storey || p.planCD || bHome(g, p) || bOwnsSite(g, p) || !sCrowded(g)) return false;
   if (bWood(p) < 2 || sGoingUp(g) >= S_UP || bOpenCount(g) >= B_OPEN) return false;   /* (logs or boards: the rest, the others bring) */
   var H = [], k, s;
@@ -239,11 +253,11 @@ function sTry(g, p) {
   return false;
 }
 /* is anything of site s on fire */
-function bBurning(g, s) {
+function bBurning(g: Game, s: Site) {
   for (var y = s.y0; y <= s.y1; y++) for (var x = s.x0; x <= s.x1; x++) { var c = pCell(g, x, y); if (c === MAT.FIRE || c === MAT.EMBER) return true; }
   return false;
 }
-function sCommit(g, p, H, T, r) {
+function sCommit(g: Game, p: Peasant, H, T, r) {
   /* T gives up its gable: it is the new storey's to take off, and T's box stops at its ceiling */
   bMark(g, T, 0);
   r.extra.was = { plan: T.plan.filter(function (e) { return r.gable[e.i]; }), win: (T.win || []).slice(), y0: T.y0 };   /* (to put back, if it is given up: sUnplan) */
@@ -276,7 +290,7 @@ function sCommit(g, p, H, T, r) {
 /* floor T has a ceiling that stays now, whatever burns under it: what fills its room (the ash of its own walls, a drift
    of sand) has nowhere to go, and anybody who walks into it deep is buried. so its room is kept clear, as a mine's
    shaft is (bInspect's silt: a few cells in, and the village clears it out) */
-function sKeepClear(g, T) {
+function sKeepClear(g: Game, T) {
   var have = {}, x, y, e;
   T.plan.forEach(function (q) { have[q.i] = 1; });
   for (y = T.iy0; y <= T.F - 1; y++) for (x = T.ix0; x <= T.ix1; x++) {
@@ -286,7 +300,7 @@ function sKeepClear(g, T) {
   }
 }
 /* a cell of the plan that is to come out: out, and into the builder's pocket */
-function sStrip(g, s, e, p) {
+function sStrip(g: Game, s: Site, e, p: Peasant) {
   var c = g.m[e.i];
   if (AIRY[c]) { e.gone = true; return; }   /* (out already: burnt, say) */
   if (c === MAT.FIRE || c === MAT.EMBER) return;
@@ -302,7 +316,7 @@ function sStrip(g, s, e, p) {
 }
 
 /* finished: it is somebody's home */
-function sFinish(g, s, p) {
+function sFinish(g: Game, s: Site, p: Peasant) {
   var o = bOwner(g, s), H = sHouseOf(g, s);
   feed(g, (s.who ? pTitle(s.who) : "the village") + " has a flat over " + (H ? bLabel(H) : "a house") + " now", "#a8e08a", "plan" + s.id);
   achieve(g, "upstairs");
@@ -311,7 +325,7 @@ function sFinish(g, s, p) {
   sWarming(g, s);
 }
 /* for the readout: which floor of how many, or how many are over a house (or why none will be) */
-function sNote(g, s) {
+function sNote(g: Game, s: Site) {
   var H = s.kind === "storey" ? sHouseOf(g, s) : (s.kind === "house" && !s.hut ? s : null);
   if (!H) return "";
   var st = sStack(g, H), n = st.indexOf(s) + 1;
@@ -320,7 +334,7 @@ function sNote(g, s) {
   if (sBelled(g, H)) return " (THE BELL'S HOUSE: IT WON'T TAKE ANOTHER FLOOR)";
   return "";
 }
-function sLabel(s) {
+function sLabel(s: Site) {
   return (s.who ? pTitle(s.who) + "'s flat" : "the empty flat") + (s.overWho ? " over " + pTitle(s.overWho) + "'s house" : "");
 }
 
@@ -330,7 +344,7 @@ function sLabel(s) {
    ------------------------------------------------------------------- */
 /* a flat's window planned in glass, when there is no pane anywhere to hand any more: a shutter, then, as a house's has.
    (a flat waiting on a pane that is never coming waits for ever, and the wall over it with it) */
-function sNoPane(g) {
+function sNoPane(g: Game) {
   if (sPane(g)) return;
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
@@ -338,7 +352,7 @@ function sNoPane(g) {
     for (var j = 0; j < s.plan.length; j++) { var e = s.plan[j]; if (e.v === MAT.GLASS && !bOk(g, e)) { e.v = MAT.PLANK; e.a = 1; } }
   }
 }
-function sStep(g) {
+function sStep(g: Game) {
   if (g.know.masonry && g.tick % 1200 === 0) sPlotCheck(g);   /* (crowded? storeys can only come of it once they know masonry) */
   if (!g.know.storey) return;
   sChatter(g);
@@ -373,7 +387,7 @@ P_SAY.oi = ["OI", "OI!", "i'm WET", "every time"];
 P_ACHIEVE.gardyloo = ["GARDYLOO", "water out of an upstairs door. look out below"];
 
 /* the floor of the stack (or the house) that p is indoors in, if any, by any floor of it on fire */
-function sBurningStackOf(g, s, p) {
+function sBurningStackOf(g: Game, s: Site, p: Peasant) {
   var H = sHouseOf(g, s);
   if (!H) return null;
   var st = sStack(g, H);
@@ -381,7 +395,7 @@ function sBurningStackOf(g, s, p) {
   return null;
 }
 /* the floor below s and the one over it */
-function sNeighbours(g, s) {
+function sNeighbours(g: Game, s: Site) {
   var out = [], b = bSite(g, s.base), o = sOver(g, s);
   if (b) out.push(b);
   if (o) out.push(o);
@@ -389,7 +403,7 @@ function sNeighbours(g, s) {
 }
 /* every 30 ticks (from sStep): neighbours talking through the floor, somebody climbing past a window, and now and then a
    household at home stringing a washing line out of the window */
-function sChatter(g) {
+function sChatter(g: Game) {
   if (g.tick % 600 !== 0) sLines(g);
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
@@ -417,7 +431,7 @@ function sChatter(g) {
   }
 }
 /* a storey finished, its owner home: the neighbours come up and have a look */
-function sWarming(g, s) {
+function sWarming(g: Game, s: Site) {
   var n = 0, N = sNeighbours(g, s).map(function (f) { return bOwner(g, f); });
   for (var k = 0; k < g.peasants.length && n < 5; k++) {
     var q = g.peasants[k];
@@ -427,7 +441,7 @@ function sWarming(g, s) {
     n++;
   }
 }
-function sTaskWarming(g, p, k) {
+function sTaskWarming(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 2400) { p.task = null; p.taskDone = true; return false; }
   if (bInside(s, p)) {
@@ -443,7 +457,7 @@ function sTaskWarming(g, p, k) {
   return false;
 }
 /* a bailer with a full bucket in a flat: out of the door with it, over the ladder. true while they are seeing to it */
-function sGardyloo(g, p, k) {
+function sGardyloo(g: Game, p: Peasant, k: Task) {
   var s = null, j, t, out = false;
   for (j = 0; j < g.sites.length && !s; j++) {
     t = g.sites[j];
@@ -472,9 +486,9 @@ function sGardyloo(g, p, k) {
   k.n = (k.n || 0) + 1;
   return true;
 }
-/* nobody climbs a storey's ladder into a fire: fire or embers within two cells of it, anywhere up it (paths.js) */
-var S_HOT = { t: -1, g: null, v: null };
-function sLadderHot(g, cx) {
+/* nobody climbs a storey's ladder into a fire: fire or embers within two cells of it, anywhere up it (paths.ts) */
+var S_HOT: { t: any; g: Game; v: any } = { t: -1, g: null, v: null };
+function sLadderHot(g: Game, cx: number) {
   var key = g.tick + ":" + g.sid + ":" + g.sites.length;
   if (S_HOT.t !== key || S_HOT.g !== g) { S_HOT.t = key; S_HOT.g = g; S_HOT.v = {}; }
   var L = S_HOT.v;
@@ -489,26 +503,26 @@ function sLadderHot(g, cx) {
   return v;
 }
 /* (the middle columns of the flats' ladders, worked out once a tick: the pather asks for every step it looks at) */
-var S_LADS = { t: -1, g: null, on: null };
-function sIsLadder(g, cx) {
+var S_LADS: { t: any; g: Game; on: any } = { t: -1, g: null, on: null };
+function sIsLadder(g: Game, cx: number) {
   var key = g.tick + ":" + g.sid + ":" + g.sites.length;
   if (S_LADS.t !== key || S_LADS.g !== g) {
     S_LADS.t = key; S_LADS.g = g; S_LADS.on = {};
-    for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "storey" || g.sites[k].kind === "deck") S_LADS.on[g.sites[k].lad] = 1;   /* (and a platform's: platforms.js) */
+    for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "storey" || g.sites[k].kind === "deck") S_LADS.on[g.sites[k].lad] = 1;   /* (and a platform's: platforms.ts) */
   }
   return S_LADS.on[cx] === 1;
 }
 /* is (cx, y) on a flat's ladder: its column, and within its rows (a mine's ladder in the same column is not) */
-function sOnLadder(g, cx, y) {
+function sOnLadder(g: Game, cx: number, y: number) {
   if (!sIsLadder(g, cx)) return false;
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if ((s.kind === "storey" || s.kind === "deck") && s.lad === cx && y >= s.F - 3 && y <= s.fy + 1) return true; }
   return false;
 }
-/* about to climb down a flat's ladder with a fire at it: out past it instead, and down, and hope (build.js bClimbStart).
+/* about to climb down a flat's ladder with a fire at it: out past it instead, and down, and hope (build.ts bClimbStart).
    true if they jumped */
 P_SAY.leap = ["GERONIMO", "not the ladder, not the ladder", "here goes nothing", "i'm going out the window! door!"];
 P_ACHIEVE.topdoor = ["OUT THE TOP DOOR", "a peasant jumped out of a burning flat. the ladder was busy being on fire"];
-function sLeapOff(g, p, cx) {
+function sLeapOff(g: Game, p: Peasant, cx: number) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if ((s.kind !== "storey" && s.kind !== "deck") || s.lad !== cx) continue;
@@ -545,7 +559,7 @@ var S_LETTERS = ["they have TWO ponds", "i have a house. on the ground. i think 
   "nobody here has thought of the bucket. i am a genius", "they put their houses side by side. imagine", "it rains here. water, from the sky. i'm not making it up"];
 
 /* every 30 ticks (sStep): the books, who is coming and who is going */
-function sComings(g) {
+function sComings(g: Game) {
   var al = 0, k, p, lean = false;
   if (g.leanT == null) g.leanT = g.tick;
   for (k = 0; k < g.peasants.length; k++) {
@@ -582,9 +596,9 @@ function sComings(g) {
   }
 }
 /* could anybody homeless be housed yet: an empty home, something going up, or a storey that could go up somewhere */
-function sAnyHome(g) {
+function sAnyHome(g: Game) {
   var k, s;
-  if (g.know.deck && plAnyHome(g)) return true;   /* (a platform going up, or waiting for its house: platforms.js) */
+  if (g.know.deck && plAnyHome(g)) return true;   /* (a platform going up, or waiting for its house: platforms.ts) */
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
     if (!sDwelling(s)) continue;
@@ -602,7 +616,7 @@ function sAnyHome(g) {
   return false;
 }
 /* off they go: what is the village's is put down, and they make for the nearer edge of the valley */
-function sLeave(g, p) {
+function sLeave(g: Game, p: Peasant) {
   iSpill(g, p, true); wDropAll(g, p); tCarry(g, p);
   /* (what is the village's goes to whoever is nearest, to put to use: nothing goes over the hills but them) */
   var o0 = pOther(g, p, 9999);
@@ -620,7 +634,7 @@ function sLeave(g, p) {
   if (o && !o.sleep) pSay(g, o, "farewell", true);
   feed(g, p.name + " is going over the hills, to find somewhere with room", "#c8d0dc", null, p);
 }
-function sTaskLeave(g, p, k) {
+function sTaskLeave(g: Game, p: Peasant, k: Task) {
   if (++k.t > 6000 + Math.abs(k.x - p.x) * 8) {   /* (walled in, or the way under water: they stay, and think again later) */
     p.task = null; p.taskDone = true; p.roughT = g.tick; p.leaving = null;
     feed(g, p.name + " couldn't get out of the valley, and is staying after all", "#c8d0dc", null, p);
@@ -638,30 +652,30 @@ function sTaskLeave(g, p, k) {
   return false;
 }
 /* out of the valley: gone, as the dead are gone, but not dead. no ghost, no cross, nobody counts them in the RIP */
-function sGone(g, p) {
+function sGone(g: Game, p: Peasant) {
   p.dead = true; p.left = g.tick; p.task = null; p.home = 0; p.leaving = null;
-  pSucceed(g, p, "THE KING HAS GONE OVER THE HILLS");   /* (a crown is not taken with them: peasants.js) */
+  pSucceed(g, p, "THE KING HAS GONE OVER THE HILLS");   /* (a crown is not taken with them: peasants.ts) */
   if (g.popGoal != null) g.popGoal = Math.max(1, g.popGoal - 1);
   feed(g, p.name + " has gone over the hills", "#c8d0dc");
   if (!g.got.hills) achieve(g, "hills");
   (g.letters = g.letters || []).push({ name: p.name, t: g.tick + 15000 + Math.floor(wRand(g) * 10000) });
 }
 /* a letter, from over the hills: a line in the news, and nothing more */
-function sLetters(g) {
+function sLetters(g: Game) {
   var L = g.letters;
   if (!L || !L.length || L[0].t > g.tick) return;
   var l = L.shift();
   if (wRand(g) < 0.6) feed(g, "a letter from " + l.name + ", over the hills: " + S_LETTERS[Math.floor(wRand(g) * S_LETTERS.length)], "#ffe08a");
 }
-/* a newcomer by word of mouth: what they say (peasants.js pLife) */
-function sArrived(g, q) {
+/* a newcomer by word of mouth: what they say (peasants.ts pLife) */
+function sArrived(g: Game, q: Peasant) {
   if (!g.wordDue) return false;
   g.wordDue = 0;
   pSay(g, q, "arriveWord", true);
   return true;
 }
 /* a bundle on a stick, over the shoulder, on the way out */
-function sDrawBundle(g, p, ox, oy) {
+function sDrawBundle(g: Game, p: Peasant, ox: number, oy: number) {
   var d = p.dir;
   oPut(g, ox, oy - 4, SAND_PAL[MAT.WOOD][60]);
   oPut(g, ox - d, oy - 5, SAND_PAL[MAT.WOOD][60]);
@@ -687,13 +701,13 @@ IDEAS.push({ id: "roofgarden", fresh: true, name: "the roof garden", title: "ROO
   hint: "storeys, and no room for another field",
   ready: function (g) { return sRoofReady(g); } });
 
-function sFull(g, h) { return sStack(g, h).length >= S_MAX; }
-function sRoofOf(g, h) {
+function sFull(g: Game, h: Site) { return sStack(g, h).length >= S_MAX; }
+function sRoofOf(g: Game, h: Site) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "roofgarden" && g.sites[k].house === h.id) return g.sites[k];
   return null;
 }
 /* the stacks that can grow no further and have nothing on top yet */
-function sRoofable(g) {
+function sRoofable(g: Game) {
   var out = [];
   for (var k = 0; k < g.sites.length; k++) {
     var h = g.sites[k];
@@ -703,21 +717,21 @@ function sRoofable(g) {
   }
   return out;
 }
-function sShortOfFields(g) {
+function sShortOfFields(g: Game) {
   if (g.noFieldT != null && g.tick - g.noFieldT < S_CROWD_T) return true;
   return iFields(g) >= Math.min(4, Math.ceil(bAlive(g) / 3)) && g.leanT != null && g.tick - g.leanT < S_FED_T;
 }
-function sRoofReady(g) { return !!g.know.storey && !!g.know.farm && sShortOfFields(g) && sRoofable(g).length > 0; }
+function sRoofReady(g: Game) { return !!g.know.storey && !!g.know.farm && sShortOfFields(g) && sRoofable(g).length > 0; }
 /* who thinks of it: whoever found no room for a field; or, at the cap, the hungriest, looked for now and then */
-function sSparkRoof(g, p) { if (!g.know.roofgarden && p) wSpark(g, p, "roofgarden"); }
-function sRoofLook(g) {
+function sSparkRoof(g: Game, p: Peasant) { if (!g.know.roofgarden && p) wSpark(g, p, "roofgarden"); }
+function sRoofLook(g: Game) {
   if (g.know.roofgarden || !g.know.farm || g.tick % 600 || !sRoofReady(g)) return;
   var best = null;
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.state === "walk" && (!best || q.hunger > best.hunger)) best = q; }
   sSparkRoof(g, best);
 }
 /* the plan, on top floor T of the stack on house H */
-function sRoofPlan(g, H, T) {
+function sRoofPlan(g: Game, H, T) {
   var gw = g.gw, x0 = H.x0, x1 = x0 + 10, C = T.F - S_ROWS, k, x, y, e, c, i;
   var xd = T.d > 0 ? x1 : x0, far = -T.d;               /* (the door's end, and the other) */
   var hx = far < 0 ? x0 + 1 : x0 + 7;                   /* the hatch: three columns at the far end */
@@ -748,7 +762,7 @@ function sRoofPlan(g, H, T) {
   for (x = bedA; x <= bedB; x++) { e = bE(g, x, C - 1, MAT.SAND, 101); e.bed = 1; e.cost = 0; plan.push(e); }
   return { plan: plan, gable: gable, hatch: hatch, box: [x0, C - 6, x1, T.F - 1], bedA: bedA, bedB: bedB, C: C, hx: hx };
 }
-function sTryRoof(g, p) {
+function sTryRoof(g: Game, p: Peasant) {
   if (!g.know.roofgarden || p.planCD || bOpenCount(g) >= B_OPEN) return false;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "roofgarden" && !g.sites[k].done) return false;   /* (one at a time) */
   var R = sRoofable(g);
@@ -761,7 +775,7 @@ function sTryRoof(g, p) {
     T.plan = T.plan.filter(function (e) { return !r.gable[e.i] && !r.hatch[e.i]; });
     T.win = (T.win || []).filter(function (w) { return !r.gable[w]; });
     T.y0 = r.C;
-    sKeepClear(g, T);   /* (its ceiling is a roof that stays, too: storeys.js sKeepClear) */
+    sKeepClear(g, T);   /* (its ceiling is a roof that stays, too: storeys.ts sKeepClear) */
     bMark(g, T, 1);
     var s = bNew(g, "roofgarden", p, r.plan, r.box, { house: R[k].h.id, top: T.id, C: r.C, bedA: r.bedA, bedB: r.bedB });
     s.owner = 0; s.who = "";
@@ -773,14 +787,14 @@ function sTryRoof(g, p) {
   p.planCD = 1800;
   return false;
 }
-/* built: the bed of sand is a field now, like a terrace's (pleasures.js pTerraces) */
-function sRoofFinish(g, s, p) {
+/* built: the bed of sand is a field now, like a terrace's (pleasures.ts pTerraces) */
+function sRoofFinish(g: Game, s: Site, p: Peasant) {
   s.plan = s.plan.filter(function (e) { return !e.bed; });
   feed(g, "there is a garden on the roof of " + bLabel(bSite(g, s.house) || s) + " now. it wants sowing", "#a8e08a", "plan" + s.id);
   if (!g.got.roofgarden) achieve(g, "roofgarden");
   sRoofField(g, s);
 }
-function sRoofField(g, s) {
+function sRoofField(g: Game, s: Site) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "farm" && g.sites[k].roof === s.id) return;
   var plan = [], Y = s.C - 1;
   /* (a stalk in every furrow: five of them, nearly a ground field's worth) */
@@ -789,7 +803,7 @@ function sRoofField(g, s) {
 }
 /* every 600 ticks (sStep): a roof garden's field is sown again when it has been reaped, as a terrace's is; and one
    given up is a field again, later */
-function sRoofStep(g) {
+function sRoofStep(g: Game) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind === "roofgarden" && s.done && g.tick % 600 === 0) sRoofField(g, s);
@@ -814,11 +828,11 @@ P_SAY.offLine = ["get off the washing", "SHOO. that's my shirt", "not on the cle
 P_ACHIEVE.washing = ["WASHING DAY", "the street has a washing line. it is practically a town"];
 var S_LINE_MIN = 4, S_LINE_MAX = 24;
 /* the window cell of storey s, and which way it looks out */
-function sWindow(s) { var xf = s.d > 0 ? s.ix0 - 1 : s.ix1 + 1; return { x: xf, y: s.F - 5, o: s.d > 0 ? -1 : 1 }; }
+function sWindow(s: Site) { var xf = s.d > 0 ? s.ix0 - 1 : s.ix1 + 1; return { x: xf, y: s.F - 5, o: s.d > 0 ? -1 : 1 }; }
 /* (the walls by the room: a storey's box takes in its ladder, so its x0 is the ladder's on the left) */
-function sDoorX(s) { return s.d > 0 ? s.ix1 + 1 : s.ix0 - 1; }
+function sDoorX(s: Site) { return s.d > 0 ? s.ix1 + 1 : s.ix0 - 1; }
 /* a line from s's window: the cells of the cord, or null */
-function sLinePlan(g, s) {
+function sLinePlan(g: Game, s: Site) {
   var W = sWindow(s), gw = g.gw, d, X, Y = -1, k, t;
   for (d = S_LINE_MIN; d <= S_LINE_MAX && Y < 0; d++) {
     X = W.x + W.o * d;
@@ -851,7 +865,7 @@ function sLinePlan(g, s) {
   return cells;
 }
 /* is cell (x, y) part of a home that is not in s's own stack */
-function sOtherHome(g, s, x, y) {
+function sOtherHome(g: Game, s: Site, x: number, y: number) {
   var H = sHouseOf(g, s);
   for (var k = 0; k < g.sites.length; k++) {
     var t = g.sites[k];
@@ -861,7 +875,7 @@ function sOtherHome(g, s, x, y) {
   }
   return false;
 }
-function sLines(g) {
+function sLines(g: Game) {
   var L = g.lines || (g.lines = []), k, j, s, o;
   /* (a line burnt through, or cut: gone. the window may get another, later) */
   for (k = L.length - 1; k >= 0; k--) {
@@ -913,11 +927,11 @@ function sLines(g) {
    while, as an ember, then is gone), and catches what it is tied to at either end: a shuttered window, a tree, a door;
    not glass, which does not burn. lit from outside by anything burning beside it, as a plant would be */
 var S_FUSE = 25;
-function sBurns(c) { return c === MAT.FIRE || c === MAT.EMBER; }
-function sBurnsNear(g, i) { return sBurns(g.m[i - 1]) || sBurns(g.m[i + 1]) || sBurns(g.m[i - g.gw]) || sBurns(g.m[i + g.gw]); }
+function sBurns(c: number) { return c === MAT.FIRE || c === MAT.EMBER; }
+function sBurnsNear(g: Game, i: number) { return sBurns(g.m[i - 1]) || sBurns(g.m[i + 1]) || sBurns(g.m[i - g.gw]) || sBurns(g.m[i + g.gw]); }
 /* is a cell beside i (along the line) already smouldering: that is the fuse; anything else alight is a flame from outside */
-function sCordNear(B, i, gw) { return B[i - 1] != null || B[i + 1] != null || B[i - gw] != null || B[i + gw] != null; }
-function sFuse(g) {
+function sCordNear(B, i: number, gw: number) { return B[i - 1] != null || B[i + 1] != null || B[i - gw] != null || B[i + gw] != null; }
+function sFuse(g: Game) {
   var L = g.lines, k, j, ln, i;
   for (k = 0; k < L.length; k++) {
     ln = L[k];
@@ -940,9 +954,9 @@ function sFuse(g) {
     });
   }
 }
-/* a flat given up before it was finished (build.js bRemove): the floor under it gets back its gable, to mend what of it
+/* a flat given up before it was finished (build.ts bRemove): the floor under it gets back its gable, to mend what of it
    was taken down, and its box, and its lit windows */
-function sUnplan(g, s) {
+function sUnplan(g: Game, s: Site) {
   var T = bSite(g, s.base);
   if (!T || !s.was) return;
   bMark(g, T, 0);
@@ -953,8 +967,8 @@ function sUnplan(g, s) {
   T.win = s.was.win; T.y0 = s.was.y0;
   bMark(g, T, 1);
 }
-/* fire just outside door column `door` of house h, on side d: within four columns, and as high as a peasant (ideas.js iExit) */
-function sFireOutside(g, h, door, d) {
+/* fire just outside door column `door` of house h, on side d: within four columns, and as high as a peasant (ideas.ts iExit) */
+function sFireOutside(g: Game, h: Site, door: number, d) {
   var n = 0;
   for (var x = door; x !== door + 5 * d; x += d) for (var y = h.F - 10; y <= h.F; y++) if (sBurns(pCell(g, x, y))) n++;
   return n;

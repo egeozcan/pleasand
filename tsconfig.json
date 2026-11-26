@@ -1,0 +1,17 @@
+{
+  /* the game: every script index.html loads, as the browser loads them, sharing one global scope (none of them imports
+     or exports anything). vite.config.mts joins them into one; harness/loader.js does the same for node */
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": [],
+    "noEmit": true,
+    "strict": false,
+    "noImplicitThis": true,
+    /* nothing that has to be compiled rather than wiped out: the types are blanked where they stand (node's
+       stripTypeScriptTypes), so a line of the .ts is the same line of what runs */
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true
+  },
+  "include": ["*.ts"]
+}

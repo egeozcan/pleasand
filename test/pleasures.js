@@ -1,7 +1,7 @@
 /* =====================================================================
    PLEASAND  --  test/pleasures.js
 
-   the great works for enjoying (pleasures.js): the baths. required by
+   the great works for enjoying (pleasures.ts): the baths. required by
    test/run.js
    ===================================================================== */
 "use strict";

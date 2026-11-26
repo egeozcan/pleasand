@@ -1,8 +1,8 @@
 /* =====================================================================
-   PLEASAND  --  glr.js
+   PLEASAND  --  glr.ts
 
    the field, on the GPU (WebGL2). the picture of the valley is still
-   worked out a cell at a time in JS (game.js drawWorld, into g.px and,
+   worked out a cell at a time in JS (game.ts drawWorld, into g.px and,
    for what glows, g.gpx); what this does is everything after that,
    which the 2D canvas did on the CPU on many machines: it puts the part
    in view up as a texture, stretches it onto the screen, and makes the
@@ -11,7 +11,7 @@
 
    the page is four canvases, one over the other (index.html):
      gl    this: the field and its glow, on the background colour
-     fx    the bangs (game.js drawBangs: lightning, shock rings, a
+     fx    the bangs (game.ts drawBangs: lightning, shock rings, a
            firework's glow), added onto the field (mix-blend-mode:
            plus-lighter, as the 2D path draws them "lighter")
      cv    the 2D canvas, with a hole where the field is: the panel,
@@ -45,13 +45,13 @@ var GLR_FS_LINEAR = "#version 300 es\nprecision highp float;\n" +
   "uniform sampler2D uTex; uniform float uA; in vec2 vUV; out vec4 o;\n" +
   "void main() { o = texture(uTex, vUV) * uA; }\n";
 
-function glrShader(gl, type, src) {
+function glrShader(gl, type, src: string) {
   var s = gl.createShader(type);
   gl.shaderSource(s, src); gl.compileShader(s);
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error("shader: " + gl.getShaderInfoLog(s));
   return s;
 }
-function glrProgram(gl, fs) {
+function glrProgram(gl, fs: string) {
   var p = gl.createProgram();
   gl.attachShader(p, glrShader(gl, gl.VERTEX_SHADER, GLR_VS));
   gl.attachShader(p, glrShader(gl, gl.FRAGMENT_SHADER, fs));
@@ -62,7 +62,7 @@ function glrProgram(gl, fs) {
   ["uDst", "uSrc", "uTex", "uMax", "uA"].forEach(function (k) { u[k] = gl.getUniformLocation(p, k); });
   return { p: p, u: u };
 }
-function glrTex(gl, w, h, filter) {
+function glrTex(gl, w: number, h: number, filter) {
   var t = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, t);
   gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
@@ -76,7 +76,7 @@ function glrTex(gl, w, h, filter) {
 /* WebGL drawn by the CPU (a GPU the browser will not use): slower than the 2D canvas, which is what it is there for */
 var GLR_SOFT = /swiftshader|llvmpipe|softpipe|software|basic render/i;
 /* the renderer on canvas el, or null if there is no WebGL2 to be had, or only a software one (force: take that too) */
-function glrInit(el, force) {
+function glrInit(el, force: boolean) {
   var gl = null;
   try {
     gl = el.getContext("webgl2", { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false,
@@ -97,7 +97,7 @@ function glrInit(el, force) {
   try {
     var R = { gl: gl, el: el, near: glrProgram(gl, GLR_FS_NEAREST), lin: glrProgram(gl, GLR_FS_LINEAR), vao: gl.createVertexArray(),
               texW: 0, field: null, glow: null,
-              /* the small two: one screen's worth, halved and halved again, as game.js gamePicture's gc2 and gc4 */
+              /* the small two: one screen's worth, halved and halved again, as game.ts gamePicture's gc2 and gc4 */
               w2: Math.ceil(VIEW_GW / 2), h2: Math.ceil(GH / 2), w4: Math.ceil(VIEW_GW / 4), h4: Math.ceil(GH / 4),
               t2: null, t4: null, f2: null, f4: null, lost: false, proved: false, px: null, gpx: null };
     R.t2 = glrTex(gl, R.w2, R.h2, gl.LINEAR); R.f2 = gl.createFramebuffer();
@@ -124,7 +124,7 @@ var glrOffHook = null;
 function glrOff() { GLR = null; if (glrOffHook) glrOffHook(); }
 
 /* the textures the field goes up in: as wide as the columns drawWorld works out (drawCols: the view, and two either side) */
-function glrTextures(R, g) {
+function glrTextures(R, g: Game) {
   var gl = R.gl, w = Math.min(g.gw, VIEW_GW + 4);
   if (R.field) gl.deleteTexture(R.field);
   if (R.glow) gl.deleteTexture(R.glow);
@@ -133,8 +133,8 @@ function glrTextures(R, g) {
   R.texW = w;
 }
 /* game pixels to clip space: the 2D canvas's transform is a plain scale of the game's 640 by 410, so this is too */
-function glrRect(gl, loc, x0, y0, x1, y1) { gl.uniform4f(loc, x0 / VW * 2 - 1, 1 - y0 / VH * 2, x1 / VW * 2 - 1, 1 - y1 / VH * 2); }
-function glrUp(gl, tex, data, gw, c0, cw) {
+function glrRect(gl, loc, x0: number, y0: number, x1: number, y1: number) { gl.uniform4f(loc, x0 / VW * 2 - 1, 1 - y0 / VH * 2, x1 / VW * 2 - 1, 1 - y1 / VH * 2); }
+function glrUp(gl, tex, data, gw: number, c0, cw: number) {
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.pixelStorei(gl.UNPACK_ROW_LENGTH, gw);
   gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, c0);
@@ -145,7 +145,7 @@ function glrUp(gl, tex, data, gw, c0, cw) {
 
 /* the first frame: is the field really there? the middle of it read back, once (the sky is never exactly the background
    colour). if it is not there, whatever the reason, the 2D canvas draws it from the next frame on, and says why */
-function glrProve(R, W, H, x, y) {
+function glrProve(R, W, H, x: number, y: number) {
   var gl = R.gl, p = new Uint8Array(4);
   R.proved = true;
   gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, p);
@@ -156,7 +156,7 @@ function glrProve(R, W, H, x, y) {
 }
 
 /* this frame's field. c0, cw: the columns drawWorld worked out; cam: the first in view; sx, sy: the shake; glow: any */
-function glrDraw(R, g, c0, cw, cam, sx, sy, glow) {
+function glrDraw(R, g: Game, c0: number, cw: number, cam, sx: number, sy: number, glow: boolean) {
   var gl = R.gl, W = R.el.width, H = R.el.height, PW = VIEW_GW * CELL, PH = PLAY_H, u, o = cam - c0;
   if (R.texW !== Math.min(g.gw, VIEW_GW + 4) || R.field === null) glrTextures(R, g);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);

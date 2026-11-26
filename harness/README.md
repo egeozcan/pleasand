@@ -1,10 +1,11 @@
 # pleasand, without the screen
 
 A harness for running the game headless and looking inside it while it runs.
-No canvas, no audio, no browser. It loads the same `*.js` files `index.html`
-loads, in the same order, and drives them a tick at a time. Everything is
-deterministic: the seed decides the village, the clock only moves when you
-step it, and `Math.random` is a seeded generator you can read and put back.
+No canvas, no audio, no browser. It loads the same `*.ts` files `index.html`
+lists, in the same order (the types blanked out by node's own stripper), and
+drives them a tick at a time. Everything is deterministic: the seed decides
+the village, the clock only moves when you step it, and `Math.random` is a
+seeded generator you can read and put back.
 
 Made for agents: every fact comes back as JSON or text, every action is a
 method or a JSON line, and every run can be reproduced from a scenario file.
@@ -232,7 +233,7 @@ off, has no lines of its own here: its time is all `heatStepOther`. To see it
 by its steps, profile the JS's: `h.eval("SIM_WASM = false")`.)
 
 **The WebAssembly step and the JS.** The sand step's walk and the heat step run
-as WebAssembly (`simwasm.js`, `wasm/`) and play the same world as the JS step,
+as WebAssembly (`simwasm.ts`, `wasm/`) and play the same world as the JS step,
 die for die: the harness's dice are a mulberry32 the module rolls itself
 (`window.PLEASAND_RNG`, loader.js), test/sim.js's are asked of JS one by one.
 `h.eval("SIM_WASM = false")` plays a village with the JS. A rule changed in
@@ -391,7 +392,7 @@ h.restore("kf0");                // keyframes are checkpoints; the loaded state 
 h.save("after.json");            // { path, bytes, keyframes, checksFailed }
 ```
 Every save carries its dice (`rng`, and each keyframe its own): the browser's
-`Math.random` is the harness's generator (`rng.js`, mulberry32), and drawing and
+`Math.random` is the harness's generator (`rng.ts`, mulberry32), and drawing and
 sound roll separate side dice, so a save loaded in the harness goes on exactly
 as the browser would have, until the player's next input (a click, a key, or the
 mouse moving over the field). `--reseed N` gives fresh dice instead; a save with
@@ -412,7 +413,7 @@ Every harness action that changes the world (paint, heat, spawn, input,
 press clears the cursor's recent samples and a let-go takes one, as the
 browser's pointer does, so a hand that stopped before it let go lets go
 still. One recorded before that replays with the harness's press and let-go
-as they were then. Once there is a hand (`hand.js`), the hash takes all of it
+as they were then. Once there is a hand (`hand.ts`), the hash takes all of it
 too, a lump in it or in the air as well as what it remembers. Note: raw mutations through
 `h.eval` or `h.game.*` are *not* recorded, so keep a scenario honest by
 doing things through the harness when you want it replayable.
@@ -475,7 +476,7 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 
 ## Files
 
-- `loader.js` — reads `index.html` for the script list, compiles the game
+- `loader.js` — reads `index.html` for the script list, strips the types, compiles the game
   into one scope, stubs the canvas and audio, seeds `Math.random`, owns the clock
 - `snapshot.js` — copies the whole game state and puts it back, identity and all; `stateHash`, all of it fingerprinted
 - `inspect.js` — state, census, cells, searches, ascii maps, entity dossiers, `why()`

@@ -1,10 +1,10 @@
 /* =====================================================================
-   PLEASAND  --  mines.js
+   PLEASAND  --  mines.ts
 
    under the sand there is rock, and in the rock there are seams of
    coal, lumps of iron ore and, deep down, the odd speck of gold. a
    village that has dug enough holes in the sand thinks of digging one
-   down into the rock (ideas.js), and what comes up out of it gives them
+   down into the rock (ideas.ts), and what comes up out of it gives them
    the next idea, and the next:
 
      MINING      a mine: a head dug down through the sand (a collar of
@@ -22,7 +22,7 @@
                  lookout on top, with a lantern on the battlements. the
                  bored go up and have a look at the valley. and with
                  stone to spare, houses are built (and rebuilt, after a
-                 fire) in stone (build.js)
+                 fire) in stone (build.ts)
      SMELTING    (coal and ore, both) a furnace by the mine: ore and coal
                  go in, iron comes out. and once there is iron, iron
                  picks, which go nearly twice as fast
@@ -35,11 +35,27 @@
                  everybody in the valley hears it, and wakes, and comes
 
    a mine, a gallery, a tower, a furnace, a lift and a bell are all
-   sites, like a house (build.js): a plan, a blueprint, repairs. a site
+   sites, like a house (build.ts): a plan, a blueprint, repairs. a site
    that wants stone or iron or gold has a pile, which whoever brings
    some adds to, and whoever is building it builds from.
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps in g) */
+interface Game {
+  mineFar?: any; mineNo?: any; renoT?: number; furnaceNo?: any; bellT?: number; mcave?: Uint8Array;
+}
+/* (what this file keeps on a villager) */
+interface Peasant {
+  iron?: number; tools?: number; coal?: number; ore?: number; worn?: number; wear?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  out?: any; mouth?: any; hot?: number; fc?: any; ref?: any; top?: any; bot?: any;
+  mine?: boolean; lv?: number; sunk?: boolean; spots?: any; on?: any; col?: any; sx?: any; sy?: any; spotT?: number;
+  spotLast?: number; cleared?: number; floodT?: number; lad?: any; T?: number; B?: any; xa?: any; xb?: any;
+  ironProps?: boolean;
+}
 
 var M_SAND = 16;            /* as much sand as they will dig a mine's head down through (the collar holds it back) */
 var M_SHAFT = 28;           /* how far down into the rock a shaft goes (as far as the rock does, if that is less) */
@@ -111,7 +127,7 @@ P_ACHIEVE.bell = ["THE BELL", "a golden bell, up high. everybody in the valley w
    WHAT THEY DO ABOUT IT. called from iPick when they are looking for
    something to do. true if they found something
    ------------------------------------------------------------------- */
-function mPick(g, p, hungry) {
+function mPick(g: Game, p: Peasant, hungry: boolean) {
   var K = g.know, s;
   if (!K.mine) return false;
   /* ore and coal in their pockets, and a furnace to put it in */
@@ -139,38 +155,38 @@ function mPick(g, p, hungry) {
   return false;
 }
 /* one tick of one of the jobs in here, or undefined if it is not one of ours */
-function mTask(g, p, k) {
+function mTask(g: Game, p: Peasant, k: Task) {
   if (k.kind === "smelt") return mTaskSmelt(g, p, k);
   if (k.kind === "forge") return mTaskForge(g, p, k);
   if (k.kind === "lookout") return mTaskLookout(g, p, k);
   return undefined;
 }
 /* can p walk to somewhere to stand by (x, y) */
-function mReachable(g, p, x, y) {
+function mReachable(g: Game, p: Peasant, x: number, y: number) {
   var h = navHere(g, p);
   return !!h && !!navFind(g, h.x, h.y, function (X, Y) { return Math.abs(X - x) <= 1 && Math.abs(Y - y) <= 3; }, x, y);
 }
 /* gold the village has about it, in pockets */
-function mGoldToHand(g) {
+function mGoldToHand(g: Game) {
   var n = 0;
   for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k].gold || 0;
   return n;
 }
 /* iron the village has about it, in pockets (g.iron is all they have ever made) */
-function mIronToHand(g) {
+function mIronToHand(g: Game) {
   var n = 0;
   for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k].iron || 0;
   return n;
 }
 /* the time a stroke of the pick takes: less, once there are iron picks */
-function mStroke(g) { return g.iron > 0 ? 18 : 30; }
-function mSites(g, kind, done) {
+function mStroke(g: Game) { return g.iron > 0 ? 18 : 30; }
+function mSites(g: Game, kind: string, done?: boolean) {
   var out = [];
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === kind && (!done || g.sites[k].done)) out.push(g.sites[k]);
   return out;
 }
 /* what a cell of rock is worth to them: more, a good deal, if they have never found any of it */
-function mWorth(g, c) { var w = M_WORTH[c]; return w && M_YIELD[c] && !g.found[M_YIELD[c]] ? w * 5 : w; }
+function mWorth(g: Game, c: number) { var w = M_WORTH[c]; return w && M_YIELD[c] && !g.found[M_YIELD[c]] ? w * 5 : w; }
 /* something that pours (sand, water, lava, salt...): dig next to it and it pours in */
 function mLoose(c) { return SAND_FREE[c] === 1 && !AIRY[c]; }
 /* rock that will hold up a roof, or stand as a wall */
@@ -188,7 +204,7 @@ var M_CHIPS = {
 };
 /* a stroke that breaks a cell of rock out: into their pockets with it (the air left behind keeps whatever heat the rock
    had, as with a chopped log) */
-function mMine(g, s, e, p) {
+function mMine(g: Game, s: Site, e, p: Peasant) {
   var j = e.i, r = M_YIELD[g.m[j]], x = j % g.gw, y = (j / g.gw) | 0;
   if (!r) return;
   g.aux[j] = 0; heatVacate(g, j);
@@ -219,7 +235,7 @@ function mMine(g, s, e, p) {
    down, and as much as can be found in it near enough the bottom of a shaft to get at */
 /* can p walk to the head of mine plot r: the ground at its shaft, trees felled or not (the ones across a lake are let be
    a while: g.mineNo) */
-function mMineReach(g, p, r) {
+function mMineReach(g: Game, p: Peasant, r) {
   var top = mGroundNear(g, r.cx, true, r.ref);
   if (top >= 1 && mReachable(g, p, r.cx, top - 1)) return true;
   /* (that floor there, not the ones over or under it: a shelf of rock can be out of reach with a good floor under it) */
@@ -228,7 +244,7 @@ function mMineReach(g, p, r) {
   return false;
 }
 /* a plot for a mine in column x on each of its floors (the ones lately found out of reach let be): those that will do */
-function mMinePlots(g, x) {
+function mMinePlots(g: Game, x: number) {
   var out = [], L = mFloors(g, x, true), k, n, r, far = g.mineFar || [];
   for (k = 0; k < L.length; k++) {
     for (n = 0; n < far.length; n++) if (far[n].t > g.tick && Math.abs(far[n].x - x) <= 3 && Math.abs(far[n].y - L[k]) <= 8) break;
@@ -239,7 +255,7 @@ function mMinePlots(g, x) {
 }
 /* every mine's flood clock: one that has stood flooded a good long while, done or not, is written off (flood 2), and
    holds up no other. (the water gone down: the clock starts again next time) */
-function mFloodClock(g) {
+function mFloodClock(g: Game) {
   var M = mSites(g, "mine");
   for (var k = 0; k < M.length; k++) {
     if (M[k].flood === 2) continue;
@@ -249,7 +265,7 @@ function mFloodClock(g) {
 }
 /* a mine whose head the sand keeps pouring back into: given up (what is on its pile back in p's pockets), and nowhere
    near it tried again for a good while */
-function mGiveUpMine(g, s, p) {
+function mGiveUpMine(g: Game, s: Site, p: Peasant) {
   var j = g.sites.indexOf(s), x;
   if (j < 0) return;
   feed(g, "the sand keeps pouring back into the mine. the village gives it up", "#c8d0dc", "plan" + s.id);
@@ -258,7 +274,7 @@ function mGiveUpMine(g, s, p) {
   bGiveBack(s, p);
   bRemove(g, j);
 }
-function mPlanMine(g, p) {
+function mPlanMine(g: Game, p: Peasant) {
   mFloodClock(g);
   var M = mSites(g, "mine"), k, live = 0;
   for (k = 0; k < M.length; k++) if (M[k].flood !== 2) live++;
@@ -273,7 +289,7 @@ function mPlanMine(g, p) {
   /* (on any floor of it: a shelf of rock over the valley floor has a floor of its own, and so may the valley under it) */
   if (g.mineFar) g.mineFar = g.mineFar.filter(function (f) { return f.t > g.tick; });
   mColsOn(g, true);   /* (nothing moves while they look: the columns summed once) */
-  for (x = rLo(g, 24); x < rHi(g, 24); x++) {   /* (in the village's range: world.js) */
+  for (x = rLo(g, 24); x < rHi(g, 24); x++) {   /* (in the village's range: world.ts) */
     if (g.mineNo[x] > g.tick) continue;
     var R = mMinePlots(g, x);
     for (k = 0; k < R.length; k++) { r = R[k]; r.sc = r.score - Math.abs(x - fx) * 0.05 - Math.abs(r.ref - p.y) * 0.05; C.push(r); }
@@ -336,12 +352,12 @@ function mPlanMine(g, p) {
    the ladder), B (the floor of the shaft, where their feet go), hw (how far the head of it reaches out either side), top
    (the highest ground in it), dig (sand to shovel), pick (rock over the top of the shaft), collar (timbers to hold the
    sand back), score} or null */
-function mMinePlot(g, cx, ref) {
+function mMinePlot(g: Game, cx: number, ref) {
   var gw = g.gw, gh = g.gh, x, y, c, k, G, S = -1, B, hw, edge, top = 1e9, dig = [], pick = [], collar = [], ore = 0, gr = {};
   if (cx < 24 || cx > gw - 25) return null;
   /* (on the floor whose ground is just under row ref: the one under open sky, if there is no ref) */
   if (ref == null) { G = mGround(g, cx, true); if (G < 1) return null; ref = G - 1; }
-  function ground(x) { if (gr[x] === undefined) gr[x] = mGroundNear(g, x, true, ref); return gr[x]; }
+  function ground(x: number) { if (gr[x] === undefined) gr[x] = mGroundNear(g, x, true, ref); return gr[x]; }
   /* the rock under the middle five columns, through no more than a little sand: the lowest of it (the rest is picked) */
   for (x = cx - 2; x <= cx + 2; x++) {
     G = ground(x);
@@ -413,7 +429,7 @@ function mMinePlot(g, cx, ref) {
    (M_COLV: mWorth of each thing, as it is while they look: what has been found so far does not change) */
 var M_COLW = null, M_COLX = null, M_COLT = null, M_COLN = 0, M_COLON = false, M_COLV = new Float64Array(NMAT);
 var M_BAD = LIQUID.map(function (v, c) { return v || HOT[c] || c === MAT.DRAIN || P_BANG[c] ? 1 : 0; });
-function mColsOn(g, on) {
+function mColsOn(g: Game, on: boolean) {
   M_COLON = on;
   if (!on) return;
   var n = g.gw * (g.gh + 1);
@@ -422,7 +438,7 @@ function mColsOn(g, on) {
   for (var c = 0; c < NMAT; c++) M_COLV[c] = mWorth(g, c);
 }
 /* column x's sums (the index of its row 0) */
-function mCol(g, x) {
+function mCol(g: Game, x: number) {
   var gh = g.gh, gw = g.gw, k = x * (gh + 1), m = g.m, W = M_COLW, X = M_COLX, V = M_COLV, y, c, j;
   if (M_COLT[x] === M_COLN) return k;
   M_COLT[x] = M_COLN;
@@ -433,7 +449,7 @@ function mCol(g, x) {
 /* a spadeful of sand out of the head of mine s (cell j), carried up and tipped on the heap beside it: on the downhill
    side, so it does not roll back in, a few steps from the collar, into the air on top of the ground, heat and all.
    (never into the pond.) false if there is nowhere */
-function mSpoil(g, s, j) {
+function mSpoil(g: Game, s: Site, j: number) {
   /* (well clear of the collar, so it does not slide back in; and spread out along the ground, the nearest place the
      heap is still low, so it does not grow into a wall across the valley) */
   var m = s.kind === "tunnel" ? bSite(g, s.of) || s : s, col = s.col != null ? s.col : Math.round(s.cx), base = m.y0 + 1, d, k, x = -1, y = -1, G, order;
@@ -447,12 +463,12 @@ function mSpoil(g, s, j) {
   y = y - 1;
   if (x < 0 || y < 1) return false;
   sandSwap(g, j, y * g.gw + x);
-  tSpoiled(g, x);   /* (and that ground is the spoil heap's: not a pile for anybody to tidy away. tidy.js) */
+  tSpoiled(g, x);   /* (and that ground is the spoil heap's: not a pile for anybody to tidy away. tidy.ts) */
   return true;
 }
 /* the ground at column x, if spoil can go on it: not on anybody's site (a furnace, a tower's door), and not in water.
    -1 if not */
-function mSpoilAt(g, s, x) {
+function mSpoilAt(g: Game, s: Site, x: number) {
   var m = s.kind === "tunnel" ? bSite(g, s.of) || s : s;
   /* (on the floor the mine is on) */
   var G = x > 0 && x < g.gw - 1 ? (m.ref != null ? mGroundNear(g, x, false, m.ref) : mGround(g, x)) : -1, k, t;
@@ -467,29 +483,29 @@ function mSpoilAt(g, s, x) {
 }
 /* the ground in column x, under open sky: the first thing down from the top that is not air, or a bush. -1 if that is
    not ground (water, a tree, somebody's roof). (the floors under that one: mGroundNear, mFloors) */
-function mGround(g, x, trees) { return mGroundFrom(g, x, trees, 0); }
+function mGround(g: Game, x: number, trees?: boolean) { return mGroundFrom(g, x, trees, 0); }
 /* where to stand at site s's place to stand (s.sx, s.sy): about where it was, on whatever has piled up there since */
-function mSpotRow(g, s) { var G = mGroundNear(g, s.sx, false, s.sy); return G > 0 ? G - 1 : s.sy; }
+function mSpotRow(g: Game, s: Site) { var G = mGroundNear(g, s.sx, false, s.sy); return G > 0 ? G - 1 : s.sy; }
 /* feet at row y, about level with that spot (row sy): three up or down. or, in a village with great works going on
    (g.wAny: their kiln, their glass, their iron), up to five over it, on the top of a field of ripe wheat sown hard by
    the furnace's mouth, say, which a peasant three wide cannot get down off into the gap beside it. (a village with none
    of it works its furnace as it always did) */
-function mBySpot(g, y, sy) { return y >= sy - (g.wAny ? 5 : 3) && y <= sy + 3; }
+function mBySpot(g: Game, y: number, sy: number) { return y >= sy - (g.wAny ? 5 : 3) && y <= sy + 3; }
 /* (the same, from row y0 down: the first thing at or under it that is not air, or a bush) */
-function mGroundFrom(g, x, trees, y0) {
+function mGroundFrom(g: Game, x: number, trees: boolean, y0: number) {
   var y = mSurface(g, x, trees, y0);
   if (y < 0) return -1;
   var c = g.m[y * g.gw + x];
   if (M_FARMOK && c === MAT.SOIL && mFarmCell(g, x, y)) return y;   /* (a field to be dug up: its ground) */
   return LIQUID[c] || WOODY[c] || P_SOFT[c] || bMarked(g, x, y) ? -1 : y;
 }
-/* mGround(g, x) for every column at once, into out[0 .. gw - 1] (tidy.js tGroundKeep, every few seconds). the same
+/* mGround(g, x) for every column at once, into out[0 .. gw - 1] (tidy.ts tGroundKeep, every few seconds). the same
    answers: the valley is looked down a row at a time, four cells to a word, and a word of four empty cells is air in
    all four columns, stepped over; a column is let be once its first cell that is not air or a bush is found, and that
    cell is then looked at as mGroundFrom would. (cell by cell, column by column, as ever, while a field can be dug up
    or a row is not a whole number of words) */
 var M_GTODO = null, M_GLEFT = null;
-function mGroundAll(g, out) {
+function mGroundAll(g: Game, out) {
   var gw = g.gw, gh = g.gh, m = g.m, m32 = mWords(g), x, y, k, w, nt, nw, v, bits, b, i, c;
   if (M_FARMOK || !m32 || M_SEE[MAT.EMPTY] !== 1) { for (x = 0; x < gw; x++) out[x] = mGround(g, x); return out; }
   var W = gw >> 2;
@@ -522,7 +538,7 @@ function mGroundAll(g, out) {
 /* g.m four cells to a word, for a look over the valley a row at a time (the same cells: a word's four are a row's,
    left to right, whatever order its bytes are in); null if a row is not a whole number of words */
 var M_M32 = null, M_M32OF = null;
-function mWords(g) {
+function mWords(g: Game) {
   var m = g.m;
   if ((g.gw & 3) || (m.byteOffset & 3) || m.length !== g.gw * g.gh || m.BYTES_PER_ELEMENT !== 1) return null;
   if (M_M32OF !== m) { M_M32 = new Int32Array(m.buffer, m.byteOffset, m.length >> 2); M_M32OF = m; }
@@ -530,11 +546,11 @@ function mWords(g) {
 }
 /* what the ground is looked for through: air, a bush, a tree that can come down (trees), and the wheat on a field
    that can be dug up */
-function mSeeThrough(g, x, y, c, trees) {
+function mSeeThrough(g: Game, x: number, y: number, c: number, trees: boolean) {
   return AIRY[c] || P_LEAF[c] || (trees && mFellable(g, x, y, c)) || (M_FARMOK && c !== MAT.SOIL && mFarmCell(g, x, y));
 }
 /* the first row at or under y0 in column x that is not see-through. -1 if there is none */
-function mSurface(g, x, trees, y0) {
+function mSurface(g: Game, x: number, trees: boolean, y0: number) {
   var y = Math.max(0, y0);
   /* (no fields, in the valley: air or a bush, or a tree that can come down if trees, straight down the column. the
      same rows mSeeThrough would) */
@@ -553,7 +569,7 @@ var M_SEE = AIRY.map(function (v, c) { return v || P_LEAF[c] ? 1 : 0; });
 /* the ground in column x about level with row y (where somebody stands, or a site's floor): under it, if y is in the
    open; the top of it, if y is in the ground itself, and the top is no more than a heap's height up. -1 if not ground.
    (a valley can have floors one over another, a shelf of rock with a cave under it: this is the one y is on) */
-function mGroundNear(g, x, trees, y) {
+function mGroundNear(g: Game, x: number, trees: boolean, y: number) {
   if (x < 0 || x >= g.gw) return -1;
   y = Math.max(0, Math.min(g.gh - 1, y));
   for (var k = 0; k <= 16 && y - k >= 0; k++) {
@@ -563,7 +579,7 @@ function mGroundNear(g, x, trees, y) {
 }
 /* every floor in column x, from the top down: the row just over the ground at the bottom of each stretch of open air
    with ground under it (the first is the one under open sky: mGround) */
-function mFloors(g, x, trees) {
+function mFloors(g: Game, x: number, trees?: boolean) {
   var out = [], y = 0, G;
   while (y < g.gh) {
     G = mSurface(g, x, trees, y);
@@ -580,16 +596,16 @@ function mFloors(g, x, trees) {
 /* the last resort, when there is nowhere else for a mine (or a derrick): a field, dug up, and sown again somewhere
    else. while M_FARMOK is set, a plot can go over a field: its earth is ground, and its earth and wheat dig out */
 var M_FARMOK = false;
-function mFarmCell(g, x, y) {
+function mFarmCell(g: Game, x: number, y: number) {
   var c = pCell(g, x, y);
   if (c !== MAT.SOIL && c !== MAT.CROP && c !== MAT.WHEAT && !(AIRY[c] && bMarked(g, x, y))) return false;
   return !!bSiteAround(g, x, y, "farm", 0);   /* (the earth, and the wheat in it, however tall it has grown) */
 }
-function mTaken(g, x, y) { return bMarked(g, x, y) && !(M_FARMOK && mFarmCell(g, x, y)); }
-function mDiggable(g, x, y) { var c = pCell(g, x, y); return B_DIG[c] === 1 || (M_FARMOK && mFarmCell(g, x, y) && !AIRY[c]); }
+function mTaken(g: Game, x: number, y: number) { return bMarked(g, x, y) && !(M_FARMOK && mFarmCell(g, x, y)); }
+function mDiggable(g: Game, x: number, y: number) { var c = pCell(g, x, y); return B_DIG[c] === 1 || (M_FARMOK && mFarmCell(g, x, y) && !AIRY[c]); }
 /* can the field under x0 .. x1 be spared: there is somewhere else to sow it, or two more fields besides, one of them
    near enough (not off at the far end of the valley, where the hungry will never get to) */
-function mFieldSpare(g, x0, x1) {
+function mFieldSpare(g: Game, x0: number, x1: number) {
   if (iFarmSpot(g, x0, x1)) return true;
   var n = 0, near = false;
   for (var k = 0; k < g.sites.length; k++) {
@@ -600,9 +616,9 @@ function mFieldSpare(g, x0, x1) {
   }
   return n >= 2 && near;
 }
-function mFieldsUnder(g, x0, x1) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "farm" && g.sites[k].x1 >= x0 && g.sites[k].x0 <= x1) n++; return n; }
+function mFieldsUnder(g: Game, x0: number, x1: number) { var n = 0; for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "farm" && g.sites[k].x1 >= x0 && g.sites[k].x0 <= x1) n++; return n; }
 /* the fields under a plot (x0 .. x1), dug up: the earth goes back to sand, the wheat is had, and the field is gone */
-function mDigUpFields(g, x0, x1, p) {
+function mDigUpFields(g: Game, x0: number, x1: number, p: string) {
   /* (sown again somewhere else, if there is somewhere: else the other fields will have to do) */
   var room = !!iFarmSpot(g, x0, x1);
   for (var k = g.sites.length - 1; k >= 0; k--) {
@@ -618,9 +634,9 @@ function mDigUpFields(g, x0, x1, p) {
   }
 }
 /* a peasant's height of room at (x, y), and a cell either side, that a site needs kept clear to work at it (a furnace's
-   mouth, a pump): empty entries in its plan, flagged clear, so that what gets into them is cleared out (build.js
+   mouth, a pump): empty entries in its plan, flagged clear, so that what gets into them is cleared out (build.ts
    bInspect). not over the site's own columns a .. b */
-function mClearSpot(g, plan, x, y, a, b) {
+function mClearSpot(g: Game, plan, x: number, y: number, a, b) {
   for (var dx = -1; dx <= 1; dx++) for (var dy = 0; dy <= 8; dy++) {
     var X = x + dx, Y = y - dy;
     if (X < 1 || X > g.gw - 2 || Y < 1 || (X >= a && X <= b) || !AIRY[pCell(g, X, Y)] || bMarked(g, X, Y)) continue;
@@ -630,9 +646,9 @@ function mClearSpot(g, plan, x, y, a, b) {
 /* the places to stand at site s (a furnace's mouth, a pump, in front of a tower's doors), looked over: sand that has
    slid in over one since, or a bush grown up in it, higher than it allows (a step, at a furnace: none at a door, whose
    lintel is just a peasant's height over the floor), goes into the plan to be cleared out (and so the site is reopened:
-   build.js bInspect). each is {x, y (the row their feet are on), a .. b (the site's own columns, left alone), step} */
+   build.ts bInspect). each is {x, y (the row their feet are on), a .. b (the site's own columns, left alone), step} */
 var M_CLEAR_MAX = 150;   /* spadefuls cleared out of the places to stand at a site, before they give it up as hopeless */
-function mSpotSilt(g, s) {
+function mSpotSilt(g: Game, s: Site) {
   var X, Y, j, k, q, o, have = null, hit;
   if (s.spotT > g.tick) return;
   for (q = 0; s.spots && q < s.spots.length; q++) {
@@ -653,7 +669,7 @@ function mSpotSilt(g, s) {
 }
 /* can they get in at the door in column o.door (from the side o.x is on, a few steps out), and out again. (true if
    there is nowhere out there to start from: that is no matter of sand) */
-function mDoorOpen(g, o) {
+function mDoorOpen(g: Game, o) {
   var sd = o.x > o.door ? 1 : -1, X = o.door + 4 * sd, G = X > 0 && X < g.gw - 1 ? mGround(g, X) : -1, dy = o.y;
   if (G < 1 || !navStand(g, X, G - 1)) return true;
   /* (walking in: not over the roof on a rope, the long way round) */
@@ -663,7 +679,7 @@ function mDoorOpen(g, o) {
 }
 /* a spadeful out of a place to stand at site s: and if it keeps sliding back in as fast as they clear it, they give
    up on keeping it clear, for a good while */
-function mSpotDug(g, s) {
+function mSpotDug(g: Game, s: Site) {
   s.cleared = (s.cleared || 0) + 1;
   if (s.cleared <= M_CLEAR_MAX) return;
   s.spotT = g.tick + 24000; s.cleared = 0;   /* (and leave it alone a good while) */
@@ -673,7 +689,7 @@ function mSpotDug(g, s) {
   feed(g, "the sand keeps sliding back in at " + bLabel(s) + ". they leave it", "#c8d0dc", "fix" + s.id);
 }
 /* is (x, y) somebody else's: a site other than s has it in its plan */
-function mSpotOther(g, s, x, y) {
+function mSpotOther(g: Game, s: Site, x: number, y: number) {
   if (!bMarked(g, x, y)) return false;
   for (var k = 0; k < g.sites.length; k++) {
     var t = g.sites[k];
@@ -682,10 +698,10 @@ function mSpotOther(g, s, x, y) {
   }
   return false;
 }
-/* a grown tree, nobody's: a site that wants the ground under it fells it first (and keeps the logs: build.js bDig) */
-function mFellable(g, x, y, c) { return c === MAT.WOOD && !bMarked(g, x, y) && !pGrowing(g, x, y); }
+/* a grown tree, nobody's: a site that wants the ground under it fells it first (and keeps the logs: build.ts bDig) */
+function mFellable(g: Game, x: number, y: number, c) { return c === MAT.WOOD && !bMarked(g, x, y) && !pGrowing(g, x, y); }
 /* what a site can clear out of its way: sand and bushes (B_DIG), and a grown tree */
-function mClear(g, x, y, c) { return B_DIG[c] === 1 || mFellable(g, x, y, c); }
+function mClear(g: Game, x: number, y: number, c) { return B_DIG[c] === 1 || mFellable(g, x, y, c); }
 /* a mine with nothing left worth digging either way along the bottom of it, nor along its upper level (if the shaft is
    deep enough to have one) */
 function mWorkedOut(m) { return !!(m.out && m.out[-1] && m.out[1] && (m.lv || !mUpper(m))); }
@@ -700,7 +716,7 @@ function mUpper(m) { return m.B - M_LEVEL - M_ROOF - 3 > m.S; }
    ------------------------------------------------------------------- */
 /* the next stretch of gallery, at the bottom of any mine that is dug: the way with the most in it first, and not a
    second stretch of anything while the last is still being dug */
-function mPlanTunnel(g, p) {
+function mPlanTunnel(g: Game, p: Peasant) {
   mFloodClock(g);   /* (first: a shaft written off holds up nothing, its unfinished galleries included) */
   var M = mSites(g, "mine", true), T = mSites(g, "tunnel"), k, j, m, d, r, order;
   for (k = 0; k < T.length; k++) {
@@ -741,7 +757,7 @@ function mPlanTunnel(g, p) {
 }
 /* where the galleries of mine m going way d (on the level being worked, or level lv) have got to: {end (the last
    column dug), len (how far, in all)} */
-function mReach(g, m, d, lv) {
+function mReach(g: Game, m, d, lv?: number) {
   var end = m.col + d, len = 0;
   if (lv == null) lv = m.lv || 0;
   for (var k = 0; k < g.sites.length; k++) {
@@ -753,14 +769,14 @@ function mReach(g, m, d, lv) {
   return { end: end, len: len };
 }
 /* how much is worth having in the rock ahead of the galleries of m, going way d, near enough the floor to get at */
-function mAhead(g, m, d) {
+function mAhead(g: Game, m, d: number) {
   var x0 = mReach(g, m, d).end + d, n = 0, x, y, B = mFloor(m);
   for (x = x0; Math.abs(x - x0) <= M_LOOK; x += d) for (y = B - M_ROOF - 3; y <= B + 2; y++) n += M_WORTH[pCell(g, x, y)];
   return n;
 }
 /* can a gallery go through column x, floor at B: rock (or air: an old working, a cave) the whole height of it, a firm
    roof over it and a firm floor under it, and nothing that would pour in anywhere round it, nor anybody else's site */
-function mBore(g, x, B) {
+function mBore(g: Game, x: number, B) {
   var y, c, k;
   if (x < 4 || x > g.gw - 5) return false;
   for (y = B - M_ROOF + 1; y <= B; y++) { c = pCell(g, x, y); if (!(ROCK[c] || AIRY[c]) || bMarked(g, x, y)) return false; }
@@ -775,7 +791,7 @@ function mBore(g, x, B) {
 /* the next stretch of gallery for mine m going way d: up to M_RUN columns of it, and any coal, ore or gold showing in the
    roof or the floor of it (a seam is followed: up into the roof, down into the floor, as far as an arm reaches). null if
    there is no going on: the rock runs out, or there is nothing left that way worth the digging */
-function mTunnelPlot(g, m, d) {
+function mTunnelPlot(g: Game, m, d) {
   var R = mReach(g, m, d), B = mFloor(m), start = R.end + d, cols = [], plan = [], x, y, k, c, e, best = null, worth = 0;
   for (x = start; Math.abs(x - start) <= M_LOOK; x += d) for (y = B - M_ROOF - 3; y <= B + 2; y++) {
     c = pCell(g, x, y);
@@ -800,7 +816,7 @@ function mTunnelPlot(g, m, d) {
   for (k = 0; k < plan.length; k++) plan[k].drain = true;
   return { plan: plan, xa: cols[0], xb: cols[cols.length - 1], ore: best ? MAT_NAME[best].toLowerCase() : "" };
 }
-function mSafe(g, x, y) {
+function mSafe(g: Game, x: number, y: number) {
   for (var k = 0; k < 4; k++) { var j = sandNb(g, x, y, k); if (j >= 0 && mLoose(g.m[j])) return false; }
   /* (and nothing runny a little further off either: a seam is a thin wall to leave between a gallery and a pool) */
   for (var dy = -2; dy <= 2; dy++) for (var dx = -2; dx <= 2; dx++) if (LIQUID[pCell(g, x + dx, y + dy)]) return false;
@@ -808,8 +824,8 @@ function mSafe(g, x, y) {
 }
 /* a mine (or a gallery of it) with something runny lying in it: oil got in, or water. nobody works in that */
 /* a gallery whose shaft is written off (flooded for good) or gone: nobody works it */
-function mRetired(g, t) { var m = bSite(g, t.of); return !m || m.flood === 2; }
-function mFlooded(g, s) {
+function mRetired(g: Game, t) { var m = bSite(g, t.of); return !m || m.flood === 2; }
+function mFlooded(g: Game, s: Site) {
   var n = 0, seen = {};   /* (each wet cell once: a cell is in the plan twice, dug and laddered) */
   for (var k = 0; k < s.plan.length; k++) if (LIQUID[g.m[s.plan[k].i]] && !seen[s.plan[k].i] && (seen[s.plan[k].i] = 1) && ++n > 4) {
     if (!s.flood) { s.flood = 1; feed(g, iCap(bLabel(s)) + " is flooded. nobody is going down there", "#c8d0dc", "flood" + s.id); }
@@ -827,7 +843,7 @@ function mFlooded(g, s) {
    ------------------------------------------------------------------- */
 /* a tower, near p, on a plot that is level, or nearly (stone under the low end), with a clear way in at either side:
    seven wide, a door at the foot of each wall, a ladder up the inside, and a lookout on top. one at a time */
-function mPlanTower(g, p) {
+function mPlanTower(g: Game, p: Peasant) {
   var T = mSites(g, "tower"), k;
   if (T.length >= M_TOWERS) return false;
   for (k = 0; k < T.length; k++) if (!T[k].done) return false;
@@ -868,8 +884,8 @@ function mPlanTower(g, p) {
   if (bCarries(p)) bJoin(g, p, s);
   return true;
 }
-/* is (x0 .. x0 + 6) a plot for a tower: as bPlot is for a house (build.js), but taller, and with room round the top */
-function mTowerPlot(g, x0) {
+/* is (x0 .. x0 + 6) a plot for a tower: as bPlot is for a house (build.ts), but taller, and with room round the top */
+function mTowerPlot(g: Game, x0: number) {
   var x1 = x0 + 6, gy = [], x, y, c, k, F = 1e9, top, dig = [], fill = [], work = 0;
   if (x0 < 6 || x1 > g.gw - 7) return null;
   var hi = -1;
@@ -913,7 +929,7 @@ function mTowerPlot(g, x0) {
 /* a wooden house (the nearest, not being done over already) gets its boards re-laid in stone: the floor, the lintels,
    the ceiling and the roof. the doors, the window and the bed stay wood. it does not burn after that. true if one is
    under way */
-function mRenovate(g, p) {
+function mRenovate(g: Game, p: Peasant) {
   var best = null, bd = 220, k, s, d, j, n;
   if (bStoneToHand(g) < 30 || g.tick < (g.renoT || 0)) return false;
   for (k = 0; k < g.sites.length; k++) {
@@ -945,7 +961,7 @@ function mRenovate(g, p) {
   return true;
 }
 /* bored: up the tower for a look round */
-function mGoLookout(g, p) {
+function mGoLookout(g: Game, p: Peasant) {
   var T = mSites(g, "tower", true), best = null, bd = 220, k, d;
   for (k = 0; k < T.length; k++) {
     d = Math.abs(T[k].cx - p.x);
@@ -955,12 +971,12 @@ function mGoLookout(g, p) {
   p.task = { kind: "lookout", site: best.id, t: 0, act: 0, spot: best.x0 + 4 + irnd(2) };
   return true;
 }
-function mCrew(g, kind, id) {
+function mCrew(g: Game, kind: string, id: number) {
   var n = 0;
   for (var k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && t.kind === kind && t.site === id && !g.peasants[k].dead) n++; }
   return n;
 }
-function mTaskLookout(g, p, k) {
+function mTaskLookout(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 3600) return iDone(p, false);
   var sx = k.spot, sy = s.T - 1, fy = Math.floor(p.y);
@@ -975,7 +991,7 @@ function mTaskLookout(g, p, k) {
     if (g.blaze.length) pSay(g, p, "spotFire", true);
     else pSay(g, p, "lookout", true);
   }
-  if (k.act > 360) { p.bored = 0; if (s.kind === "tower") hLooked(g, p); return iDone(p, true); }   /* (counted: heavens.js) */
+  if (k.act > 360) { p.bored = 0; if (s.kind === "tower") hLooked(g, p); return iDone(p, true); }   /* (counted: heavens.ts) */
   return true;
 }
 
@@ -984,7 +1000,7 @@ function mTaskLookout(g, p, k) {
    ------------------------------------------------------------------- */
 /* a furnace: five wide, a hearth inside it, a mouth on the side facing the mine (or p, if there is no mine), a chimney.
    just the one */
-function mPlanFurnace(g, p) {
+function mPlanFurnace(g: Game, p: Peasant) {
   if (mSites(g, "furnace").length) return false;
   var m = mSites(g, "mine")[0], cx = m ? m.col : Math.floor(p.x), d, sd, r = null, k, ref = m ? m.ref : null;   /* (on the mine's floor) */
   /* (somewhere they can walk to: not across a lake from them, say) */
@@ -1002,9 +1018,9 @@ function mPlanFurnace(g, p) {
     g.furnaceNo[key] = g.tick + 20000;
     return null;
   }
-  /* (in a wide valley, only a furnace, and the room to work it, in the village's range: world.js) */
+  /* (in a wide valley, only a furnace, and the room to work it, in the village's range: world.ts) */
   var vr = vRange(g), wide = g.gw > VIEW_GW;
-  function fp(x, mouth) { return wide && (x - 3 < vr.x0 || x + 7 > vr.x1) ? null : mFurnacePlot(g, x, mouth, ref); }
+  function fp(x: number, mouth) { return wide && (x - 3 < vr.x0 || x + 7 > vr.x1) ? null : mFurnacePlot(g, x, mouth, ref); }
   for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(fp(sd > 0 ? cx + d : cx - d - 4, -sd));
   /* (nowhere with its mouth to the mine: then with its back to it. the ore will find its way round) */
   for (d = m ? m.x1 - m.col + 12 : 6; d <= g.gw && !r; d++) for (sd = -1; sd <= 1 && !r; sd += 2) r = ok(fp(sd > 0 ? cx + d : cx - d - 4, sd));
@@ -1033,11 +1049,11 @@ function mPlanFurnace(g, p) {
 /* is (x0 .. x0 + 4) somewhere for a furnace, its mouth facing way mouth: level, or near enough (blocks under the low
    end), clear over it, somewhere to stand at the mouth, and nothing that burns close by. {x0, G (the row it stands on:
    its bottom course is the row over that), fill (blocks under the low end), mouth} or null */
-function mFurnacePlot(g, x0, mouth, ref) {
+function mFurnacePlot(g: Game, x0: number, mouth, ref) {
   var x1 = x0 + 4, G = 1e9, x, y, c, k, sx = mouth < 0 ? x0 - 2 : x1 + 2, gy = [], fill = [], dig = [];
   if (x0 < 8 || x1 > g.gw - 9) return null;
   /* (on the floor whose ground is just under row ref, if there is one: the mine's) */
-  function ground(x, trees) { return ref == null ? mGround(g, x, trees) : mGroundNear(g, x, trees, ref); }
+  function ground(x: number, trees?: boolean) { return ref == null ? mGround(g, x, trees) : mGroundNear(g, x, trees, ref); }
   for (x = x0; x <= x1; x++) { y = ground(x, true); if (y < 0 || !pSolid(g, x, y)) return null; gy.push(y); G = Math.min(G, y); }
   for (k = 0; k < 5; k++) { if (gy[k] - G > 5) return null; for (y = gy[k] - 1; y >= G; y--) fill.push([x0 + k, y]); }
   /* (somewhere to stand at the mouth, about level with it, give or take a step, and with room to stand) */
@@ -1073,10 +1089,10 @@ function mFurnacePlot(g, x0, mouth, ref) {
    village spreads along it and the one furnace serves all of it: anybody in the village's range (vRange), given longer
    for the walk (mTrek: ticks over the job's own time, for each cell past r) */
 var M_TREK = 6;
-function mFurnaceFar(g, f, p, r) { if (g.gw <= VIEW_GW) return Math.abs(f.cx - p.x) > r; var v = vRange(g); return p.x < v.x0 || p.x > v.x1 + 1; }
-function mTrek(g, f, p, r) { return g.gw <= VIEW_GW ? 0 : Math.round(Math.max(0, Math.abs(f.cx - p.x) - r) * M_TREK); }
-function mTrekOn(g, f, p, r) { var t = mTrek(g, f, p, r); if (t > 0) p.task.trek = t; }
-function mGoSmelt(g, p) {
+function mFurnaceFar(g: Game, f, p: Peasant, r: number) { if (g.gw <= VIEW_GW) return Math.abs(f.cx - p.x) > r; var v = vRange(g); return p.x < v.x0 || p.x > v.x1 + 1; }
+function mTrek(g: Game, f, p: Peasant, r: number) { return g.gw <= VIEW_GW ? 0 : Math.round(Math.max(0, Math.abs(f.cx - p.x) - r) * M_TREK); }
+function mTrekOn(g: Game, f, p: Peasant, r: number) { var t = mTrek(g, f, p, r); if (t > 0) p.task.trek = t; }
+function mGoSmelt(g: Game, p: Peasant) {
   var s = mSites(g, "furnace", true)[0], st;
   if (!s || mFurnaceFar(g, s, p, 220) || mCrew(g, "smelt", s.id) >= 2) return false;
   st = s.stock || {};
@@ -1089,7 +1105,7 @@ function mGoSmelt(g, p) {
   mTrekOn(g, s, p, 220);
   return true;
 }
-function mTaskSmelt(g, p, k) {
+function mTaskSmelt(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || ++k.t > 3000 + (k.trek || 0)) return iDone(p, false);
   /* (somewhere to stand at the mouth: about where it was, give or take whatever has piled up there since) */
@@ -1116,7 +1132,7 @@ function mTaskSmelt(g, p, k) {
   /* a bar of iron */
   st.ore--; st.coal--; k.act = 0; k.n++;
   p.iron = (p.iron || 0) + 1; g.iron = (g.iron || 0) + 1;
-  hSmelted(g, p);   /* (counted, for the foundry: heavens.js) */
+  hSmelted(g, p);   /* (counted, for the foundry: heavens.ts) */
   g.fx.clang++;
   sparks(g, s.fc + 0.5, s.G - 2, 10, 0.7, SPARK_HOT, 10, 0.4, PK_GLINT);
   if (g.oilSeen) iSpark(g, p, "oil");   /* (iron, and that smell: a derrick) */
@@ -1135,16 +1151,16 @@ function mTaskSmelt(g, p, k) {
    THE FORGE: a bar of iron, beaten at the furnace into an axe, a hoe
    and a hammer. they go faster with them. and they wear out
    ------------------------------------------------------------------- */
-function mGoForge(g, p) {
+function mGoForge(g: Game, p: Peasant) {
   var s = mSites(g, "furnace", true)[0];
   if (!s || mFurnaceFar(g, s, p, 220) || mCrew(g, "forge", s.id) >= 1 || ((p.iron || 0) < 1 && mIronToHand(g) < 2)) return false;
-  /* (a great work that wants iron: new tools wait for iron to spare, worn ones are still done again. wonders.js) */
+  /* (a great work that wants iron: new tools wait for iron to spare, worn ones are still done again. wonders.ts) */
   if (!p.worn && wIronHeld(g) && mIronToHand(g) < mIronSpare(g)) return false;
   p.task = { kind: "forge", site: s.id, t: 0, act: 0 };
   mTrekOn(g, s, p, 220);
   return true;
 }
-function mTaskForge(g, p, k) {
+function mTaskForge(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || ++k.t > 2400 + (k.trek || 0) || p.tools) return iDone(p, false);
   var sx = s.sx, sy = mSpotRow(g, s), fy = Math.floor(p.y);
@@ -1166,7 +1182,7 @@ function mTaskForge(g, p, k) {
   return iDone(p, true);
 }
 /* a stroke of an axe, a hoe, a hammer, a spade: iron tools wear, and in the end they go */
-function mWear(g, p) {
+function mWear(g: Game, p: Peasant) {
   if (!p.tools || ++p.wear < M_WEAR) return;
   /* (the worn heads are kept: scrap, half a bar's worth, for the furnace) */
   p.tools = 0; p.wear = 0; p.iron = (p.iron || 0) + 0.5; p.worn = 1;
@@ -1178,19 +1194,19 @@ function mWear(g, p) {
    ------------------------------------------------------------------- */
 /* (a site's cx is the middle of its box: the column a shaft or a lift is on is its col) */
 /* the long ladders (a mine's, a tower's): the middle column, the top rung, and the row at the bottom where their feet go */
-function mLadderOf(s) {
+function mLadderOf(s: Site) {
   if (s.kind === "tower") return { cx: s.lad, top: s.T, bot: s.F - 1 };
   if (s.kind === "mine") return { cx: s.col, top: s.S, bot: s.B };
   return null;
 }
-function mLadders(g) {
+function mLadders(g: Game) {
   var n = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].done && mLadderOf(g.sites[k])) n++;
   return n;
 }
 /* a headframe over the first long ladder that has none: two iron posts up from beside the top of it, and a beam across
    them with the wheel on it, high enough to step off under */
-function mPlanLift(g, p) {
+function mPlanLift(g: Game, p: Peasant) {
   var k, j, s, L, has, plan, x, y, c, ok, ph;
   for (k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "lift" && !g.sites[k].done) return false;
   for (k = 0; k < g.sites.length; k++) {
@@ -1220,14 +1236,14 @@ function mPlanLift(g, p) {
   return false;
 }
 /* the lift on the ladder with middle column cx, if there is one (built, and still standing), and (x, y) is on it */
-function mLiftAt(g, cx, y) {
+function mLiftAt(g: Game, cx: number, y: number) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind === "lift" && s.done && s.col === cx && y >= s.top - 1 && y <= s.bot + 1) return s;
   }
   return null;
 }
-function mLiftBusy(g, L, p) {
+function mLiftBusy(g: Game, L: Site, p: Peasant) {
   for (var k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
     if (q !== p && !q.dead && q.climb && q.climb.lift === L.id) return true;
@@ -1236,7 +1252,7 @@ function mLiftBusy(g, L, p) {
 }
 /* one tick in the lift, for bClimbStep: the cage it is on (to ride), false (waiting for the cage to come down, or up, to
    them: that is the tick), or null (the lift is gone: climb) */
-function mLiftRide(g, p, c) {
+function mLiftRide(g: Game, p: Peasant, c) {
   var L = bSite(g, c.lift);
   if (!L || !L.done) { c.lift = 0; return null; }
   p.pose = "stand";
@@ -1254,7 +1270,7 @@ function mLiftRide(g, p, c) {
 /* -------------------------------------------------------------------
    THE BELL: gold, cast into a bell, hung from a stone bracket out over a tower's battlements
    ------------------------------------------------------------------- */
-function mPlanBell(g, p) {
+function mPlanBell(g: Game, p: Peasant) {
   /* off a tower's battlements; or, with no tower, off the end of the beam of a lift's headframe */
   /* (and with neither, in a little belfry on the ridge of somebody's roof: up out of everybody's way) */
   var T = mSites(g, "tower", true).concat(mSites(g, "lift", true)), k, j, s, has, x, y, c, ok, plan;
@@ -1290,12 +1306,12 @@ function mPlanBell(g, p) {
   return false;
 }
 /* ring it, n times (a bell that is not there does not ring) */
-function mRing(g, n) {
+function mRing(g: Game, n: number) {
   var B = mSites(g, "bell", true);
   for (var k = 0; k < B.length; k++) B[k].ring = Math.max(B[k].ring, n * 40);
   return B.length > 0;
 }
-function mRinging(g) {
+function mRinging(g: Game) {
   var B = mSites(g, "bell", true);
   for (var k = 0; k < B.length; k++) if (B[k].ring > 0) return B[k];
   return null;
@@ -1304,7 +1320,7 @@ function mRinging(g) {
 /* -------------------------------------------------------------------
    THE GOINGS ON: three times a second (from ideasStep)
    ------------------------------------------------------------------- */
-function mStep(g) {
+function mStep(g: Game) {
   var k, s, x, y, j;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
@@ -1345,7 +1361,7 @@ function mStep(g) {
 /* -------------------------------------------------------------------
    THE PAPERWORK
    ------------------------------------------------------------------- */
-function mLabel(s) {
+function mLabel(s: Site) {
   if (s.kind === "mine") return "the mine";
   if (s.kind === "tunnel") return (s.dir < 0 ? "the west" : "the east") + (s.lv ? " upper" : "") + " gallery";
   if (s.kind === "tower") return "the watchtower";
@@ -1355,10 +1371,10 @@ function mLabel(s) {
   return "";
 }
 /* one of ours is finished. true if it was one of ours */
-function mFinish(g, s, p) {
+function mFinish(g: Game, s: Site, p: Peasant) {
   var who = p ? p.name : "the village", o;
   if (s.kind === "mine") {
-    s.sunk = true;   /* (sunk once: a repair is never a reason to give it up. build.js bDig) */
+    s.sunk = true;   /* (sunk once: a repair is never a reason to give it up. build.ts bDig) */
     feed(g, who + " dug the mine down to " + (s.B - s.S) + " below the rock. now: the galleries", "#e8c8a0", "plan" + s.id);
     achieve(g, "mine");
   } else if (s.kind === "tunnel") {
@@ -1382,19 +1398,19 @@ function mFinish(g, s, p) {
   return true;
 }
 /* what they have in their pockets out of the ground, in a few words, or "" */
-function mPockets(p) {
+function mPockets(p: Peasant) {
   var out = [];
   if (p.stone >= 1) out.push(Math.floor(p.stone) + " stone");
   if (p.coal >= 1) out.push(p.coal + " coal");
   if (p.ore >= 1) out.push(p.ore + " ore");
   if (p.iron >= 1) out.push(Math.floor(p.iron) + " iron");
   if (p.gold >= 1) out.push(Math.floor(p.gold) + " gold");
-  var lp = lPockets(p);   /* (ash, salt, glass, powder, salt fish: leftovers.js) */
+  var lp = lPockets(p);   /* (ash, salt, glass, powder, salt fish: leftovers.ts) */
   if (lp) out.push(lp);
   return out.join(", ");
 }
 /* what they are up to, for the bar at the bottom: "" if it is none of ours */
-function mMood(g, p) {
+function mMood(g: Game, p: Peasant) {
   var k = p.task, s = k && (k.kind === "build" || k.kind === "smelt" || k.kind === "lookout") ? bSite(g, k.site) : null, pk = mPockets(p);
   if (k && k.kind === "forge") return "is forging iron tools at the furnace";
   if (k && k.kind === "smelt") return s && s.hot > g.tick ? "is working the bellows at the furnace" : "is taking " + (pk || "rocks") + " to the furnace";
@@ -1410,8 +1426,8 @@ function mMood(g, p) {
 var M_CAVE = ["#1a1b21", "#1e1f26", "#17181d", "#22232a"].map(function (h) { return hex32(h); });
 var M_INSIDE = [hex32("#3a3630"), hex32("#332f2a")];
 var M_IRON_SPARE = 10;   /* iron kept back (for tools, a lift, a rocket pack) before any goes into the props */
-/* the iron kept back in this village: more while a great work wants iron (g.ironSpare: wonders.js wStep) */
-function mIronSpare(g) { return g.ironSpare || M_IRON_SPARE; }
+/* the iron kept back in this village: more while a great work wants iron (g.ironSpare: wonders.ts wStep) */
+function mIronSpare(g: Game) { return g.ironSpare || M_IRON_SPARE; }
 var M_PROP_I = hex32("#6a707c"), M_PROP_ID = hex32("#4c525c");   /* (iron props) */
 var M_PROP = hex32("#5a3e22"), M_PROP_D = hex32("#46301a"), M_LAMP = hex32("#ffc860"), M_SLIT = hex32("#14161c");
 var M_IRON = hex32("#6a7484"), M_IRON_D = hex32("#3e4652"), M_CHAIN = hex32("#9aa2ae");
@@ -1419,7 +1435,7 @@ var M_CAGE = hex32("#d4dce6"), M_CAGE_D = hex32("#8c97a6");   /* (bright: it has
 var M_HEARTH = hex32("#1a0e08");
 /* the inside of the rock where it has been dug out: dark, with the miners' candles lighting it up round them. a timber
    prop every few columns along a gallery. the inside of a tower. the glow in a furnace. a bell, swinging */
-function mDraw(g) {
+function mDraw(g: Game) {
   var S = g.sites, px = g.px, gp = g.gpx, gw = g.gw, gh = g.gh, hot = 0, k, j, n, e, s, x, y, i, c, cave = g.mcave;
   if (!cave || cave.length !== px.length) cave = g.mcave = new Uint8Array(px.length);
   var lit = [];
@@ -1440,7 +1456,7 @@ function mDraw(g) {
       if (s.kind === "tunnel") for (x = Math.min(s.xa, s.xb); x <= Math.max(s.xa, s.xb); x++) {
         if ((x - s.col) % 6 || g.m[(s.B - M_ROOF + 1) * gw + x] !== MAT.EMPTY) continue;
         for (n = -1; n <= 1; n++) { i = (s.B - M_ROOF + 1) * gw + x + n; if (g.m[i] === MAT.EMPTY) px[i] = s.ironProps ? M_PROP_I : M_PROP; }
-        /* (down to the floor, wherever that is now: a gallery benched for stone is deeper. wonders.js) */
+        /* (down to the floor, wherever that is now: a gallery benched for stone is deeper. wonders.ts) */
         var pb = s.B + (s.bench && s.bench[x] || 0);
         for (y = s.B - M_ROOF + 2; y <= pb; y++) for (n = -1; n <= 1; n += 2) { i = y * gw + x + n; if (g.m[i] === MAT.EMPTY) px[i] = s.ironProps ? M_PROP_ID : M_PROP_D; }
       }
@@ -1455,7 +1471,7 @@ function mDraw(g) {
         i = y * gw + x;
         if (g.m[i] === MAT.BRICK && g.m[i + gw] === MAT.BRICK) { px[i] = M_SLIT; px[i + gw] = M_SLIT; }
       }
-      /* the lantern on the battlements: a pool of light, as the porch lights have (ideas.js) */
+      /* the lantern on the battlements: a pool of light, as the porch lights have (ideas.ts) */
       i = (s.T - 3) * gw + s.x0 + 7;
       if (s.T > 3 && g.m[i] === MAT.LAMP) { mGlow(g, s.x0 + 7, s.T - 3, 9, 0.4); gp[i] = px[i]; hot++; }
     } else if (s.kind === "furnace" && s.done) {
@@ -1495,7 +1511,7 @@ function mDraw(g) {
   return hot;
 }
 /* a warm pool of light round (lx, ly) */
-function mGlow(g, lx, ly, R, amt) {
+function mGlow(g: Game, lx, ly, R: number, amt: number) {
   var px = g.px, gw = g.gw, gh = g.gh, fl = 0.85 + 0.1 * Math.sin(g.t * 11 + lx) + 0.05 * Math.sin(g.t * 23 + ly), dx, dy, x, y, r, f;
   for (dy = -R; dy <= R; dy++) for (dx = -R; dx <= R; dx++) {
     x = lx + dx; y = ly + dy; r = Math.sqrt(dx * dx + dy * dy);
@@ -1506,9 +1522,9 @@ function mGlow(g, lx, ly, R, amt) {
 }
 /* over the top of everybody: the lifts. a wheel on the beam, the chain down from it, and the cage on the end of the
    chain (round whoever is riding in it) */
-function mDrawOver(g) {
+function mDrawOver(g: Game) {
   var S = g.sites, px = g.px, gw = g.gw, gh = g.gh, k, s, x, y, cy, rider, q;
-  function put(X, Y, col) { if (X >= 0 && Y >= 0 && X < gw && Y < gh) px[Y * gw + X] = col; }
+  function put(X, Y, col: number) { if (X >= 0 && Y >= 0 && X < gw && Y < gh) px[Y * gw + X] = col; }
   for (k = 0; k < S.length; k++) {
     s = S[k];
     if (s.kind !== "lift" || !s.done) continue;

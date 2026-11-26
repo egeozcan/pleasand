@@ -1,5 +1,5 @@
 /* =====================================================================
-   PLEASAND  --  leftovers.js
+   PLEASAND  --  leftovers.ts
 
    what is left over: the ash of every fire, the salt a pond boils down
    to, the lumps of glass the lightning leaves in the sand, the snow
@@ -41,10 +41,28 @@
                  kills it. (the posts are iron girders: a forge's
                  worth of iron, which they walk through)
 
-   a glasshouse is a site, like a house (build.js). a snowman is not:
+   a glasshouse is a site, like a house (build.ts). a snowman is not:
    nobody mends a snowman.
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps in g) */
+interface Game {
+  lsnowmen?: any; lballs?: any; lcharges?: any; lboost?: Uint8Array; lNoThrow?: any; glassNo?: number; lslip?: any;
+  lfights?: number; frostT?: number; saltedT?: number; lfizzle?: any; storeT?: number; brineT?: number; brined?: any;
+  lboostY?: Int16Array;
+}
+/* (what this file keeps on a villager) */
+interface Peasant {
+  ash?: any; powder?: number; salt?: number; sand?: any; fish?: number; lNext?: number; lGatherT?: number; lPlayT?: number;
+  lSnowT?: number; lSkateT?: number; lGritT?: number; lBlastT?: number; lBombT?: number; lStoreT?: number; brine?: number;
+  lBrineT?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  potash?: number;
+  up?: boolean; eyes?: boolean; name?: any; x?: any; R?: any; built?: any;
+}
 
 var L_POCKET = { ash: 12, salt: 12, glass: 12, powder: 4, fish: 3, sand: 6, iron: 20 };
 var L_LOOSE = new Uint8Array(NMAT);   /* what is picked up off the ground, and what it goes in a pocket as */
@@ -134,16 +152,16 @@ P_ACHIEVE.frost = ["FROST", "the wheat has stopped growing. it is too cold out"]
    THE BOOKS
    ------------------------------------------------------------------- */
 /* the world wiped clean (C): nothing of ours left in it, and nobody still at a job in it */
-function lClearWorld(g) {
+function lClearWorld(g: Game) {
   g.lballs = []; g.lcharges = []; g.lsnowmen = []; g.booms = []; g.lboost = null;
   for (var k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && (t.kind === "snowman" || t.kind === "blast" || t.kind === "skate" || t.kind === "grit" || t.kind === "bombfish" || t.kind === "snowball" || t.kind === "standback")) g.peasants[k].task = null; }
 }
-function lReset(g) {
+function lReset(g: Game) {
   g.lNoThrow = {}; g.glassNo = 0;
   g.lballs = []; g.lcharges = []; g.lsnowmen = []; g.booms = []; g.lslip = []; g.lboost = null; g.lfights = 0; g.frostT = 0;
 }
 /* what is in their pockets of ours, for the readout: "3 ash, 2 salt" */
-function lPockets(p) {
+function lPockets(p: Peasant) {
   var out = [];
   if (p.ash >= 1) out.push(Math.floor(p.ash) + " ash");
   if (p.salt >= 1) out.push(Math.floor(p.salt) + " salt");
@@ -154,25 +172,25 @@ function lPockets(p) {
   return out.join(", ");
 }
 /* everybody's pockets, put together: how much of r the village has about it */
-function lToHand(g, r) {
+function lToHand(g: Game, r: string) {
   var n = 0;
   for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead) n += g.peasants[k][r] || 0;
   return n;
 }
 /* in reach of a hand, an axe, a spade (rx across, up and down from the feet) */
-function lAt(p, x, y, rx, up, down) {
+function lAt(p: Peasant, x: number, y: number, rx: number, up: number, down: number) {
   var fy = Math.floor(p.y);
   return Math.abs(x + 0.5 - p.x) <= rx + 0.5 && y >= fy - up && y <= fy + down;
 }
 /* walk p towards (x, y), as every errand here does: 1 there, 0 on the way, -1 given up (somewhere they cannot get to) */
-function lGo(g, p, k, key, x, y, rx, up, down) {
+function lGo(g: Game, p: Peasant, k: Task, key: string, x: number, y: number, rx: number, up: number, down: number) {
   if (lAt(p, x, y, rx, up, down)) return 1;
   p.idle = 0;
   if (iWalk(g, p, k, key, x, y, pathNear(x, y, rx, up, down))) { pGiveUp(g, p, x); return -1; }
   return 0;
 }
 /* anything that has been on our books lately, and is not here now: gone (a peasant who died, a site pulled down) */
-function lAlive(g, id) {
+function lAlive(g: Game, id: number) {
   for (var k = 0; k < g.peasants.length; k++) if (g.peasants[k].id === id && !g.peasants[k].dead) return g.peasants[k];
   return null;
 }
@@ -183,7 +201,7 @@ function lFree(q) { return !q.task || I_FUN[q.task.kind] || q.task.kind === "sno
    WHAT THEY DO ABOUT IT. called from iPick, late on: true if they found
    something to do
    ------------------------------------------------------------------- */
-function lPick(g, p, hungry) {
+function lPick(g: Game, p: Peasant, hungry: boolean) {
   var K = g.know;
   if (p.lNext > g.tick || hungry) return false;
   if (K.salt && (p.salt || 0) >= 1 && Math.random() < 0.5 && lGoGrit(g, p)) return true;
@@ -199,7 +217,7 @@ function lPick(g, p, hungry) {
   return false;
 }
 /* one tick of one of the jobs in here, or undefined if it is not one of ours */
-function lTask(g, p, k) {
+function lTask(g: Game, p: Peasant, k: Task) {
   switch (k.kind) {
     case "gather": return lTaskGather(g, p, k);
     case "snowball": return lTaskSnowball(g, p, k);
@@ -223,7 +241,7 @@ function lTask(g, p, k) {
    lying about where anybody could trip over it
    ------------------------------------------------------------------- */
 /* how many cells of glass (or metal) are in the lump (x, y) is part of, up to L_LUMP + 1 */
-function lLump(g, x, y) {
+function lLump(g: Game, x: number, y: number) {
   var seen = {}, st = [[x, y]], n = 0, c, q, v = pCell(g, x, y);
   while (st.length && n <= L_LUMP) {
     c = st.pop(); q = c[1] * g.gw + c[0];
@@ -235,7 +253,7 @@ function lLump(g, x, y) {
 }
 /* something lying about that p could pick up: loose, on top (air over it: not out of the middle of a dune), nobody's,
    not too hot to handle, and room for it in their pockets */
-function lPickable(g, p, x, y) {
+function lPickable(g: Game, p: Peasant, x: number, y: number) {
   var c = pCell(g, x, y), r = L_AS[c];
   if (!r || bMarked(g, x, y) || (p[r] || 0) >= L_POCKET[r]) return false;
   if (!AIRY[pCell(g, x, y - 1)] || g.T[y * g.gw + x] > 60) return false;
@@ -245,7 +263,7 @@ function lPickable(g, p, x, y) {
   if (bSiteAround(g, x, y, null, 2)) return false;   /* (somebody's house, somebody's field: theirs) */
   return true;
 }
-function lGoGather(g, p) {
+function lGoGather(g: Game, p: Peasant) {
   if (p.lGatherT > g.tick) return false;
   p.lGatherT = g.tick + 900 + irnd(900);
   var t = pFind(g, p, L_LOOSE, 70, function (g2, x, y) { return !pAvoid(g2, p, x) && lPickable(g2, p, x, y); }, 16);
@@ -253,7 +271,7 @@ function lGoGather(g, p) {
   p.task = { kind: "gather", x: t.x, y: t.y, t: 0, act: 0, n: 0, what: L_AS[pCell(g, t.x, t.y)] };
   return true;
 }
-function lTaskGather(g, p, k) {
+function lTaskGather(g: Game, p: Peasant, k: Task) {
   if (++k.t > 1500) return iDone(p, k.n > 0);
   if (!lPickable(g, p, k.x, k.y)) {
     /* gone (somebody else got it, it blew away): another like it close by, or that is that */
@@ -276,7 +294,7 @@ function lTaskGather(g, p, k) {
 }
 /* (x, y) off the ground and into p's pocket: the news, if it is the first of its kind, and whatever idea it puts in
    their head. chat: say something about it */
-function lTake(g, p, x, y, chat) {
+function lTake(g: Game, p: Peasant, x: number, y: number, chat: boolean) {
   var j = y * g.gw + x, c = g.m[j], r = L_AS[c];
   heatVanish(g, j);   /* (into a pocket, heat and all: the hole it leaves is no hotter than it was) */
   pChips(g, x + 0.5, y + 0.5, 2, [SAND_PAL[c][0], SAND_PAL[c][120]]);
@@ -296,7 +314,7 @@ function lTake(g, p, x, y, chat) {
   else if (r === "powder" && g.know.mine) iSpark(g, p, "powder");
 }
 /* on the way past, on whatever errand: something lying right at their feet goes in a pocket without stopping (lStep) */
-function lPassBy(g, p) {
+function lPassBy(g: Game, p: Peasant) {
   if (p.dead || p.state !== "walk" || p.climb || p.rope || p.swimming || p.fire || p.sleep || p.slip > 0 || p.panic > 0) return;
   var fx = Math.floor(p.x), fy = Math.floor(p.y), x, y;
   for (y = fy - 1; y <= fy + 1; y++) for (x = fx - 2; x <= fx + 2; x++) {
@@ -310,18 +328,18 @@ function lPassBy(g, p) {
    PLAY: snow, and ice
    ------------------------------------------------------------------- */
 /* called early in iPick, before the mine gets them: snow on the ground and nothing much to do is not a thing to waste */
-function lPlay(g, p) {
+function lPlay(g: Game, p: Peasant) {
   if (p.bored < 400 || p.lPlayT > g.tick || Math.random() > 0.5) return false;
   p.lPlayT = g.tick + 300 + irnd(300);
   return lPlayPick(g, p);
 }
-function lSnowy(g, x, y) { return pCell(g, x, y) === MAT.SNOW && !bMarked(g, x, y) && AIRY[pCell(g, x, y - 1)] && !lUnderMan(g, x, y); }
+function lSnowy(g: Game, x: number, y: number) { return pCell(g, x, y) === MAT.SNOW && !bMarked(g, x, y) && AIRY[pCell(g, x, y - 1)] && !lUnderMan(g, x, y); }
 /* (the snow a snowman is standing on, or about to be: not to be rolled away from under him) */
-function lUnderMan(g, x, y) {
+function lUnderMan(g: Game, x: number, y: number) {
   for (var k = 0; k < g.lsnowmen.length; k++) { var m = g.lsnowmen[k]; if (Math.abs(x - m.x) <= 3 && y >= m.G - 1 && y <= m.G + 2) return true; }
   return false;
 }
-function lPlayPick(g, p) {
+function lPlayPick(g: Game, p: Peasant) {
   var snow = pFind(g, p, P_SNOW, 40, lSnowy, 10);
   if (snow) {
     /* somebody to throw it at: the nearest, unless they are busy with something that matters */
@@ -332,7 +350,7 @@ function lPlayPick(g, p) {
   return lGoSkate(g, p);
 }
 var P_SNOW = new Uint8Array(NMAT); P_SNOW[MAT.SNOW] = 1;
-function lFoe(g, p, R) {
+function lFoe(g: Game, p: Peasant, R: number) {
   var best = null, bd = R, k, q, d;
   for (k = 0; k < g.peasants.length; k++) {
     q = g.peasants[k];
@@ -342,11 +360,11 @@ function lFoe(g, p, R) {
   }
   return best;
 }
-function lStartFight(g, p, q) {
+function lStartFight(g: Game, p: Peasant, q) {
   p.task = { kind: "snowball", foe: q.id, n: 3 + irnd(4), t: 0, act: 0, ball: false };
   if (p.sayT <= 0 || Math.random() < 0.4) pSay(g, p, "snowball");
 }
-function lTaskSnowball(g, p, k) {
+function lTaskSnowball(g: Game, p: Peasant, k: Task) {
   var q = lAlive(g, k.foe);
   if (!q || ++k.t > 2400 || q.state === "space" || Math.abs(q.x - p.x) > 90) return iDone(p, true);
   var fy = Math.floor(p.y), d = q.x - p.x;
@@ -382,18 +400,18 @@ function lTaskSnowball(g, p, k) {
   return true;
 }
 /* something thrown from p's hand at (tx, ty), on an arc that gets there: a snowball, or a lit charge */
-function lThrow(g, p, tx, ty, kind, steady) {
+function lThrow(g: Game, p: Peasant, tx: number, ty: number, kind: string, steady?) {
   var a = lAim(p, tx, ty, steady ? 0 : 1);
   g.lballs.push({ x: a.x, y: a.y, vx: a.vx, vy: a.vy, from: p.id, kind: kind, t: 0, fuse: kind === "bomb" ? 70 + irnd(30) : 0 });
 }
 /* the arc from p's hand to (tx, ty): where it starts and how fast. wobble: how unsteady the hand is (0: a careful throw) */
-function lAim(p, tx, ty, wobble) {
+function lAim(p: Peasant, tx: number, ty: number, wobble: number) {
   var x = p.x + p.dir * 1.5, y = p.y - 7, dx = tx - x, dy = ty - y;
   var T = clamp(Math.abs(dx) / 1.4, 10, 42) + (wobble ? (Math.random() - 0.5) * 3 : 0);
   return { x: x, y: y, vx: dx / T + (wobble ? (Math.random() - 0.5) * 0.08 : 0), vy: (dy - 0.5 * L_BALL_G * T * T) / T };
 }
 /* would a throw on arc a come down in water (true), or hit something on the way (a roof, the bank, a bush: false) */
-function lArcWet(g, a) {
+function lArcWet(g: Game, a) {
   /* (step for step as lBallsStep flies it, so what the look says is what the throw does) */
   var x = a.x, y = a.y, vx = a.vx, vy = a.vy, t, j, n, s, nx, ny;
   for (t = 1; t <= 300; t++) {
@@ -414,7 +432,7 @@ function lArcWet(g, a) {
   return false;
 }
 /* everything in the air, a tick on */
-function lBallsStep(g) {
+function lBallsStep(g: Game) {
   var B = g.lballs, k, b, q, n, s, x, y, j, hit;
   for (k = B.length - 1; k >= 0; k--) {
     b = B[k]; b.t++; b.vy += L_BALL_G;
@@ -454,7 +472,7 @@ function lBallsStep(g) {
   }
 }
 /* q got a snowball in the ear from p. they will have their revenge (and so, now and then, will the neighbours) */
-function lHit(g, q, p) {
+function lHit(g: Game, q, p: Peasant) {
   q.cold = (q.cold || 0) + 14; q.bored = 0; g.fx.thud++;
   if (q.sayT <= 0 || Math.random() < 0.5) pSay(g, q, "snowHit", true);
   if (!p || q.state !== "walk" || q.sleep || q.fire || q.climb || !lFree(q) || q.hunger > P_HUNGRY) return;
@@ -477,7 +495,7 @@ function lHit(g, q, p) {
 }
 
 /* a snowman: five wide, six high (and a hat), on flat ground with nothing over it, and snow not too far off to roll him from */
-function lSnowmanOk(g, x, G) {
+function lSnowmanOk(g: Game, x: number, G: number) {
   var dx, y;
   if (x < 6 || x > g.gw - 7 || G < 10) return false;
   for (dx = -2; dx <= 2; dx++) if (!pSolid(g, x + dx, G) || bMarked(g, x + dx, G) || P_LEAF[pCell(g, x + dx, G)] || LIQUID[pCell(g, x + dx, G)]) return false;
@@ -486,7 +504,7 @@ function lSnowmanOk(g, x, G) {
   for (var k = 0; k < g.lsnowmen.length; k++) if (Math.abs(g.lsnowmen[k].x - x) < 12) return false;
   return true;
 }
-function lGoSnowman(g, p, snow) {
+function lGoSnowman(g: Game, p: Peasant, snow) {
   /* one somebody started and left (called in for supper, or to a fire): finish him */
   for (var q = 0; q < g.lsnowmen.length; q++) {
     var o = g.lsnowmen[q];
@@ -514,9 +532,9 @@ function lGoSnowman(g, p, snow) {
   }
   return false;
 }
-function lManCrew(g, id) { for (var k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && t.kind === "snowman" && t.man === id && !g.peasants[k].dead) return g.peasants[k]; } return null; }
-function lMan(g, id) { for (var k = 0; k < g.lsnowmen.length; k++) if (g.lsnowmen[k].id === id) return g.lsnowmen[k]; return null; }
-function lTaskSnowman(g, p, k) {
+function lManCrew(g: Game, id: number) { for (var k = 0; k < g.peasants.length; k++) { var t = g.peasants[k].task; if (t && t.kind === "snowman" && t.man === id && !g.peasants[k].dead) return g.peasants[k]; } return null; }
+function lMan(g: Game, id: number) { for (var k = 0; k < g.lsnowmen.length; k++) if (g.lsnowmen[k].id === id) return g.lsnowmen[k]; return null; }
+function lTaskSnowman(g: Game, p: Peasant, k: Task) {
   var s = lMan(g, k.man), go;
   if (!s || ++k.t > 4000) { if (s && !s.up) lDropMan(g, s); return iDone(p, false); }
   /* (finished, whatever is in their hands: every cell of him there) */
@@ -568,7 +586,7 @@ function lTaskSnowman(g, p, k) {
   if (p.sayT <= 0 && Math.random() < 0.08) pSay(g, p, "snowman");
   return true;
 }
-function lManDone(g, s, p) {
+function lManDone(g: Game, s: Site, p: Peasant) {
   s.up = true; s.eyes = (p.coal || 0) >= 1; if (s.eyes) p.coal--;   /* (coal for the eyes, if there is any. stones otherwise) */
   feed(g, p.name + " built a snowman. it is called " + iName(s.name), "#e8f4ff", "snowman" + s.id);
   achieve(g, "snowman");
@@ -578,23 +596,23 @@ function lManDone(g, s, p) {
   return iDone(p, true);
 }
 /* say a line with {d} in it (a snowman's name), filled in */
-function lSayD(g, p, kind, d) {
+function lSayD(g: Game, p: Peasant, kind: string, d) {
   pSay(g, p, kind, true);
   if (p.say) p.say = p.say.replace("{d}", iName(d));
 }
 /* a snowman abandoned half built: what is there of him stays, to melt in its own time */
-function lDropMan(g, s) { var j = g.lsnowmen.indexOf(s); if (j >= 0) { g.lsnowmen.splice(j, 1); lUnmarkMan(g, s); } }
+function lDropMan(g: Game, s: Site) { var j = g.lsnowmen.indexOf(s); if (j >= 0) { g.lsnowmen.splice(j, 1); lUnmarkMan(g, s); } }
 /* a snowman's cells (and the ground under him) are marked, the way a site's are: nobody plans a furnace through him, or
-   shovels him away for a field. (build.js bRemove calls this again, after it marks the sites afresh) */
-function lManCells(g, s, fn) {
+   shovels him away for a field. (build.ts bRemove calls this again, after it marks the sites afresh) */
+function lManCells(g: Game, s: Site, fn) {
   for (var dx = -2; dx <= 2; dx++) for (var y = s.G - 8; y <= s.G; y++) { var x = s.x + dx; if (x >= 0 && x < g.gw && y >= 0 && y < g.gh) fn(y * g.gw + x); }
 }
-function lMarkMen(g) {
+function lMarkMen(g: Game) {
   if (!g.lsnowmen || !g.lsnowmen.length) return;
   if (!g.bmark || g.bmark.length !== g.m.length) g.bmark = new Uint8Array(g.m.length);
   for (var k = 0; k < g.lsnowmen.length; k++) lManCells(g, g.lsnowmen[k], function (i) { g.bmark[i] = 1; });
 }
-function lUnmarkMan(g, s) {
+function lUnmarkMan(g: Game, s: Site) {
   if (!g.bmark) return;
   lManCells(g, s, function (i) { g.bmark[i] = 0; });
   for (var k = 0; k < g.sites.length; k++) bMark(g, g.sites[k], 1);   /* (anybody else's that shared a cell) */
@@ -602,7 +620,7 @@ function lUnmarkMan(g, s) {
 }
 
 /* a stretch of ice to skate on: ten or more cells of it, level, with open air over it */
-function lGoSkate(g, p) {
+function lGoSkate(g: Game, p: Peasant) {
   if (p.lSkateT > g.tick) return false;
   p.lSkateT = g.tick + 2400;
   var fx = Math.floor(p.x), best = null, x, G, a, b, Y;
@@ -620,8 +638,8 @@ function lGoSkate(g, p) {
   p.task = { kind: "skate", a: best.a, b: best.b, y: best.y, t: 0, act: 0, on: 0, laps: 0 };
   return true;
 }
-function lIcy(g, x, G) { return G >= 10 && pCell(g, x, G) === MAT.ICE && pRoom(g, x, G - 1) && !bMarked(g, x, G); }
-function lTaskSkate(g, p, k) {
+function lIcy(g: Game, x: number, G) { return G >= 10 && pCell(g, x, G) === MAT.ICE && pRoom(g, x, G - 1) && !bMarked(g, x, G); }
+function lTaskSkate(g: Game, p: Peasant, k: Task) {
   if (++k.t > 2400 || k.laps > 6) { p.bored = 0; return iDone(p, k.on > 0); }
   var fx = Math.floor(p.x), mid = (k.a + k.b) >> 1;
   if (!k.on) {
@@ -636,20 +654,20 @@ function lTaskSkate(g, p, k) {
   /* to the far end, and turn (which, at speed, is where it goes wrong) */
   if ((k.go > 0 && p.x > k.b - 1.5) || (k.go < 0 && p.x < k.a + 2.5)) { k.go = -k.go; k.laps++; if (p.sayT <= 0 && Math.random() < 0.5) pSay(g, p, "skate"); }
   p.dir = k.go; p.idle = 0;
-  return false;   /* (and the ice does the rest: peasants.js, pIceStep) */
+  return false;   /* (and the ice does the rest: peasants.ts, pIceStep) */
 }
 
 /* -------------------------------------------------------------------
    SALT: on the ice, and on the fish
    ------------------------------------------------------------------- */
-/* somebody slipped (peasants.js): somewhere to salt, and, with salt in their pocket, an idea */
-function lSlipped(g, p) {
+/* somebody slipped (peasants.ts): somewhere to salt, and, with salt in their pocket, an idea */
+function lSlipped(g: Game, p: Peasant) {
   g.lslip.push({ x: Math.floor(p.x), y: Math.floor(p.y) + 1, t: g.tick });
   if (g.lslip.length > 12) g.lslip.shift();
   if ((p.salt || 0) >= 1 || (g.found.salt || 0) >= 3) iSpark(g, p, "salt");
 }
 /* ice worth salting: where somebody went over lately, and by every door. the nearest still there */
-function lGoGrit(g, p) {
+function lGoGrit(g: Game, p: Peasant) {
   if (p.lGritT > g.tick) return false;
   p.lGritT = g.tick + 1200;
   var C = [], k, s, x, best = null, bd = 160, d, y;
@@ -669,14 +687,14 @@ function lGoGrit(g, p) {
   p.task = { kind: "grit", x: best.x, y: best.y, t: 0, act: 0, n: 0 };
   return true;
 }
-function lTaskGrit(g, p, k) {
+function lTaskGrit(g: Game, p: Peasant, k: Task) {
   if (++k.t > 1800 || (p.salt || 0) < 1) return iDone(p, k.n > 0);
   var go = lGo(g, p, k, "grit" + k.x, k.x, k.y - 1, 6, 6, 4);
   if (go <= 0) return false;
   p.dir = k.x + 0.5 < p.x ? -1 : 1;
   k.act++; p.pose = (k.act % 20) < 10 ? "hammerA" : "chopB";
   if (k.act % 20 !== 10) return true;
-  /* a handful, flung out over the ice: it lands where it lands, and melts what it lands on (world.js) */
+  /* a handful, flung out over the ice: it lands where it lands, and melts what it lands on (world.ts) */
   for (var q = 0; q < 3; q++) {
     var tx = k.x - 4 + irnd(9), dx = tx + 0.5 - p.x;
     partAdd(g, PK_DEBRIS, p.x + p.dir, p.y - 6, dx / 18 + (Math.random() - 0.5) * 0.1, -0.9 - Math.random() * 0.3, 240, SAND_PAL[MAT.SALT][irnd(256)], MAT.SALT);
@@ -690,25 +708,25 @@ function lTaskGrit(g, p, k) {
   if (k.n >= 3) { p.bored = Math.max(0, p.bored - 300); return iDone(p, true); }
   return true;
 }
-/* a fish, caught on a full stomach, with salt about them: salted, and kept for later. true if it was (ideas.js) */
-function lSaltFish(g, p) {
+/* a fish, caught on a full stomach, with salt about them: salted, and kept for later. true if it was (ideas.ts) */
+function lSaltFish(g: Game, p: Peasant) {
   if (!g.know.salt || (p.salt || 0) < 1 || p.hunger > P_HUNGRY * 0.6 || (p.fish || 0) >= L_POCKET.fish) return false;
   p.salt--; p.fish = (p.fish || 0) + 1;
   pSay(g, p, "salted", true);
   if (!g.saltedT) { g.saltedT = g.tick; feed(g, p.name + " salted a fish, for later", "#e8eef4", "salted"); }
   return true;
 }
-/* a pinch of salt on a meal (peasants.js, at every bite of the eat task): it goes further. now and then, with salt in the
+/* a pinch of salt on a meal (peasants.ts, at every bite of the eat task): it goes further. now and then, with salt in the
    pocket and a village that knows what salt is for */
-function lSeason(g, p) {
+function lSeason(g: Game, p: Peasant) {
   if (!g.know.salt || (p.salt || 0) < 1 || Math.random() > 0.3) return 0;
   if (g.know.powder && (p.salt || 0) < 3 && (p.coal || 0) >= 1 && (p.powder || 0) < 2) return 0;   /* (that is for the bowl) */
   p.salt--;
   if (p.sayT <= 0 && Math.random() < 0.3) pSay(g, p, "season");
   return 300;
 }
-/* hungry, and a salt fish in the pocket: that, now, rather than a long walk (peasants.js) */
-function lSnack(g, p) {
+/* hungry, and a salt fish in the pocket: that, now, rather than a long walk (peasants.ts) */
+function lSnack(g: Game, p: Peasant) {
   if ((p.fish || 0) < 1 || p.hunger <= P_HUNGRY) return false;
   p.fish--; p.hunger = Math.max(0, p.hunger - 1400); p.bored = Math.max(0, p.bored - 200);
   p.idle = 60; p.pose = "eatB";
@@ -721,7 +739,7 @@ function lSnack(g, p) {
 /* -------------------------------------------------------------------
    POTASH: ash, raked into a field
    ------------------------------------------------------------------- */
-function lGoPotash(g, p) {
+function lGoPotash(g: Game, p: Peasant) {
   var best = null, bd = 220, k, s, d;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
@@ -733,7 +751,7 @@ function lGoPotash(g, p) {
   p.task = { kind: "potash", site: best.id, t: 0, act: 0, x: best.x0 - 1 };
   return true;
 }
-function lTaskPotash(g, p, k) {
+function lTaskPotash(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || ++k.t > 2000 || (p.ash || 0) < L_POTASH_ASH) return iDone(p, false);
   /* along the field, end to end, scattering as they go */
@@ -760,7 +778,7 @@ function lTaskPotash(g, p, k) {
 /* -------------------------------------------------------------------
    BLACK POWDER: coal, salt and ash, ground fine
    ------------------------------------------------------------------- */
-function lPowderPick(g, p) {
+function lPowderPick(g: Game, p: Peasant) {
   /* the makings in their pockets, and nowhere near a fire: grind some */
   if ((p.powder || 0) < L_POCKET.powder - 1 && (p.coal || 0) >= 1 && (p.salt || 0) >= 1 && (p.ash || 0) >= 2 && Math.random() < 0.4 && !p.fire) {
     p.task = { kind: "grind", t: 0, act: 0, away: 0 };
@@ -774,14 +792,14 @@ function lPowderPick(g, p) {
   return false;
 }
 /* which side of (x, y) the nearest hot thing (a flame, an ember, a torch, lava) is on, within r: -1, 1, or 0 for none */
-function lHotSide(g, x, y, r) {
+function lHotSide(g: Game, x: number, y: number, r: number) {
   for (var d = 0; d <= r; d++) for (var dy = -r; dy <= r; dy++) {
     if (HOT[pCell(g, x + d, y + dy)]) return 1;
     if (HOT[pCell(g, x - d, y + dy)]) return -1;
   }
   return 0;
 }
-function lTaskGrind(g, p, k) {
+function lTaskGrind(g: Game, p: Peasant, k: Task) {
   if (++k.t > 600 || p.fire || (p.coal || 0) < 1 || (p.salt || 0) < 1 || (p.ash || 0) < 2) return iDone(p, false);
   /* not anywhere near a fire: off a way first, if there is one about (and if one gets lit by them, off again) */
   if ((k.t % 10 === 0 || k.away) && lHotSide(g, Math.floor(p.x), Math.floor(p.y) - 4, 12)) {
@@ -802,7 +820,7 @@ function lTaskGrind(g, p, k) {
   return iDone(p, true);
 }
 /* the first rock still to come out of a gallery that is going on (its lowest phase), and the gallery: {s, ph, x} */
-function lFace(g, s) {
+function lFace(g: Game, s: Site) {
   var ph = 1e9, x = -1, k, e;
   for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.mine && ROCK[g.m[e.i]] && e.ph < ph) { ph = e.ph; x = e.i % g.gw; } }
   /* (right by the shaft there is nowhere to stand back to: that much is for the pick) */
@@ -811,7 +829,7 @@ function lFace(g, s) {
   for (k = 0; k < s.plan.length; k++) { e = s.plan[k]; if (e.mine && ROCK[g.m[e.i]] && e.ph < ph + L_BLAST) n++; }
   return n >= 8 ? { ph: ph, x: x } : null;   /* (not worth a charge for a few cells) */
 }
-function lGoBlast(g, p) {
+function lGoBlast(g: Game, p: Peasant) {
   if (p.lBlastT > g.tick) return false;
   var best = null, bd = 140, k, s, f, d;
   for (k = 0; k < g.sites.length; k++) {
@@ -827,16 +845,16 @@ function lGoBlast(g, p) {
 }
 /* where to stand back to from charge c, and how far off from it is far enough: the column it gives, or the shaft (a charge
    is never set nearer the shaft than L_BACK, so there is always somewhere) */
-function lSafe(g, c) {
+function lSafe(g: Game, c) {
   var s = bSite(g, c.site), dir = s ? s.dir : 1, col = s ? s.col : c.x - dir * L_CLEAR;
   var run = c.run != null ? c.run : clamp(c.x - dir * L_CLEAR, Math.min(col, c.x), Math.max(col, c.x));
   return { run: run, far: Math.max(L_STUN + 2, Math.min(L_CLEAR - 2, Math.abs(run - c.x) - 0.5)) };
 }
-function lInBlast(g, c) {
+function lInBlast(g: Game, c) {
   for (var q = 0; q < g.peasants.length; q++) { var o = g.peasants[q]; if (!o.dead && Math.abs(o.x - c.x) + Math.abs(o.y - 4 - c.y) * 0.5 < L_STUN + 0.5) return true; }
   return false;
 }
-function lClearZone(g, c) {
+function lClearZone(g: Game, c) {
   var sf = lSafe(g, c);
   for (var q = 0; q < g.peasants.length; q++) {
     var o = g.peasants[q];
@@ -849,7 +867,7 @@ function lClearZone(g, c) {
 }
 /* a fuse lit in the gallery they are in: back down it, well clear, and wait for the bang. (they go on standing well back
    from any face with a lit fuse in it, wherever they were sent from) */
-function lTaskStandback(g, p, k) {
+function lTaskStandback(g: Game, p: Peasant, k: Task) {
   var c = lChargeOn(g, k.site);
   if (!c || ++k.t > L_FUSE + 400) return iDone(p, true);
   var sf = lSafe(g, c);
@@ -858,8 +876,8 @@ function lTaskStandback(g, p, k) {
   if (iWalk(g, p, k, "standback" + k.run, k.run, k.y, pathNear(k.run, k.y, 0, 6, 4))) { p.dir = p.x < c.x ? -1 : 1; k.best = null; }
   return false;
 }
-function lChargeOn(g, id) { for (var k = 0; k < g.lcharges.length; k++) if (g.lcharges[k].site === id) return g.lcharges[k]; return null; }
-function lTaskBlast(g, p, k) {
+function lChargeOn(g: Game, id: number) { for (var k = 0; k < g.lcharges.length; k++) if (g.lcharges[k].site === id) return g.lcharges[k]; return null; }
+function lTaskBlast(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), go;
   if (!k.set) {
     /* (the face dug out from under them by the time they got there, and the like: not this one, then, for a while) */
@@ -909,7 +927,7 @@ function lTaskBlast(g, p, k) {
   return true;
 }
 /* a charge's fuse burns down. then: BOOM, and the next few columns of rock come out at once */
-function lChargesStep(g) {
+function lChargesStep(g: Game) {
   for (var k = g.lcharges.length - 1; k >= 0; k--) {
     var c = g.lcharges[k], j = c.y * g.gw + c.x;
     /* (anybody who has come down into the gallery since it was lit, off a ladder or out of the lift: back, and wait) */
@@ -931,7 +949,7 @@ function lChargesStep(g) {
     lBlast(g, c);
   }
 }
-function lBlast(g, c) {
+function lBlast(g: Game, c) {
   var s = bSite(g, c.site), who = lAlive(g, c.who), n = 0, k, e, gw = g.gw, x, y, j, d;
   g.fx.boom++; g.shake = Math.min(8, g.shake + 4); g.flash = Math.max(g.flash, 0.12);
   if (g.rings.length < 8) g.rings.push({ x: c.x, y: c.y, r: 0, R: 16, t: 0 });
@@ -976,7 +994,7 @@ function lBlast(g, c) {
   if (n) achieve(g, "blast");
 }
 /* a pond, and a charge to throw in it: somewhere on the bank a good throw from water that is deep enough */
-function lGoBombFish(g, p) {
+function lGoBombFish(g: Game, p: Peasant) {
   if (p.lBombT > g.tick) return false;
   p.lBombT = g.tick + 6000;
   var fx = Math.floor(p.x), fy = Math.floor(p.y), x, y, best = null;
@@ -990,7 +1008,7 @@ function lGoBombFish(g, p) {
   p.task = { kind: "bombfish", x: best.x, y: best.y, t: 0, act: 0 };
   return true;
 }
-function lTaskBombFish(g, p, k) {
+function lTaskBombFish(g: Game, p: Peasant, k: Task) {
   if (++k.t > 2400 || (p.powder || 0) < 1 || pCell(g, k.x, k.y) !== MAT.WATER) return iDone(p, false);
   var dx = k.x + 0.5 - p.x, lo = 6 + 3 * ((k.shift || 0) % 4), hi = lo + 5;   /* (each look that found no clear throw: try from further back) */
   if (k.side == null) k.side = p.x < k.x ? -1 : 1;
@@ -1030,7 +1048,7 @@ function lTaskBombFish(g, p, k) {
 }
 /* no clear throw at the pond from either bank: the charge is kept, that stretch of water is let be a long while by the
    whole village, and they say why */
-function lNoThrow(g, p, k) {
+function lNoThrow(g: Game, p: Peasant, k: Task) {
   if (!g.lNoThrow) g.lNoThrow = {};
   for (var x = k.x - 10; x <= k.x + 10; x++) g.lNoThrow[x] = g.tick + 20000;
   pSay(g, p, "noclear", true);
@@ -1039,7 +1057,7 @@ function lNoThrow(g, p, k) {
   iDone(p, false);
 }
 /* a charge, under water: a great heave of it, some steam, and the fish come up. everybody on the bank eats */
-function lUnderwater(g, b) {
+function lUnderwater(g: Game, b) {
   var gw = g.gw, cx = Math.floor(b.x), cy = Math.floor(b.y), k, x, y, j, n = 0, who = lAlive(g, b.from);
   g.fx.boom++; g.fx.splash++; g.shake = Math.min(6, g.shake + 2);
   if (g.rings.length < 8) g.rings.push({ x: cx, y: cy, r: 0, R: 12, t: 0 });
@@ -1072,7 +1090,7 @@ function lUnderwater(g, b) {
   achieve(g, "bombfish");
 }
 /* a charge that missed the water: mostly the fuse goes out in the sand. not always */
-function lDud(g, b) {
+function lDud(g: Game, b) {
   var cx = Math.floor(b.x - b.vx), cy = Math.floor(b.y - b.vy), who = lAlive(g, b.from);
   if (Math.random() < 0.6 || cx < 0 || cy < 0 || cx >= g.gw || cy >= g.gh) {
     sparks(g, b.x, b.y, 4, 0.3, SPARK_HOT, 8, 0.2, PK_GLINT);
@@ -1089,13 +1107,13 @@ function lDud(g, b) {
 /* -------------------------------------------------------------------
    GLASS: sand and coal at the furnace, and a glasshouse for the wheat
    ------------------------------------------------------------------- */
-function lGlassPick(g, p) {
+function lGlassPick(g: Game, p: Peasant) {
   var f = mSites(g, "furnace", true)[0], s;
   /* a glasshouse going up and short of glass, or none yet and not glass enough about for one: make some */
   var want = lGlassShort(g, f), k;
   /* (glass for a glasshouse to come: only if there is a field one could go over, now and then looked at again) */
   if (!want && g.tick > (g.glassNo || 0)) {
-    var cc = lPlanGlasshouse(g, p, true);
+    var cc: any = lPlanGlasshouse(g, p, true);
     var pile0 = ((f && f.stock) || {}).glass || 0;
     if (cc) want = cc.glass > 0 ? Math.max(0, cc.glass - lToHand(g, "glass") - pile0) : 0; else g.glassNo = g.tick + 6000;
   }
@@ -1118,15 +1136,15 @@ function lGlassPick(g, p) {
   return false;
 }
 var L_GLASS_TWO = 4;
-/* a great work's windows: its panes, and the panes its coloured glass is made of at the kiln (wonders.js). none, in a
+/* a great work's windows: its panes, and the panes its coloured glass is made of at the kiln (wonders.ts). none, in a
    village with no great works */
-function lWonderPanes(g) {
+function lWonderPanes(g: Game) {
   var ww = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].wonder && !g.sites[k].done) ww += Math.max(0, bNeed(g, g.sites[k], "glass")) + Math.max(0, bNeed(g, g.sites[k], "stained") - wPocketedSure(g, "stained"));
   return ww;
 }
 /* panes still wanted for glasshouses going up (or being mended), less what is in pockets and on the furnace's pile */
-function lGlassShort(g, f) {
+function lGlassShort(g: Game, f) {
   var want = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "glasshouse" && !g.sites[k].done) want += Math.max(0, bNeed(g, g.sites[k], "glass"));
   var ww = lWonderPanes(g);
@@ -1136,14 +1154,14 @@ function lGlassShort(g, f) {
   return want > 0 ? Math.max(0, want - lToHand(g, "glass") - (((f && f.stock) || {}).glass || 0)) : 0;
 }
 /* is more glass wanted: for a glasshouse going up, or for a field one could go over, less what is about already */
-function lGlassWanted(g, p, f) {
+function lGlassWanted(g: Game, p: Peasant, f: Site) {
   if (lGlassShort(g, f) > 0) return true;
   var cc = lPlanGlasshouse(g, p, true);
   return !!cc && cc.glass > lToHand(g, "glass") + (((f && f.stock) || {}).glass || 0);
 }
-function lSandy(g, x, y) { return pCell(g, x, y) === MAT.SAND && !bMarked(g, x, y) && AIRY[pCell(g, x, y - 1)] && !bSiteAround(g, x, y, null, 3); }
+function lSandy(g: Game, x: number, y: number) { return pCell(g, x, y) === MAT.SAND && !bMarked(g, x, y) && AIRY[pCell(g, x, y - 1)] && !bSiteAround(g, x, y, null, 3); }
 var P_SANDY = new Uint8Array(NMAT); P_SANDY[MAT.SAND] = 1;
-function lTaskGlass(g, p, k) {
+function lTaskGlass(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), go;
   if (!s || !s.done || s.repair || ++k.t > 3600 + (k.trek || 0) || (p.glass || 0) > L_POCKET.glass - 2) return iDone(p, k.n > 0);
   var st = s.stock || (s.stock = {});
@@ -1191,7 +1209,7 @@ function lTaskGlass(g, p, k) {
   g.fx.clang++;
   sparks(g, s.fc + 0.5, s.G - 2, 8, 0.6, [hex32("#d6f2ff"), hex32("#a8dcf5")], 12, 0.3, PK_GLINT);
   if (!g.got.glass) { feed(g, p.name + " made the first glass: sand, and a very hot fire", "#bfe9ff", "glass"); achieve(g, "glass"); }
-  wSpark(g, p, "stained");   /* (what if it were red: wonders.js) */
+  wSpark(g, p, "stained");   /* (what if it were red: wonders.ts) */
   /* (another batch only if it is wanted: for a glasshouse going up, or for one there is a field for and not glass enough) */
   if (k.n >= 3 || (p.glass || 0) >= L_POCKET.glass - 1 || !lGlassWanted(g, p, s)) { p.bored = 0; return iDone(p, true); }
   return true;
@@ -1202,7 +1220,7 @@ function lTaskGlass(g, p, k) {
    some for the bowl or the field fetches it back out
    ------------------------------------------------------------------- */
 var L_KEEP = 4;             /* what they keep in a pocket of ash or salt, when they empty the rest into the store */
-function lGoStore(g, p) {
+function lGoStore(g: Game, p: Peasant) {
   if (p.lStoreT > g.tick) return false;
   p.lStoreT = g.tick + 600 + irnd(600);
   var f = mSites(g, "furnace", true)[0], K = g.know;
@@ -1230,16 +1248,16 @@ function lGoStore(g, p) {
   mTrekOn(g, f, p, 220);
   return true;
 }
-function lWantForGlasshouse(g, r) {
+function lWantForGlasshouse(g: Game, r: string) {
   var n = 0;
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].kind === "glasshouse" && !g.sites[k].done) n += Math.max(0, bNeed(g, g.sites[k], r));
   return n;
 }
-function lFieldWanting(g) {
+function lFieldWanting(g: Game) {
   for (var k = 0; k < g.sites.length; k++) { var s = g.sites[k]; if (s.kind === "farm" && s.done && !((s.potash || 0) > g.tick + L_POTASH * 0.3)) return s; }
   return null;
 }
-function lTaskStore(g, p, k) {
+function lTaskStore(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 2400 + (k.trek || 0)) return iDone(p, false);
   var sx = s.sx, sy = mSpotRow(g, s);
@@ -1273,7 +1291,7 @@ function lTaskStore(g, p, k) {
    the steam goes up the chimney, and the salt stays in the pan
    ------------------------------------------------------------------- */
 var L_BRINE = 3;            /* cells of brine to a bucket (and salt out of it) */
-function lGoBrine(g, p) {
+function lGoBrine(g: Game, p: Peasant) {
   /* (a bucket of brine still in hand from last time, put down for a fire: that, first) */
   var f0 = (p.brine || 0) > 0 && !(p.lBrineT > g.tick) ? mSites(g, "furnace", true)[0] : null;
   if (f0 && mCrew(g, "brine", f0.id) < 1 && ((p.coal || 0) >= 1 || ((f0.stock && f0.stock.coal) || 0) >= 1)) { p.task = { kind: "brine", site: f0.id, x: 0, y: 0, t: 0, act: 0, full: p.brine }; return true; }
@@ -1289,7 +1307,7 @@ function lGoBrine(g, p) {
   return true;
 }
 /* the nearest top of a pool of salt water, with air over it, within R */
-function lFindBrine(g, p, R) {
+function lFindBrine(g: Game, p: Peasant, R: number) {
   var fx = Math.floor(p.x), x, y, c;
   for (var d = 0; d <= R; d++) for (var sd = -1; sd <= 1; sd += 2) {
     x = fx + d * sd;
@@ -1302,7 +1320,7 @@ function lFindBrine(g, p, R) {
   }
   return null;
 }
-function lTaskBrine(g, p, k) {
+function lTaskBrine(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), go;
   if (!s || !s.done || ++k.t > 3600 + (k.trek || 0)) return iDone(p, false);
   if (!k.full && (p.brine || 0) > 0) k.full = p.brine;   /* (a bucket still full from last time, put down for a fire) */
@@ -1348,7 +1366,7 @@ function lTaskBrine(g, p, k) {
 
 /* a glass roof on iron posts over a field that has none: a post at either end, just outside it (iron, which they step
    through, as they do a lift's headframe), and the roof L_ROOF over the highest of its ground */
-function lPlanGlasshouse(g, p, dry) {
+function lPlanGlasshouse(g: Game, p: Peasant, dry?: boolean): any {
   var k, f, j, has, x, y, G, R, plan, ok;
   for (k = 0; k < g.sites.length; k++) {
     f = g.sites[k];
@@ -1393,7 +1411,7 @@ function lPlanGlasshouse(g, p, dry) {
 }
 /* what is on a glasshouse's pile, back into pockets: whoever is nearest, as much as fits (glass has a pocket's worth;
    wood and iron are carried however much there is), then the next nearest. what fits nowhere goes on the furnace's pile */
-function lRefund(g, s) {
+function lRefund(g: Game, s: Site) {
   var st = s.stock || {}, r, q, n, L = g.peasants.filter(function (o) { return !o.dead; });
   L.sort(function (a, b) { return Math.abs(a.x - s.cx) - Math.abs(b.x - s.cx); });
   for (r in st) {
@@ -1408,7 +1426,7 @@ function lRefund(g, s) {
   }
 }
 /* is the glasshouse over field f standing (most of its roof there) */
-function lUnderGlass(g, s) {
+function lUnderGlass(g: Game, s: Site) {
   var n = 0, m = 0;
   for (var k = 0; k < s.plan.length; k++) if (s.plan[k].v === MAT.GLASS) { m++; if (g.m[s.plan[k].i] === MAT.GLASS) n++; }
   return m > 0 && n >= m * 0.7;
@@ -1417,7 +1435,7 @@ function lUnderGlass(g, s) {
 /* -------------------------------------------------------------------
    THE WEATHER, AND THE BOOKS, now and then (ideasStep, every 20 ticks)
    ------------------------------------------------------------------- */
-function lStep(g) {
+function lStep(g: Game) {
   var k, s, x, f;
   /* which columns of field have potash on them, or a glass roof over them (for cropGrow) */
   if (!g.lboost || g.lboost.length !== g.gw) { g.lboost = new Uint8Array(g.gw); g.lboostY = new Int16Array(g.gw); }
@@ -1521,7 +1539,7 @@ function lStep(g) {
    keeps growing a good while after the open fields have stopped; a long hard freeze gets in in the end, and a quick
    chill with COOL stops it under glass as it does anywhere */
 var L_WARM = 12;
-function lGlassWarm(g, s, f) {
+function lGlassWarm(g: Game, s: Site, f) {
   var gw = g.gw, x, y, j, c, src, dt, e, soil = {}, q;
   for (q = 0; q < f.plan.length; q++) if (f.plan[q].v === MAT.SOIL) soil[f.plan[q].i % gw] = (f.plan[q].i / gw) | 0;
   for (x = f.x0; x <= f.x1; x++) {
@@ -1540,12 +1558,12 @@ function lGlassWarm(g, s, f) {
   }
 }
 /* has something rough happened to snowman m lately: a bang close by, or acid at him */
-function lRough(g, m) {
+function lRough(g: Game, m) {
   for (var k = 0; k < (g.booms || []).length; k++) { var b = g.booms[k]; if (g.tick - b.t < 60 && Math.abs(b.x - m.x) < b.R + 6 && Math.abs(b.y - m.G + 3) < b.R + 6) return true; }
   for (var dy = -7; dy <= 1; dy++) for (var dx = -3; dx <= 3; dx++) if (pCell(g, m.x + dx, m.G + dy) === MAT.ACID) return true;
   return false;
 }
-function lFrostKill(g) {
+function lFrostKill(g: Game) {
   for (var k = 0; k < g.sites.length; k++) {
     var s = g.sites[k];
     if (s.kind !== "farm") continue;
@@ -1558,36 +1576,36 @@ function lFrostKill(g) {
   }
 }
 /* every tick: things in the air, and fuses burning */
-function lTick(g) {
+function lTick(g: Game) {
   if (!g.lballs) lReset(g);
   if (g.lballs.length) lBallsStep(g);
   if (g.lcharges.length) lChargesStep(g);
 }
-/* wheat, a tick at a time, as it grows (ideas.js cropGrow): how much faster than out in the open, with what is on the
+/* wheat, a tick at a time, as it grows (ideas.ts cropGrow): how much faster than out in the open, with what is on the
    field and over it. 0 if it is not growing at all */
-function lGrowth(g, i, x) {
+function lGrowth(g: Game, i: number, x: number) {
   var y = (i / g.gw) | 0, b = lBoost(g, x, y), t = g.T[i];
   if (t < L_FROST) return 0;   /* frost (under glass too, if it is cold enough in there: it seldom is). lFrostKill */
   return (b & 1 ? L_GROW : 1) * (b & 2 ? 1.5 : 1);
 }
 /* the potash (1) and the glass (2) on a field, for a cell at (x, y): only the field's own, not something else in the same
    columns higher up or lower down */
-function lBoost(g, x, y) {
+function lBoost(g: Game, x: number, y: number) {
   if (!g.lboost || !g.lboost[x]) return 0;
   var G = g.lboostY[x];
   return y <= G + 1 && y >= G - L_ROOF ? g.lboost[x] : 0;
 }
-function lWetUnderGlass(g, x) { return !!(g.lboost && (g.lboost[x] & 2)); }
+function lWetUnderGlass(g: Game, x: number) { return !!(g.lboost && (g.lboost[x] & 2)); }
 
 /* -------------------------------------------------------------------
    THE PAPERWORK
    ------------------------------------------------------------------- */
-function lLabel(s) {
+function lLabel(s: Site) {
   if (s.kind === "glasshouse") return "the glasshouse";
-  if (s.kind === "heap") return "the village heap";   /* (tidy.js) */
+  if (s.kind === "heap") return "the village heap";   /* (tidy.ts) */
   return "";
 }
-function lFinish(g, s, p) {
+function lFinish(g: Game, s: Site, p: Peasant) {
   if (s.kind !== "glasshouse") return false;
   if (s.built) return true;   /* (mended: no news) */
   s.built = true;
@@ -1597,7 +1615,7 @@ function lFinish(g, s, p) {
   return true;
 }
 /* what they are up to, for the bar at the bottom: "" if it is none of ours */
-function lMood(g, p) {
+function lMood(g: Game, p: Peasant) {
   var k = p.task, s;
   if (!k) return "";
   switch (k.kind) {
@@ -1625,7 +1643,7 @@ function lMood(g, p) {
 var L_COAL = hex32("#16161a"), L_CARROT = hex32("#f08a24"), L_TWIG = hex32("#6b4a1e"), L_HAT = hex32("#1e1e24"), L_BAND = hex32("#c83a3a");
 var L_STICK = hex32("#c83a2a"), L_ASHFLECK = hex32("#9a9a96");
 /* potash on the fields, the lit charges, and the snowmen's faces. returns how many things glow */
-function lDraw(g) {
+function lDraw(g: Game) {
   var hot = 0, k, s, x, j, e;
   for (k = 0; k < g.sites.length; k++) {
     s = g.sites[k];
@@ -1663,7 +1681,7 @@ function lDraw(g) {
   return hot;
 }
 /* over everybody: snowballs and charges in the air */
-function lDrawOver(g) {
+function lDrawOver(g: Game) {
   for (var k = 0; k < (g.lballs || []).length; k++) {
     var b = g.lballs[k], x = Math.floor(b.x), y = Math.floor(b.y);
     if (b.kind === "snow") { iPut(g, x, y, hex32("#ffffff")); iPut(g, x, y + 1, hex32("#dfeaf6")); }

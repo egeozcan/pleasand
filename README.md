@@ -628,16 +628,28 @@ and grown from there.
 
 ## Run
 
-One build, for the WebAssembly step (Rust, `rustup` fetches the version `wasm/rust-toolchain.toml` names), then open
-`index.html`, or serve the folder:
+The game is TypeScript: a row of scripts that share one scope, as they always did (none imports anything; `index.html`
+lists them in the order they load). Vite joins them into one module, the types blanked out where they stand, and
+serves it. One build first, for the WebAssembly step (Rust, `rustup` fetches the version `wasm/rust-toolchain.toml`
+names):
 
     wasm/build.sh
-    python3 -m http.server
+    npm install
+    npm run dev           # the game, reloaded when a script changes; PLEASAND.eval("g") at the console
+    npm run build         # the site, in dist/ (npm run preview serves it)
+    npm run typecheck     # tsc over the game (tsconfig.json) and the build's own config (tsconfig.node.json)
 
-Without the build it still plays, with the JS step (as it does in a browser with no WebAssembly). GitHub's Pages
-workflow (`.github/workflows/pages.yml`) builds it, checks it plays the world the JS does, and only then puts it up.
+Without the WebAssembly build it still plays, with the JS step (as it does in a browser with no WebAssembly). GitHub's
+Pages workflow (`.github/workflows/pages.yml`) builds it, checks it plays the world the JS does and that the types
+hold, and only then puts it up.
 
-To check it still works, with node (and still no dependencies): `node test/run.js`
+The types are only types: there is nothing in the game that has to be compiled rather than wiped out
+(`erasableSyntaxOnly`), so a line of a `.ts` is the same line of what runs, in the browser and in node. What `g`, a
+villager and a site carry is said by the files that keep it there: each file opens with its own `interface Game`,
+`interface Peasant` and `interface Site`, and TypeScript puts them together.
+
+To check it still works, with node 22.13 or later (and still no dependencies: node reads the TypeScript itself,
+`harness/loader.js`): `node test/run.js`
 plays a few villages headless, with some things forced, and checks them (mines,
 galleries, the furnace, lifts, the bell, oil wells, rocket packs, ice). They run side by
 side, one process to a core, the longest first (`-j4` for four at a time, `-j1` for one
@@ -649,10 +661,10 @@ and its scenarios run a valley one screen wide (272 columns) unless asked for an
 were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is how it works.
 
 Two things are faster than they look. The sand step's walk over the valley and the heat step run as
-WebAssembly (`wasm/src/lib.rs`, a port of `world.js` `sandStepJs` and `heat.js` `heatStepJs`, statement for
+WebAssembly (`wasm/src/lib.rs`, a port of `world.ts` `sandStepJs` and `heat.ts` `heatStepJs`, statement for
 statement), about twice as fast, and play the very same world, die for die; so does the colouring of the cells in view
 (`drawWorld`'s loop), to the pixel. And where there is WebGL2 on a GPU, the field, its glow and
-the bangs are put on the screen by the GPU (`glr.js`); with none, or only a software one, the 2D canvas does it, as
+the bangs are put on the screen by the GPU (`glr.ts`); with none, or only a software one, the 2D canvas does it, as
 it always did. The panel, the header and the bar are drawn only when what they show changes, and a machine too slow
 to keep up at 4x plays the world a little slower rather than drop frames. `?js` in the address plays the JS step, `?2d` draws with the 2D canvas, and the backquote's line says
 which ones are on.
@@ -770,32 +782,34 @@ see `harness/README.md`) say whether the two still agree.
 
 ## Files
 
-- `rng.js`: the dice: a seedable `Math.random` (the harness's own), so a save carries them; drawing and sound roll their own
-- `audio.js`: the sound department, all synthesised: bangs, babble, screams
-- `world.js`: the grid, the materials and their rules, particles, explosions, lightning, the starting village
-- `heat.js`: temperature: conduction, convection, melting, boiling, freezing and burning points, and how hot things look
-- `peasants.js`: the villagers, what they say, how they die, and how they are drawn
-- `paths.js`: how the villagers find their way: A* over everywhere a peasant could stand, using the moves a peasant really makes (steps, drops, leaps, jumps, ladders, ropes, swims)
-- `build.js`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
-- `ideas.js`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, ponds dug and filled, graves, forestry, jetties and fishing, scarecrows, fireworks shows, the statue
-- `mines.js`: what is under the sand, and what comes of digging for it: mines and their galleries, coal, iron ore and gold, watchtowers, the furnace and iron, lifts, the bell
-- `oil.js`: oil in the rock, the derrick that pumps it, and rocket packs
-- `tidy.js`: tidying up: puddles bailed to where water does some good, sand swept off roofs and dug away from doors, piles shovelled up, bushes cut back out of doorways, and the village heap
-- `leftovers.js`: what is left over (ash, salt, glass, gunpowder, snow, ice) and what they make of it: picking it up, snowball fights, snowmen, skating, salt on the ice and on the fish, potash, black powder (blasting, fishing with it, fireworks), glass and the glasshouse, and frost on the wheat
-- `wonders.js`: the great works, as a kind of thing: two going up at once, the crew, hauling, quarrying, the kiln, concrete and stained glass, tales worth telling, gatherings, the lightning rod, and the WONDERS count
-- `monuments.js`: the theatre, the pyramid, and the cathedral with its crypt
-- `pleasures.js`: the baths, the hanging gardens, the steam organ, the duck palace and the ice palace
-- `heavens.js`: the observatory and its falling stars, the lighthouse, the foundry, and the moon rocket
-- `storeys.js`: a crowded valley: flats on top of the houses, their ladders, neighbours, gardyloo and fire, word getting round, going over the hills, roof gardens and washing lines
-- `platforms.js`: when the roofs will take no more: decks on trestle legs over the village, a house on each, the high street, and sleeping under the boards
-- `ducks.js`: the ducks
-- `hand.js`: the hand: a lump of the valley lifted, held, carried and let go, set down whole or come down in pieces, with whoever was standing on it; a house set down whole is their house there, and its owner runs after it; and what the village makes of it: who thinks well of it, who hides, the fire it put out and the coal left out for it
-- `save.js`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it
-- `simwasm.js`: the sand and heat steps played by WebAssembly where they can be, the JS's where not; the grid's arrays in the module's memory
+- `rng.ts`: the dice: a seedable `Math.random` (the harness's own), so a save carries them; drawing and sound roll their own
+- `audio.ts`: the sound department, all synthesised: bangs, babble, screams
+- `world.ts`: the grid, the materials and their rules, particles, explosions, lightning, the starting village
+- `heat.ts`: temperature: conduction, convection, melting, boiling, freezing and burning points, and how hot things look
+- `peasants.ts`: the villagers, what they say, how they die, and how they are drawn
+- `paths.ts`: how the villagers find their way: A* over everywhere a peasant could stand, using the moves a peasant really makes (steps, drops, leaps, jumps, ladders, ropes, swims)
+- `build.ts`: what the villagers build (houses, doors, beds, stairs, ladders, bridges, saplings), and living in it
+- `ideas.ts`: what a well-fed village thinks of, and what comes of it: fields of wheat, lanterns, the bucket brigade, ponds dug and filled, graves, forestry, jetties and fishing, scarecrows, fireworks shows, the statue
+- `mines.ts`: what is under the sand, and what comes of digging for it: mines and their galleries, coal, iron ore and gold, watchtowers, the furnace and iron, lifts, the bell
+- `oil.ts`: oil in the rock, the derrick that pumps it, and rocket packs
+- `tidy.ts`: tidying up: puddles bailed to where water does some good, sand swept off roofs and dug away from doors, piles shovelled up, bushes cut back out of doorways, and the village heap
+- `leftovers.ts`: what is left over (ash, salt, glass, gunpowder, snow, ice) and what they make of it: picking it up, snowball fights, snowmen, skating, salt on the ice and on the fish, potash, black powder (blasting, fishing with it, fireworks), glass and the glasshouse, and frost on the wheat
+- `wonders.ts`: the great works, as a kind of thing: two going up at once, the crew, hauling, quarrying, the kiln, concrete and stained glass, tales worth telling, gatherings, the lightning rod, and the WONDERS count
+- `monuments.ts`: the theatre, the pyramid, and the cathedral with its crypt
+- `pleasures.ts`: the baths, the hanging gardens, the steam organ, the duck palace and the ice palace
+- `heavens.ts`: the observatory and its falling stars, the lighthouse, the foundry, and the moon rocket
+- `storeys.ts`: a crowded valley: flats on top of the houses, their ladders, neighbours, gardyloo and fire, word getting round, going over the hills, roof gardens and washing lines
+- `platforms.ts`: when the roofs will take no more: decks on trestle legs over the village, a house on each, the high street, and sleeping under the boards
+- `ducks.ts`: the ducks
+- `hand.ts`: the hand: a lump of the valley lifted, held, carried and let go, set down whole or come down in pieces, with whoever was standing on it; a house set down whole is their house there, and its owner runs after it; and what the village makes of it: who thinks well of it, who hides, the fire it put out and the coal left out for it
+- `save.ts`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it
+- `simwasm.ts`: the sand and heat steps played by WebAssembly where they can be, the JS's where not; the grid's arrays in the module's memory
 - `simwasm-bin.js`: the module, built from `wasm/` by `wasm/build.sh` (not kept in git)
 - `wasm/`: the Rust the module is built from: `sandStep`'s walk and the rules it hands each cell to, and `heatStep`
-- `glr.js`: the field, its glow and the bangs on the GPU (WebGL2), under the 2D canvas
-- `game.js`: rendering, the picker and HUD, input, and the main loop
+- `glr.ts`: the field, its glow and the bangs on the GPU (WebGL2), under the 2D canvas
+- `game.ts`: rendering, the picker and HUD, input, and the main loop
+- `globals.d.ts`: what the game finds about it that the DOM's own types do not know of (the module's base64, the harness's hooks on `window`)
+- `vite.config.mts`, `tsconfig.json`: the scripts joined into one module for the browser, and the types checked
 - `test/`: the game without a browser (`sim.js`), and some checks that it still works (`run.js`)
 - `harness/`: the game without a screen or a browser, built for agents: deterministic runs,
 snapshots and rewinds, traces, breakpoints, invariants, a profiler, ascii maps, `why(id)`,

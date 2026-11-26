@@ -1,7 +1,7 @@
 /* =====================================================================
-   PLEASAND  --  pleasures.js
+   PLEASAND  --  pleasures.ts
 
-   the great works that are for enjoying (wonders.js has what they
+   the great works that are for enjoying (wonders.ts has what they
    share):
      THE BATHS   a concrete basin sunk in the ground, nine wide and
                  three deep, filled bucket by bucket from real water.
@@ -29,6 +29,27 @@
                  build it again
    ===================================================================== */
 "use strict";
+
+/* (what this file keeps in g) */
+interface Game {
+  wIceN?: number;
+  wDuckPalace?: number; quiet?: any; noField?: number; wTick?: boolean;
+}
+/* (what this file keeps on a villager) */
+interface Peasant {
+  shoos?: any; snow?: number;
+}
+/* (what this file keeps on a site) */
+interface Site {
+  coals?: any; terrace?: number; tier?: number; strokes?: number; lifted?: number; breathe?: any; breatheT?: number;
+  caught?: number; hatched?: number; fed?: number;
+  melts?: boolean; cells?: any; bath?: boolean; bw?: number; bh?: number; stoker?: any; glip?: number[]; gc?: number;
+  gw?: number; Y0?: any; turnT?: number; turner?: any; crankX?: any; crankY?: any; screw?: any; state?: string;
+  mo?: number[]; exits?: number[]; notes?: number; cur?: number; got?: number; need?: number; nextT?: number;
+  shutT?: number; organist?: any; seenT?: number; fireT?: any; tune?: number; concerts?: number; ni?: number;
+  nextNoteT?: number; startN?: number; startW?: number; why?: any; noteT?: number; lastUsed?: number; lastNotes?: number;
+  Y?: any; boycott?: number;
+}
 
 var P_BATH_W = 15;          /* the baths, across: stoke-hole, basin, chimney */
 var P_BATH_LO = 33, P_BATH_HI = 40;   /* the stoker stokes under this, and rakes the fire out over that */
@@ -70,9 +91,9 @@ wDef({
 });
 /* the baths at x0, on ground gy: the water's top at G, level with the ground (sunk), and everything under it dug out of
    sand. {plan, G, score} or null */
-function pBathsFit(g, x0, gy, hi, lo) {
+function pBathsFit(g: Game, x0: number, gy: number, hi, lo) {
   var G = Math.max(hi, lo - 1), plan = [], u, x, y, c, v, sand = 0;
-  function put(u, y, v, ph) { plan.push(bE(g, x0 + u, y, v, ph)); }
+  function put(u, y: number, v: number, ph: number) { plan.push(bE(g, x0 + u, y, v, ph)); }
   for (u = 0; u < P_BATH_W; u++) {
     x = x0 + u;
     /* everything from the ground down to the flue's floor, and the ground above G at the high end: sand, dug out */
@@ -98,7 +119,7 @@ function pBathsFit(g, x0, gy, hi, lo) {
   return { plan: plan, G: G, score: 20 - sand * 0.05 - (lo - hi) * 2 };
 }
 /* what goes at column u (0..14) of the baths, dy rows down from the water's top (0..5) */
-function pBathCell(u, dy) {
+function pBathCell(u, dy: number) {
   if (u === 0) return MAT.FIREBRICK;                                       /* the stoke-hole's outer wall */
   if (u === 1) return dy === 5 || dy === 3 ? MAT.FIREBRICK : MAT.EMPTY;   /* the stoke-hole, its hatch, and the hearth under it */
   if (dy === 5) return u <= 6 ? MAT.FIREBRICK : MAT.CONCRETE;              /* the flue's floor */
@@ -109,7 +130,7 @@ function pBathCell(u, dy) {
   if (u === 14) return MAT.BRICK;
   return MAT.EMPTY;                                                         /* the water */
 }
-function pPlanBaths(g, p) {
+function pPlanBaths(g: Game, p: Peasant) {
   var r = wPlot(g, { w: P_BATH_W, sky: 14, rough: 4, near: wMiddle(g), fit: pBathsFit });
   if (!r) return false;
   var x0 = r.x0, G = r.r.G;
@@ -122,33 +143,33 @@ function pPlanBaths(g, p) {
 }
 /* the cells of the basin with no water in them (dry, or silted up: sand in it is not water), and how warm the water in
    it is */
-function wBathNeed(g, s) {
+function wBathNeed(g: Game, s: Site) {
   var n = 0, bw = s.bw || 9, bh = s.bh || 3, c;   /* (nine by three, the baths; the gardens' pool and the organ's say their own) */
   for (var x = s.px0; x < s.px0 + bw; x++) for (var y = s.L; y < s.L + bh; y++) { c = pCell(g, x, y); if (!WET[c] && c !== MAT.ICE) n++; }
   return n;
 }
-function pBathT(g, s) {
+function pBathT(g: Game, s: Site) {
   var t = 0, n = 0;
   for (var x = s.px0; x < s.px0 + 9; x++) for (var y = s.L; y < s.L + 3; y++) { var j = y * g.gw + x; if (WET[g.m[j]] || g.m[j] === MAT.ICE) { t += g.T[j]; n++; } }
   return n ? t / n : AMBIENT;
 }
-function pBathers(g, s) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "bathe" && q.task.site === s.id; }); }
+function pBathers(g: Game, s: Site) { return g.peasants.filter(function (q) { return !q.dead && q.task && q.task.kind === "bathe" && q.task.site === s.id; }); }
 /* a soak: in, and sit in it a while */
-function pGoBathe(g, p, s, cold) {
+function pGoBathe(g: Game, p: Peasant, s: Site, cold: boolean) {
   if (pBathers(g, s).length >= P_BATHERS || (p.hotBath || 0) > g.tick) return false;
   var x = s.px0 + 1 + ((p.id * 3) % 7);
   p.task = { kind: "bathe", site: s.id, x: x, y: s.L + 2, t: 0, cold: !!cold, stay: 500 + irnd(400) };
   return true;
 }
-function pBathsReady(g, s) { if (!s || !s.done || s.repair || wBathNeed(g, s) > 6) return false; var t = pBathT(g, s); return t >= W_BATH_LO && t <= W_BATH_HI; }
+function pBathsReady(g: Game, s: Site) { if (!s || !s.done || s.repair || wBathNeed(g, s) > 6) return false; var t = pBathT(g, s); return t >= W_BATH_LO && t <= W_BATH_HI; }
 /* cold: a warm bath, before a campfire */
-function pBathsWarm(g, p) {
+function pBathsWarm(g: Game, p: Peasant) {
   var s = mSites(g, "baths", true)[0];
   if (!pBathsReady(g, s) || Math.abs(s.cx - p.x) > 220) return false;
   return pGoBathe(g, p, s, true);
 }
 /* the bored, at a quiet moment: a soak. and the baths, while they are dry, want filling */
-function pBathsPick(g, p, hungry) {
+function pBathsPick(g: Game, p: Peasant, hungry) {
   var s = mSites(g, "baths", true)[0];
   if (!s || hungry) return false;
   if (g.know.bucket && wBathNeed(g, s) > 3 && iCrew(g, "bucket", s.id) < I_POND_CREW && Math.random() < 0.5) {
@@ -158,7 +179,7 @@ function pBathsPick(g, p, hungry) {
   if (pBathsReady(g, s) && Math.abs(s.cx - p.x) < 200 && (p.bored > 400 || p.cold > 0) && !wNoGo(g, p, s.id) && Math.random() < 0.12) return pGoBathe(g, p, s, p.cold > 0);
   return false;
 }
-function pTaskBathe(g, p, k) {
+function pTaskBathe(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 3000) return iDone(p, false);
   var fx = Math.floor(p.x), fy = Math.floor(p.y), t = pBathT(g, s);
@@ -175,12 +196,12 @@ function pTaskBathe(g, p, k) {
   return true;
 }
 /* the flue: from the stoke-hole end along under the basin (u 1, under the stoke-hole, is the hearth) */
-function pFlue(g, s, u) { return (s.G + 4) * g.gw + s.x0 + u; }
+function pFlue(g: Game, s: Site, u) { return (s.G + 4) * g.gw + s.x0 + u; }
 /* the fire: any coal still burning in the hearth or along the flue */
-function pBurning(g, s) { for (var u = 1; u <= 13; u++) if (g.m[pFlue(g, s, u)] === MAT.EMBER) return true; return false; }
+function pBurning(g: Game, s: Site) { for (var u = 1; u <= 13; u++) if (g.m[pFlue(g, s, u)] === MAT.EMBER) return true; return false; }
 /* the stoker: on duty while the water wants it. a coal in the hearth (lit: it burns a good long while) whenever it is
    under P_BATH_LO and nothing is burning; and once it is over P_BATH_HI, the fire raked out, and they say so */
-function pTaskStoke(g, p, k) {
+function pTaskStoke(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done) return iDone(p, false);
   var t = pBathT(g, s), hot = pBurning(g, s);
@@ -237,7 +258,7 @@ function pTaskStoke(g, p, k) {
 }
 /* somebody to take over a long shift at the stoke-hole: idle, about, out of the water, with coal. with nobody, the stoker
    stays on (else they hand over to nobody, are sent back as the nearest, and the way back is across the bath) */
-function pRelief(g, s, p) {
+function pRelief(g: Game, s: Site, p: Peasant) {
   for (var k = 0; k < g.peasants.length; k++) {
     var q = g.peasants[k];
     if (q !== p && wIdle(g, q, s) && !q.wade && Math.abs(q.x - s.cx) <= 240 && (q.coal || 0) >= 1) return true;
@@ -246,7 +267,7 @@ function pRelief(g, s, p) {
 }
 /* a fire at the baths that is all in the hearth, the flue and the chimney is the fire under the baths, not a fire: the
    brigade lets it be */
-function pInTheFlue(g, s, f) {
+function pInTheFlue(g: Game, s: Site, f) {
   for (var k = 0; k < f.length; k++) {
     var u = f[k] % g.gw - s.x0, dy = ((f[k] / g.gw) | 0) - s.G;
     if (!((dy === 4 && u >= 1 && u <= 13) || (u === 1 && dy >= 0 && dy <= 3) || (u === 13 && dy >= -6 && dy <= 4))) return false;
@@ -255,7 +276,7 @@ function pInTheFlue(g, s, f) {
 }
 /* every W_STRIDE ticks: a stoker while the water is cool (and full enough to be worth it), the eldest complaining, and
    anybody it was too hot for, shouting */
-function pBathsStep(g, s) {
+function pBathsStep(g: Game, s: Site) {
   if (!s.done || s.repair) return;
   var t = pBathT(g, s), k, q, stoker = null;
   for (k = 0; k < g.peasants.length; k++) { q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "stoke" && q.task.site === s.id) stoker = q; }
@@ -265,7 +286,7 @@ function pBathsStep(g, s) {
     for (k = 0; k < g.peasants.length; k++) {
       q = g.peasants[k];
       /* (not one paddling in the bath itself, the nearest of all: in the water a job is dropped as soon as it is given,
-         peasants.js pWalk, and they would be picked again and again while the water cooled) */
+         peasants.ts pWalk, and they would be picked again and again while the water cooled) */
       if (!wIdle(g, q, s) || Math.abs(q.x - s.cx) > 240 || q.wade) continue;
       var d = Math.abs(q.x - s.cx) - ((q.coal || 0) >= 1 ? 40 : 0) - (q.id === s.stoker ? 30 : 0);
       if (d < bd) { bd = d; best = q; }
@@ -287,7 +308,7 @@ function pBathsStep(g, s) {
 }
 var P_COLUMN = hex32("#d8d2c2"), P_COLUMN_D = hex32("#b8b2a2"), P_STEAMY = hex32("#c8d8e8");
 /* the colonnade behind it, the pediment over it, and the glow of the fire in the flue */
-function pDrawBaths(g, s) {
+function pDrawBaths(g: Game, s: Site) {
   var G = s.G, x0 = s.x0, u, y, hot = 0;
   if (s.done) {
     for (y = G - 10; y <= G - 1; y++) for (u = 3; u <= 11; u += 8) { wBack(g, x0 + u, y, P_COLUMN, 0.7); wBack(g, x0 + u + 1, y, P_COLUMN_D, 0.6); }
@@ -310,7 +331,7 @@ function pDrawBaths(g, s) {
    stand to tip it (def.spout(g, s): {x, y})
    ------------------------------------------------------------------- */
 P_SAY.pour = ["*sploosh*", "in it goes", "another one", "nearly full", "that's the last of it. maybe"];
-function pGoFill(g, p, s) {
+function pGoFill(g: Game, p: Peasant, s: Site) {
   if (!g.know.bucket || p.pail || iCrew(g, "pfill", s.id) >= 2) return false;
   var w = iFindWater(g, p, 200, null, true, iBarred(g, true), true);
   if (!w) return false;
@@ -319,7 +340,7 @@ function pGoFill(g, p, s) {
 }
 /* (every W_STRIDE ticks, from the wonder's step: more than dry cells dry, and nobody at it, and the nearest of the idle
    is sent for a bucket. a busy village otherwise never gets round to it) */
-function pCallFill(g, s, dry) {
+function pCallFill(g: Game, s: Site, dry: number) {
   if (wBathNeed(g, s) <= dry || iCrew(g, "pfill", s.id) || g.blaze.length || (g.tick % 300)) return;
   var best = null, bd = 1e9;
   for (var k = 0; k < g.peasants.length; k++) {
@@ -329,7 +350,7 @@ function pCallFill(g, s, dry) {
   }
   if (best) pGoFill(g, best, s);
 }
-function pTaskFill(g, p, k) {
+function pTaskFill(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site), d = s && wOf(s.kind), fx = Math.floor(p.x), fy = Math.floor(p.y), j;
   if (!s || !s.done || !d || ++k.t > 4000) { if (p.pail) iSpill(g, p); return iDone(p, false); }
   if (!p.pail) {
@@ -369,8 +390,8 @@ function pTaskFill(g, p, k) {
   return iDone(p, true);
 }
 /* a cell of liquid from i to j (j thin air), heat and all: the air left behind at i is room temperature, as a scooped
-   bucket leaves it (ideas.js iScoop) */
-function pLift(g, i, j) {
+   bucket leaves it (ideas.ts iScoop) */
+function pLift(g: Game, i: number, j: number) {
   heatSync(g, i);
   var q = heatQ(g, i), qa = heatQ(g, j);
   g.m[j] = g.m[i]; g.aux[j] = g.aux[i]; g.sh[j] = g.sh[i]; g.vy[j] = 0;
@@ -395,11 +416,11 @@ var P_GW = 21;                     /* the gardens, across: pool, three terraces,
 var P_GPW = 3;                     /* the pool, across, inside its walls (room for whoever digs it out, and clears it) */
 var P_GLIP = [4, 9, 14];           /* each terrace's lip (and the pier under it; the first is the pool's wall); its bed is the columns after, to the next */
 /* (a built gardens' own measures, kept on its site when it was planned: the constants may have changed since) */
-function pGLip(s) { return (s && s.glip) || P_GLIP; }
-function pGC(s) { return (s && s.gc) || P_GC; }
-function pGW(s) { return (s && s.gw) || P_GW; }
-function pGBedEnd(s, k) { return k < 2 ? pGLip(s)[k + 1] - 1 : pGC(s) - 1; }   /* (four, four, and three under the cistern) */
-function pGPoolN(s) { return (s.bw || P_GPW) * (s.bh || P_GPOOL); }
+function pGLip(s: Site) { return (s && s.glip) || P_GLIP; }
+function pGC(s: Site) { return (s && s.gc) || P_GC; }
+function pGW(s: Site) { return (s && s.gw) || P_GW; }
+function pGBedEnd(s: Site, k: number) { return k < 2 ? pGLip(s)[k + 1] - 1 : pGC(s) - 1; }   /* (four, four, and three under the cistern) */
+function pGPoolN(s: Site) { return (s.bw || P_GPW) * (s.bh || P_GPOOL); }
 var P_GC = 18;                     /* the cistern: its low wall (spilling onto the top terrace), its inside, its high wall */
 var P_GSTEP = 5;                   /* rows each terrace stands over the last */
 var P_GSKY = 7;                    /* clear rows over each (wheat grows I_CROP_H, give or take two) */
@@ -443,7 +464,7 @@ wDef({
 });
 /* nowhere for another field (iPlanFarm found none): with none anywhere in the valley either, the village hears about
    it, and whoever looked has the gardens put into their head */
-function pGardensNoRoom(g, p, wide) {
+function pGardensNoRoom(g: Game, p: Peasant, wide: boolean) {
   if (g.noFieldT > g.tick) return;
   g.noFieldT = g.tick + 3000;
   if (!wide && (iFarmSpot(g, -1, -1, null, false) || iFarmSpot(g, -1, -1, null, true))) return;   /* (room, just not near here) */
@@ -452,17 +473,17 @@ function pGardensNoRoom(g, p, wide) {
   wSpark(g, p, "gardens");
 }
 /* the gardens' columns, foot first: u (0 .. P_GW - 1) to x */
-function pGU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + pGW(s) - 1 - u; }
+function pGU(s: Site, u) { return s.d > 0 ? s.x0 + u : s.x0 + pGW(s) - 1 - u; }
 /* terrace k's bed row, over the pool's waterline Y0 */
 function pGBed(Y0, k) { return Y0 - 3 - P_GSTEP * k; }
-function pPlanGardens(g, p) {
+function pPlanGardens(g: Game, p: Peasant) {
   var best = null;
   for (var d = -1; d <= 1; d += 2) {
     var r = wPlot(g, { w: P_GW, sky: 6, rough: 22, near: wMiddle(g), fit: function (g, x0, gy) { return pGardensFit(g, x0, gy, d); } });
     if (r && (!best || r.score > best.score)) { best = r; best.d = d; }
   }
   if (!best) return false;
-  var f = best.r, x0 = best.x0, d = best.d, Y0 = f.Y0;
+  var f = best.r, x0 = best.x0, d: number = best.d, Y0 = f.Y0;
   var s = bNew(g, "gardens", p, wCleared(g, best, f.plan), [x0, pGBed(Y0, 2) - P_GSKY - 1, x0 + P_GW - 1, Y0 + P_GPOOL],
                { wonder: true, d: d, Y0: Y0, bath: true, L: Y0, px0: d > 0 ? x0 + 1 : x0 + P_GW - 1 - P_GPW, bw: P_GPW, bh: P_GPOOL, gw: P_GW, glip: P_GLIP.slice(), gc: P_GC,
                  crankX: f.crankX, crankY: f.crankY, screw: f.path, strokes: 0, lifted: 0 });
@@ -475,7 +496,7 @@ function pPlanGardens(g, p) {
    waterline), crankX, crankY (where the turner stands), score} or null. the pool is dug at the foot; each terrace is a
    brick floor with a bed of sand on it, dug down into the slope, or stood on piers where there is no slope; the
    cistern stands on its pier at the top. a slope rising away from the pool is what it is for: the hill does the work */
-function pGardensFit(g, x0, gy, d) {
+function pGardensFit(g: Game, x0: number, gy: number, d: number) {
   function X(u) { return d > 0 ? x0 + u : x0 + P_GW - 1 - u; }
   function Gy(u) { return gy[X(u) - x0]; }
   var plan = [], at = {}, u, y, k, c, x, brick = 0, dig = 0, Y0 = -1;
@@ -484,9 +505,9 @@ function pGardensFit(g, x0, gy, d) {
   if (Y0 - Gy(P_GW - 1) < 0) return null;                     /* (and the stair goes up from it, or along: never down) */
   var crankX = X(0) - d, cg = mGroundNear(g, crankX, false, Y0);
   if (cg < 0 || Math.abs(cg - Y0) > 2 || !pRoom(g, crankX, cg - 1)) return null;   /* (somewhere to stand at the crank) */
-  function put(u, y, v, ph) { var e = bE(g, X(u), y, v, ph); plan.push(e); at[e.i] = e; return e; }
+  function put(u, y: number, v: number, ph: number) { var e = bE(g, X(u), y, v, ph); plan.push(e); at[e.i] = e; return e; }
   /* (out of the way: sand dug, rock cut, a tree felled. false for anything else, somebody's or not to be shifted) */
-  function digOut(u, y, ph) {
+  function digOut(u, y: number, ph?: number) {
     c = pCell(g, X(u), y);
     if (AIRY[c]) return true;
     if (ROCK[c] && !bMarked(g, X(u), y)) { put(u, y, MAT.EMPTY, ph || 0).mine = true; dig += 3; return true; }
@@ -495,7 +516,7 @@ function pGardensFit(g, x0, gy, d) {
   }
   /* (brick, whatever is there but rock: driven into sand, as a tier of the theatre's is, so that what it holds back
      does not pour in while it goes in. bottom up, a row at a time) */
-  function brickAt(u, y, ph) {
+  function brickAt(u, y: number, ph?: number) {
     var i = y * g.gw + X(u);
     if (at[i]) { if (at[i].v !== MAT.EMPTY) return true; plan.splice(plan.indexOf(at[i]), 1); at[i] = null; }
     c = pCell(g, X(u), y);
@@ -518,7 +539,7 @@ function pGardensFit(g, x0, gy, d) {
       }
       else {
         if (!digOut(u, y)) return null;
-        /* (the inside of the pool kept clear: sand washed into it is cleared out again, as a pond's is. build.js bInspect) */
+        /* (the inside of the pool kept clear: sand washed into it is cleared out again, as a pond's is. build.ts bInspect) */
         if (y >= Y0) { var ie = at[y * g.gw + x] || put(u, y, MAT.EMPTY, 0); ie.clear = true; }
       }
     }
@@ -596,22 +617,22 @@ function pGardensFit(g, x0, gy, d) {
   return { plan: plan, Y0: Y0, path: path, crankX: crankX, crankY: cg - 1, score: 30 + Math.min(rise, 14) * 2 - brick * 0.15 - dig * 0.05 };
 }
 /* the pool's dry cells, lowest first (FILLING); none, once it is nearly full */
-function pPoolDry(g, s) {
+function pPoolDry(g: Game, s: Site) {
   var out = [], x, y;
   if (pGPoolN(s) - wBathNeed(g, s) >= pGPoolN(s) - 2) return out;
   for (y = s.L + P_GPOOL - 1; y >= s.L; y--) for (x = s.px0; x < s.px0 + P_GPW; x++) if (AIRY[pCell(g, x, y)]) out.push(y * g.gw + x);
   return out;
 }
 /* the cistern: its one column, and how much water is in it */
-function pCisternX(s) { return pGU(s, pGC(s) + 1); }
-function pCisternWater(g, s) {
+function pCisternX(s: Site) { return pGU(s, pGC(s) + 1); }
+function pCisternWater(g: Game, s: Site) {
   var n = 0, x = pCisternX(s), Y2 = pGBed(s.Y0, 2);
   for (var y = Y2 - 6; y < Y2; y++) if (WET[pCell(g, x, y)]) n++;
   return n;
 }
-function pTurner(g, s) { for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "screw" && q.task.site === s.id) return q; } return null; }
+function pTurner(g: Game, s: Site) { for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "screw" && q.task.site === s.id) return q; } return null; }
 /* finished: the beds are three fields now (farm sites, with terrace: the gardens' id), and the gardens let go of them */
-function pGardensDone(g, s, p) {
+function pGardensDone(g: Game, s: Site, p: Peasant) {
   feed(g, "the hanging gardens are built. now the terraces want sowing, and the pool wants filling", "#ffd94a", "plan" + s.id);
   s.plan = s.plan.filter(function (e) { return !e.bed; });
   s.built = true;
@@ -621,14 +642,14 @@ function pGardensDone(g, s, p) {
 /* a terrace field tilled, and a stalk in every furrow, green or ripe: sown, whether or not the sower stayed to say so
    (a stalk that ripened before anybody called the field finished would otherwise hold it up, and in time the village
    would give up on a field with wheat standing in it) */
-function pTerracesSown(g, s) {
+function pTerracesSown(g: Game, s: Site) {
   for (var k = 0; k < g.sites.length; k++) {
     var t = g.sites[k];
     if (t.kind !== "farm" || t.terrace !== s.id || t.done) continue;
     if (t.plan.every(function (e) { var c = g.m[e.i]; return bOk(g, e) || (e.v === MAT.CROP && (c === MAT.CROP || c === MAT.WHEAT)); })) { t.done = true; t.repair = t.sow = false; t.last = g.tick; }
   }
 }
-function pTerraces(g, s) {
+function pTerraces(g: Game, s: Site) {
   for (var k = 0; k < 3; k++) {
     var have = false, j, u;
     for (j = 0; j < g.sites.length; j++) if (g.sites[j].kind === "farm" && g.sites[j].terrace === s.id && g.sites[j].tier === k) have = true;
@@ -646,14 +667,14 @@ function pTerraces(g, s) {
   }
 }
 /* the bucket brigade, for the pool */
-function pGardensPick(g, p, hungry) {
+function pGardensPick(g: Game, p: Peasant, hungry) {
   var s = mSites(g, "gardens", true)[0];
   if (!s || hungry || s.repair) return false;
   if (pGPoolN(s) - wBathNeed(g, s) < P_GTURN && Math.abs(s.cx - p.x) < 220 && Math.random() < 0.4 && pGoFill(g, p, s)) return true;
   return false;
 }
 /* every W_STRIDE ticks: the terraces kept, and a screw-turner while there is water in the pool to lift */
-function pGardensStep(g, s) {
+function pGardensStep(g: Game, s: Site) {
   if (s.built) pTerracesSown(g, s);   /* (mending, or not) */
   if (!s.done || s.repair) return;
   if (g.tick % 600 === 0) pTerraces(g, s);   /* (a terrace the village gave up on is a terrace again, a while later) */
@@ -672,7 +693,7 @@ function pGardensStep(g, s) {
 }
 /* the crank: round and round, and every P_SCREW strokes a cell of water out of the top of the pool and into the top of
    the cistern, heat and all (the oil pump's take and place, for water) */
-function pTaskScrew(g, p, k) {
+function pTaskScrew(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 8000 || p.hunger > P_HUNGRY || (p.tired || 0) > B_SLEEPY) { if (s) s.turnT = g.tick + 900; return iDone(p, (k.n || 0) > 0); }
   var cx = s.crankX, cy = s.crankY;
@@ -703,7 +724,7 @@ function pTaskScrew(g, p, k) {
 var P_FLOWERS = [hex32("#e8607a"), hex32("#f0c040"), hex32("#c070e0"), hex32("#f4f4f4")], P_VINE = hex32("#3f8a3a"), P_VINE_D = hex32("#2c6a2a");
 var P_CRANK = hex32("#5a4030"), P_SCREW_HI = hex32("#c8ccd4"), P_SCREW_D = hex32("#4a4e58");
 /* flowers along the lips, vines down the risers, the crank, and the screw's thread turning in its tube */
-function pDrawGardens(g, s) {
+function pDrawGardens(g: Game, s: Site) {
   if (!s.done) return 0;
   var k, y, Y0 = s.Y0, t = pTurner(g, s), turning = t && t.task.on;
   for (k = 0; k < 3; k++) {
@@ -730,7 +751,7 @@ function pDrawGardens(g, s) {
      where it is not), and its thread going up it while it turns */
   var S = s.screw || [];
   for (k = 0; k < S.length; k++) {
-    var i = S[k], c = g.m[i];
+    var i: number = S[k], c = g.m[i];
     if (c !== MAT.GIRDER) g.px[i] = blend32(g.px[i], P_SCREW_D, AIRY[c] ? 0.9 : 0.55);
     if (turning && ((((i % g.gw) * s.d * 3 - ((g.t * 8) | 0)) % 4 + 4) % 4 === 0)) g.px[i] = blend32(g.px[i], P_SCREW_HI, 0.6);
   }
@@ -794,7 +815,7 @@ wDef({
   task: function (g, p, k) { return k.kind === "organ" ? pTaskOrgan(g, p, k) : (k.kind === "pfill" ? pTaskFill(g, p, k) : undefined); },
   step: pOrganStep,
   tick: pOrganTick,
-  inside: pOInside,   /* (nobody's place: wonders.js wEvict) */
+  inside: pOInside,   /* (nobody's place: wonders.ts wEvict) */
   partOfIt: function (g, s, f) { for (var k = 0; k < f.length; k++) { var u = f[k] % g.gw - s.x0, y = (f[k] / g.gw) | 0; if (y !== s.G - 1 || u < 5 || u > 7) return false; } return true; },
   draw: pDrawOrgan,
   finish: function (g, s, p) {
@@ -821,7 +842,7 @@ wDef({
 });
 /* the furnace worked hard, a show, concrete: whoever is at the furnace has it put into their head (the kettle on the
    furnace, hissing) */
-function pOrganWatch(g) {
+function pOrganWatch(g: Game) {
   var I = wIdea("organ");
   if (!I.ready(g)) return;
   for (var k = 0; k < g.peasants.length; k++) {
@@ -830,14 +851,14 @@ function pOrganWatch(g) {
   }
 }
 /* the organ's cells, by u (0 .. P_OW - 1) across and rows over the apron (G) */
-function pOPipeX(s, n) { return s.x0 + 2 + 2 * n; }
+function pOPipeX(s: Site, n: number): number { return s.x0 + 2 + 2 * n; }
 function pOLid(G) { return G - 3 - P_OTH; }   /* the lid's row (the valves are in it); the pipes stand on it */
 /* where it goes: on level ground with a lot of sky over it, near where the shows go up */
-function pPlanOrgan(g, p) {
+function pPlanOrgan(g: Game, p: Peasant) {
   var r = wPlot(g, { w: P_OW, sky: 27, rough: 8, pad: 2, near: g.festX || wMiddle(g), fit: pOrganFit });
   if (!r) return false;
   var x0 = r.x0, G = r.r.G;
-  /* (the tips stone to begin with, and gilded afterwards if there is gold about: wonders.js wRegild. a tip of gold at the top of a
+  /* (the tips stone to begin with, and gilded afterwards if there is gold about: wonders.ts wRegild. a tip of gold at the top of a
      pipe, waiting on gold, would hold up the rest) */
   var plan = wCleared(g, r, r.r.plan);
   plan.forEach(function (e) { if (e.v === MAT.GOLD) { e.v = MAT.BRICK; e.gild = true; } });
@@ -852,16 +873,16 @@ function pPlanOrgan(g, p) {
 /* the organ at x0 on ground gy: an apron of concrete at the ground's row G (a gutter sunk in it at the right-hand end),
    a plinth of brick with the firebox in the middle of it, the tank, the lid, the rack, and a ladder up the left of
    it to the first pipe (the rack is a stair from there, for whoever builds it and whoever mends it) */
-function pOrganFit(g, x0, gy, hi, lo) {
+function pOrganFit(g: Game, x0: number, gy: number, hi, lo) {
   /* (the apron's row: the lowest of the ground, the high end dug down to it (two rows at most); or higher, on a terrace
      of stone made up under the low end. whichever wants the least stone) */
   var best = null;
   for (var G = lo; G >= hi; G--) { var r = pOrganAt(g, x0, gy, G); if (r && (!best || r.score > best.score)) best = r; }
   return best;
 }
-function pOrganAt(g, x0, gy, G) {
+function pOrganAt(g: Game, x0: number, gy: number, G) {
   var plan = [], u, y, c, x, n, work = 0;
-  function put(u, y, v, ph, cost) { var e = bE(g, x0 + u, y, v, ph); if (cost != null) e.cost = cost; plan.push(e); return e; }
+  function put(u, y: number, v: number, ph: number, cost?: number) { var e = bE(g, x0 + u, y, v, ph); if (cost != null) e.cost = cost; plan.push(e); return e; }
   for (u = 0; u < P_OW; u++) {
     x = x0 + u;
     /* (the ground made level: anything over the apron's row dug out, and something firm under it: the ground, or a
@@ -891,7 +912,7 @@ function pOrganAt(g, x0, gy, G) {
   /* the tank: an iron floor, two iron sides, an iron lid with a valve under each pipe. plate iron, riveted: not a lattice a
      peasant steps through (a girder is, P_PASS), and into the boiling water. it costs what girder does, in bars */
   var L0 = pOLid(G);
-  function iron(u, y, ph) { var e = put(u, y, MAT.METAL, ph); e.res = "iron"; e.cost = B_AMT[MAT.GIRDER]; return e; }
+  function iron(u, y: number, ph: number) { var e = put(u, y, MAT.METAL, ph); e.res = "iron"; e.cost = B_AMT[MAT.GIRDER]; return e; }
   for (u = 1; u <= 11; u++) { iron(u, G - 2, 4); iron(u, L0, 9); }
   for (y = L0 + 1; y <= G - 3; y++) { iron(1, y, 5 + G - 3 - y); iron(11, y, 5 + G - 3 - y); }
   /* the rack: a wall each side of each pipe, as high as the taller of the two, gilded at the tips of the three tallest if
@@ -908,34 +929,34 @@ function pOrganAt(g, x0, gy, G) {
   for (n = 0; n < plan.length; n++) if (plan[n].v === MAT.GOLD) plan[n].cost = null;
   return { plan: plan, G: G, score: 20 - work * 0.2 };
 }
-function pOrganT(g, s) {
+function pOrganT(g: Game, s: Site) {
   var t = 0, n = 0;
   for (var x = s.px0; x < s.px0 + P_OBW; x++) for (var y = s.L; y < s.L + P_OTH; y++) { var j = y * g.gw + x; if (WET[g.m[j]]) { t += g.T[j]; n++; } }
   return n ? t / n : AMBIENT;
 }
 /* the steam in the tank, up under the lid */
-function pOrganSteam(g, s) {
+function pOrganSteam(g: Game, s: Site) {
   var n = 0;
   for (var x = s.px0; x < s.px0 + P_OBW; x++) for (var y = s.L; y < s.L + P_OTH; y++) if (g.m[y * g.gw + x] === MAT.STEAM) n++;
   return n;
 }
-function pOrganDry(g, s) {
+function pOrganDry(g: Game, s: Site) {
   var out = [], x, y;
   if (s.state !== "idle" || P_OTANK - wBathNeed(g, s) >= P_OTANK - 2) return out;
   for (y = s.L + P_OTH - 1; y >= s.L; y--) for (x = s.px0; x < s.px0 + P_OBW; x++) if (g.m[y * g.gw + x] === MAT.EMPTY) out.push(y * g.gw + x);
   return out;
 }
-function pOValve(g, s, n) { return pOLid(s.G) * g.gw + pOPipeX(s, n); }
+function pOValve(g: Game, s: Site, n: number) { return pOLid(s.G) * g.gw + pOPipeX(s, n); }
 /* THE GRATES: each pipe's valve, and the top of each pipe, are grates. steam goes up through them, open or shut, as it
-   goes through air; a peasant does not, walking, standing or falling (peasants.js pSolid, pFoot, pBody, pStiff). nobody
+   goes through air; a peasant does not, walking, standing or falling (peasants.ts pSolid, pFoot, pBody, pStiff). nobody
    drops down a pipe, or through an open valve into the boiling tank. cached for the tick: P_GRATE is scratch */
 var P_GRATE = { g: null, t: -1, n: -1, gen: -1, j: null, m: null, c: null };
-function pGrate(g, j) {
-  if (P_GRATE.g !== g || P_GRATE.t !== g.tick || P_GRATE.n !== g.sites.length || P_GRATE.gen !== SAVE_GEN) pGrateFill(g);   /* (a load: save.js SAVE_GEN) */
+function pGrate(g: Game, j: number) {
+  if (P_GRATE.g !== g || P_GRATE.t !== g.tick || P_GRATE.n !== g.sites.length || P_GRATE.gen !== SAVE_GEN) pGrateFill(g);   /* (a load: save.ts SAVE_GEN) */
   return P_GRATE.j !== null && j >= 0 && j < P_GRATE.m.length && P_GRATE.m[j] === 1;
 }
 /* (the cells as a map, by cell, and the columns they are in: P_GRATE.j is the list of them, or null for none) */
-function pGrateFill(g) {
+function pGrateFill(g: Game) {
   var C = P_GRATE, N = g.gw * g.gh, J = null, k, i;
   if (C.j !== null) for (k = 0; k < C.j.length; k++) { C.m[C.j[k]] = 0; C.c[C.j[k] % C.c.length] = 0; }
   if (!C.m || C.m.length !== N || C.c.length !== g.gw) { C.m = new Uint8Array(N); C.c = new Uint8Array(g.gw); }
@@ -950,19 +971,19 @@ function pGrateFill(g) {
   }
   C.g = g; C.t = g.tick; C.n = g.sites.length; C.gen = SAVE_GEN; C.j = J;
 }
-function pOOpen(g, s, n) { var j = pOValve(g, s, n); if (g.m[j] === MAT.METAL) { heatVanish(g, j); g.fx.clank++; } }
+function pOOpen(g: Game, s: Site, n: number) { var j = pOValve(g, s, n); if (g.m[j] === MAT.METAL) { heatVanish(g, j); g.fx.clank++; } }
 /* shut: the iron of the valve back in the lid, if there is nothing in the way of it (steam on its way through: next tick) */
-function pOShut(g, s, n) {
+function pOShut(g: Game, s: Site, n: number) {
   var j = pOValve(g, s, n);
   if (g.m[j] === MAT.METAL) return true;
   if (g.m[j] !== MAT.EMPTY) return false;
   sandSet(g, j, MAT.METAL); g.aux[j] = 0; heatAccept(g, j); g.fx.clank++;
   return true;
 }
-function pOAllShut(g, s) { for (var n = 0; n < P_ON; n++) if (g.m[pOValve(g, s, n)] !== MAT.METAL) return false; return true; }
+function pOAllShut(g: Game, s: Site) { for (var n = 0; n < P_ON; n++) if (g.m[pOValve(g, s, n)] !== MAT.METAL) return false; return true; }
 /* a concert, if the organ is up and has the water for one: fired now, played once it boils. for any show that wants
-   it (a fireworks show, the theatre's interval, a service: monuments.js may call it). true if it will play */
-function pOrganPlay(g, why) {
+   it (a fireworks show, the theatre's interval, a service: monuments.ts may call it). true if it will play */
+function pOrganPlay(g: Game, why) {
   var s = mSites(g, "organ", true)[0];
   if (!s || s.repair) return false;
   if (s.state !== "idle") return true;
@@ -973,12 +994,12 @@ function pOrganPlay(g, why) {
 /* every tick, while it stands: a puff of steam out of the top of a pipe is that pipe's note. the valve of the note
    being played is shut again once it has had its breaths */
 /* is (x, y) inside the organ: in its tank, or down a pipe, or in a valve. nobody's place */
-function pOInside(g, s, x, y) {
+function pOInside(g: Game, s: Site, x: number, y: number) {
   if (x >= s.px0 && x < s.px0 + s.bw && y >= s.L && y < s.L + s.bh) return true;
   for (var n = 0; n < P_ON; n++) if (x === pOPipeX(s, n) && y >= pOLid(s.G) - P_OH[n] && y <= pOLid(s.G)) return true;
   return false;
 }
-function pOrganTick(g, s) {
+function pOrganTick(g: Game, s: Site) {
   if (!s.done) return;
   var t = -1;
   for (var n = 0; n < P_ON; n++) {
@@ -996,10 +1017,10 @@ function pOrganTick(g, s) {
   if (s.state === "playing" && s.cur >= 0 && s.got >= s.need && pOShut(g, s, s.cur)) s.cur = -2;
 }
 var P_OQ = [];
-function pOrganSounds(g) { if (!g.quiet) for (var k = 0; k < P_OQ.length; k++) SFX.organ(P_OQ[k][0], P_OQ[k][1]); P_OQ.length = 0; }
+function pOrganSounds(g: Game) { if (!g.quiet) for (var k = 0; k < P_OQ.length; k++) SFX.organ(P_OQ[k][0], P_OQ[k][1]); P_OQ.length = 0; }
 /* every W_STRIDE ticks: a concert now and then of its own accord, an organist for it, the audience, and a boiler
    shut up tight with steam in it let breathe */
-function pOrganStep(g, s) {
+function pOrganStep(g: Game, s: Site) {
   if (!s.done || s.repair) return;
   g.wTick = true;
   var o = pOrganist(g, s), k, q;
@@ -1030,19 +1051,19 @@ function pOrganStep(g, s) {
     if (H.length && (g.tick % 300) === 0) { q = H[irnd(H.length)]; if (q.sayT <= 0) pSay(g, q, "bitLoud", true); }
   }
 }
-function pOrganist(g, s) { for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "organ" && q.task.site === s.id) return q; } return null; }
+function pOrganist(g: Game, s: Site) { for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k]; if (!q.dead && q.task && q.task.kind === "organ" && q.task.site === s.id) return q; } return null; }
 /* the firebox's three cells, and what is burning in them */
-function pOBox(g, s, u) { return (s.G - 1) * g.gw + s.x0 + 5 + u; }
-function pOFire(g, s) { var n = 0; for (var u = 0; u < 3; u++) if (g.m[pOBox(g, s, u)] === MAT.EMBER) n++; return n; }
+function pOBox(g: Game, s: Site, u) { return (s.G - 1) * g.gw + s.x0 + 5 + u; }
+function pOFire(g: Game, s: Site) { var n = 0; for (var u = 0; u < 3; u++) if (g.m[pOBox(g, s, u)] === MAT.EMBER) n++; return n; }
 /* the gutter: what has rained into it (and into the right-hand end of the apron) */
-function pOGutter(g, s) {
+function pOGutter(g: Game, s: Site) {
   var out = [];
   for (var y = s.G - 1; y <= s.G; y++) if (WET[pCell(g, s.x0 + P_OW - 1, y)]) out.push(y * g.gw + s.x0 + P_OW - 1);
   return out;
 }
 /* the organist: at the stand (by the ladder, at the left), firing it, playing it, raking it out after, and bailing what
    rained back into the gutter into the tank */
-function pTaskOrgan(g, p, k) {
+function pTaskOrgan(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || s.repair || ++k.t > 9000) { if (s && s.state === "playing") pOrganEnd(g, s, false); return iDone(p, false); }
   var t = pOrganT(g, s), lit = pOFire(g, s);
@@ -1116,7 +1137,7 @@ function pTaskOrgan(g, p, k) {
   return iDone(p, true);
 }
 /* the concert begins: a tune, the news, and the idle come to listen */
-function pOrganStart(g, s, p) {
+function pOrganStart(g: Game, s: Site, p: Peasant) {
   s.state = "playing"; s.tune = s.concerts % W_TUNES.length; s.ni = 0; s.cur = -1; s.got = 0; s.nextNoteT = g.tick + 30;
   s.startN = s.notes; s.startW = P_OTANK - wBathNeed(g, s) + pOrganSteam(g, s);
   feed(g, "the steam organ is playing " + W_TUNES[s.tune].name + (s.why === "show" ? ", for the show" : ""), "#ffd94a", "organ" + s.id);
@@ -1125,7 +1146,7 @@ function pOrganStart(g, s, p) {
 }
 /* the organist at the valves: one note at a time, each kept open until it has had its breaths (pOrganTick shuts it),
    or until it is plain no steam is coming */
-function pOrganConduct(g, s, p, t) {
+function pOrganConduct(g: Game, s: Site, p: Peasant, t: number) {
   var T = W_TUNES[s.tune].n;
   if (s.cur === -2) { s.cur = -1; s.ni++; s.nextNoteT = g.tick + 6; }
   if (s.cur >= 0 && g.tick - s.noteT > P_ONOTE) { if (pOShut(g, s, s.cur)) { s.cur = -1; s.ni++; s.nextNoteT = g.tick + 6; } return; }
@@ -1136,7 +1157,7 @@ function pOrganConduct(g, s, p, t) {
   pOOpen(g, s, n);
   if (s.ni === 10 && p.sayT <= 0) pSay(g, p, "organist", true);
 }
-function pOrganEnd(g, s, ok) {
+function pOrganEnd(g: Game, s: Site, ok: boolean) {
   for (var n = 0; n < P_ON; n++) pOShut(g, s, n);
   s.state = "idle"; s.cur = -1; s.nextT = g.tick + P_OGAP + ((s.id * 7919 + g.tick) % 4000);
   g.peasants.forEach(function (q) { var k = q.task; if (!q.dead && k && k.kind === "audience" && k.site === s.id) { q.task = null; q.taskDone = true; if (ok) { q.bored = 0; if (Math.random() < 0.5) pSay(g, q, "clap", true); } } });
@@ -1145,7 +1166,7 @@ function pOrganEnd(g, s, ok) {
   s.lastUsed = s.startW - (P_OTANK - wBathNeed(g, s) + pOrganSteam(g, s)); s.lastNotes = s.notes - s.startN;
   if (s.concerts === 1) feed(g, "the first concert on the steam organ. " + s.lastNotes + " notes. it was a bit loud", "#ffd94a", "organ" + s.id);
 }
-function pOrganPick(g, p, hungry) {
+function pOrganPick(g: Game, p: Peasant, hungry) {
   var s = mSites(g, "organ", true)[0];
   if (!s || hungry || s.repair || s.state !== "idle") return false;
   if (wBathNeed(g, s) > 6 && Math.abs(s.cx - p.x) < 220 && Math.random() < 0.4 && pGoFill(g, p, s)) return true;
@@ -1155,9 +1176,9 @@ var P_OSTEAM = hex32("#e8eef4"), P_OGLOW = hex32("#ff8a3a"), P_OKEYS = hex32("#2
 var P_OPIPE = hex32("#a8acb4"), P_OPIPE_HI = hex32("#e0e4ea"), P_OPIPE_D = hex32("#6a6e78"), P_OMOUTH = hex32("#1a1a20");
 var P_OCOPPER = hex32("#b8703a"), P_ORIVET = hex32("#e0a060");
 /* the glow of the firebox, a puff over each pipe that is sounding, and the keys at the stand */
-function pDrawOrgan(g, s) {
+function pDrawOrgan(g: Game, s: Site) {
   if (!s.done) return 0;
-  var n, hot = pOFire(g, s), x, y, j, c;
+  var n, hot = pOFire(g, s), x: number, y: number, j, c;
   /* the pipes, burnished: the iron of the rack in pewter, a highlight up the middle of each pipe (its channel, while
      there is nothing in it), the seams between darker, and a mouth near the foot of each. the tank and its lid in
      copper */
@@ -1229,17 +1250,17 @@ wDef({
   },
   mood: function (g, p, k) { return k.kind === "feedducks" ? (k.on ? "is feeding the ducks at the palace" : "is taking seed to the duck palace") : ""; }
 });
-function pDucksAbout(g) { var n = 0; for (var k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead && !g.ducks[k].baby) n++; return n; }
+function pDucksAbout(g: Game) { var n = 0; for (var k = 0; k < g.ducks.length; k++) if (!g.ducks[k].dead && !g.ducks[k].baby) n++; return n; }
 /* a duck shooed out of the wheat, the fortieth raid long past: whoever has shooed the most has had enough */
-function pShooed(g, p) {
+function pShooed(g: Game, p: Peasant) {
   p.shoos = (p.shoos || 0) + 1;
   for (var k = 0; k < g.peasants.length; k++) if (!g.peasants[k].dead && (g.peasants[k].shoos || 0) > p.shoos) return;
   wSpark(g, p, "duckpalace");
 }
 /* the palace's columns, bank first: u (0 .. P_DW - 1) to x */
-function pDU(s, u) { return s.d > 0 ? s.x0 + u : s.x1 - u; }
+function pDU(s: Site, u: number) { return s.d > 0 ? s.x0 + u : s.x1 - u; }
 /* the biggest fresh water there is, in bodies: {xa, xb (its surface, across), W (its surface row), n (how much)} */
-function pWaters(g) {
+function pWaters(g: Game) {
   var out = [], x, y, c, cur = null;
   for (x = 2; x < g.gw - 2; x++) {
     for (y = 1; y < g.gh && AIRY[g.m[y * g.gw + x]]; y++);
@@ -1254,9 +1275,9 @@ function pWaters(g) {
   out.forEach(function (b) { b.n = 0; for (x = b.xa; x <= b.xb; x++) for (y = b.W; y < g.gh && g.m[y * g.gw + x] === MAT.WATER; y++) b.n++; });
   return out.filter(function (b) { return b.n >= 30; }).sort(function (a, b) { return b.n - a.n; });
 }
-function pPlanPalace(g, p) {
+function pPlanPalace(g: Game, p: Peasant) {
   var B = pWaters(g), best = null, k, d, vr = vRange(g), wide = g.gw > VIEW_GW;
-  /* (in a wide valley, water the village's range has some of, and a palace wholly in it: world.js) */
+  /* (in a wide valley, water the village's range has some of, and a palace wholly in it: world.ts) */
   if (wide) B = B.filter(function (b) { return b.xb >= vr.x0 && b.xa <= vr.x1; });
   for (k = 0; k < B.length && k < 3; k++) for (d = -1; d <= 1; d += 2) {
     var r = pPalaceFit(g, B[k], d);
@@ -1266,7 +1287,7 @@ function pPlanPalace(g, p) {
   if (!best) return false;
   /* (the dome: gold if there is gold to spare, and planks painted if there is not) */
   var gold = wPocketedSure(g, "gold");
-  best.plan.forEach(function (e) { if (e.v !== MAT.GOLD) return; e.gild = true; e.alt = MAT.PLANK; if (gold >= B_AMT[MAT.GOLD]) gold -= B_AMT[MAT.GOLD]; else { e.v = MAT.PLANK; e.paint = true; } });   /* (gold that goes later is painted planks: wonders.js wGoldGone) */
+  best.plan.forEach(function (e) { if (e.v !== MAT.GOLD) return; e.gild = true; e.alt = MAT.PLANK; if (gold >= B_AMT[MAT.GOLD]) gold -= B_AMT[MAT.GOLD]; else { e.v = MAT.PLANK; e.paint = true; } });   /* (gold that goes later is painted planks: wonders.ts wGoldGone) */
   var s = bNew(g, "duckpalace", p, best.plan, [best.x0, best.Y - 10, best.x0 + P_DW - 1, best.Y],
                { wonder: true, d: best.d, Y: best.Y, hatched: 0, fed: 0 });
   feed(g, p.name + " is building a palace. for the ducks", "#ffd94a", "plan" + s.id);
@@ -1277,7 +1298,7 @@ function pPlanPalace(g, p) {
 /* the palace on the d > 0 bank of body b (the bank to the left of it) or the d < 0 (the right): {plan, x0, Y (the
    deck's row), d, score} or null. the deck is level with the top of the bank, and out over the water it is the
    water's own height or more over it */
-function pPalaceFit(g, b, d) {
+function pPalaceFit(g: Game, b, d) {
   var edge = d > 0 ? b.xa : b.xb, x0 = d > 0 ? edge - 5 : edge - (P_DW - 6), plan = [], u, y, x, c, k;
   if (b.xb - b.xa < 8 || x0 < 6 || x0 + P_DW + 2 > g.gw - 6) return null;
   function X(u) { return d > 0 ? x0 + u : x0 + P_DW - 1 - u; }
@@ -1288,7 +1309,7 @@ function pPalaceFit(g, b, d) {
   var Y = Gb - 1;
   for (u = 0; u <= 4; u++) { var gu = mGround(g, X(u)); if (gu < 0 || gu < Y - 5 || LIQUID[pCell(g, X(u), gu)]) return null; }
   for (k = 0; k < g.sites.length; k++) { var t = g.sites[k]; if (x0 + P_DW + 2 >= t.x0 && x0 - 1 <= t.x1 && Y + 2 >= t.y0 && Y - 11 <= t.y1) return null; }
-  function put(u, y, v, ph) { var e = bE(g, X(u), y, v, ph); plan.push(e); return e; }
+  function put(u, y: number, v: number, ph: number) { var e = bE(g, X(u), y, v, ph); plan.push(e); return e; }
   /* (sky over it: air, or what a spade or an axe can clear) */
   for (u = 0; u < P_DW; u++) for (y = Y - 10; y <= Y; y++) {
     x = X(u); c = pCell(g, x, y);
@@ -1313,12 +1334,12 @@ function pPalaceFit(g, b, d) {
   return { plan: plan, x0: x0, Y: Y, d: d, score: b.n * 0.2 - Math.abs(x0 - mid) * 0.05 };
 }
 /* the trough's cells (where the seed goes) and what is in it */
-function pTrough(g, s) { return P_DTROUGH.map(function (u) { return (s.Y - 1) * g.gw + pDU(s, u); }); }
-function pTroughSeed(g, s) { return pTrough(g, s).filter(function (j) { return g.m[j] === MAT.SEED; }); }
-function pPalaceAt(g) { var s = g.wDuckPalace ? bSite(g, g.wDuckPalace) : null; if (!s || !s.done) { if (g.wDuckPalace && !s) g.wDuckPalace = 0; return null; } return s; }
-/* (ducks.js dHeading) seed in the trough, for duck d to make for: a long way further than it would look for seed
+function pTrough(g: Game, s: Site) { return P_DTROUGH.map(function (u) { return (s.Y - 1) * g.gw + pDU(s, u); }); }
+function pTroughSeed(g: Game, s: Site) { return pTrough(g, s).filter(function (j) { return g.m[j] === MAT.SEED; }); }
+function pPalaceAt(g: Game) { var s = g.wDuckPalace ? bSite(g, g.wDuckPalace) : null; if (!s || !s.done) { if (g.wDuckPalace && !s) g.wDuckPalace = 0; return null; } return s; }
+/* (ducks.ts dHeading) seed in the trough, for duck d to make for: a long way further than it would look for seed
    anywhere else, and over wheat. none while the ducks are offended */
-function pPalaceSeed(g, d) {
+function pPalaceSeed(g: Game, d: Duck) {
   var s = pPalaceAt(g);
   if (!s || s.boycott > g.tick || Math.abs(d.x - s.cx) > P_DREACH || d.y > s.Y + 30 || d.y < s.Y - 40) return null;
   var T = pTroughSeed(g, s);
@@ -1327,17 +1348,17 @@ function pPalaceSeed(g, d) {
   return { x: j % g.gw, y: (j / g.gw) | 0 };
 }
 /* the ducks on the deck, or beside it (on the water under it, or the bank at its end) */
-function pPalaceHome(g, s) { var n = 0; for (var k = 0; k < g.ducks.length; k++) if (pOnDeck(g, s, g.ducks[k])) n++; return n; }
-function pOnDeck(g, s, d) { return !d.dead && !d.baby && d.state !== "fly" && d.state !== "thrown" && d.x >= s.x0 - 2 && d.x <= s.x1 + 3 && d.y >= s.Y - 3 && d.y <= s.Y + 4; }
-/* (ducks.js duckArrivals) a grown duck at home on the deck: the mother, when the duckling roll comes up */
-function pPalaceMother(g) {
+function pPalaceHome(g: Game, s: Site) { var n = 0; for (var k = 0; k < g.ducks.length; k++) if (pOnDeck(g, s, g.ducks[k])) n++; return n; }
+function pOnDeck(g: Game, s: Site, d: Duck) { return !d.dead && !d.baby && d.state !== "fly" && d.state !== "thrown" && d.x >= s.x0 - 2 && d.x <= s.x1 + 3 && d.y >= s.Y - 3 && d.y <= s.Y + 4; }
+/* (ducks.ts duckArrivals) a grown duck at home on the deck: the mother, when the duckling roll comes up */
+function pPalaceMother(g: Game) {
   var s = pPalaceAt(g);
   if (!s || s.boycott > g.tick) return null;
   for (var k = 0; k < g.ducks.length; k++) if (pOnDeck(g, s, g.ducks[k])) return g.ducks[k];
   return null;
 }
 /* her ducklings, hatched in a nest on the deck, in a line behind her (under the cap on ducks, as any are) */
-function pPalaceHatch(g, mum, n) {
+function pPalaceHatch(g: Game, mum: Duck, n: number) {
   var s = pPalaceAt(g), prev = mum, kids = 0;
   for (var c = 1; c <= n; c++) {
     var b = duckSpawn(g, pDU(s, 6 + (c % 4)) + 0.5, s.Y - 0.5, mum.kind, true, true);
@@ -1353,7 +1374,7 @@ function pPalaceHatch(g, mum, n) {
   return true;
 }
 /* somebody with seed in their pocket, and the trough low: off to feed the ducks */
-function pPalacePick(g, p, hungry) {
+function pPalacePick(g: Game, p: Peasant, hungry) {
   var s = pPalaceAt(g);
   if (!s || hungry || (p.seed || 0) < 1 || s.boycott > g.tick || Math.abs(s.cx - p.x) > 220 || iCrew(g, "feedducks", s.id)) return false;
   if (pTroughSeed(g, s).length > 1) return false;
@@ -1362,7 +1383,7 @@ function pPalacePick(g, p, hungry) {
 }
 /* the feeder: onto the bank end of the deck, by the trough, and the seed scattered in it (real seed, a handful's worth)
    wherever there is room. the ducks come running */
-function pTaskFeedDucks(g, p, k) {
+function pTaskFeedDucks(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || !s.done || ++k.t > 3000 || (p.seed || 0) < 1) return iDone(p, (k.n || 0) > 0);
   var sx = pDU(s, 5), sy = s.Y - 1;
@@ -1388,7 +1409,7 @@ function pTaskFeedDucks(g, p, k) {
 }
 /* every tick, while it stands: a duck thrown at it (one in the air, landing on it, or about to) and the ducks are
    offended */
-function pPalaceTick(g, s) {
+function pPalaceTick(g: Game, s: Site) {
   if (!s.done || s.boycott > g.tick) return;
   for (var k = 0; k < g.ducks.length; k++) {
     var d = g.ducks[k];
@@ -1402,7 +1423,7 @@ function pPalaceTick(g, s) {
   }
 }
 /* every W_STRIDE ticks: the books, and the ducks off the deck while they are offended */
-function pPalaceStep(g, s) {
+function pPalaceStep(g: Game, s: Site) {
   if (!s.done) return;
   g.wDuckPalace = s.id; g.wTick = true;
   if (s.boycott > g.tick) {
@@ -1413,11 +1434,11 @@ function pPalaceStep(g, s) {
   if ((g.tick % 1200) === 0) { var e = pEldest(g), q = e ? pOther(g, { x: e.x, y: e.y }, 20) : null; if (q && q.sayT <= 0 && Math.random() < 0.3) pSay(g, q, "crown"); }
 }
 /* the eldest duck: the one that has been in the valley longest */
-function pEldest(g) { var e = null; for (var k = 0; k < g.ducks.length; k++) { var d = g.ducks[k]; if (!d.dead && !d.baby && !d.kind.rubber && (!e || d.id < e.id)) e = d; } return e; }
+function pEldest(g: Game) { var e = null; for (var k = 0; k < g.ducks.length; k++) { var d = g.ducks[k]; if (!d.dead && !d.baby && !d.kind.rubber && (!e || d.id < e.id)) e = d; } return e; }
 var P_NEST = hex32("#c8a050"), P_NEST_D = hex32("#8a6a30"), P_EGG = hex32("#f4f0e4"), P_DOME = hex32("#5a8ac0");
 var P_CROWN = hex32("#ffd94a"), P_CROWN_J = hex32("#e03050");
 /* the nests under the pavilion (an egg in one now and then), and the dome painted, if it is not gold */
-function pDrawPalace(g, s) {
+function pDrawPalace(g: Game, s: Site) {
   if (!s.done) return 0;
   /* (three nests of straw on the deck under the pavilion, and the trough's seed-box at the bank end) */
   [6, 7, 8].forEach(function (u, n) {
@@ -1437,7 +1458,7 @@ function pDrawPalace(g, s) {
   return 0;
 }
 /* the crown, on the eldest duck's head */
-function pDrawCrown(g, s) {
+function pDrawCrown(g: Game, s: Site) {
   if (!s.done) return;
   var d = pEldest(g);
   if (!d || d.state === "held") return;
@@ -1466,7 +1487,7 @@ var P_ISNOW = 150;                 /* snow and ice lying about the houses before
 var P_INEAR = 60;                  /* and how near the houses */
 var P_ISHOVEL = 30;                /* how far from the palace they go for snow */
 var P_IHAND = 12;                  /* snow to a shovelful (well: an armful) */
-/* (a cell of packed snow, or of ice, is paid for with a cell of snow off the ground: build.js prices it) */
+/* (a cell of packed snow, or of ice, is paid for with a cell of snow off the ground: build.ts prices it) */
 B_RES[MAT.PACKSNOW] = "snow"; B_AMT[MAT.PACKSNOW] = 1;
 B_RES[MAT.ICE] = "snow"; B_AMT[MAT.ICE] = 1;
 B_KINDS.push("snow");
@@ -1511,7 +1532,7 @@ wDef({
   }
 });
 /* whoever built the snowman (the one still standing, if any is) has the palace put into their head */
-function pIceWatch(g) {
+function pIceWatch(g: Game) {
   if (!g.got.snowman || !g.got.skate) return;
   for (var k = g.lsnowmen.length - 1; k >= 0; k--) {
     var m = g.lsnowmen[k];
@@ -1520,7 +1541,7 @@ function pIceWatch(g) {
   }
 }
 /* the air at the houses: how cold it is where they live, a little over the ground */
-function pAirAtHouses(g) {
+function pAirAtHouses(g: Game) {
   var x = Math.round(wMiddle(g)), t = 0, n = 0;
   /* (the air: over the ground, and under any roof, a few columns either side of the middle of the village) */
   for (var dx = -12; dx <= 12; dx += 3) {
@@ -1530,7 +1551,7 @@ function pAirAtHouses(g) {
   return n ? t / n : AMBIENT;
 }
 /* snow and ice lying about, within P_INEAR of the houses (the top few rows of the ground, column by column) */
-function pSnowAbout(g) {
+function pSnowAbout(g: Game) {
   var mid = Math.round(wMiddle(g)), n = 0;
   for (var x = Math.max(1, mid - P_INEAR); x < Math.min(g.gw - 1, mid + P_INEAR); x++) {
     var y = mSurface(g, x, false, 0);
@@ -1538,7 +1559,7 @@ function pSnowAbout(g) {
   }
   return n;
 }
-function pPlanIce(g, p) {
+function pPlanIce(g: Game, p: Peasant) {
   if (pAirAtHouses(g) >= 0 || pSnowAbout(g) < P_ISNOW) return false;
   var r = wPlot(g, { w: P_IW, sky: 18, rough: 2, pad: 2, near: wMiddle(g), fit: pIceFit });
   if (!r) return false;
@@ -1552,10 +1573,10 @@ function pPlanIce(g, p) {
 /* the palace at x0, on ground G (the lowest of gy: snow over it dug out, or built on): an ice floor; at the left a
    gatehouse over the way in, at the right a tower, both crenellated, both with ice windows; between them a vault of
    packed snow with a skylight of ice in the middle, and a lantern hanging under it */
-function pIceFit(g, x0, gy, hi, lo) {
+function pIceFit(g: Game, x0: number, gy: number, hi, lo) {
   /* (on top of the snow, not dug into it: that is what it is built of. the floor bridges a dip or two) */
   var G = hi, plan = [], u, y;
-  function put(u, y, v, ph) { plan.push(bE(g, x0 + u, y, v, ph)); }
+  function put(u, y: number, v: number, ph: number) { plan.push(bE(g, x0 + u, y, v, ph)); }
   for (u = 0; u < P_IW; u++) put(u, G - 1, MAT.ICE, 1 + (u === 0 || u === P_IW - 1 ? 0 : 1));   /* (the floor) */
   /* (no higher than a hammer reaches from the floor: nobody can get up on it to build it higher) */
   for (y = G - 2; y >= G - 13; y--) for (u = 11; u <= 12; u++) put(u, y, (y === G - 5 || y === G - 9) ? MAT.ICE : MAT.PACKSNOW, 2 + G - 2 - y);
@@ -1567,16 +1588,16 @@ function pIceFit(g, x0, gy, hi, lo) {
   return { plan: plan, G: G, score: 10 - (G - hi) };
 }
 /* how much of it is still snow and ice */
-function pIceLeft(g, s) { var n = 0; for (var k = 0; k < s.plan.length; k++) { var c = g.m[s.plan[k].i]; if ((s.plan[k].v === MAT.PACKSNOW || s.plan[k].v === MAT.ICE) && (c === MAT.PACKSNOW || c === MAT.ICE)) n++; } return n; }
+function pIceLeft(g: Game, s: Site) { var n = 0; for (var k = 0; k < s.plan.length; k++) { var c = g.m[s.plan[k].i]; if ((s.plan[k].v === MAT.PACKSNOW || s.plan[k].v === MAT.ICE) && (c === MAT.PACKSNOW || c === MAT.ICE)) n++; } return n; }
 /* snow wanted for the palace, over what is on its pile and in pockets */
-function pIceShort(g, s) {
+function pIceShort(g: Game, s: Site) {
   /* (what is in the pockets of whoever is at it: an armful wandered off with is no use to anybody) */
   var n = bNeed(g, s, "snow");
   for (var k = 0; k < g.peasants.length; k++) { var q = g.peasants[k], t = q.task; if (!q.dead && t && t.site === s.id && (t.kind === "shovel" || t.kind === "build")) n -= q.snow || 0; }
   return n;
 }
 /* anybody idle, the palace going up and short of snow: an armful of it, from near the palace */
-function pIcePick(g, p, hungry) {
+function pIcePick(g: Game, p: Peasant, hungry) {
   var s = mSites(g, "icepalace")[0];
   if (!s || hungry) return false;
   if (s.done) {
@@ -1593,17 +1614,17 @@ function pIcePick(g, p, hungry) {
   p.task = { kind: "shovel", site: s.id, t: 0, act: 0 };
   return true;
 }
-/* (ideas.js iPick, before snowmen and snowball fights: the palace going up comes first. anybody free) */
-function pIceFirst(g, p) {
+/* (ideas.ts iPick, before snowmen and snowball fights: the palace going up comes first. anybody free) */
+function pIceFirst(g: Game, p: Peasant) {
   var s = mSites(g, "icepalace")[0];
   if (!s || s.done || p.cold > 80) return false;
   return pIcePick(g, p, false);
 }
-function pTaskShovel(g, p, k) {
+function pTaskShovel(g: Game, p: Peasant, k: Task) {
   var s = bSite(g, k.site);
   if (!s || s.done || ++k.t > 2000) return iDone(p, (p.snow || 0) > 0);
   if ((p.snow || 0) >= P_IHAND || ((p.snow || 0) >= 1 && pIceShort(g, s) <= 0)) { bJoin(g, p, s); return true; }
-  function ok(g2, x, y) { return Math.abs(x - s.cx) <= P_ISHOVEL && !(x >= s.x0 && x <= s.x1 && y >= s.y0 && y <= s.G) && lSnowy(g2, x, y); }
+  function ok(g2, x: number, y: number) { return Math.abs(x - s.cx) <= P_ISHOVEL && !(x >= s.x0 && x <= s.x1 && y >= s.y0 && y <= s.G) && lSnowy(g2, x, y); }
   if (!k.sx || !ok(g, k.sx, k.sy)) {
     var t = Math.abs(p.x - s.cx) < P_ISHOVEL + 30 ? pFind(g, p, P_SNOW, 40, ok, 10) : null;
     if (!t && Math.abs(p.x - s.cx) > 12) {
@@ -1633,12 +1654,12 @@ function pTaskShovel(g, p, k) {
 }
 /* every W_STRIDE ticks: what has gone in packed hard and cold; the thaw coming before it was finished; the lantern's
    little warmth; the cosy in it; and melting, and the mourning */
-function pIcePalaceStep(g, s) {
+function pIcePalaceStep(g: Game, s: Site) {
   var k, e, warm = pAirAtHouses(g);
   for (k = 0; k < s.plan.length; k++) {
     e = s.plan[k];
     if (e.packed || (e.v !== MAT.PACKSNOW && e.v !== MAT.ICE) || g.m[e.i] !== e.v) continue;
-    /* (packed hard and cold as the snow it was packed from: snowman-cold. leftovers.js does the same) */
+    /* (packed hard and cold as the snow it was packed from: snowman-cold. leftovers.ts does the same) */
     e.packed = true; g.T[e.i] = Math.min(g.T[e.i], -8); g.lat[e.i] = 0; heatAccept(g, e.i);
   }
   if (!s.done) {
@@ -1671,7 +1692,7 @@ function pIcePalaceStep(g, s) {
   }
 }
 /* gone: the site let go (what is left of it melts in its own time), and the village is sorry */
-function pIceGone(g, s, mourn) {
+function pIceGone(g: Game, s: Site, mourn: boolean) {
   var idx = g.sites.indexOf(s);
   if (idx >= 0) bRemove(g, idx);
   if (!mourn) return;
@@ -1685,7 +1706,7 @@ function pIceGone(g, s, mourn) {
 }
 var P_IGLOW = hex32("#9ad0ff"), P_ILAMP = hex32("#ffe0a0"), P_ICORD = hex32("#5a4a3a");
 /* the walls glow blue with the lantern behind them, and the lantern itself */
-function pDrawIce(g, s) {
+function pDrawIce(g: Game, s: Site) {
   if (!s.done) return 0;
   var k, e, lx = s.x0 + 6, ly = s.G - 10;
   /* (the lantern: the light in it, on a cord from the skylight) */

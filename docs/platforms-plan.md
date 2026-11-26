@@ -3,7 +3,7 @@
 *The ground is full, and the roofs are full. So they make more ground.*
 
 Status: **v5, built** (reviews: v1 5 / 6 / 8, v2 7 / 7 / 8, v3 6 / 6 / 8, v4 7 / 8 / 8). All three phases are in
-(`platforms.js`, its hooks, `test/platforms.js`: 15 tests). Iron legs were left out (§10). What the post-build
+(`platforms.ts`, its hooks, `test/platforms.js`: 15 tests). Iron legs were left out (§10). What the post-build
 reviews changed is in §11. v5 took v4's review:
 
 - **A deck carrying a house is never given up by any road**: `bFail`'s two give-ups ("walk" 24 times, "nothing" 6
@@ -32,7 +32,7 @@ v4 (after v3's review, and the first forced runs of the code):
   that ladder for 12,000 ticks. Flush, there is no pocket.
 - **Something just past either end in the way of the air over the deck** (a crown, say) raises the deck over it, up
   to three times, rather than refusing the span.
-- The functions are `pl*` (ducks.js has `d*`, and its `dStep`).
+- The functions are `pl*` (ducks.ts has `d*`, and its `dStep`).
 - The high street (§4) is phase 3, and `plFind`'s comment says so.
 
 v3 (after v2's review), resting on a measurement (§0.1):
@@ -48,9 +48,9 @@ v3 (after v2's review), resting on a measurement (§0.1):
     are: v3 clears any box by 3 rows, and refuses only what is hot, goes up, looks up, or grows (§3.2);
   - its length: 19 to 31, so its ends can reach somewhere a ladder can stand;
   - bushes on the ground are walked through, and a grown tree's crown is cleared like a roof (only a sapling still
-    grows: `saplingGrow`, build.js:1305, turns the top to WOOD and stops).
+    grows: `saplingGrow`, build.ts:1305, turns the top to WOOD and stops).
 - `sAnyHome` counts a deck going up, or waiting for its house, so its owner does not go over the hills (§5).
-- The roof-sweep gate is `tNoSweep` (tidy.js), named.
+- The roof-sweep gate is `tNoSweep` (tidy.ts), named.
 - A fire in the deck's box is the deck's and whatever is under it: **intended** (§3.5), and every unfiltered
   `bSiteAround(..., null, ...)` caller is listed and checked (§3.5).
 - A deck carrying a house is mended, never given up; so the high street never loses its ladder deck to a fire (§4).
@@ -110,7 +110,7 @@ stand.
    ladder, houses along it.
 4. **Under the boards.** Somebody with no home sleeps under a deck if one is near, and wakes without a backache.
 5. **The quick way down** is off the end (or into the ladder's hatch): a fall of 34 rows or less does not even stun
-   (peasants.js:823), and the pather knows it (paths.js:84). Up by the ladder, down by gravity.
+   (peasants.ts:823), and the pather knows it (paths.ts:84). Up by the ladder, down by gravity.
 
 ## 2. The idea
 
@@ -120,11 +120,11 @@ stand.
   hint: "storeys with nowhere left to go, and a night on the ground" }
 ```
 
-- **Ready** (`plReady`): STOREYS is known; the village is crowded (`sCrowded`, storeys.js:100); and no storey could be
-  planned lately (`g.noStoreyT`, storeys.js:238, within `S_CROWD_T`).
-- **Spark:** in `bWake` (build.js:1172), beside STOREYS':
+- **Ready** (`plReady`): STOREYS is known; the village is crowded (`sCrowded`, storeys.ts:100); and no storey could be
+  planned lately (`g.noStoreyT`, storeys.ts:238, within `S_CROWD_T`).
+- **Spark:** in `bWake` (build.ts:1172), beside STOREYS':
   `if (rough && g.know.storey && !g.know.deck && !p.wspark && plReady(g)) wSpark(g, p, "deck")`.
-- `fresh` (side dice, `wRand`), a plain idea. (`wAny` is set already once STOREYS is known, wonders.js:1417.)
+- `fresh` (side dice, `wRand`), a plain idea. (`wAny` is set already once STOREYS is known, wonders.ts:1417.)
 
 ## 3. A deck
 
@@ -148,7 +148,7 @@ A site of kind `"deck"`. Not a dwelling (`sDwelling` false), never in `bHouses`.
 - **The house** goes at the far end from the ladder: `hx0 = xa + 4` when the ladder is at the right end, `xb - 14` when
   at the left. Four columns of deck either side of it: room for its doors, and for a flat's ladder later.
 - **The ladder** (`d`: -1 left end, +1 right end), three columns (aux 0..2, as `bLadderPlan` makes them), written
-  inline as `sPlan` writes a storey's (storeys.js:171). Either:
+  inline as `sPlan` writes a storey's (storeys.ts:171). Either:
   - **outside** the near end (`xa-3 .. xa-1`, or `xb+1 .. xb+3`), from the ground up to row `P`; or
   - **inside**, up through the deck's last three cells at the near end (`cx = xa + 1`, or `xb - 1`): those three
     cells at row `P` are LADDER, a hatch. Never further in: deck past the hatch would be a pocket (status, v4).
@@ -157,7 +157,7 @@ A site of kind `"deck"`. Not a dwelling (`sDwelling` false), never in `bHouses`.
   (`LADDER` is `P_PASS`, so not solid; the deck under the landing is). At most **40 rows** from `P` to its foot. Its
   three columns are air (or loose, dug), nobody's, dry, down to solid ground; ten rows of air over its top. No other
   step-off on the way up: every column two out from it that is not the deck is nobody's from `P - 10` to its foot
-  (storeys.js:183's rule).
+  (storeys.ts:183's rule).
 - **The legs** are two columns of TRESTLE from `P + 1` down to what they stand on, at most **36 rows** (28 in v5; §11): dry ground
   that is nobody's, **or the top of a finished house's (or a flat's) roof** (`plRoofAt`: a plank or stonework cell in
   the house's box at or above its ceiling, with air over it). On a gable the two columns' feet may be a row apart: the
@@ -169,7 +169,7 @@ A site of kind `"deck"`. Not a dwelling (`sDwelling` false), never in `bHouses`.
 
 ### 3.2 Where it goes
 
-`plTry(g, p)`, in `bPick` straight after the storeys' calls (build.js:1110): `if (g.know.deck && plTry(g, p)) return true;`.
+`plTry(g, p)`, in `bPick` straight after the storeys' calls (build.ts:1110): `if (g.know.deck && plTry(g, p)) return true;`.
 It runs when `p.planCD` is 0, or when `g.noStoreyT === g.tick` (`sTry` has just failed for this peasant and set
 `planCD`), and wants all of:
 
@@ -206,7 +206,7 @@ Phases (`bNext` builds the earliest with work left):
 2. **200: the deck**, outward from the ladder's top, a cell at a time (`LADDER` is `SOLID`, so the first is
    `bSupported`; each next is beside the last). Builders stand on the ladder, then on the deck, as on a bridge.
 3. **300: the legs**, lowered from the deck, top down, each cell under the last (supported by it), with `rd: 29`
-   (`bReach` takes a per-entry reach, build.js:230): a builder kneels at the edge and lets the next length down.
+   (`bReach` takes a per-entry reach, build.ts:230): a builder kneels at the edge and lets the next length down.
 
 Every leg cell is reached from the deck, to build and to mend, wherever the leg stands.
 
@@ -227,7 +227,7 @@ When a deck is done (`plFinish`), its owner (or, if they are gone or housed, the
   `"house"`, so a flat can go on it later, its ladder standing on the deck's four spare columns at the far end from the
   deck's ladder (at the near end, they are the hatch's or the ladder's) (`sPlan`'s checks hold:
   the foot is the deck, the outer-column check stops at `P - 1`);
-- it is not held to `B_HOUSES` (build.js:1104), so **`bHouses` may exceed `B_HOUSES`**. Who reads it: `sCrowded` and
+- it is not held to `B_HOUSES` (build.ts:1104), so **`bHouses` may exceed `B_HOUSES`**. Who reads it: `sCrowded` and
   `sPlotCheck` (crowded by the cap: right, the ground is full), `sAnyHome` and `bPick`'s ground-house gate (no more
   ground houses: right).
 
@@ -237,26 +237,26 @@ walk under it".
 ### 3.5 Upkeep
 
 - **Inspect and repair** as any finished site, by the phases above.
-- **Never given up while it carries a house**, as a floor with a flat on it is not (build.js:1047). A deck with no
+- **Never given up while it carries a house**, as a floor with a flat on it is not (build.ts:1047). A deck with no
   house yet that is ruined or forgotten is removed as any site is.
 - **A house whose deck is gone** (removed before the house is done) is removed with it, every 30 ticks, as a storey
-  goes with its base (storeys.js:350): its owner loses their home, its cells stay, the feed says *"the house on the
+  goes with its base (storeys.ts:350): its owner loses their home, its cells stay, the feed says *"the house on the
   platform went with it"*.
 - **Fire.** A leg is timber all the way up: fire at its foot runs up to the deck. A fire anywhere in the deck's box is
-  a fire at the deck (`iFlames`, ideas.js:660, reads the box): so a fire in a house under a deck is a fire at both,
+  a fire at the deck (`iFlames`, ideas.ts:660, reads the box): so a fire in a house under a deck is a fire at both,
   and the brigade answers both, which is **intended**: the deck is over it, and is next. A plank deck over a burning
   house catches; a stone one does not, which is why a masonry village builds them in stone. Nobody climbs a deck's
   ladder into a fire, and somebody about to climb down one with fire at it jumps (OUT THE TOP DOOR): `sLadderHot`,
-  `sIsLadder`, `sOnLadder` and `sLeapOff` (storeys.js:477–520) read `"storey"` or `"deck"` sites; the deck carries the
+  `sIsLadder`, `sOnLadder` and `sLeapOff` (storeys.ts:477–520) read `"storey"` or `"deck"` sites; the deck carries the
   fields they read (`lad`, `F`, `fy`, `d`).
 - **Under it, kept clear**, by the box: every unfiltered `bSiteAround(..., null, pad)` caller now finds the deck over
   the ground under it. Each, checked:
-  - refusals, which are right under a deck: a campfire (peasants.js:2013), a cross (leftovers.js:245), a snowman
-    (leftovers.js:485), sand dug for sandcastles (leftovers.js:1144), a bush cut back (tidy.js:495), the heap
-    (tidy.js:555), a puddle bailed (tidy.js:868), a street lamp's post (ideas.js:1620, 1774), a jetty (ideas.js:1403),
-    a fishing spot (ideas.js:1838), a scarecrow (ideas.js:1676), a sapling (build.js:1276), a great work's place
-    (monuments.js:969), a shooting star's landing (heavens.js:1793), a sweeper's rest (tidy.js:1443, 1455);
-  - **lookups that want a roof**: tidy.js:1022 and 1058 skip `"deck"` sites, and `tNoSweep(s)` is true for a house or
+  - refusals, which are right under a deck: a campfire (peasants.ts:2013), a cross (leftovers.ts:245), a snowman
+    (leftovers.ts:485), sand dug for sandcastles (leftovers.ts:1144), a bush cut back (tidy.ts:495), the heap
+    (tidy.ts:555), a puddle bailed (tidy.ts:868), a street lamp's post (ideas.ts:1620, 1774), a jetty (ideas.ts:1403),
+    a fishing spot (ideas.ts:1838), a scarecrow (ideas.ts:1676), a sapling (build.ts:1276), a great work's place
+    (monuments.ts:969), a shooting star's landing (heavens.ts:1793), a sweeper's rest (tidy.ts:1443, 1455);
+  - **lookups that want a roof**: tidy.ts:1022 and 1058 skip `"deck"` sites, and `tNoSweep(s)` is true for a house or
     flat with a deck within 9 rows over its roof (nobody can stand there to sweep it). Sand on those roofs stays.
   - a forest sapling (`bPlantOk` with `loose`) is refused under a deck too.
 - **Iron legs**: left out (§10).
@@ -302,14 +302,14 @@ street grows away from its one ladder: ladder, house, walkway, house, walkway, h
 - **Up and down.** The household of a house on a deck and of a house whose box lies under the deck's span (not a
   stack: `sNeighbours` is not used) talk now and then when both are home (side dice, one in fifty, every 30 ticks):
   *"mind your heads down there!"*, *"who's that walking about up there"*, *"you're dripping on my roof"*.
-- **Over the hills.** `sAnyHome` (storeys.js:585) is true while a deck is going up, or a finished deck has no house
+- **Over the hills.** `sAnyHome` (storeys.ts:585) is true while a deck is going up, or a finished deck has no house
   on it: its owner does not leave while there is a home coming.
 
 ## 6. TRESTLE, the material (done)
 
-`MAT.TRESTLE = 54`, appended. `SOLID`, `STILL`, `WOODY` (world.js), `P_PASS` and `P_FLAM` (peasants.js), a plank's
-heat capacity and ignition, burns to embers (heat.js), its colours (world.js `SAND_SHADES`), a lattice drawn in
-game.js (posts at the edges of a leg, braces crossing between, the gaps see-through, as the girder's are), and a
+`MAT.TRESTLE = 54`, appended. `SOLID`, `STILL`, `WOODY` (world.ts), `P_PASS` and `P_FLAM` (peasants.ts), a plank's
+heat capacity and ignition, burns to embers (heat.ts), its colours (world.ts `SAND_SHADES`), a lattice drawn in
+game.ts (posts at the edges of a leg, braces crossing between, the gaps see-through, as the girder's are), and a
 PICK entry with `more: "build"`: *"timber legs, cross-braced. peasants walk through it. sand and water do not. it
 burns."* Its name comes from the PICK entry, so saves keep it by name. The flyout grew a row; test/picker.js was
 updated for its new last brush, and all twelve picker tests pass. Nothing climbs it: the climbing code looks for

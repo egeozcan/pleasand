@@ -29,16 +29,35 @@ function gameFiles(root) {
   return out;
 }
 
-/* a script's source, as the game loads it. the WebAssembly module (simwasm-bin.js) is built, not kept (wasm/build.sh):
-   without it the game plays the JS step, as a browser that has none does */
-var warnedBin = false;
+/* TypeScript, as JavaScript: the types blanked out where they stand (node's own stripper, the one vite.config.ts uses too),
+   so every line and column is where it is in the .ts and a stack trace points into the source. (node warns, once, that
+   the stripper is experimental: not here) */
+function stripTypes(src, file) {
+  var strip = require("module").stripTypeScriptTypes, emit = process.emitWarning;
+  if (!strip) throw new Error("harness/loader: node " + process.version + " cannot read TypeScript (" + file + "): it wants 22.13 or later");
+  process.emitWarning = function () {};
+  try { return strip(src, { mode: "strip" }); }
+  catch (e) { e.message = file + ": " + e.message; throw e; }
+  finally { process.emitWarning = emit; }
+}
+
+/* a script's source, as the game loads it: JavaScript, "use strict" taken off (the whole is strict). the WebAssembly
+   module (simwasm-bin.js) is built, not kept (wasm/build.sh): without it the game plays the JS step, as a browser that
+   has none does */
+var warnedBin = false, stripped = new Map();   /* (file -> { mtime, size, js }: a process loads the game many times) */
 function gameSource(root, f) {
   var file = path.join(root || ROOT, f);
   if (f === "simwasm-bin.js" && !fs.existsSync(file)) {
     if (!warnedBin) { warnedBin = true; console.warn("pleasand: no simwasm-bin.js (wasm/build.sh makes it): the JS step plays the world"); }
     return "";
   }
-  return fs.readFileSync(file, "utf8").replace(/^"use strict";/m, "");
+  var st = fs.statSync(file), memo = stripped.get(file);
+  if (memo && memo.mtime === st.mtimeMs && memo.size === st.size) return memo.js;
+  var src = fs.readFileSync(file, "utf8");
+  if (/\.ts$/.test(f)) src = stripTypes(src, f);
+  src = src.replace(/^"use strict";/m, "");
+  stripped.set(file, { mtime: st.mtimeMs, size: st.size, js: src });
+  return src;
 }
 
 function noop() {}
@@ -142,7 +161,7 @@ function loadGame(opts) {
      opts.gw: another, such as the browser's four screens, 1088) */
   var win = {
     PLEASAND_GW: opts.gw || 272,
-    /* (the dice, to the WebAssembly step (simwasm.js): it rolls the same generator itself, from this state, and hands
+    /* (the dice, to the WebAssembly step (simwasm.ts): it rolls the same generator itself, from this state, and hands
        the state back. random: what the game's Math.random is once it is booted) */
     PLEASAND_RNG: { random: draw, get state() { return rng.state; }, set state(v) { rng.state = v; } },
     devicePixelRatio: 1, innerWidth: 640, innerHeight: 410,
@@ -177,4 +196,4 @@ function loadGame(opts) {
   };
 }
 
-module.exports = { loadGame: loadGame, gameFiles: gameFiles, gameSource: gameSource, makeRng: makeRng, stubCanvas: stubCanvas, stubCtx: stubCtx, ROOT: ROOT };
+module.exports = { loadGame: loadGame, gameFiles: gameFiles, gameSource: gameSource, stripTypes: stripTypes, makeRng: makeRng, stubCanvas: stubCanvas, stubCtx: stubCtx, ROOT: ROOT };
