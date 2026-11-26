@@ -305,16 +305,21 @@ A peasant or duck may still walk out past the range; the world edges are the onl
 - The simulation still steps the **whole** world every tick.
 - **Budget**, measured with the harness `--profile` on seeds 3, 7, 14 over 20 000 ticks at 1088: median
   `gameUpdate` <= 4.5 ms, p95 <= 9 ms (node, dev laptop). In the browser (`` ` `` debug readout): 60 fps at 1x and 2x.
-  Over those 20 000 ticks it holds at 4x too, four ticks to a `gameUpdate` (`node harness/bench.js`, three runs:
-  median 2.0-2.2 ms, p95 2.4-2.9 ms on each seed, where 0580e71 gave 12.9-13.3 and 14.0-14.9 before the heat and
-  sand steps learned to pass by what is at rest and the route search got cheaper). A valley that has run longer does
-  not, yet: once it has warmed through (heat leaves only at the room's edges, and lanterns, campfires, the furnace,
-  fire and lava keep adding it), hardly a row is left at exactly room temperature for the heat step to pass by, and
-  from about tick 32 000-40 000 on a frame takes 9-11 ms, 7-9 of them in the heat step (`node harness/bench.js
-  --ticks 80000`, in lockstep with 0580e71: whole-run median 10.3-10.6 ms and p95 11.5-12.6 on seeds 3, 7 and 14,
-  ticks 40 000-80 000 alone 10.6-11.1 and 12.1-13.8, where 0580e71 gave 15.3-15.7 and 17.3-19.0 over the whole run;
-  `--late` times the warmed valley alone, from saves at tick 60 000). Until that is fixed, a long game at 4x may
-  fall below 4x real time; the frame loop caps catch-up at 3 updates a frame, so the world slows, not the picture.
+  It holds at 4x too, four ticks to a `gameUpdate`, over those 20 000 ticks and over 80 000, by when the valley has
+  warmed through (`node harness/bench.js`, and with `--ticks 80000`; two runs of each, in node; 4x has not been timed
+  in the browser). Over 20 000 ticks: median 2.03-2.09 ms and p95 2.45-2.71 on each seed, where 0580e71 gave
+  12.87-13.23 and 13.81-14.48. Over 80 000: whole-run median 3.16-3.59 ms, p95 3.79-4.31 and p99 4.86-6.31; ticks
+  40 000-80 000 alone, median 3.45-3.84 and p95 3.95-4.74. 0580e71 gave 13.67-15.33 and 15.65-17.40 over the whole
+  run, 13.94-15.68 and 16.03-18.41 late (its three seeds run at once). A frame still costs more as the valley warms,
+  about 2.1 ms in the first fifth of the run and 3.5-4.2 in the last tenth: heat leaves only at the room's edges, and
+  lanterns, campfires, the furnace, fire and lava keep adding it, so hardly a row stays at exactly room temperature
+  for the heat step to pass by, and it passes instead by 4-cell words that are exactly cold and, in its second half,
+  by words that are steady (four things that neither melt, set nor boil between +0 and 100 degrees, in that band,
+  nothing soaked up). Not every frame is inside: the longest are one
+  of 196 ms on seed 3 after tick 40 000, in both runs (0580e71's longest on that seed, 919 ms), 58-60 ms on seed 7
+  and 30 ms on seed 14, and one such frame is a hitch on screen. A valley older than 80 000 ticks has not been timed.
+  The world is the same: `harness/same.js` finds all 23 short and all 9 long and warm scenarios identical to
+  0580e71, and every run above ends on 0580e71's `hash()` and `stateHash`.
   Measured before any of this, early game, seed 7, node: 0.93 ms/tick at 272 and 3.06 ms/tick at 1088; drawWorld
   0.29 ms at 272, 0.91 ms at 1088 unculled. If the budget is missed, the fix is in the simulation (skip rows with
   nothing to do), not by slowing the world far from the camera.
