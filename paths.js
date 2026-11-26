@@ -54,7 +54,10 @@ function navStand1(g, x, y) {
   /* (pRoom looks at four rows of them, not all nine: a slab a cell thick at their knees slips between, the roof of a
      furnace's hearth say, and a route goes in at its mouth and up through it, where nobody can follow. a village with
      great works going on looks there too; one with none finds its way as it always did) */
-  if (g.wAny && (pBody(g, x, y - 1) || pBody(g, x, y - 2))) return 0;
+  if (g.wAny) {
+    if (x >= 0 && x < g.gw && y >= 2 && y < g.gh && pNoGrCol(g, x)) { if (P_BODYM[g.m[(y - 1) * g.gw + x]] || P_BODYM[g.m[(y - 2) * g.gw + x]]) return 0; }
+    else if (pBody(g, x, y - 1) || pBody(g, x, y - 2)) return 0;
+  }
   if (pGround(g, x, y)) return 1;
   if (WET[pCell(g, x, y + 1)] && !LIQUID[pCell(g, x, y)]) return 2;
   return 0;
@@ -172,9 +175,9 @@ function navUp(g, x, y) {
     var m = g.m, gw = g.gw, r = Math.max(0, y - 44), b = y - 3, j;
     for (j = b * gw + x; b >= r && !P_SOFT[m[j]]; b--, j -= gw);
     if (b < r && (!g.wAny || pGrFresh(g))) return -1;
-    /* (no grates, pNoGr: the same looks, straight off the grid. ty is 9 or more, so every row it looks at is in the grid,
-       but for the one ten over ty 9, which is air) */
-    if (pNoGr(g)) {
+    /* (no grates in the column, pNoGrCol: the same looks, straight off the grid. ty is 9 or more, so every row it looks at
+       is in the grid, but for the one ten over ty 9, which is air) */
+    if (pNoGrCol(g, x)) {
       for (k = 1, ty = y - 1, j = ty * gw + x; k <= P_ROPE; k++, ty--, j -= gw) {
         if (ty < 9 || P_BODYM[m[j - 8 * gw]] || navBad(m[j])) return -1;
         if (k >= 4 && !P_SOFT[m[j]] && P_SOFT[m[j + gw]])
@@ -197,7 +200,8 @@ function navSink(g, x, y) {
   if (!P_SOFT[pCell(g, x, y + 1)] || pFoot(g, x - 1, y) && !P_SOFT[pCell(g, x - 1, y + 1)] ||
       pFoot(g, x + 1, y) && !P_SOFT[pCell(g, x + 1, y + 1)]) return -1;
   var d;
-  if (pNoGr(g)) {   /* (no grates: the same looks, straight off the grid. it is soft underfoot, so the column is in it) */
+  if (pNoGrCol(g, x)) {   /* (no grates in the column: the same looks, straight off the grid. it is soft underfoot, so the
+                              column is in it) */
     var m = g.m, gw = g.gw, j = (y + 1) * gw + x;
     for (d = 1; d <= 76 && y + d < g.gh; d++, j += gw) {
       if (P_BODYM[m[j]] || navBad(m[j])) return -1;

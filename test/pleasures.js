@@ -520,6 +520,126 @@ module.exports = function (test, check, sim) {
     check(r.grates > 0 && !r.none && !r.bad.length, "finished the tick after: grates " + r.grates + ", " + r.bad.join("; "));
   });
 
+  test("organ: a route's quick looks (pRoom, pHookGeom, navUp, navSink, navStand, pFoot, pGround, navHazard, bLadderNear) fill pGrate's cache at the same looks as the slow ones and give their answers, with the organ finished, unfinished, or a site added in the tick", function () {
+    var O = organ(2), w = O.w, g = O.g, s = O.s, M = O.M, x, y, k;
+    for (var i = 0; i < 200 && !g.wAny; i++) sim.step(w, 1);
+    check(g.wAny && s.done, "(the test wants a finished organ)");
+    /* (some ladders to be near, three wide, at the edges of the grid and over the organ's pipes; and somewhere hot) */
+    [1, w.pOPipeX(s, 0) - 1, g.gw - 3].forEach(function (x0) {
+      [0, 40, g.gh - 6].forEach(function (y0) {
+        for (x = x0; x < x0 + 3; x++) for (y = y0; y < y0 + 6; y++) { g.m[y * g.gw + x] = M.LADDER; g.aux[y * g.gw + x] = x - x0 + 1; }
+      });
+    });
+    for (x = 30; x < 34; x++) for (y = 20; y < 30; y++) g.T[y * g.gw + x] = 120;
+    /* (the slow looks, word for word as at 0580e71, cell by cell: pBody, pFoot and pCell) */
+    var run = w.eval("(function (g, stale) {\n" +
+      "  function room(x, y) { return !pBody(g, x, y) && !pBody(g, x, y - 3) && !pBody(g, x, y - 6) && !pBody(g, x, y - 8); }\n" +
+      "  function hook(x, y, s) {\n" +
+      "    var cx = x + s, k, bottom = -1, top;\n" +
+      "    if (cx < 1 || cx > g.gw - 2 || pBody(g, cx, y) || pBody(g, cx, y - 1)) return null;\n" +
+      "    for (k = 2; k <= P_ROPE; k++) if (pBody(g, cx, y - k)) { bottom = y - k; break; }\n" +
+      "    if (bottom < 0) return null;\n" +
+      "    for (top = bottom; top > 0 && pBody(g, cx, top - 1); top--);\n" +
+      "    var stand = top - 1, h = y - stand;\n" +
+      "    if (h > P_ROPE || h < 5 || stand < 9) return null;\n" +
+      "    for (k = y - 9; k >= stand - 9; k--) if (pBody(g, x, k)) return null;\n" +
+      "    if (!room(cx, stand) || pCell(g, cx, top) === MAT.INERT) return null;\n" +
+      "    return { top: top, stand: stand, h: h };\n" +
+      "  }\n" +
+      "  function foot(x, y) {\n" +
+      "    var c = pCell(g, x, y + 1);\n" +
+      "    return (SOLID[c] === 1 && !P_PASS[c] && !(P_SOFT[c] && (P_SINK || P_SOFT[pCell(g, x, y)])) && !(P_SINK && P_THIN[c])) || (c === MAT.EMPTY && pGr(g, x, y + 1));\n" +
+      "  }\n" +
+      "  function ground(x, y) { return foot(x, y) || foot(x - 1, y) || foot(x + 1, y); }\n" +
+      "  function hazard(x, y) {\n" +
+      "    return navBad(pCell(g, x, y + 1)) || navBad(pCell(g, x, y)) || navBad(pCell(g, x, y - 4)) || navBad(pCell(g, x, y - 7)) ||\n" +
+      "           (!NAV_HOTOK && (pHotAt(g, x, y + 1) || pHotAt(g, x, y - 3)));\n" +
+      "  }\n" +
+      "  function stand1(x, y) {\n" +
+      "    if (!room(x, y) || hazard(x, y)) return 0;\n" +
+      "    if (g.wAny && (pBody(g, x, y - 1) || pBody(g, x, y - 2))) return 0;\n" +
+      "    if (ground(x, y)) return 1;\n" +
+      "    if (WET[pCell(g, x, y + 1)] && !LIQUID[pCell(g, x, y)]) return 2;\n" +
+      "    return 0;\n" +
+      "  }\n" +
+      "  function up(x, y) {\n" +
+      "    for (var k = 1, ty; k <= P_ROPE; k++) {\n" +
+      "      ty = y - k;\n" +
+      "      if (ty < 9 || pBody(g, x, ty - 8) || navBad(pCell(g, x, ty))) return -1;\n" +
+      "      if (k >= 4 && !P_SOFT[pCell(g, x, ty)] && P_SOFT[pCell(g, x, ty + 1)])\n" +
+      "        return stand1(x, ty) === 1 && !pBody(g, x, ty - 9) && !pBody(g, x, ty - 10) ? ty : -1;\n" +
+      "    }\n" +
+      "    return -1;\n" +
+      "  }\n" +
+      "  function sink(x, y) {\n" +
+      "    if (!P_SOFT[pCell(g, x, y + 1)] || foot(x - 1, y) && !P_SOFT[pCell(g, x - 1, y + 1)] ||\n" +
+      "        foot(x + 1, y) && !P_SOFT[pCell(g, x + 1, y + 1)]) return -1;\n" +
+      "    for (var d = 1; d <= 76 && y + d < g.gh; d++) {\n" +
+      "      if (pBody(g, x, y + d) || navBad(pCell(g, x, y + d))) return -1;\n" +
+      "      if (d > 1 && stand1(x, y + d)) return d < 4 ? -1 : y + d;\n" +
+      "    }\n" +
+      "    return -1;\n" +
+      "  }\n" +
+      "  function lmid(x, y) { if (pCell(g, x, y) !== MAT.LADDER) return -1; return x - (g.aux[y * g.gw + x] - 1); }\n" +
+      "  function lnear(fx, fy) {\n" +
+      "    for (var d = 0; d <= 2; d++) for (var s = -1; s <= 1; s += 2) {\n" +
+      "      var x = fx + d * s, c = lmid(x, fy);\n" +
+      "      if (c < 0) c = lmid(x, fy - 3);\n" +
+      "      if (c >= 0) return c;\n" +
+      "      if (!d) break;\n" +
+      "    }\n" +
+      "    return -1;\n" +
+      "  }\n" +
+      "  var looks = [['pRoom', function (x, y) { return pRoom(g, x, y); }, room],\n" +
+      "    ['pHookGeom east', function (x, y) { return pHookGeom(g, x, y, 1); }, function (x, y) { return hook(x, y, 1); }],\n" +
+      "    ['pHookGeom west', function (x, y) { return pHookGeom(g, x, y, -1); }, function (x, y) { return hook(x, y, -1); }],\n" +
+      "    ['navUp', function (x, y) { return navUp(g, x, y); }, up], ['navSink', function (x, y) { return navSink(g, x, y); }, sink],\n" +
+      "    ['navStand1', function (x, y) { return navStand1(g, x, y); }, stand1], ['pFoot', function (x, y) { return pFoot(g, x, y); }, foot],\n" +
+      "    ['pGround', function (x, y) { return pGround(g, x, y); }, ground], ['navHazard', function (x, y) { return navHazard(g, x, y); }, hazard],\n" +
+      "    ['bLadderNear', function (x, y) { return bLadderNear(g, x, y); }, lnear]];\n" +
+      "  var bad = [], fills = 0, x, y, k, a, b, fa, fb, hot = NAV_HOTOK;\n" +
+      "  for (var h = 0; h < 2; h++) {\n" +
+      "    NAV_HOTOK = h === 1;\n" +
+      "    for (x = -2; x < g.gw + 2; x++) for (y = -2; y < g.gh + 2; y++) for (k = 0; k < looks.length; k++) {\n" +
+      "      /* (stale: a stale cache each time, and the slow look and the quick one fill it, or leave it, alike. the tick\n" +
+      "         moves on, the world does not) */\n" +
+      "      if (stale) g.tick++;\n" +
+      "      a = looks[k][2](x, y); fa = pGrFresh(g);\n" +
+      "      if (stale) g.tick++;\n" +
+      "      b = looks[k][1](x, y); fb = pGrFresh(g);\n" +
+      "      if (stale && fa) fills++;\n" +
+      "      if ((JSON.stringify(a) !== JSON.stringify(b) || fa !== fb) && bad.length < 8)\n" +
+      "        bad.push(looks[k][0] + ' ' + x + ',' + y + ': ' + JSON.stringify(b) + (fb ? ' filled' : '') + ' not ' + JSON.stringify(a) + (fa ? ' filled' : ''));\n" +
+      "    }\n" +
+      "  }\n" +
+      "  NAV_HOTOK = hot;\n" +
+      "  return { bad: bad, fills: fills };\n" +
+      "})");
+    var r = run(g, true);
+    check(r.fills > 0 && !r.bad.length, "a stale cache, the organ finished: " + r.fills + " fills, " + r.bad.join("; "));
+    r = run(g, false);
+    check(!r.bad.length, "a good cache, the organ finished: " + r.bad.join("; "));
+    /* the cache good for the tick, with grates in it; then a site added and the organ unfinished, in the same tick: the
+       cache is not good, the next look fills it again, and the quick looks go by what that fill found (no grates) */
+    w.pGr(g, 0, 0); check(w.pGrFresh(g) && !w.pNoGr(g), "(the test wants a good cache with grates in it)");
+    s.done = false; g.sites.push({ kind: "test" });
+    check(!w.pGrFresh(g), "a cache from before a site was added was taken");
+    r = run(g, false);
+    check(!r.bad.length && w.pNoGr(g), "a site added in the tick, the organ unfinished: " + r.bad.join("; "));
+    /* and back: the site taken away, the organ finished, in the same tick. its grates are back */
+    g.sites.pop(); s.done = true;
+    r = run(g, false);
+    check(!r.bad.length && !w.pNoGr(g), "the site taken away in the tick, the organ finished: " + r.bad.join("; "));
+    s.done = false;
+    r = run(g, true);
+    check(r.fills > 0 && !r.bad.length, "a stale cache, the organ unfinished: " + r.bad.join("; "));
+    /* a load: SAVE_GEN, and the cache is not good */
+    s.done = true; w.pGr(g, 0, 0); w.saveScratchReset();
+    check(!w.pGrFresh(g), "a cache from before a load was taken");
+    r = run(g, false);
+    check(!r.bad.length && !w.pNoGr(g), "after a load: " + r.bad.join("; "));
+  });
+
   test("organ: a route's look up a column with nothing soft over it fills pGrate's cache as the slow looks do, so an organ finished later in the tick is no grate till the next", function () {
     var O = organ(2), w = O.w, g = O.g, s = O.s, M = O.M;
     for (var i = 0; i < 200 && !g.wAny; i++) sim.step(w, 1);
