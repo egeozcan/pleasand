@@ -2567,6 +2567,8 @@ require("./valley.js")(test, check, sim);
 require("./picker.js")(test, check, sim);
 /* and the hand, under MORE: a lump of the valley lifted, carried and put down (hand.js) */
 require("./hand.js")(test, check, sim);
+/* the heat step's walk by words, against its walk by cells (heat.js) */
+require("./heat.js")(test, check, sim);
 
 /* one test, its console.log kept rather than printed (so tests side by side do not interleave) */
 function runOne(t) {

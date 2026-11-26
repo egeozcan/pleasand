@@ -524,6 +524,57 @@ function heatSteadyScan(T32, L32, M32, BQ2, BH, i, end) {
   return end;
 }
 
+/* -------------------------------------------------------------------
+   IDLE WORDS. a warmed village is full of words that are not cold (a
+   drift of snow at -3, a bank of glass a degree off, salt at 25) but do
+   nothing in step 1 all the same: every cell in them is within 0.05 of
+   the one to its right and the one under it, so no heat moves; air in
+   them has no cooler air over it to rise into, and water no cooler water
+   over it to churn with. such a word, inside the room (not its edges:
+   those touch the outside), with nothing burning and no metal in it, is
+   passed by. it is looked at as it stands when the step comes to it,
+   with the very sums the step would make: the four exchanges to the
+   right (three inside the word, and the one past it), the four under
+   it, and air's and water's tests over it, without the dice. if none of
+   them comes out, the first cell does nothing, so the second sees just
+   what was looked at, and so on. the rest follows from the exchanges:
+   a difference within 0.05 is not over 0.5, either way, so air does not
+   sink, nor stir sideways. and its own cells are written back as they
+   were (none may be a NaN: one is not certain to be written back bit for
+   bit). such a word is not cold, so it does not count as passed by for
+   the row under it (Sc); it only wrote nothing, as a word passed by
+   does, so the next word may pass on the bits
+   ------------------------------------------------------------------- */
+/* HEAT_IQ2: both cells of a pair of bytes are neither burning nor metal */
+var HEAT_IQ2 = null;
+function heatIdleTables() {
+  var Q = new Uint8Array(256), v, a, b;
+  for (v = 0; v < 256; v++) Q[v] = v < NMAT && !HEAT_SRC[v] && v !== MAT.METAL ? 1 : 0;
+  HEAT_IQ2 = new Uint8Array(65536);
+  for (a = 0; a < 256; a++) for (b = 0; b < 256; b++) HEAT_IQ2[a | (b << 8)] = Q[a] & Q[b];
+}
+/* 1 if no cell of the word at cell i (inside the room, nothing burning, no metal) would do anything in step 1, as the
+   cells stand now; else 0 */
+function heatIdleWord(m, T, i, gw, LIQ) {
+  var t0 = T[i], t1 = T[i + 1], t2 = T[i + 2], t3 = T[i + 3], d, b = i + gw, u, c, t, v;
+  if (t0 !== t0 || t1 !== t1 || t2 !== t2 || t3 !== t3) return 0;
+  d = t1 - t0; if (d > 0.05 || d < -0.05) return 0;
+  d = t2 - t1; if (d > 0.05 || d < -0.05) return 0;
+  d = t3 - t2; if (d > 0.05 || d < -0.05) return 0;
+  d = T[i + 4] - t3; if (d > 0.05 || d < -0.05) return 0;
+  d = T[b] - t0; if (d > 0.05 || d < -0.05) return 0;
+  d = T[b + 1] - t1; if (d > 0.05 || d < -0.05) return 0;
+  d = T[b + 2] - t2; if (d > 0.05 || d < -0.05) return 0;
+  d = T[b + 3] - t3; if (d > 0.05 || d < -0.05) return 0;
+  for (c = 0; c < 4; c++) {
+    v = m[i + c]; u = i + c - gw; t = c === 0 ? t0 : c === 1 ? t1 : c === 2 ? t2 : t3;
+    if (v === 0) {
+      if ((m[u] === 0 && t > T[u] + 0.5) || (m[u - 1] === 0 && t > T[u - 1] + 0.5) || (m[u + 1] === 0 && t > T[u + 1] + 0.5)) return 0;
+    } else if (LIQ[v] && m[u] === v && t > T[u] + 1) return 0;
+  }
+  return 1;
+}
+
 function heatStep(g) {
   var m = g.m, T = g.T, lat = g.lat, gw = g.gw, gh = g.gh, KP = HEAT_KP, IC = HEAT_IC, SRC = HEAT_SRC, POW = HEAT_POW, BK = HEAT_BK, C = HEAT_C;
   var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL, hm = g.hm;
@@ -554,6 +605,8 @@ function heatStep(g) {
   if (HEAT_AQ === null) heatQuietTables();
   heatViews(g);
   var WS = heatW, skip = heatSkip, cA = 1, cB = -1, cC = -1;
+  if (HEAT_IQ2 === null) heatIdleTables();
+  var IQ2 = HEAT_IQ2;
   var M32 = heatM32, T32 = heatT32, T64 = heatT64, AQ2 = HEAT_AQ2, AB = HEAT_AMB32, A64 = HEAT_AMB64;
   var nw = gw >> 2, NB = 0, PAD = 0, Cc = null, Cn = null, Sp = null, Sc = null, Aw = null, sw, bb, kw, bw, ow, bits, run, prevS = 0, lo2, hi2, i2, wq;
   if (WS) {
@@ -616,6 +669,10 @@ function heatStep(g) {
           x += 3; continue;
         }
         prevS = 0;
+        /* not cold: but idle? (see IDLE WORDS) */
+        if (x > 0 && x + 4 < gw && y > 0 && y < gh1 && IQ2[wq & 0xffff] !== 0 && IQ2[wq >>> 16] !== 0 && heatIdleWord(m, T, i, gw, LIQ) === 1) {
+          prevS = 1; x += 3; continue;
+        }
       }
       v = m[i]; t = T[i];
       if (SRC[v]) {
