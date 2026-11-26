@@ -251,7 +251,14 @@ function pFoot(g, x, y) {
 function pGround(g, x, y) { return pFoot(g, x, y) || pFoot(g, x - 1, y) || pFoot(g, x + 1, y); }
 /* could a peasant with its feet here stand up straight (pBody: is this cell in the way of a walking one). pStiff: in the
    way of one that is not walking but flying, which goes through leaves but not through a tree */
-function pBody(g, x, y) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c] && !P_SOFT[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
+/* (P_BODYM: pBody's look at the material, SOLID and not P_PASS and not P_SOFT, by material. with no great works that is
+   all there is to pBody, and the looks a route takes read it straight off the grid: pRoom, pHookGeom, paths.js) */
+var P_BODYM = (function () {
+  var t = new Uint8Array(NMAT);
+  for (var c = 0; c < NMAT; c++) t[c] = SOLID[c] === 1 && !P_PASS[c] && !P_SOFT[c] ? 1 : 0;
+  return t;
+})();
+function pBody(g, x, y) { var c = pCell(g, x, y); return P_BODYM[c] === 1 || (c === MAT.EMPTY && pGr(g, x, y)); }
 function pStiff(g, x, y) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c] && !P_LEAF[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
 function pStiffAt(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pStiff(g, fx, fy) || pStiff(g, fx, fy - 4) || pStiff(g, fx, fy - 7); }
 /* the next step along, into column x from feet at row y: how far up it is (0 to 3; 4 or more is a wall). the first
@@ -266,7 +273,13 @@ function pStepUp(g, x, y) {
   }
   return f < 0 ? 4 : f;   /* (no proper step: into it, then, and down through it) */
 }
-function pRoom(g, x, y) { return !pBody(g, x, y) && !pBody(g, x, y - 3) && !pBody(g, x, y - 6) && !pBody(g, x, y - 8); }
+function pRoom(g, x, y) {
+  if (!g.wAny && x >= 0 && x < g.gw && y >= 8 && y < g.gh) {   /* (all four in the grid, and no great works: the cells alone) */
+    var m = g.m, gw = g.gw, j = y * gw + x;
+    return !P_BODYM[m[j]] && !P_BODYM[m[j - 3 * gw]] && !P_BODYM[m[j - 6 * gw]] && !P_BODYM[m[j - 8 * gw]];
+  }
+  return !pBody(g, x, y) && !pBody(g, x, y - 3) && !pBody(g, x, y - 6) && !pBody(g, x, y - 8);
+}
 function pBlocked(g, x, y) { var fx = Math.floor(x), fy = Math.floor(y); return pBody(g, fx, fy) || pBody(g, fx, fy - 4) || pBody(g, fx, fy - 7); }
 
 function peasantAt(g, x, y, pad) {
@@ -1034,13 +1047,18 @@ function pTryClimb(g, p, fx, fy) {
 function pHookGeom(g, x, y, s) {
   var cx = x + s, k, bottom = -1, top;
   if (cx < 1 || cx > g.gw - 2 || pBody(g, cx, y) || pBody(g, cx, y - 1)) return null;   /* a wall: that is pTryClimb's */
-  for (k = 2; k <= P_ROPE; k++) if (pBody(g, cx, y - k)) { bottom = y - k; break; }
+  /* (no great works, and their feet in the grid: the same looks, cell by cell off the grid. over the top of it is air) */
+  var fast = !g.wAny && y < g.gh, m = g.m, gw = g.gw, j;
+  if (fast) { for (k = 2, j = (y - 2) * gw + cx; k <= P_ROPE && k <= y; k++, j -= gw) if (P_BODYM[m[j]]) { bottom = y - k; break; } }
+  else for (k = 2; k <= P_ROPE; k++) if (pBody(g, cx, y - k)) { bottom = y - k; break; }
   if (bottom < 0) return null;
-  for (top = bottom; top > 0 && pBody(g, cx, top - 1); top--);
+  if (fast) for (top = bottom, j = (top - 1) * gw + cx; top > 0 && P_BODYM[m[j]]; top--, j -= gw);
+  else for (top = bottom; top > 0 && pBody(g, cx, top - 1); top--);
   var stand = top - 1, h = y - stand;
   if (h > P_ROPE || h < 5 || stand < 9) return null;
   /* the way up beside it clear for their whole body, all the way, and room to stand on top */
-  for (k = y - 9; k >= stand - 9; k--) if (pBody(g, x, k)) return null;
+  if (fast) { for (k = y - 9, j = k * gw + x; k >= stand - 9; k--, j -= gw) if (P_BODYM[m[j]]) return null; }
+  else for (k = y - 9; k >= stand - 9; k--) if (pBody(g, x, k)) return null;
   if (!pRoom(g, cx, stand) || pCell(g, cx, top) === MAT.INERT) return null;
   return { top: top, stand: stand, h: h };
 }

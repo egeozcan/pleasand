@@ -36,6 +36,20 @@ var NAV_WALK = 0, NAV_DROP = 1, NAV_LEAP = 2, NAV_JUMP = 3, NAV_ROPE = 4, NAV_LA
 /* could a peasant stand with its feet at (x, y): 1 on something solid, 2 swimming at the top of some water, 0 not */
 function navStand(g, x, y) {
   if (x < 1 || x > g.gw - 2 || y < 9 || y >= g.gh) return 0;
+  /* (in the middle of a search, the world stands still: each place is looked at once, and then remembered. navFind) */
+  if (NAV_SG && NAV_SGG === g && NAV_SHOT === NAV_HOTOK && !P_SINK) {
+    var i = y * g.gw + x, v = NAV_SM[i];
+    if ((v >>> 2) === NAV_SG) return v & 3;
+    v = navStand1(g, x, y);
+    NAV_SM[i] = NAV_SG * 4 + v;
+    return v;
+  }
+  return navStand1(g, x, y);
+}
+/* what one search has found out so far about where they could stand: NAV_SG (the search, 0 outside one) times four, plus
+   navStand's answer, by cell. the world it was found in is that search's (NAV_SGG, NAV_SHOT), and is not kept after it */
+var NAV_SM = null, NAV_SG = 0, NAV_SN = 0, NAV_SGG = null, NAV_SHOT = false;
+function navStand1(g, x, y) {
   if (!pRoom(g, x, y) || navHazard(g, x, y)) return 0;
   /* (pRoom looks at four rows of them, not all nine: a slab a cell thick at their knees slips between, the roof of a
      furnace's hearth say, and a route goes in at its mouth and up through it, where nobody can follow. a village with
@@ -149,8 +163,25 @@ function navEdges(g, x, y, add) {
 /* the top of the soft stuff overhead (feet out of it, standing on it), with the way up clear of anything hard: its row,
    or -1. no further up than the rope goes */
 function navUp(g, x, y) {
-  for (var k = 1; k <= P_ROPE; k++) {
-    var ty = y - k;
+  var k, ty;
+  if (x >= 0 && x < g.gw && y < g.gh) {
+    /* (nothing soft anywhere in rows y-44 to y-3 of the column: no top of anything to go up onto, whatever else is there) */
+    var m = g.m, gw = g.gw, r = Math.max(0, y - 44), b = y - 3, j;
+    for (j = b * gw + x; b >= r && !P_SOFT[m[j]]; b--, j -= gw);
+    if (b < r) return -1;
+    /* (no great works: the same looks, straight off the grid. ty is 9 or more, so every row it looks at is in the grid,
+       but for the one ten over ty 9, which is air) */
+    if (!g.wAny) {
+      for (k = 1, ty = y - 1, j = ty * gw + x; k <= P_ROPE; k++, ty--, j -= gw) {
+        if (ty < 9 || P_BODYM[m[j - 8 * gw]] || navBad(m[j])) return -1;
+        if (k >= 4 && !P_SOFT[m[j]] && P_SOFT[m[j + gw]])
+          return navStand(g, x, ty) === 1 && !P_BODYM[m[j - 9 * gw]] && (ty < 10 || !P_BODYM[m[j - 10 * gw]]) ? ty : -1;
+      }
+      return -1;
+    }
+  }
+  for (k = 1; k <= P_ROPE; k++) {
+    ty = y - k;
     if (ty < 9 || pBody(g, x, ty - 8) || navBad(pCell(g, x, ty))) return -1;
     if (k >= 4 && !P_SOFT[pCell(g, x, ty)] && P_SOFT[pCell(g, x, ty + 1)])
       return navStand(g, x, ty) === 1 && !pBody(g, x, ty - 9) && !pBody(g, x, ty - 10) ? ty : -1;
@@ -162,7 +193,16 @@ function navUp(g, x, y) {
 function navSink(g, x, y) {
   if (!P_SOFT[pCell(g, x, y + 1)] || pFoot(g, x - 1, y) && !P_SOFT[pCell(g, x - 1, y + 1)] ||
       pFoot(g, x + 1, y) && !P_SOFT[pCell(g, x + 1, y + 1)]) return -1;
-  for (var d = 1; d <= 76 && y + d < g.gh; d++) {
+  var d;
+  if (!g.wAny) {   /* (no great works: the same looks, straight off the grid. it is soft underfoot, so the column is in it) */
+    var m = g.m, gw = g.gw, j = (y + 1) * gw + x;
+    for (d = 1; d <= 76 && y + d < g.gh; d++, j += gw) {
+      if (P_BODYM[m[j]] || navBad(m[j])) return -1;
+      if (d > 1 && navStand(g, x, y + d)) return d < 4 ? -1 : y + d;
+    }
+    return -1;
+  }
+  for (d = 1; d <= 76 && y + d < g.gh; d++) {
     var c = pCell(g, x, y + d);
     if (pBody(g, x, y + d) || navBad(c)) return -1;
     if (d > 1 && navStand(g, x, y + d)) return d < 4 ? -1 : y + d;
@@ -174,9 +214,15 @@ function navCanLeap(g, x, y) { for (var k = 0; k <= 8; k++) if (pBody(g, x, y - 
 /* A*, from (sx, sy) to anywhere goal(x, y) likes, guided towards (tx, ty). a list of {x, y, m} (m: the move that gets
    there) not including the start, or null */
 function navFind(g, sx, sy, goal, tx, ty, cap) {
-  var sink = P_SINK;
+  var sink = P_SINK, sg = NAV_SG, sgg = NAV_SGG, shot = NAV_SHOT, n = g.gw * g.gh, r;
   P_SINK = false;   /* (the map is of the world as it stands, not as it is for somebody sinking through it) */
-  var r = navFind1(g, sx, sy, goal, tx, ty, cap);
+  /* (a fresh memory of where they could stand, for this search alone: navStand. the next one may come after somebody
+     has dug, or built, or set fire to something) */
+  if (!NAV_SM || NAV_SM.length !== n) NAV_SM = new Uint32Array(n);
+  if (++NAV_SN >= 0x40000000) { NAV_SN = 1; NAV_SM.fill(0); }
+  NAV_SG = NAV_SN; NAV_SGG = g; NAV_SHOT = NAV_HOTOK;
+  try { r = navFind1(g, sx, sy, goal, tx, ty, cap); }
+  finally { NAV_SG = sg; NAV_SGG = sgg; NAV_SHOT = shot; }
   P_SINK = sink;
   return r;
 }
