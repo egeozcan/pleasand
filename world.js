@@ -1282,7 +1282,7 @@ var STILL2 = new Uint8Array(65536), sandM32 = null, sandM32Of = null;
 var REST_KIND = new Uint8Array(NMAT);
 REST_KIND[MAT.SAND] = REST_KIND[MAT.ASH] = REST_KIND[MAT.SNOW] = 1; REST_KIND[MAT.WATER] = REST_KIND[MAT.OIL] = 2; REST_KIND[MAT.PLANT] = 3;
 function sandStep(g) {
-  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, w, row, m32, r, j, vy = g.vy, aux = g.aux;
+  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, w, row, m32, r, j, q, q0, q1, vy = g.vy, aux = g.aux;
   g.parity ^= 1;
   g.pressN = 0;
   if (gw > VIEW_GW && T % 300 === 0) vRangeSet(g);   /* (the village's range, now and then: section 7) */
@@ -1291,14 +1291,19 @@ function sandStep(g) {
     if (sandM32Of !== m) { sandM32 = new Int32Array(m.buffer, m.byteOffset, m.length >> 2); sandM32Of = m; }
     m32 = sandM32;
     for (y = gh - 1; y >= 0; y--) {
-      row = y * gw;
+      row = y * gw; q0 = row >> 2; q1 = (row + gw) >> 2;
       if (((y + g.parity) & 1) === 1) {
         /* right to left: a word is looked at from its top byte, the first of it the walk comes to */
         for (x = gw - 1; x >= 0; x--) {
           i = row + x;
           if ((x & 3) === 3) {
-            w = m32[i >> 2];
-            if (w === 0 || (STILL2[w & 0xffff] && STILL2[w >>> 16])) { x -= 3; continue; }
+            q = i >> 2; w = m32[q];
+            if (w === 0 || (STILL2[w & 0xffff] && STILL2[w >>> 16])) {
+              /* (and the still words after it, to the first that is not: nothing runs in between that could change them) */
+              do q--; while (q >= q0 && ((w = m32[q]) === 0 || (STILL2[w & 0xffff] && STILL2[w >>> 16])));
+              if (q < q0) break;
+              i = (q << 2) + 3; x = i - row;
+            }
           }
           v = m[i];
           if (STILL[v]) continue;
@@ -1324,8 +1329,12 @@ function sandStep(g) {
         for (x = 0; x < gw; x++) {
           i = row + x;
           if ((x & 3) === 0) {
-            w = m32[i >> 2];
-            if (w === 0 || (STILL2[w & 0xffff] && STILL2[w >>> 16])) { x += 3; continue; }
+            q = i >> 2; w = m32[q];
+            if (w === 0 || (STILL2[w & 0xffff] && STILL2[w >>> 16])) {
+              do q++; while (q < q1 && ((w = m32[q]) === 0 || (STILL2[w & 0xffff] && STILL2[w >>> 16])));
+              if (q >= q1) break;
+              i = q << 2; x = i - row;
+            }
           }
           v = m[i];
           if (STILL[v]) continue;
