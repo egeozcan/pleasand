@@ -19,9 +19,10 @@ var fs = require("fs"), path = require("path");
 
 var ROOT = path.join(__dirname, "..");
 
-/* the scripts, in load order, taken from index.html so they cannot drift */
-function gameFiles() {
-  var html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8"), out = [], m;
+/* the scripts, in load order, taken from index.html so they cannot drift. root: another checkout's (bench.js,
+   same.js --dir: that tree's game, this harness) */
+function gameFiles(root) {
+  var html = fs.readFileSync(path.join(root || ROOT, "index.html"), "utf8"), out = [], m;
   var re = /<script\s+src="([^"]+)"\s*><\/script>/g;
   while ((m = re.exec(html))) out.push(m[1]);
   if (!out.length) throw new Error("harness/loader: no <script src> tags in index.html");
@@ -99,7 +100,8 @@ function makeRng(seed) {
 function loadGame(opts) {
   opts = opts || {};
   var seed = opts.seed == null ? 1 : (opts.seed >>> 0);
-  var files = gameFiles();
+  var root = opts.root ? path.resolve(opts.root) : ROOT;
+  var files = gameFiles(root);
   var rng = makeRng(seed);
   var clock = { t: opts.startTime || 0 };
   var host = opts.host || {};
@@ -133,7 +135,7 @@ function loadGame(opts) {
   };
 
   var src = files.map(function (f) {
-    return fs.readFileSync(path.join(ROOT, f), "utf8").replace(/^"use strict";/m, "");
+    return fs.readFileSync(path.join(root, f), "utf8").replace(/^"use strict";/m, "");
   }).join("\n;\n");
 
   var factory = new Function("window", "document", "requestAnimationFrame", "performance", "Math", "__h",
@@ -145,7 +147,7 @@ function loadGame(opts) {
   sandboxMath.random = draw;
 
   return {
-    root: ROOT, files: files, seed: seed, rng: rng, clock: clock, host: host, window: win,
+    root: root, files: files, seed: seed, rng: rng, clock: clock, host: host, window: win,
     eval: evalIn, preBootCalls: preBootCalls, booted: false,
     /* start the village, the way the browser does once the page is up */
     boot: function () {

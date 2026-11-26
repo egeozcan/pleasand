@@ -34,7 +34,8 @@ function Harness(opts) {
   opts = opts || {};
   this.host = {};
   this.gw = opts.gw || (typeof process !== "undefined" && +process.env.PLEASAND_GW) || 272;   /* (PLEASAND_GW=1088: every harness wide) */
-  this.loaded = loader.loadGame({ seed: opts.seed == null ? 1 : opts.seed, startTime: opts.startTime || 0, host: this.host, gw: this.gw });
+  /* (opts.root: another checkout's game, run by this harness: bench.js, same.js) */
+  this.loaded = loader.loadGame({ seed: opts.seed == null ? 1 : opts.seed, startTime: opts.startTime || 0, host: this.host, gw: this.gw, root: opts.root });
   this._eval = this.loaded.eval;
   if (!this.loaded.boot()) throw new Error("harness: the game did not boot (no DOMContentLoaded handler)");
   this.g = this._eval("g");

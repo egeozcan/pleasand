@@ -154,6 +154,68 @@ h.profiler(true); h.step(600); h.profile();
 `heatStep` runs inside `sandStep`, so the shares overlap; the totals are the
 truth. `msPerTick` is wall clock.
 
+**Is it fast enough?** `bench.js` is the spec's measurement (docs/wide-valley-spec.md
+§7): 1088 wide, at 4x, seeds 3, 7 and 14, 20 000 sand ticks each (5 000
+`gameUpdate`s, four world ticks in each, nobody touching anything), every
+`gameUpdate` timed on its own. Each seed runs in a fresh process, one after
+another. JSON on stdout, progress on stderr.
+```bash
+node harness/bench.js                        # median, p95, p99, max per seed; the budget, met or not
+node harness/bench.js --phases               # and each phase's share (sandStep, heatStep inside it, peasantsStep...)
+node harness/bench.js --dir ../wip           # that checkout's game, this harness
+node harness/bench.js --seeds 3 --ticks 4000 --warm 500 --runs 3
+```
+Each seed also reports the mean of each tenth of the run (`tenths`: where in
+the run the time goes) and `hash()` at the end. On the dev laptop, quiet,
+0580e71 takes 12.8-13.2 ms median and 13.8-14.4 ms p95; two runs agree to
+about 1.5%.
+
+**Is it faster than that one?** On a busy machine one run says little: under
+load a seed's median moves by a third. `--ab` takes two checkouts in turns,
+seed by seed (A B, then B A), for several rounds, and reports B/A for each
+round, paired, so the load of the moment falls on both:
+```bash
+node harness/bench.js --ab ../base ../wip --rounds 4 --ticks 8000
+node harness/bench.js --ab ../base ../wip --rounds 3 --ticks 4000 --lockstep   # both in one process, update by update
+```
+`ratio` is per seed the median of the rounds' ratios (below 1, B is faster),
+with their spread, and `ofMins` (B's best round over A's best); the top-level
+`ratio` is their geometric mean. `sameWorld` says whether the two came to the
+same `hash()`: a speed-up that does not is not one. `--lockstep` plays both
+villages in one process, an update of A then an update of B, so a burst of
+load lands on both within milliseconds; they share a heap and caches, alike.
+Measured A against A (0580e71 twice, 4000 ticks, 3 rounds) with twelve wide
+villages running beside it on the 14 cores: in turns, each seed's ratio came
+out 0.99-1.04 (rounds 0.97-1.09), 1.016 overall; in lockstep 0.99-1.01 (rounds
+0.98-1.02), 1.002 overall. On a busy machine, use `--lockstep`, and believe a
+difference of a few percent only when every round agrees.
+
+**Is it the same world?** `same.js` is the oracle for a speed-up: the world may
+not change, not a cell, a degree or a die. It plays a set of villages and every
+500 sand ticks fingerprints the whole state (`snapshot.js` `stateHash`: every
+key of `g` but the drawing and scratch `SKIP` leaves out, all the way down,
+numbers by their exact value, plus the dice, the side dice, the clock and the
+module variables the rules keep between ticks), each top-level field on its own.
+```bash
+node harness/same.js --record ref.json                 # write this tree's worlds down
+node harness/same.js --check ref.json --dir ../wip     # exit 0: identical, every field, every checkpoint
+node harness/same.js --check ref.json --dir ../wip --ref-dir ../base   # and which cells, value against value
+node harness/same.js --check ref.json --only wide,materials --jobs 6
+node harness/same.js --list
+```
+A difference is reported as the first update and sand tick, and the first field
+of `g`, that differ (and the rest that differ there). With `--ref-dir` both trees
+are played to that checkpoint and the first values that differ are named:
+`g.T[27205] (x 5, y 100): 21.5 vs 21.500001`. The villages (23, each at least
+20 000 sand ticks; about 5 minutes, 12 at a time): seeds 3, 7, 14 at 1088 at
+4x; seeds 1-6 at 272; soak.js's rich, chaos and leftovers presets; every
+paintable material in heaps, mixed, with fire, lava, lightning, the heat and cool
+brushes, nukes and fireworks through the real input path (272, and 1088 at 4x);
+`playtests/hand.json` replayed; and a village saved at tick 8 000, loaded into a
+fresh game and played on (272, and 1088 at 4x). `--ignore k1,k2` leaves keys of
+`g` out, for scratch a tree has put on `g` on purpose; say so where it is
+reviewed, since an ignored key is not checked.
+
 **It threw.**
 Stepping rethrows, with `error.harness` attached: tick, stack, recent
 actions, recent events, `state()`, an ascii map, and a replayable scenario.
@@ -304,7 +366,7 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 
 - `loader.js` — reads `index.html` for the script list, compiles the game
   into one scope, stubs the canvas and audio, seeds `Math.random`, owns the clock
-- `snapshot.js` — copies the whole game state and puts it back, identity and all
+- `snapshot.js` — copies the whole game state and puts it back, identity and all; `stateHash`, all of it fingerprinted
 - `inspect.js` — state, census, cells, searches, ascii maps, entity dossiers, `why()`
 - `harness.js` — the object: time, tracing, breakpoints, invariants, profiling,
   events, input, snapshots, scenarios
@@ -313,5 +375,7 @@ Material names are the game's: `"SAND"`, `"salt water"`, `"IRON ORE"`… and
 - `args.js` — the argument parser the cli and soak runner share
 - `saveinfo.js` — what is in a save file, read without loading the game (`save-info`)
 - `soak.js` — many seeds, long runs, presets, invariants and stuck-unit reports
+- `bench.js` — the frame budget at 4x, 1088 wide, per seed; `--ab` for two checkouts against each other
+- `same.js` — the same-world oracle: whole-state fingerprints, recorded and compared
 - `stuck.js` — sampled work/behavior progress and short-cycle detection for peasants and ducks
 - `playtests/` — duck escape/timeout regressions, replayable scenarios and the playtest report, and the hand's playtest (`hand.json`)

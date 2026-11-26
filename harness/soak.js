@@ -45,34 +45,7 @@ function worker(seed, ticks, preset) {
   inv("ideas", "Object.keys(g.know).every(function (k) { return typeof g.know[k] === 'string' && IDEAS.some(function (I) { return I.id === k; }); })", 120);
   inv("resources", "g.rip >= 0 && (g.iron || 0) >= 0 && (g.barrels || 0) >= 0");
 
-  if (preset === "rich") {
-    h.give(["farm", "lamp", "bucket", "dig", "grave", "fish", "scarecrow", "festival", "mine",
-            "masonry", "smelt", "lift", "bell", "oil", "rocket"]);
-    h.g.iron = 40; h.g.barrels = 40;
-  } else if (preset === "chaos") {
-    var s = 12345;
-    function rnd() { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }
-    var paints = ["LAVA", "WATER", "FIRE", "GUNPOWDER", "WOOD", "ACID", "ICE", "GAS", "OIL", "SAND"];
-    for (var k = 0; k < 12; k++) {
-      var x = 10 + Math.floor(rnd() * (h.g.gw - 20)), y = 10 + Math.floor(rnd() * (h.g.gh - 20));
-      h.paintDisc(x, y, 2 + Math.floor(rnd() * 4), paints[Math.floor(rnd() * paints.length)]);
-    }
-    h.give(["bucket", "farm", "mine", "dig", "masonry", "festival"]);
-  } else if (preset === "leftovers") {
-    /* what is left over (leftovers.js): snow and ice about the village, salt, ash, a lump of glass, a pinch of powder,
-       and the ideas that make something of them */
-    h.give(["farm", "bucket", "dig", "fish", "festival", "mine", "masonry", "smelt", "forge", "potash", "salt", "powder", "glass"]);
-    h.g.iron = 20;
-    h.eval("g.peasants.forEach(function (p, i) { p.iron = 3; p.coal = 2; p.salt = 2; p.ash = 3; if (i < 2) p.powder = 1; })");
-    var cx = Math.floor(h.eval("g.peasants[0].x"));
-    var coat = function (x0, x1, v, n) { for (var x = Math.max(4, x0); x <= Math.min(h.g.gw - 5, x1); x++) { var G = h.eval("mGround(g, " + x + ")"); for (var q = 1; q <= n && G > 2; q++) if (h.eval("AIRY[g.m[" + ((G - q) * h.g.gw + x) + "]]")) h.place(x, G - q, v); } };
-    coat(cx - 45, cx + 45, "SNOW", 2);
-    coat(cx + 50, cx + 70, "SALT", 1);
-    coat(cx - 70, cx - 50, "ASH", 1);
-    coat(cx + 75, cx + 77, "GUNPOWDER", 1);
-    coat(cx - 80, cx - 78, "GLASS", 1);
-    for (var ix = cx - 110; ix <= cx - 85; ix++) if (ix > 4) { var IG = h.eval("mGround(g, " + ix + ")"); if (IG > 2) h.place(ix, IG, "ICE"); }
-  }
+  applyPreset(h, preset);
 
   /* Sample often enough to see shuffles and work strokes, rather than
      aliasing them into apparent progress (or an idle productive worker). */
@@ -105,6 +78,38 @@ function worker(seed, ticks, preset) {
     context: stop && stop.tick ? h.events({ since: Math.max(0, stop.tick - 200), limit: 6 }) : null
   };
   return out;
+}
+
+/* what is done to a village before it is left to run (same.js plays the presets too) */
+function applyPreset(h, preset) {
+  if (preset === "rich") {
+    h.give(["farm", "lamp", "bucket", "dig", "grave", "fish", "scarecrow", "festival", "mine",
+            "masonry", "smelt", "lift", "bell", "oil", "rocket"]);
+    h.g.iron = 40; h.g.barrels = 40;
+  } else if (preset === "chaos") {
+    var s = 12345;
+    function rnd() { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }
+    var paints = ["LAVA", "WATER", "FIRE", "GUNPOWDER", "WOOD", "ACID", "ICE", "GAS", "OIL", "SAND"];
+    for (var k = 0; k < 12; k++) {
+      var x = 10 + Math.floor(rnd() * (h.g.gw - 20)), y = 10 + Math.floor(rnd() * (h.g.gh - 20));
+      h.paintDisc(x, y, 2 + Math.floor(rnd() * 4), paints[Math.floor(rnd() * paints.length)]);
+    }
+    h.give(["bucket", "farm", "mine", "dig", "masonry", "festival"]);
+  } else if (preset === "leftovers") {
+    /* what is left over (leftovers.js): snow and ice about the village, salt, ash, a lump of glass, a pinch of powder,
+       and the ideas that make something of them */
+    h.give(["farm", "bucket", "dig", "fish", "festival", "mine", "masonry", "smelt", "forge", "potash", "salt", "powder", "glass"]);
+    h.g.iron = 20;
+    h.eval("g.peasants.forEach(function (p, i) { p.iron = 3; p.coal = 2; p.salt = 2; p.ash = 3; if (i < 2) p.powder = 1; })");
+    var cx = Math.floor(h.eval("g.peasants[0].x"));
+    var coat = function (x0, x1, v, n) { for (var x = Math.max(4, x0); x <= Math.min(h.g.gw - 5, x1); x++) { var G = h.eval("mGround(g, " + x + ")"); for (var q = 1; q <= n && G > 2; q++) if (h.eval("AIRY[g.m[" + ((G - q) * h.g.gw + x) + "]]")) h.place(x, G - q, v); } };
+    coat(cx - 45, cx + 45, "SNOW", 2);
+    coat(cx + 50, cx + 70, "SALT", 1);
+    coat(cx - 70, cx - 50, "ASH", 1);
+    coat(cx + 75, cx + 77, "GUNPOWDER", 1);
+    coat(cx - 80, cx - 78, "GLASS", 1);
+    for (var ix = cx - 110; ix <= cx - 85; ix++) if (ix > 4) { var IG = h.eval("mGround(g, " + ix + ")"); if (IG > 2) h.place(ix, IG, "ICE"); }
+  }
 }
 
 /* -------------------------------------------------------------------
@@ -201,4 +206,6 @@ function main() {
 }
 
 
-main();
+if (require.main === module) main();
+
+module.exports = { applyPreset: applyPreset, worker: worker };

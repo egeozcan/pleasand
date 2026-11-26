@@ -112,4 +112,75 @@ function apply(snap, g, keep) {
 /* a deep copy of a value, as a snapshot is copied (for a save's keyframe, restored through the game's own loader) */
 function clone(v, keep) { return cloneValue(v, new Map(), keep || new Set()); }
 
-module.exports = { capture: capture, apply: apply, clone: clone, constantRefs: constantRefs, SKIP: SKIP };
+/* -------------------------------------------------------------------
+   a fingerprint of the whole state: every key of g but SKIP's, all the
+   way down, each top-level key on its own (so a difference can be named).
+   harness.js hash() is the quick one; this one leaves nothing out.
+
+   numbers go in by value, whatever holds them (a Float32Array's 0.1 is
+   the float64 it widens to, so a cell's temperature is exact), so an
+   Array and a typed array of the same numbers come out the same: what
+   is compared is what the world holds, not how. keys go in sorted. an
+   object met a second time goes in as the order it was first met in
+   (a held duck is the duck in g.ducks); the game's constant tables (hats,
+   duck kinds) as their name and place. opts.skip: more keys of g to
+   leave out. opts.extra: {name: value}, hashed as fields of their own
+   ("@rng", the side dice, a module's own variables)
+   ------------------------------------------------------------------- */
+var HF = new Float64Array(1), HU = new Uint32Array(HF.buffer);
+
+function stateHash(g, opts) {
+  opts = opts || {};
+  var names = new Map(), memo = new Map(), seen = 0, h = 0, k, i;
+  (opts.consts || []).forEach(function (c) {
+    if (Array.isArray(c[1])) c[1].forEach(function (o, j) { if (o && typeof o === "object") names.set(o, c[0] + "#" + j); });
+  });
+  function mix(x) { h = Math.imul(h ^ (x | 0), 16777619); }
+  function num(v) {
+    if ((v | 0) === v && (v !== 0 || 1 / v > 0)) { mix(1); mix(v); }
+    else if (v !== v) mix(3);
+    else { HF[0] = v; mix(2); mix(HU[0]); mix(HU[1]); }
+  }
+  function str(s) { mix(4); mix(s.length); for (var j = 0; j < s.length; j++) mix(s.charCodeAt(j)); }
+  function val(v) {
+    var t = typeof v, j, ks;
+    if (t === "number") return num(v);
+    if (t === "string") return str(v);
+    if (t === "boolean") return mix(v ? 5 : 6);
+    if (v === undefined) return mix(8);
+    if (v === null) return mix(7);
+    if (t === "function") { mix(9); return str(v.name || "?"); }
+    if (t === "bigint" || t === "symbol") return str(t + ":" + String(v));
+    if (names.has(v)) { mix(11); return str(names.get(v)); }
+    if (memo.has(v)) { mix(10); return mix(memo.get(v)); }
+    memo.set(v, seen++);
+    if (isTypedArray(v) || Array.isArray(v)) {
+      mix(12); mix(v.length);
+      if (v instanceof Float32Array || v instanceof Float64Array) for (j = 0; j < v.length; j++) num(v[j]);
+      else if (isTypedArray(v)) for (j = 0; j < v.length; j++) { mix(1); mix(v[j]); }
+      else for (j = 0; j < v.length; j++) val(v[j]);
+      return;
+    }
+    if (v instanceof Map) { mix(13); mix(v.size); v.forEach(function (x, key) { val(key); val(x); }); return; }
+    if (v instanceof Set) { mix(14); mix(v.size); v.forEach(function (x) { val(x); }); return; }
+    if (typeof v.getContext === "function") return mix(15);   /* (a canvas: drawing only) */
+    ks = Object.keys(v).sort();
+    mix(16); mix(ks.length);
+    for (j = 0; j < ks.length; j++) { str(ks[j]); val(v[ks[j]]); }
+  }
+  function hex(x) { return ("00000000" + (x >>> 0).toString(16)).slice(-8); }
+  var skip = opts.skip || null, fields = {}, all = 0x811c9dc5;
+  var ks = Object.keys(g).filter(function (key) { return !SKIP.has(key) && !(skip && skip.has(key)); }).sort();
+  var ex = opts.extra ? Object.keys(opts.extra).sort() : [];
+  for (i = 0; i < ks.length + ex.length; i++) {
+    k = i < ks.length ? ks[i] : ex[i - ks.length];
+    h = 0x811c9dc5;
+    val(i < ks.length ? g[k] : opts.extra[k]);
+    fields[k] = hex(h);
+    all = Math.imul(all ^ h, 16777619);
+    for (var c = 0; c < k.length; c++) all = Math.imul(all ^ k.charCodeAt(c), 16777619);
+  }
+  return { hash: hex(all), fields: fields };
+}
+
+module.exports = { capture: capture, apply: apply, clone: clone, constantRefs: constantRefs, stateHash: stateHash, SKIP: SKIP };
