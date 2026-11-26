@@ -27,10 +27,12 @@
 
 var GLR = null;
 
+/* (the corner comes from a buffer at attribute 0, not gl_VertexID: drawing with no attribute 0 is emulated, slowly, on
+   desktop OpenGL, and is where Firefox on a Mac drew nothing) */
 var GLR_VS = "#version 300 es\n" +
-  "uniform vec4 uDst; uniform vec4 uSrc; out vec2 vUV;\n" +
+  "in vec2 aC; uniform vec4 uDst; uniform vec4 uSrc; out vec2 vUV;\n" +
   "void main() {\n" +
-  "  vec2 c = vec2(float(gl_VertexID & 1), float((gl_VertexID >> 1) & 1));\n" +
+  "  vec2 c = aC;\n" +
   "  vUV = mix(uSrc.xy, uSrc.zw, c);\n" +
   "  gl_Position = vec4(mix(uDst.xy, uDst.zw, c), 0.0, 1.0);\n" +
   "}\n";
@@ -53,6 +55,7 @@ function glrProgram(gl, fs) {
   var p = gl.createProgram();
   gl.attachShader(p, glrShader(gl, gl.VERTEX_SHADER, GLR_VS));
   gl.attachShader(p, glrShader(gl, gl.FRAGMENT_SHADER, fs));
+  gl.bindAttribLocation(p, 0, "aC");
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error("program: " + gl.getProgramInfoLog(p));
   var u = {};
@@ -80,8 +83,12 @@ function glrInit(el, force) {
                                    failIfMajorPerformanceCaveat: !force });
   } catch (e) { gl = null; }
   if (!gl) return null;
-  var info = gl.getExtension("WEBGL_debug_renderer_info");
-  var who = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+  /* (Firefox says who it is in RENDERER, and is giving up the extension; Chrome only in the extension) */
+  var who = String(gl.getParameter(gl.RENDERER));
+  if (!/firefox/i.test(typeof navigator !== "undefined" ? navigator.userAgent : "")) {
+    var info = gl.getExtension("WEBGL_debug_renderer_info");
+    if (info) who = String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL));
+  }
   if (!force && GLR_SOFT.test(who)) {
     var lose = gl.getExtension("WEBGL_lose_context");
     if (lose) lose.loseContext();
@@ -92,7 +99,7 @@ function glrInit(el, force) {
               texW: 0, field: null, glow: null,
               /* the small two: one screen's worth, halved and halved again, as game.js gamePicture's gc2 and gc4 */
               w2: Math.ceil(VIEW_GW / 2), h2: Math.ceil(GH / 2), w4: Math.ceil(VIEW_GW / 4), h4: Math.ceil(GH / 4),
-              t2: null, t4: null, f2: null, f4: null, lost: false };
+              t2: null, t4: null, f2: null, f4: null, lost: false, proved: false, px: null, gpx: null };
     R.t2 = glrTex(gl, R.w2, R.h2, gl.LINEAR); R.f2 = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, R.f2); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, R.t2, 0);
     R.t4 = glrTex(gl, R.w4, R.h4, gl.LINEAR); R.f4 = gl.createFramebuffer();
@@ -100,6 +107,10 @@ function glrInit(el, force) {
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error("framebuffer incomplete");
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.bindVertexArray(R.vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
     el.addEventListener("webglcontextlost", function (e) { e.preventDefault(); R.lost = true; if (GLR === R) glrOff(); });
     return R;
@@ -132,6 +143,18 @@ function glrUp(gl, tex, data, gw, c0, cw) {
   gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
 }
 
+/* the first frame: is the field really there? the middle of it read back, once (the sky is never exactly the background
+   colour). if it is not there, whatever the reason, the 2D canvas draws it from the next frame on, and says why */
+function glrProve(R, W, H, x, y) {
+  var gl = R.gl, p = new Uint8Array(4);
+  R.proved = true;
+  gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, p);
+  if (p[0] !== 5 || p[1] !== 7 || p[2] !== 12) return true;
+  if (typeof console !== "undefined") console.warn("pleasand: the WebGL2 field came out blank (" + gl.getParameter(gl.RENDERER) + ", error " + gl.getError() + "); the 2D canvas draws it");
+  glrOff();
+  return false;
+}
+
 /* this frame's field. c0, cw: the columns drawWorld worked out; cam: the first in view; sx, sy: the shake; glow: any */
 function glrDraw(R, g, c0, cw, cam, sx, sy, glow) {
   var gl = R.gl, W = R.el.width, H = R.el.height, PW = VIEW_GW * CELL, PH = PLAY_H, u, o = cam - c0;
@@ -141,7 +164,10 @@ function glrDraw(R, g, c0, cw, cam, sx, sy, glow) {
   gl.disable(gl.SCISSOR_TEST); gl.disable(gl.BLEND);
   gl.clearColor(5 / 255, 7 / 255, 12 / 255, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
-  glrUp(gl, R.field, g.img.data, g.gw, c0, cw);
+  /* (a plain Uint8Array over the picture: some browsers are fussier about a Uint8ClampedArray than they should be) */
+  if (R.px === null || R.px.buffer !== g.img.data.buffer) R.px = new Uint8Array(g.img.data.buffer);
+  if (R.gpx === null || R.gpx.buffer !== g.gimg.data.buffer) R.gpx = new Uint8Array(g.gimg.data.buffer);
+  glrUp(gl, R.field, R.px, g.gw, c0, cw);
   /* (clipped to the field, as gameDraw clips the 2D canvas) */
   var kx = W / VW, ky = H / VH, x0 = Math.round(PANEL * kx), x1 = Math.round((PANEL + PW) * kx);
   var yb = Math.round(PLAY_B * ky), yt = Math.round(PLAY_Y * ky);
@@ -156,10 +182,11 @@ function glrDraw(R, g, c0, cw, cam, sx, sy, glow) {
   glrRect(gl, u.uDst, PANEL + sx, PLAY_Y + sy, PANEL + sx + PW, PLAY_Y + sy + PH);
   gl.uniform4f(u.uSrc, o, 0, o + VIEW_GW, GH);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  if (!R.proved && !glrProve(R, W, H, (x0 + x1) >> 1, (H - yb + H - yt) >> 1)) return;
   if (!glow) return;
 
   /* the glow: hot cells only, shrunk twice (which blurs them), then laid over the top */
-  glrUp(gl, R.glow, g.gimg.data, g.gw, c0, cw);
+  glrUp(gl, R.glow, R.gpx, g.gw, c0, cw);
   gl.disable(gl.SCISSOR_TEST);
   u = R.lin.u;
   gl.useProgram(R.lin.p);
