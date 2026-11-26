@@ -220,7 +220,10 @@ time out by it (`breakdown.perUpdate`, ms): `heatStep0`, `heatStep1`,
 function it calls by the step that calls it), `sandStepWithoutHeat`, `navFind`
 (all of it, the pGrate inside it too), `pGrateOutsideNav`, `peasantsRest`,
 `partStep`, `ducksStep` and `rest` (gameUpdate's own work, the harness's, the
-garbage collector), with `pGrateAll`, pGrate wherever it is, on the side; and
+garbage collector), with `pGrateAll`, pGrate wherever it is, on the side (since
+pGr reads the grates' map itself while the cache is good, pGrate is called only for
+the tick's first look, which fills it, so this is about 0 now: the looks at the
+grates are in the functions that call pGr); and
 `breakdown.slowFrames`, the same per frame over the slowest tenth of the frames
 alone (each sample is put in its frame by its time), which is what a p95 is made
 of. The profiler costs a little, so a profiled run's median and p95 are not the

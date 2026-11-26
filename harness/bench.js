@@ -302,7 +302,9 @@ function breakdown(cpu, dir, ms, at, hr0) {
       peasantsStep: v(["navFind", "pGrateOutsideNav", "peasantsRest"]),
       navFind: v(["navFind"]), pGrateOutsideNav: v(["pGrateOutsideNav"]), peasantsRest: v(["peasantsRest"]),
       partStep: v(["partStep"]), ducksStep: v(["ducksStep"]), rest: v(["rest"]), all: r3(msPer),
-      pGrateAll: r3(total ? gr / total * msPer : 0)   /* (pGrate wherever it is, navFind's share of it included) */
+      pGrateAll: r3(total ? gr / total * msPer : 0)   /* (pGrate wherever it is, navFind's share of it included. pGr reads the
+                                                         grates' map itself while the cache is good, so pGrate is the fill
+                                                         alone, about 0: the looks are in pGr's callers) */
     };
   }
   var sumAll = 0, sumSlow = 0, kSlow = 0;
