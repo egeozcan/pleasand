@@ -1708,6 +1708,57 @@ test("the fingerprint sees two small differences in one field, not just one", fu
   check(sh({ T: n1 }).fields.T !== sh({ T: n2 }).fields.T, "two NaNs of different bits hash the same");
 });
 
+test("the sand step's shortcuts play the world as the plain cell-by-cell walk does, at the row's ends too", function () {
+  /* sandStep, on a width that is a multiple of four, passes over runs of still words and sees heaps, ponds and dry plants
+     at rest itself (world.js). the plain walk it stands in for hands every cell that is not still and has not had its turn
+     to sandTurn, row by row from the bottom, the way the row's parity says. two villages, the same dice, one of them made
+     to take that walk: cell for cell, temperature for temperature and die for die, the same after every tick */
+  var snap = require("../harness/snapshot.js");
+  [272, 1088].forEach(function (gw) {
+    var a = sim.load(11, { gw: gw }), b = sim.load(11, { gw: gw }), M = a.MAT;
+    b.eval("sandStep = function (g) {\n" +
+      "  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, row, flip;\n" +
+      "  g.parity ^= 1; g.pressN = 0;\n" +
+      "  if (gw > VIEW_GW && T % 300 === 0) vRangeSet(g);\n" +
+      "  for (y = gh - 1; y >= 0; y--) {\n" +
+      "    flip = ((y + g.parity) & 1) === 1; row = y * gw;\n" +
+      "    for (xi = 0; xi < gw; xi++) { x = flip ? gw - 1 - xi : xi; i = row + x; v = m[i];\n" +
+      "      if (STILL[v] || st[i] === T) continue; sandTurn(g, i, x, y, v); }\n" +
+      "  }\n" +
+      "  for (k = Math.min(g.pressN, PRESS_TRIES) - 1; k >= 0; k--) {\n" +
+      "    i = g.pressList[k]; v = m[i];\n" +
+      "    if (LIQUID[v] && v !== MAT.LAVA && i >= gw && m[i - gw] === MAT.EMPTY) sandPressure(g, i);\n" +
+      "  }\n" +
+      "  heatStep(g);\n" +
+      "}");
+    /* the same paint on both: the sky's top rows strewn with stone, glass and things that rest or move, lone movers at
+       the very ends of rows of stone, plants wet and dry, growing and not. (a die of its own, not the game's) */
+    var s = 99, gh = a.g.gh;
+    function r() { s = (Math.imul(s, 1103515245) + 12345) >>> 0; return s / 4294967296; }
+    var kinds = [M.STONE, M.STONE, M.GLASS, M.WOOD, M.SAND, M.ASH, M.SNOW, M.WATER, M.OIL, M.PLANT, M.PLANT, M.EMPTY];
+    function paint(i, v, aux) { [a, b].forEach(function (w) { w.sandPlace(w.g, i, v); if (aux) w.g.aux[i] = aux; }); }
+    for (var y = 4; y < 40; y++) {
+      var row = y * gw, band = y % 6;
+      for (var x = 0; x < gw; x++) {
+        if (band === 0) paint(row + x, M.STONE);
+        else if (band === 1) paint(row + x, x === 0 || x === gw - 1 ? kinds[4 + (y >> 1) % 7] : M.STONE);
+        else if (band === 2) paint(row + x, (x & 15) === 7 ? kinds[4 + (x >> 4) % 7] : M.EMPTY);
+        else if (r() < 0.45) { var v = kinds[(r() * kinds.length) | 0]; paint(row + x, v, v === M.PLANT && r() < 0.3 ? 1 + ((r() * 20) | 0) : 0); }
+      }
+    }
+    check(gw % 4 === 0 && gh > 40, "the test wants a width that is a multiple of four");
+    for (var t = 0; t < 240; t++) {
+      a.gameUpdate(a.g, 1 / 60); b.gameUpdate(b.g, 1 / 60);
+      ["m", "vy", "aux", "stamp", "T"].forEach(function (k) {
+        check(Buffer.compare(Buffer.from(a.g[k].buffer, a.g[k].byteOffset, a.g[k].byteLength), Buffer.from(b.g[k].buffer, b.g[k].byteOffset, b.g[k].byteLength)) === 0,
+              gw + " wide, tick " + t + ": g." + k + " differs from the plain walk's");
+      });
+      check(a.eval("Math.random()") === b.eval("Math.random()"), gw + " wide, tick " + t + ": the dice differ from the plain walk's");
+    }
+    check(snap.stateHash(a.g).hash === snap.stateHash(b.g).hash, gw + " wide: the whole state differs from the plain walk's after 240 ticks");
+  });
+});
+
 test("the save skips what the harness's snapshots skip", function () {
   var skip = require("../harness/snapshot.js").SKIP, h = require("../harness").open({ seed: 1 });
   var mine = h.eval("SAVE_SKIP");
