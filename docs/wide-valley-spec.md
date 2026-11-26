@@ -305,28 +305,44 @@ A peasant or duck may still walk out past the range; the world edges are the onl
 - The simulation still steps the **whole** world every tick.
 - **Budget**, measured with the harness `--profile` on seeds 3, 7, 14 over 20 000 ticks at 1088: median
   `gameUpdate` <= 4.5 ms, p95 <= 9 ms (node, dev laptop). In the browser (`` ` `` debug readout): 60 fps at 1x and 2x.
-  It holds at 4x too, four ticks to a `gameUpdate`, over those 20 000 ticks and over 80 000, by when the valley has
-  warmed through (`node harness/bench.js`, and with `--ticks 80000`; two runs of each, in node; 4x has not been timed
-  in the browser). Over 20 000 ticks: median 2.03-2.09 ms and p95 2.45-2.71 on each seed, where 0580e71 gave
-  12.87-13.23 and 13.81-14.48. Over 80 000: whole-run median 3.16-3.59 ms, p95 3.79-4.31 and p99 4.86-6.31; ticks
-  40 000-80 000 alone, median 3.45-3.84 and p95 3.95-4.74. 0580e71 gave 13.67-15.33 and 15.65-17.40 over the whole
-  run, 13.94-15.68 and 16.03-18.41 late (its three seeds run at once). A frame still costs more as the valley warms,
-  about 2.1 ms in the first fifth of the run and 3.5-4.2 in the last tenth: heat leaves only at the room's edges, and
-  lanterns, campfires, the furnace, fire and lava keep adding it, so hardly a row stays at exactly room temperature
-  for the heat step to pass by, and it passes instead by 4-cell words that are exactly cold and, in its second half,
-  by words that are steady (four things that neither melt, set nor boil between +0 and 100 degrees, in that band,
-  nothing soaked up). Not every frame is inside: the longest are one
-  of 196 ms on seed 3 after tick 40 000, in both runs (0580e71's longest on that seed, 919 ms), 58-60 ms on seed 7
-  and 30 ms on seed 14, and one such frame is a hitch on screen. Not every valley is inside either, though none is
-  slower than 0580e71 and every world matched. Past about 150 000 ticks, with the organ finished, builders' route
-  searches look for grates cell by cell again: from saves at 150 000, median 3.9-4.2 ms but p95 25.8 on seed 3 and
-  11.7-12.5 on seed 7 (seed 14, 6.0; 0580e71, 45.1, 28.0 and 19.1). A village with snow, ice, a forge or a smelt in
-  it is off room temperature from the start, so the heat step has fewer cold words to pass by: median 5.5-6.8 ms
-  and p95 10.6-11.1 (0580e71, about 20.7 and 33). And a width that is not a multiple of 4, which only
-  `window.PLEASAND_GW` can give, gets no word walks at all, so a warmed 1089- or 1091-wide valley is back near
-  0580e71's cost.
-  The world is the same: `harness/same.js` finds all 23 short and all 9 long and warm scenarios identical to
-  0580e71, and every run above ends on 0580e71's `hash()` and `stateHash`.
+  It holds at 4x too, four ticks to a `gameUpdate`, in node (4x has not been timed in the browser), in each of the
+  valleys below, on every seed. Each was timed twice with `node harness/bench.js` (harness/README.md, "The edges of
+  the budget"), a seed to a process, one run after another; the figures are seeds 3 / 7 / 14, as the two runs'
+  range where they differ, and 0580e71's, timed once straight after, are in brackets.
+  - Plain, 20 000 ticks: median 1.29-1.30 / 1.31 / 1.28-1.29 ms, p95 1.61-1.62 / 1.67-1.68 / 1.56-1.57 (0580e71,
+    timed earlier: 12.89 / 13.23 / 12.87 and 14.30 / 14.48 / 13.81).
+  - Plain, 80 000 ticks, by when the valley has warmed through: median 2.25-2.30 / 2.02-2.05 / 1.98-2.01, p95
+    2.98-3.09 / 2.81-2.90 / 2.52-2.60, p99 3.62-4.78 / 3.78-3.92 / 3.18-3.32; ticks 40 000-80 000 alone, median
+    2.53-2.58 / 2.36-2.40 / 2.22-2.24 and p95 3.17-3.42 / 3.01-3.11 / 2.63-2.73 (13.97 / 14.12 / 13.61 and 16.73 /
+    19.84 / 14.92 over the whole run).
+  - The long organ game, from saves at tick 150 000 (on seeds 3 and 7 the steam organ is finished, and a builder
+    about it looks for a route every tick), 10 000 ticks on: median 2.29-2.34 / 2.42-2.44 / 2.19-2.23, p95
+    5.95-6.12 / 4.09-4.12 / 3.47-3.59, p99 7.14-7.35 / 6.50-6.81 / 5.55-5.82 (13.64 / 14.02 / 13.63 and 43.65 /
+    24.32 / 17.32). The search still runs every tick; it costs less because the organ's grates are a map by cell
+    and a column with no grate in it is looked down straight off the grid. The frame that plans a cathedral weighs
+    its plots without making their plans.
+  - soak.js's leftovers village (a little snow and ice about it, salt, ash, glass, powder, the forge and smelt
+    ideas: about a fifth of the cells off room temperature by tick 8 000), from tick 0. Over 20 000 ticks: median
+    3.43-3.49 / 1.90 / 2.90-2.92, p95 5.62-5.64 / 2.36-2.38 / 3.36-3.37 (15.94 / 15.25 / 14.64 and 20.04 / 17.39 /
+    16.02). Over 60 000: median 3.35-3.40 / 2.67-2.68 / 2.91-2.96, p95 5.32-5.37 / 3.09-3.22 / 3.49-3.55 (15.62 /
+    15.54 / 15.24 and 26.60 / 24.31 / 17.69). Seed 3 is the dearest.
+
+  5ad0aea, the round before, timed once in the same hour, gave median 3.22-3.61 and p95 3.88-4.33 over the plain
+  80 000; p95 24.68 / 11.09 / 5.49 in the organ game; median 4.31-5.23 and p95 4.92-7.65 over the leftovers 60 000.
+  A frame still costs more as the valley warms, about 1.3-1.4 ms in the first three tenths of the plain 80 000 and
+  2.2-2.9 in the last: heat leaves only at the room's edges, and lanterns, campfires, the furnace, fire and lava keep
+  adding it, so hardly a row stays at exactly room temperature for the heat step to pass by. It passes instead by
+  4-cell words that are exactly cold or would do nothing all the same, works a word of four cells of air as one,
+  and in its second half passes by words that are steady (four things that neither melt, set nor boil between +0
+  and 100 degrees, in that band, nothing soaked up) or that its first half passed by cold with nothing done under
+  them. Not every frame is inside: the longest are one of 126-127 ms on seed 3 of the plain 80 000, in both runs
+  (0580e71's, 1 000 ms), 58-62 ms on seed 7 and 29 on seed 14; 60-62 / 30-32 / 68-69 ms over the leftovers 60 000
+  (0580e71, 338 / 300 / 456); 22 / 20-21 / 16-17 from the organ saves (78 / 251 / 47). One such frame is a hitch on
+  screen. Not timed in this round, and not chased: a valley frozen through or brushed with COOL, and a width that is
+  not a multiple of 4, which only `window.PLEASAND_GW` can give and which gets none of the heat step's or the sand
+  step's word walks.
+  The world is the same: `harness/same.js` finds all 23 short, all 9 long and warm and all 11 edge scenarios
+  identical to 0580e71, and every run above ends on 0580e71's `hash()` and `stateHash`.
   Measured before any of this, early game, seed 7, node: 0.93 ms/tick at 272 and 3.06 ms/tick at 1088; drawWorld
   0.29 ms at 272, 0.91 ms at 1088 unculled. If the budget is missed, the fix is in the simulation (skip rows with
   nothing to do), not by slowing the world far from the camera.
