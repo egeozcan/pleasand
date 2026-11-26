@@ -169,6 +169,23 @@ function bRemove(g, idx) {
   lMarkMen(g);   /* (and the snowmen, which are nobody's to dig up: leftovers.js) */
 }
 function bMarked(g, x, y) { return !!(g.bmark && x >= 0 && y >= 0 && x < g.gw && y < g.gh && g.bmark[y * g.gw + x]); }
+/* anything of anybody's in column x, rows a .. b: bMarked of any of them. with a plot's share S (wonders.js W_GSHARE), each
+   column's marks are counted down it once and remembered while the plotting lasts (nothing is marked or let go while a
+   plot is looked for), so a column is a subtraction */
+function bMarkedCol(g, S, x, a, b) {
+  var bm = g.bmark, gw = g.gw, gh = g.gh, y, n, base, mk;
+  if (!bm || x < 0 || x >= gw) return false;
+  a = Math.max(a, 0); b = Math.min(b, gh - 1);
+  if (a > b) return false;
+  if (!S) { for (y = a; y <= b; y++) if (bm[y * gw + x]) return true; return false; }
+  if (!S.mk || S.mkOf !== bm) { S.mk = new Uint16Array(gw * (gh + 1)); S.mkSeen = new Uint8Array(gw); S.mkOf = bm; }
+  base = x * (gh + 1); mk = S.mk;
+  if (!S.mkSeen[x]) {
+    for (n = 0, mk[base] = 0, y = 0; y < gh; y++) { if (bm[y * gw + x]) n++; mk[base + y + 1] = n; }
+    S.mkSeen[x] = 1;
+  }
+  return mk[base + b + 1] !== mk[base + a];
+}
 function bSite(g, id) {
   for (var k = 0; k < g.sites.length; k++) if (g.sites[k].id === id) return g.sites[k];
   return null;

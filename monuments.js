@@ -128,10 +128,11 @@ function mPlotAnyIn(g, o, S) {
   }
   for (F in rows) {
     o.floor = +F;
+    o.over = best ? best.score : null;   /* (a floor's plot no better than this one is not taken: wPlotIn need not fit it, with o.top) */
     var r = wPlot(g, o);
     if (r && (!best || r.score > best.score)) best = r;
   }
-  o.floor = null;
+  o.floor = null; o.over = null;
   return best;
 }
 /* the theatre's columns, stage end first: u (0 .. M_TW - 1) to x */
@@ -638,8 +639,9 @@ function mGraveyard(g) {
   return n ? x / n : 0;
 }
 function mPlanCathedral(g, p, near) {
-  var r = mPlotAny(g, { w: M_CATH_W, sky: 38, rough: 12, near: near || mGraveyard(g) || wMiddle(g), pad: 2, fit: mCathFit });
+  var r = mPlotAny(g, { w: M_CATH_W, sky: 38, rough: 12, near: near || mGraveyard(g) || wMiddle(g), pad: 2, fit: mCathFit, top: 60 });   /* (top: mCathAt never scores over 60) */
   if (!r) return false;
+  r.r.plan = mCathAt(g, r.x0, r.gy, r.r.F, true).plan;   /* (only weighed till now, every plot of it: mCathAt) */
   var x0 = r.x0, F = r.r.F, plan = wGild(g, mCleared(g, r, r.r.plan));
   var s = bNew(g, "cathedral", p, plan, [x0, F - 35, x0 + M_CATH_W - 1, F + r.r.deep],
                { wonder: true, F: F, ix0: x0 + 2, ix1: x0 + 14, rod: { x: x0 + 8, top: F - 35, bot: F - 1 }, niches: [], servT: 0 });
@@ -649,25 +651,27 @@ function mPlanCathedral(g, p, near) {
   return true;
 }
 /* on ground gy at x0: the floor at whichever row is the least work (no more than four under the highest of it: the
-   ground beside it would only pour in). {plan, F, score} or null */
+   ground beside it would only pour in). {plan: null (only weighed: mCathAt), F, deep, score} or null */
 function mCathFit(g, x0, gy, hi, lo) {
   var best = null;
-  for (var F = hi; F <= Math.min(lo, hi + 4); F++) { var r = mCathAt(g, x0, gy, F); if (r && (!best || r.score > best.score)) best = r; }
+  for (var F = hi; F <= Math.min(lo, hi + 4); F++) { var r = mCathAt(g, x0, gy, F, false); if (r && (!best || r.score > best.score)) best = r; }
   return best;
 }
-function mCathAt(g, x0, gy, F) {
-  var plan = [], work = 0, ruby = wCellsSure(g, "gold") >= 1, u, x, y, h, r, c, v, e, k, t;
+/* build: the plan too. without it (a plot only being weighed), {plan: null, F, deep, score}: the same say, yes or no, and
+   the same score, from the same looks in the same order, but none of the entries made (thousands of plots are weighed for
+   the one that is built: mPlanCathedral builds that one's plan after, over the same world). what is looked at to make an
+   entry, and not to say yes or no or to score (the gold for the rose: wCellsSure), is not looked at. nothing here, nor in
+   bE, changes anything */
+function mCathAt(g, x0, gy, F, build) {
+  var plan = build ? [] : null, work = 0, ruby = build && wCellsSure(g, "gold") >= 1, u, x, y, h, r, c, v, e, k, t;
   /* (the crypt goes down ten under the floor: nothing of anybody's down there, and nothing wet, hot or bang about it) */
   for (k = 0; k < g.sites.length; k++) { t = g.sites[k]; if (x0 + 17 >= t.x0 && x0 - 1 <= t.x1 && F + 12 >= t.y0 && F <= t.y1) return null; }
-  for (u = -1; u <= 17; u++) for (y = F; y <= F + 12; y++) {
-    c = pCell(g, x0 + u, y);
-    if (LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c] || (u >= 0 && u <= 16 && y <= F + 10 && bMarked(g, x0 + u, y))) return null;
-  }
+  if (!mCathOpen(g, x0, F)) return null;
   function cut(x, y, ph) {   /* dug out (sand), or cut (rock): true if it can be */
     c = pCell(g, x, y);
     if (AIRY[c]) return true;
-    if (ROCK[c]) { e = bE(g, x, y, MAT.EMPTY, ph); e.mine = true; plan.push(e); work += 1; return true; }
-    if (B_DIG[c] || mFellable(g, x, y, c)) { plan.push(bE(g, x, y, MAT.EMPTY, ph)); work += 0.3; return true; }
+    if (ROCK[c]) { if (plan) { e = bE(g, x, y, MAT.EMPTY, ph); e.mine = true; plan.push(e); } work += 1; return true; }
+    if (B_DIG[c] || mFellable(g, x, y, c)) { if (plan) plan.push(bE(g, x, y, MAT.EMPTY, ph)); work += 0.3; return true; }
     return false;
   }
   /* (ground much higher than the floor just outside it would pour in at the doors) */
@@ -680,30 +684,47 @@ function mCathAt(g, x0, gy, F) {
      anything, from the bottom up. then the ladder, from the bottom up, and the floor over it all */
   /* (a door over low ground, on a terrace, has nothing to hold back, and nothing to stand on to build it from until the
      floor is down: it goes up with the rest of the nave) */
-  for (h = 1; h <= 9; h++) for (u = 1; u <= 15; u += 14) plan.push(bE(g, x0 + u, F - h, MAT.DOOR, gy[u] <= F + 1 ? 10 + h : 60 + h, 10 - h));
+  if (plan) for (h = 1; h <= 9; h++) for (u = 1; u <= 15; u += 14) plan.push(bE(g, x0 + u, F - h, MAT.DOOR, gy[u] <= F + 1 ? 10 + h : 60 + h, 10 - h));
   var deep = 10;
   for (u = 0; u < M_CATH_W; u++) deep = Math.max(deep, gy[u] - F - 1);
   for (r = 0; r <= deep; r++) for (u = 0; u < M_CATH_W; u++) {
     x = x0 + u; y = F + r; v = r > 10 ? -1 : mCryptCell(u, r); c = pCell(g, x, y);
     /* (on a slope: a terrace of stone under the low end, down to the ground, and round the crypt) */
-    if (v < 0) { if (y < gy[u]) { if (!AIRY[c] && !B_DIG[c]) return null; plan.push(bE(g, x, y, MAT.BRICK, 2)); work++; } continue; }
+    if (v < 0) { if (y < gy[u]) { if (!AIRY[c] && !B_DIG[c]) return null; if (plan) plan.push(bE(g, x, y, MAT.BRICK, 2)); work++; } continue; }
     if (v === MAT.BRICK) {
       if (ROCK[c]) continue;   /* (the rock is the wall) */
-      if (AIRY[c]) { plan.push(bE(g, x, y, v, 2)); work++; continue; }
+      if (AIRY[c]) { if (plan) plan.push(bE(g, x, y, v, 2)); work++; continue; }
       if (!B_DIG[c]) return null;
-      e = bE(g, x, y, v, r ? 20 + 2 * r : 10); e.drive = true; plan.push(e); work += 0.6;
+      if (plan) { e = bE(g, x, y, v, r ? 20 + 2 * r : 10); e.drive = true; plan.push(e); } work += 0.6;
       continue;
     }
     if (!cut(x, y, 21 + 2 * r)) return null;
-    if (v === MAT.LADDER) { plan.push(bE(g, x, y, v, 41 + 9 - r, u - 2)); work += 0.3; }
-    else if (v === MAT.PLANK) { plan.push(bE(g, x, y, v, 51)); work += 0.3; }
+    if (v === MAT.LADDER) { if (plan) plan.push(bE(g, x, y, v, 41 + 9 - r, u - 2)); work += 0.3; }
+    else if (v === MAT.PLANK) { if (plan) plan.push(bE(g, x, y, v, 51)); work += 0.3; }
   }
   /* the nave, the gable, the belfry, the spire: from the floor up */
-  for (h = 1; h <= 35; h++) for (u = 0; u < M_CATH_W; u++) {
+  if (plan) for (h = 1; h <= 35; h++) for (u = 0; u < M_CATH_W; u++) {
     var cell = mCathCell(u, h, ruby);
     if (cell && cell[0] !== MAT.DOOR) plan.push(bE(g, x0 + u, F - h, cell[0], cell[0] === MAT.LAMP ? 60 + 14 : 60 + h, cell[1]));   /* (the candles hang from the vault: after it) */
   }
   return { plan: plan, F: F, deep: deep, score: 60 - work * 0.2 };
+}
+/* nothing wet, hot, a drain or that goes bang in columns x0 - 1 .. x0 + 17, rows F .. F + 12, nor anybody's in x0 .. x0 + 16,
+   rows F .. F + 10 (only looked at: whichever is looked at first, the answer is the same). while a plot is looked for, each
+   column of it is looked down once (wonders.js W_GSHARE: wHazardCol, and build.js bMarkedCol), not cell by cell for every
+   plot and floor that has it */
+function mCathOpen(g, x0, F) {
+  var S = W_GSHARE, u, y, c;
+  if (S && S.g === g && S.gw === g.gw && S.gh === g.gh) {
+    for (u = -1; u <= 17; u++) if (wHazardCol(g, S, x0 + u, F, F + 12)) return false;
+    for (u = 0; u <= 16; u++) if (bMarkedCol(g, S, x0 + u, F, F + 10)) return false;
+    return true;
+  }
+  for (u = -1; u <= 17; u++) for (y = F; y <= F + 12; y++) {
+    c = pCell(g, x0 + u, y);
+    if (LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c] || (u >= 0 && u <= 16 && y <= F + 10 && bMarked(g, x0 + u, y))) return false;
+  }
+  return true;
 }
 /* finished: the names go down into the crypt, the bell is rehung in the belfry, and a service is not far off */
 function mCathFinished(g, s, p) {

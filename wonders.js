@@ -1522,7 +1522,7 @@ function wPlot(g, o) {
   try { return wPlotIn(g, o, W_GSHARE); } finally { W_GSHARE = prev; }
 }
 function wPlotIn(g, o, S) {
-  var best = null, W = o.w, pad = o.pad == null ? 3 : o.pad, sky = o.sky || 12, x0, x, y, k, gy, hi, lo, ok, r, sc;
+  var best = null, W = o.w, pad = o.pad == null ? 3 : o.pad, sky = o.sky || 12, x0, x, y, k, gy, hi, lo, ok, r, sc, pen, top = o.top != null;
   /* (in the village's range: world.js. o.lo, o.hi: only plots starting at or after lo, and ending before hi) */
   var xa = Math.max(rLo(g, 6 + pad), o.lo == null ? -1e9 : o.lo), xb = Math.min(rHi(g, 6 + pad), o.hi == null ? 1e9 : o.hi);
   var G = wGroundCols(S, o.floor);
@@ -1534,6 +1534,14 @@ function wPlotIn(g, o, S) {
       gy.push(y); hi = Math.min(hi, y); lo = Math.max(lo, y);
     }
     if (!ok || lo - hi > (o.rough == null ? 4 : o.rough) || hi - sky < 4) continue;
+    /* (o.top: fit never scores over it, and only looks, as does all that is looked at here before it. a plot that could
+       not beat the best so far even so, nor o.over (another floor's best: mPlotAny), is let be: it could only lose, or
+       tie, and the first of a tie wins. sc below is never over top - pen, with or without what is to be cleared:
+       the same sums, and a float sum is no bigger for a smaller term in it) */
+    if (top && (best || o.over != null)) {
+      pen = o.edge ? Math.min(x0 - vRange(g).x0, vRange(g).x1 + 1 - x0 - W) * 0.15 : Math.abs(x0 + W / 2 - (o.near || rMid(g))) * 0.1;
+      if ((best && o.top - pen <= best.score) || (o.over != null && o.top - pen <= o.over)) continue;
+    }
     if (g.tip && x0 <= g.tip.x + 8 && x0 + W - 1 >= g.tip.x - 8) continue;   /* (the heap: tidy.js. its site has room about it already) */
     if (wSandNo(g, x0, x0 + W - 1)) continue;   /* (where a great work was given up to the sand lately) */
     for (k = 0; k < g.sites.length && ok; k++) {
@@ -1545,7 +1553,12 @@ function wPlotIn(g, o, S) {
     /* open sky over it: air, or what a spade (or an axe) can clear (a bush, a tree: cleared first) */
     var clear = [];
     for (x = x0; x < x0 + W && ok; x++) ok = wClearCol(g, S, x, hi - sky, gy[x - x0], clear);
-    if (!ok || !(r = o.fit(g, x0, gy, hi, lo))) continue;
+    if (!ok) continue;
+    if (top && (best || o.over != null)) {   /* (and again, with what is to be cleared: top - clear - pen) */
+      sc = o.top - clear.length * 0.1 - pen;
+      if ((best && sc <= best.score) || (o.over != null && sc <= o.over)) continue;
+    }
+    if (!(r = o.fit(g, x0, gy, hi, lo))) continue;
     sc = r.score - clear.length * 0.1 - (o.edge ? Math.min(x0 - vRange(g).x0, vRange(g).x1 + 1 - x0 - W) * 0.15 : Math.abs(x0 + W / 2 - (o.near || rMid(g))) * 0.1);
     if (!best || sc > best.score) best = { x0: x0, gy: gy, hi: hi, lo: lo, score: sc, r: r, clear: clear };
   }
@@ -1564,7 +1577,7 @@ var W_GSHARE = null;
 var W_HZ = AIRY.map(function (v, c) { return LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c] ? 1 : 0; });
 function wShareOpen(g) {
   var prev = W_GSHARE;
-  if (!prev || prev.g !== g) W_GSHARE = { g: g, gw: g.gw, gh: g.gh, cols: {}, hz: null, nx: null, seen: null, rows: null };
+  if (!prev || prev.g !== g) W_GSHARE = { g: g, gw: g.gw, gh: g.gh, cols: {}, hz: null, nx: null, seen: null, rows: null, mk: null, mkSeen: null, mkOf: null };   /* (mk: build.js bMarkedCol) */
   return prev;
 }
 /* the ground wPlot stands a plot on, column by column: mGround (or the floor's, mGroundNear), if it is firm and not too

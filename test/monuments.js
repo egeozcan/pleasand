@@ -235,6 +235,105 @@ module.exports = function (test, check, sim) {
     check(w.wLitGlass(g, s.x0 + 8, s.F - 18) && w.wLitGlass(g, s.x0 + 6, s.F - 16), "the candles do not light the rose from behind");
   });
 
+  /* the cathedral's plot is weighed without its plans (mCathAt, build false), a plot that could not win even at the top
+     score is not weighed at all (wPlotIn, o.top and o.over), and the walls and marks are looked down a column at a time
+     (mCathOpen, with the plot's share). it must still be the plot, floor and plan, entry for entry, that weighing every
+     plot of every floor with its plan made, cell by cell, finds: here over valleys with ponds, lava, rock, houses, trees,
+     a shelf, stray marks, and a long level stretch where every plot scores the same but for how far off it is. and again
+     once the cathedral is planned and more is marked and spilled: nothing looked at the first time is remembered */
+  test("cathedral: the plot weighed without its plans, and only where it could win, is the plot every full plan would pick", function () {
+    var seen = { fits: 0, tight: 0, refFits: 0, at: 0, built: 0 };
+    function scene(seed, gw, mess, at) {
+      var w = sim.load(seed, { gw: gw }), g = w.g, M = w.MAT, k, pass;
+      know(g, ["farm", "dig", "bucket", "mine", "masonry", "glass", "stained", "cathedral"]);
+      g.peasants.forEach(function (q, j) { q.gold = j === 0 ? 1 : 0; });
+      if (mess) mess(w, g, M);
+      function hz(c) { return w.LIQUID[c] || w.HOT[c] || c === M.DRAIN || w.P_BANG[c]; }
+      function open(x0, F) {   /* (the walls and the marks, cell by cell, as they were looked at) */
+        for (var u = -1; u <= 17; u++) for (var y2 = F; y2 <= F + 12; y2++) {
+          var c = w.pCell(g, x0 + u, y2);
+          if (hz(c) || (u >= 0 && u <= 16 && y2 <= F + 10 && w.bMarked(g, x0 + u, y2))) return false;
+        }
+        return true;
+      }
+      function proj(e) { return [e.i, e.v, e.a, e.sh, e.ph, !!e.mine, !!e.drive].join(","); }
+      for (pass = 0; pass < 2; pass++) {
+        var near = at || w.mGraveyard(g) || w.wMiddle(g), top = -1e9, tag = "seed " + seed + (pass ? ", again" : "");
+        var o = { w: w.M_CATH_W, sky: 38, rough: 12, near: near, pad: 2 };
+        var ref = w.mPlotAny(g, { w: o.w, sky: o.sky, rough: o.rough, near: near, pad: 2, fit: function (g2, x0, gy, hi, lo) {
+          seen.refFits++;
+          var best = null, F;
+          for (F = Math.max(1, hi - 2); F <= Math.min(lo, hi + 4) + 2; F++) if (!w.mCathOpen(g2, x0, F) !== !open(x0, F)) check(false, tag + ": x0 " + x0 + " F " + F + ": mCathOpen says " + w.mCathOpen(g2, x0, F));
+          for (F = hi; F <= Math.min(lo, hi + 4); F++) {
+            var r = w.mCathAt(g2, x0, gy, F, true), q = w.mCathAt(g2, x0, gy, F, false);
+            seen.at++;
+            check(!r === !q, tag + ": x0 " + x0 + " F " + F + ": weighed " + (q ? "fits" : "does not") + ", planned " + (r ? "fits" : "does not"));
+            if (r) check(q.score === r.score && q.deep === r.deep && q.F === r.F && q.plan === null, tag + ": x0 " + x0 + " F " + F + ": weighed at " + q.score + ", planned at " + r.score);
+            if (r) top = Math.max(top, r.score);
+            if (r && (!best || r.score > best.score)) best = r;
+          }
+          return best;
+        } });
+        /* (as planned, with top 60; and with the best score there is as top, the most it can be let be by and still be so) */
+        [60, top].forEach(function (t) {
+          var got = w.mPlotAny(g, { w: o.w, sky: o.sky, rough: o.rough, near: near, pad: 2, top: t, fit: function (g2, x0, gy, hi, lo) { seen[t === 60 ? "fits" : "tight"]++; return w.mCathFit(g2, x0, gy, hi, lo); } });
+          check(!ref === !got, tag + ", top " + t + ": " + (ref ? "a plot" : "no plot") + " for the full plans, " + (got ? "a plot" : "none") + " weighed");
+          if (ref) check(got.x0 === ref.x0 && got.score === ref.score && got.r.F === ref.r.F && got.r.score === ref.r.score && got.hi === ref.hi && got.lo === ref.lo &&
+                         got.gy.join() === ref.gy.join() && got.clear.join() === ref.clear.join(),
+                         tag + ", top " + t + ": weighed x0 " + got.x0 + " F " + got.r.F + " at " + got.score + ", every plan x0 " + ref.x0 + " F " + ref.r.F + " at " + ref.score);
+        });
+        if (!ref) return w;
+        /* and planned: the site's plan is the full plan's, cleared and gilded, entry for entry */
+        var want = w.wGild(g, w.mCleared(g, ref, ref.r.plan)).map(proj), n0 = sites(g, "cathedral").length;
+        check(w.mPlanCathedral(g, g.peasants[0], near), tag + ": nowhere for the cathedral");
+        var s = sites(g, "cathedral")[n0], have = s.plan.map(proj);
+        seen.built++;
+        check(s.x0 === ref.x0 && s.F === ref.r.F && s.y1 === ref.r.F + ref.r.deep, tag + ": the cathedral is at x0 " + s.x0 + " F " + s.F);
+        check(have.length === want.length, tag + ": " + have.length + " entries in the plan, " + want.length + " in the full plan");
+        for (k = 0; k < want.length; k++) if (have[k] !== want[k]) { check(false, tag + ": entry " + k + " is " + have[k] + ", the full plan's " + want[k]); break; }
+        sprinkle(w, g, M, 777 + seed, 30);   /* (more marked, and spilt, for the second look) */
+      }
+      return w;
+    }
+    /* (a mess about the middle of the valley: a pond, a lick of lava, a boulder of rock, a tree, a shelf with a cave under it) */
+    function mess(w, g, M) {
+      var mid = Math.round(w.wMiddle(g)), x, y, G;
+      for (x = mid - 60; x <= mid + 60; x += 30) {
+        G = w.mGround(g, x, true);
+        if (G < 20) continue;
+        w.sandPlace(g, G * g.gw + x, M.WATER);
+        w.sandPlace(g, (G - 1) * g.gw + x + 9, M.LAVA);
+        for (y = G - 3; y < G; y++) w.sandPlace(g, y * g.gw + x + 15, M.STONE);
+        w.sandPlace(g, (G - 1) * g.gw + x + 21, M.WOOD);
+      }
+      x = mid + 90; G = w.mGround(g, x, true);
+      if (G > 40) for (var u = 0; u < 30; u++) for (y = G - 14; y < G - 11; y++) w.sandPlace(g, y * g.gw + x + u, M.STONE);
+    }
+    /* (and here and there a cell marked as somebody's, or wet, hot or bang, by itself, not a site: the walls and marks of
+       every floor are told apart by the row) */
+    function sprinkle(w, g, M, n0, many) {
+      var n = n0 || 12345, x, y, k, mid = Math.round(w.wMiddle(g));
+      function rnd(m) { n = (n * 1103515245 + 12345) >>> 0; return (n >>> 8) % m; }
+      if (!g.bmark || g.bmark.length !== g.m.length) g.bmark = new Uint8Array(g.m.length);
+      for (k = 0; k < (many || 60); k++) {
+        x = mid - 200 + rnd(400); if (x < 1 || x >= g.gw - 1) continue;
+        y = w.mGround(g, x, true) + rnd(30) - 4; if (y < 20 || y >= g.gh) continue;
+        if (k % 4) g.bmark[y * g.gw + x] = 1;
+        else w.sandPlace(g, y * g.gw + x, [M.WATER, M.LAVA, M.GUNPOWDER, M.FIRE][rnd(4)]);
+      }
+    }
+    scene(1, 272);
+    scene(5, 1088, sprinkle);
+    scene(9, 1088, function (w, g, M) { mess(w, g, M); sprinkle(w, g, M); });
+    scene(1, 1088);
+    scene(3, 1088, mess);
+    scene(7, 1088, mess);
+    scene(14, 1088, function (w, g, M) { mess(w, g, M); ground(w, 400, 470, function (x) { return 150 - ((x / 7) | 0) % 3; }); });
+    scene(2, 1088, function (w) { ground(w, 330, 700, function () { return 150; }); }, 515.25);
+    check(seen.fits < seen.refFits && seen.built >= 14, "every plot was weighed (" + seen.fits + " of " + seen.refFits + "), or only " + seen.built + " planned");
+    console.log("      (" + seen.refFits + " plots, " + seen.at + " floors of them, weighed in full; " + seen.fits + " weighed without, " + seen.tight + " at the tightest top; " + seen.built + " planned)");
+  });
+
   test("cathedral: a bolt aimed at a house beside it goes down the rod, and nothing burns; open ground is struck where it was aimed", function () {
     var C = cathedral(true), w = C.w, g = C.g, s = C.s, M = w.MAT, x, y;
     g.peasants.forEach(function (q) { q.x = 20; });
