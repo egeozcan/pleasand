@@ -929,19 +929,26 @@ function pOValve(g, s, n) { return pOLid(s.G) * g.gw + pOPipeX(s, n); }
 /* THE GRATES: each pipe's valve, and the top of each pipe, are grates. steam goes up through them, open or shut, as it
    goes through air; a peasant does not, walking, standing or falling (peasants.js pSolid, pFoot, pBody, pStiff). nobody
    drops down a pipe, or through an open valve into the boiling tank. cached for the tick: P_GRATE is scratch */
-var P_GRATE = { g: null, t: -1, n: -1, gen: -1, j: null };
+var P_GRATE = { g: null, t: -1, n: -1, gen: -1, j: null, m: null, c: null };
 function pGrate(g, j) {
-  if (P_GRATE.g !== g || P_GRATE.t !== g.tick || P_GRATE.n !== g.sites.length || P_GRATE.gen !== SAVE_GEN) {   /* (a load: save.js SAVE_GEN) */
-    var J = null;
-    for (var k = 0; k < g.sites.length; k++) {
-      var s = g.sites[k];
-      if (s.kind !== "organ" || !s.done) continue;
-      J = J || {};
-      for (var n = 0; n < P_ON; n++) { J[pOValve(g, s, n)] = 1; J[(pOLid(s.G) - P_OH[n]) * g.gw + pOPipeX(s, n)] = 1; }
+  if (P_GRATE.g !== g || P_GRATE.t !== g.tick || P_GRATE.n !== g.sites.length || P_GRATE.gen !== SAVE_GEN) pGrateFill(g);   /* (a load: save.js SAVE_GEN) */
+  return P_GRATE.j !== null && j >= 0 && j < P_GRATE.m.length && P_GRATE.m[j] === 1;
+}
+/* (the cells as a map, by cell, and the columns they are in: P_GRATE.j is the list of them, or null for none) */
+function pGrateFill(g) {
+  var C = P_GRATE, N = g.gw * g.gh, J = null, k, i;
+  if (C.j !== null) for (k = 0; k < C.j.length; k++) { C.m[C.j[k]] = 0; C.c[C.j[k] % C.c.length] = 0; }
+  if (!C.m || C.m.length !== N || C.c.length !== g.gw) { C.m = new Uint8Array(N); C.c = new Uint8Array(g.gw); }
+  for (k = 0; k < g.sites.length; k++) {
+    var s = g.sites[k];
+    if (s.kind !== "organ" || !s.done) continue;
+    J = J || [];
+    for (var n = 0; n < P_ON; n++) {
+      i = pOValve(g, s, n); if (i >= 0 && i < N && C.m[i] !== 1) { C.m[i] = 1; C.c[i % g.gw] = 1; J.push(i); }
+      i = (pOLid(s.G) - P_OH[n]) * g.gw + pOPipeX(s, n); if (i >= 0 && i < N && C.m[i] !== 1) { C.m[i] = 1; C.c[i % g.gw] = 1; J.push(i); }
     }
-    P_GRATE.g = g; P_GRATE.t = g.tick; P_GRATE.n = g.sites.length; P_GRATE.gen = SAVE_GEN; P_GRATE.j = J;
   }
-  return !!(P_GRATE.j && P_GRATE.j[j]);
+  C.g = g; C.t = g.tick; C.n = g.sites.length; C.gen = SAVE_GEN; C.j = J;
 }
 function pOOpen(g, s, n) { var j = pOValve(g, s, n); if (g.m[j] === MAT.METAL) { heatVanish(g, j); g.fx.clank++; } }
 /* shut: the iron of the valve back in the lid, if there is nothing in the way of it (steam on its way through: next tick) */
