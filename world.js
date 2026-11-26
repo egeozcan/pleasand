@@ -1255,28 +1255,76 @@ function sandStatic(g, i, x, y) {
   }
 }
 
+/* one cell's go, in the step's order of asking */
+function sandTurn(g, i, x, y, v) {
+  if (v === MAT.FIRE) sandFire(g, i, x, y);
+  else if (v === MAT.SMOKE) sandSmoke(g, i, x, y);
+  else if (v === MAT.STEAM) sandSteam(g, i, x, y);
+  else if (v === MAT.GAS) sandGas(g, i, x, y);
+  else if (v === MAT.SAND || v === MAT.ASH || v === MAT.GUNPOWDER || v === MAT.SALT || v === MAT.SEED ||
+           v === MAT.FIREWORK || v === MAT.NUKE || v === MAT.SNOW) sandPowder(g, i, x, y);
+  else if (LIQUID[v]) sandLiquid(g, i, x, y);
+  else sandStatic(g, i, x, y);
+}
+
+/* most of the valley is sky and rock, and the step only has to see that. so it looks along a row four cells at a
+   time, through a 32-bit view of g.m: a word whose four cells are all STILL (STILL2: both bytes of a half) is passed
+   over whole. each of the four would only have been skipped, and nothing runs in between that could put anything
+   there. the word is read when the walk comes to it, not before: a cell earlier in the row may just have moved in.
+   (the view is kept here, not on g, and made again for a new g.m) */
+var STILL2 = new Uint8Array(65536), sandM32 = null, sandM32Of = null;
+(function () { for (var k = 0; k < 65536; k++) STILL2[k] = STILL[k & 255] && STILL[k >> 8] ? 1 : 0; })();
+
 function sandStep(g) {
-  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k;
+  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, w, row, m32;
   g.parity ^= 1;
   g.pressN = 0;
   if (gw > VIEW_GW && T % 300 === 0) vRangeSet(g);   /* (the village's range, now and then: section 7) */
   /* bottom to top, alternating left and right, so nothing gets a free ride */
-  for (y = gh - 1; y >= 0; y--) {
-    var flip = ((y + g.parity) & 1) === 1, row = y * gw;
-    for (xi = 0; xi < gw; xi++) {
-      x = flip ? gw - 1 - xi : xi;
-      i = row + x;
-      v = m[i];
-      if (STILL[v]) continue;
-      if (st[i] === T) continue;
-      if (v === MAT.FIRE) sandFire(g, i, x, y);
-      else if (v === MAT.SMOKE) sandSmoke(g, i, x, y);
-      else if (v === MAT.STEAM) sandSteam(g, i, x, y);
-      else if (v === MAT.GAS) sandGas(g, i, x, y);
-      else if (v === MAT.SAND || v === MAT.ASH || v === MAT.GUNPOWDER || v === MAT.SALT || v === MAT.SEED ||
-               v === MAT.FIREWORK || v === MAT.NUKE || v === MAT.SNOW) sandPowder(g, i, x, y);
-      else if (LIQUID[v]) sandLiquid(g, i, x, y);
-      else sandStatic(g, i, x, y);
+  if ((gw & 3) === 0 && (m.byteOffset & 3) === 0) {
+    if (sandM32Of !== m) { sandM32 = new Int32Array(m.buffer, m.byteOffset, m.length >> 2); sandM32Of = m; }
+    m32 = sandM32;
+    for (y = gh - 1; y >= 0; y--) {
+      row = y * gw;
+      if (((y + g.parity) & 1) === 1) {
+        /* right to left: a word is looked at from its top byte, the first of it the walk comes to */
+        for (x = gw - 1; x >= 0; x--) {
+          i = row + x;
+          if ((x & 3) === 3) {
+            w = m32[i >> 2];
+            if (w === 0 || (STILL2[w & 0xffff] && STILL2[w >>> 16])) { x -= 3; continue; }
+          }
+          v = m[i];
+          if (STILL[v]) continue;
+          if (st[i] === T) continue;
+          sandTurn(g, i, x, y, v);
+        }
+      } else {
+        for (x = 0; x < gw; x++) {
+          i = row + x;
+          if ((x & 3) === 0) {
+            w = m32[i >> 2];
+            if (w === 0 || (STILL2[w & 0xffff] && STILL2[w >>> 16])) { x += 3; continue; }
+          }
+          v = m[i];
+          if (STILL[v]) continue;
+          if (st[i] === T) continue;
+          sandTurn(g, i, x, y, v);
+        }
+      }
+    }
+  } else {
+    for (y = gh - 1; y >= 0; y--) {
+      var flip = ((y + g.parity) & 1) === 1;
+      row = y * gw;
+      for (xi = 0; xi < gw; xi++) {
+        x = flip ? gw - 1 - xi : xi;
+        i = row + x;
+        v = m[i];
+        if (STILL[v]) continue;
+        if (st[i] === T) continue;
+        sandTurn(g, i, x, y, v);
+      }
     }
   }
   /* the pressure tries, once everything else has had its go. a cell may have moved
