@@ -1733,13 +1733,17 @@ module.exports = function (test, check, sim) {
     h.step(20); control.step(20);
     check(!h.g.rocket && h.hash() === control.hash(), "restored, the rocket is still going up: " + !!h.g.rocket);
     /* (what the great works' files keep at the top level, that changes: none of it the world. W_DEFS is filled as they
-       load; H_LBL is scratch for one call; P_OQ is the organ's notes waiting to be heard) */
+       load; H_LBL is scratch for one call; W_GSHARE is scratch for one plan, what its plotting looked at, put back as
+       it was when the plan is done; P_OQ is the organ's notes waiting to be heard) */
     var fs = require("fs"), path = require("path"), root = path.join(__dirname, ".."), found = [];
     ["wonders.js", "heavens.js", "monuments.js", "pleasures.js"].forEach(function (f) {
       var re = /^var ([A-Z_0-9]+) = (\[\]|\{\}|null|new )/gm, m, src = fs.readFileSync(path.join(root, f), "utf8");
       while ((m = re.exec(src))) found.push(m[1]);
     });
-    check(found.sort().join() === "H_LBL,P_OQ,W_DEFS", "the great works keep this outside g: " + found.join());
+    check(found.sort().join() === "H_LBL,P_OQ,W_DEFS,W_GSHARE", "the great works keep this outside g: " + found.join());
+    var p = h.g.peasants.filter(function (q) { return !q.dead; })[0];
+    h._eval("mPlanTheatre")(h.g, p); h._eval("hPlanRocket")(h.g, p);
+    check(h._eval("W_GSHARE") === null, "a plan's plotting kept what it looked at after it");
   });
   test("moon rocket: gilded, its gold gone, the gilded nose knocked off: mended in stone, not waiting on gold for ever", function () {
     var R = rocket(false), w = R.w, g = R.g, s = R.s, M = w.MAT, t;

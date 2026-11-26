@@ -116,8 +116,16 @@ function mCleared(g, r, plan) {
 /* wPlot, on the ground under open sky, and on every other floor of the valley too (under a shelf of rock, on a ledge):
    whichever is best. a crowded valley has room on some floor more often than on the top one */
 function mPlotAny(g, o) {
-  var best = wPlot(g, o), rows = {}, x, k, L, F;
-  for (x = rLo(g, 8); x < rHi(g, 8); x += 6) { L = mFloors(g, x, true); for (k = 0; k < L.length; k++) rows[(L[k] >> 2) << 2] = 1; }
+  /* (every floor's plotting looks at the same world: what it looks at is looked at once. wonders.js W_GSHARE) */
+  var prev = wShareOpen(g);
+  try { return mPlotAnyIn(g, o, W_GSHARE); } finally { W_GSHARE = prev; }
+}
+function mPlotAnyIn(g, o, S) {
+  var best = wPlot(g, o), rows = S.rows, x, k, L, F;
+  if (!rows) {
+    rows = S.rows = {};
+    for (x = rLo(g, 8); x < rHi(g, 8); x += 6) { L = mFloors(g, x, true); for (k = 0; k < L.length; k++) rows[(L[k] >> 2) << 2] = 1; }
+  }
   for (F in rows) {
     o.floor = +F;
     var r = wPlot(g, o);
@@ -130,11 +138,13 @@ function mPlotAny(g, o) {
 var M_TW = 17;   /* the theatre, across: the stage (seven), the pit (one), three tiers of three */
 function mU(s, u) { return s.d > 0 ? s.x0 + u : s.x0 + (s.tw || M_TW) - 1 - u; }   /* (s.tw: its own width, kept on it when planned) */
 function mPlanTheatre(g, p) {
-  var best = null;
-  for (var d = -1; d <= 1; d += 2) {
-    var r = mPlotAny(g, { w: M_TW, sky: 14, rough: 14, near: wMiddle(g), fit: function (g, x0, gy) { return mTheatreFit(g, x0, gy, d); } });
-    if (r && (!best || r.score > best.score)) { best = r; best.d = d; }
-  }
+  var best = null, prev = wShareOpen(g);   /* (either way about, the same world looked at: looked at once, for both. wonders.js W_GSHARE) */
+  try {
+    for (var d = -1; d <= 1; d += 2) {
+      var r = mPlotAny(g, { w: M_TW, sky: 14, rough: 14, near: wMiddle(g), fit: function (g, x0, gy) { return mTheatreFit(g, x0, gy, d); } });
+      if (r && (!best || r.score > best.score)) { best = r; best.d = d; }
+    }
+  } finally { W_GSHARE = prev; }
   if (!best) return false;
   var f = best.r, plan = mCleared(g, best, f.plan), G = f.G, x0 = best.x0, d = best.d;
   var s = bNew(g, "theatre", p, plan, [x0, G - 14, x0 + M_TW - 1, f.lo], { wonder: true, d: d, G: G, seats: f.seats, playT: 0, tw: M_TW });

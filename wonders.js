@@ -1518,14 +1518,19 @@ function wPartOfIt(g, s, f) { var d = wOf(s.kind); return !!(d && d.partOfIt && 
    hi, lo, score, r (what fit said)} or null
    ------------------------------------------------------------------- */
 function wPlot(g, o) {
-  var best = null, W = o.w, pad = o.pad == null ? 3 : o.pad, sky = o.sky || 12, x0, x, y, k, c, gy, hi, lo, ok, r, sc;
+  var prev = wShareOpen(g);
+  try { return wPlotIn(g, o, W_GSHARE); } finally { W_GSHARE = prev; }
+}
+function wPlotIn(g, o, S) {
+  var best = null, W = o.w, pad = o.pad == null ? 3 : o.pad, sky = o.sky || 12, x0, x, y, k, gy, hi, lo, ok, r, sc;
   /* (in the village's range: world.js. o.lo, o.hi: only plots starting at or after lo, and ending before hi) */
   var xa = Math.max(rLo(g, 6 + pad), o.lo == null ? -1e9 : o.lo), xb = Math.min(rHi(g, 6 + pad), o.hi == null ? 1e9 : o.hi);
+  var G = wGroundCols(S, o.floor);
   for (x0 = xa; x0 + W - 1 < xb; x0++) {
     gy = []; hi = 1e9; lo = -1; ok = true;
     for (x = x0; x < x0 + W && ok; x++) {
-      y = o.floor != null ? mGroundNear(g, x, true, o.floor) : mGround(g, x, true);   /* (o.floor: the floor about level with that row, under a shelf, say: monuments.js) */
-      if (y < 10 || !pSolid(g, x, y)) { ok = false; break; }
+      y = wGroundCol(g, G, x, o.floor);
+      if (y < 0) { ok = false; x0 = x; break; }   /* (and every plot over that column fails the same way: on past it) */
       gy.push(y); hi = Math.min(hi, y); lo = Math.max(lo, y);
     }
     if (!ok || lo - hi > (o.rough == null ? 4 : o.rough) || hi - sky < 4) continue;
@@ -1535,23 +1540,93 @@ function wPlot(g, o) {
       var t = g.sites[k];
       if (x0 + W - 1 + pad >= t.x0 && x0 - pad <= t.x1 && lo + 4 >= t.y0 && hi - sky <= t.y1) ok = false;
     }
-    for (y = hi - sky; y <= lo + 2 && ok; y++) for (x = x0 - 2; x <= x0 + W + 1 && ok; x++) {
-      c = pCell(g, x, y);
-      if (LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c]) ok = false;
-    }
+    /* nothing wet, hot, a drain or anything that goes bang, from the sky wanted over it down to just under it */
+    for (x = x0 - 2; x <= x0 + W + 1 && ok; x++) if (wHazardCol(g, S, x, hi - sky, lo + 2)) ok = false;
     /* open sky over it: air, or what a spade (or an axe) can clear (a bush, a tree: cleared first) */
     var clear = [];
-    for (x = x0; x < x0 + W && ok; x++) for (y = hi - sky; y < gy[x - x0]; y++) {
-      c = pCell(g, x, y);
-      if (AIRY[c]) continue;
-      if (!mClear(g, x, y, c) || bMarked(g, x, y)) { ok = false; break; }
-      clear.push([x, y]);
-    }
+    for (x = x0; x < x0 + W && ok; x++) ok = wClearCol(g, S, x, hi - sky, gy[x - x0], clear);
     if (!ok || !(r = o.fit(g, x0, gy, hi, lo))) continue;
     sc = r.score - clear.length * 0.1 - (o.edge ? Math.min(x0 - vRange(g).x0, vRange(g).x1 + 1 - x0 - W) * 0.15 : Math.abs(x0 + W / 2 - (o.near || rMid(g))) * 0.1);
     if (!best || sc > best.score) best = { x0: x0, gy: gy, hi: hi, lo: lo, score: sc, r: r, clear: clear };
   }
   return best;
+}
+/* WHAT A PLOT LOOKS AT, looked at once. a plot looks down every column it stands on for the ground, and up and down
+   them for anything in the way; the next plot over, one column along, looks at all but one of the same columns again.
+   nothing a plot looks at changes the world while it looks (a fit only reads it), so each column is looked down once
+   and remembered while the plotting lasts: W_GSHARE, {g, cols (the ground, by floor: wGroundCols), hz and nx (each
+   column's hazards, and the next thing in it that is not air: wLookCol), rows (the floors: monuments.js mPlotAny)}.
+   wPlot keeps one while it plots, and so does a plan that plots more than once over the same world (mPlotAny, every
+   floor; the theatre, either way about: mPlanTheatre). wShareOpen gives back the one before, to put back after (in a
+   finally): never kept over anything that changes the world */
+var W_GSHARE = null;
+/* (what a plot is not to be over, by material: wet, hot, a drain, or something that goes bang) */
+var W_HZ = AIRY.map(function (v, c) { return LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c] ? 1 : 0; });
+function wShareOpen(g) {
+  var prev = W_GSHARE;
+  if (!prev || prev.g !== g) W_GSHARE = { g: g, gw: g.gw, gh: g.gh, cols: {}, hz: null, nx: null, seen: null, rows: null };
+  return prev;
+}
+/* the ground wPlot stands a plot on, column by column: mGround (or the floor's, mGroundNear), if it is firm and not too
+   near the top, else -1. G: the columns' rows, -2 where not looked at yet */
+function wGroundCols(S, floor) {
+  var key = floor == null ? "sky" : "f" + floor;
+  return S.cols[key] || (S.cols[key] = new Int32Array(S.gw).fill(-2));
+}
+function wGroundCol(g, G, x, floor) {
+  if (x < 0 || x >= G.length) return wGroundAt(g, x, floor);
+  var y = G[x];
+  if (y === -2) y = G[x] = wGroundAt(g, x, floor);
+  return y;
+}
+function wGroundAt(g, x, floor) {
+  var y = floor != null ? mGroundNear(g, x, true, floor) : mGround(g, x, true);   /* (floor: the floor about level with that row, under a shelf, say: monuments.js) */
+  return y < 10 || !pSolid(g, x, y) ? -1 : y;
+}
+/* column x, looked down once: hz, how many cells wet, hot, a drain or that go bang there are over each row (a running
+   count, gh + 1 to a column), and nx, the first row at or under each that is not air (gh if none) */
+function wLookCol(g, S, x) {
+  var gw = S.gw, gh = S.gh, m = g.m, H = W_HZ, base = x * (gh + 1), y, n = 0;
+  if (!S.hz) { S.hz = new Uint16Array(gw * (gh + 1)); S.nx = new Uint16Array(gw * (gh + 1)); S.seen = new Uint8Array(gw); }
+  var hz = S.hz, nx = S.nx;
+  hz[base] = 0;
+  for (y = 0; y < gh; y++) { n += H[m[y * gw + x]]; hz[base + y + 1] = n; }
+  nx[base + gh] = gh;
+  for (y = gh - 1; y >= 0; y--) nx[base + y] = AIRY[m[y * gw + x]] ? nx[base + y + 1] : y;
+  S.seen[x] = 1;
+  return base;
+}
+/* anything wet, hot, a drain or that goes bang in column x, rows a .. b (under the bottom of the world: stone) */
+function wHazardCol(g, S, x, a, b) {
+  var y, c;
+  if (x < 0 || x >= S.gw || a < 0) {
+    for (y = a; y <= b; y++) { c = pCell(g, x, y); if (LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c]) return true; }
+    return false;
+  }
+  var gh = S.gh, base = S.seen && S.seen[x] ? x * (gh + 1) : wLookCol(g, S, x), bb = Math.min(b, gh - 1);
+  if (a <= bb && S.hz[base + bb + 1] !== S.hz[base + a]) return true;
+  return b >= gh && b >= a && W_HZ[MAT.STONE] === 1;
+}
+/* column x clear from row a down to the ground (row e, not included): every cell in it air, or what a spade or an axe
+   clears and nobody's (each of those put on clear, top down). false at the first that is not */
+function wClearCol(g, S, x, a, e, clear) {
+  var y, c;
+  if (x < 0 || x >= S.gw || a < 0) {
+    for (y = a; y < e; y++) {
+      c = pCell(g, x, y);
+      if (AIRY[c]) continue;
+      if (!mClear(g, x, y, c) || bMarked(g, x, y)) return false;
+      clear.push([x, y]);
+    }
+    return true;
+  }
+  var gw = S.gw, gh = S.gh, base = S.seen && S.seen[x] ? x * (gh + 1) : wLookCol(g, S, x), nx = S.nx;
+  for (y = a < gh ? nx[base + a] : gh; y < e; y = nx[base + y + 1]) {
+    c = g.m[y * gw + x];
+    if (!mClear(g, x, y, c) || bMarked(g, x, y)) return false;
+    clear.push([x, y]);
+  }
+  return true;
 }
 /* would plan (by a lake, on its bank or out over it) leave somebody in the water with no way out of it that they had
    before: a deck laid over the only beach, say. looked at from the water's top and its floor, a few columns out
