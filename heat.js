@@ -560,10 +560,12 @@ function heatSteadyScanK(T32, L32, M32, BQ2, BH, i, end, K, r) {
    the row under it (Sc); it only wrote nothing, as a word passed by
    does, so the next word may pass on the bits
    ------------------------------------------------------------------- */
-/* HEAT_IQ2: both cells of a pair of bytes are neither burning nor metal */
-var HEAT_IQ2 = null;
+/* HEAT_IQ2: both cells of a pair of bytes are neither burning nor metal. HEAT_AIRW: a word of four zero bytes is four
+   cells of air that do not burn, and is walked as AIR WORDS has it */
+var HEAT_IQ2 = null, HEAT_AIRW = false;
 function heatIdleTables() {
   var Q = new Uint8Array(256), v, a, b;
+  HEAT_AIRW = MAT.EMPTY === 0 && !HEAT_SRC[MAT.EMPTY] && MAT.METAL !== MAT.EMPTY;
   for (v = 0; v < 256; v++) Q[v] = v < NMAT && !HEAT_SRC[v] && v !== MAT.METAL ? 1 : 0;
   HEAT_IQ2 = new Uint8Array(65536);
   for (a = 0; a < 256; a++) for (b = 0; b < 256; b++) HEAT_IQ2[a | (b << 8)] = Q[a] & Q[b];
@@ -588,6 +590,34 @@ function heatIdleWord(m, T, i, gw, LIQ) {
     } else if (LIQ[v] && m[u] === v && t > T[u] + 1) return 0;
   }
   return 1;
+}
+/* -------------------------------------------------------------------
+   AIR WORDS. four cells of air side by side, inside the room, neither
+   cold nor idle: worked just as the step works each, statement for
+   statement and in the same order, the same sums and the same dice, with
+   what is known of them folded away: air does not burn, is not metal,
+   is not a liquid, and is not at an edge of the room (so every test of
+   x and y comes out the same way, and the outside is not touched)
+   ------------------------------------------------------------------- */
+function heatAirWord(T, m, i0, gw, KP, IC, rnd) {
+  var c, i, t, up, d, j, w, f, ic = IC[0];
+  for (c = 0; c < 4; c++) {
+    i = i0 + c; t = T[i]; up = i - gw;
+    if ((m[up] === 0 && t > T[up] + 0.5) || (m[up - 1] === 0 && t > T[up - 1] + 0.5) || (m[up + 1] === 0 && t > T[up + 1] + 0.5)) {
+      if (rnd() < 0.3) up += rnd() < 0.5 ? -1 : 1;
+      if (m[up] === 0 && t > T[up] + 0.5 && rnd() < 0.7) { d = T[up]; T[up] = t; t = d; }
+    }
+    up = i + gw;
+    if (m[up] === 0 && t < T[up] - 0.5 && rnd() < 0.7) { d = T[up]; T[up] = t; t = d; }
+    up = i + 1;
+    if (m[up] === 0 && (t > T[up] + 0.5 || t < T[up] - 0.5) && rnd() < 0.3) { d = T[up]; T[up] = t; t = d; }
+    /* (KP[(0 << 6) | w]: air's row of the table) */
+    j = i + 1; d = T[j] - t;
+    if (d > 0.05 || d < -0.05) { w = m[j]; f = KP[w] * d; t += f * ic; T[j] -= f * IC[w]; }
+    j = i + gw; d = T[j] - t;
+    if (d > 0.05 || d < -0.05) { w = m[j]; f = KP[w] * d; t += f * ic; T[j] -= f * IC[w]; }
+    T[i] = t;
+  }
 }
 
 function heatStep(g) {
@@ -621,7 +651,7 @@ function heatStep(g) {
   heatViews(g);
   var WS = heatW, skip = heatSkip, cA = 1, cB = -1, cC = -1;
   if (HEAT_IQ2 === null) heatIdleTables();
-  var IQ2 = HEAT_IQ2;
+  var IQ2 = HEAT_IQ2, AIRW = HEAT_AIRW;
   var M32 = heatM32, T32 = heatT32, T64 = heatT64, AQ2 = HEAT_AQ2, AB = HEAT_AMB32, A64 = HEAT_AMB64;
   /* (and for step 2, kept a row at a time: CP, the words of the row passed by cold, and with nothing soaked up as its bits
      were read; DN, the words that did nothing, cold or idle (Ic)) */
@@ -691,6 +721,8 @@ function heatStep(g) {
         if (x > 0 && x + 4 < gw && y > 0 && y < gh1 && IQ2[wq & 0xffff] !== 0 && IQ2[wq >>> 16] !== 0 && heatIdleWord(m, T, i, gw, LIQ) === 1) {
           Ic[bw] |= 1 << ow; prevS = 1; x += 3; continue;
         }
+        /* nor idle, but air: see AIR WORDS */
+        if (wq === 0 && AIRW && x > 0 && x + 4 < gw && y > 0 && y < gh1) { heatAirWord(T, m, i, gw, KP, IC, rnd); x += 3; continue; }
       }
       v = m[i]; t = T[i];
       if (SRC[v]) {
