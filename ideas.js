@@ -668,9 +668,11 @@ function iCap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 /* flames and embers in and about a site: all of them, top to bottom. (a lantern is only on fire if it is. and the flame
    on a torch is not a fire, it is a torch: no bucket puts that out) */
 function iFlames(g, s) {
-  var out = [], pad = s.kind === "lamp" ? 0 : 2, x, y, c;
-  for (y = s.y0 - (pad ? 3 : 0); y <= s.y1 + (pad ? 1 : 0); y++) for (x = s.x0 - pad; x <= s.x1 + pad; x++) {
-    c = pCell(g, x, y);
+  var out = [], pad = s.kind === "lamp" ? 0 : 2, x, y, c, m = g.m, gw = g.gw;
+  var ya = s.y0 - (pad ? 3 : 0), yb = s.y1 + (pad ? 1 : 0), xa = s.x0 - pad, xb = s.x1 + pad;
+  var inside = xa >= 0 && xb < gw && ya >= 0 && yb < g.gh;   /* (all of it in the world: the cells as they are, pCell's) */
+  for (y = ya; y <= yb; y++) for (x = xa; x <= xb; x++) {
+    c = inside ? m[y * gw + x] : pCell(g, x, y);
     if ((c === MAT.FIRE || c === MAT.EMBER) && !iTorchlit(g, x, y)) out.push(y * g.gw + x);
   }
   return out;

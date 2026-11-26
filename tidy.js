@@ -281,34 +281,46 @@ function tVillage(g, x) {
    it: a splash on the bank of the pond is the pond's. seen, if given, gets every cell looked at, so the rest of a pond
    is not looked at again; keep, if given, says which columns it may run on into */
 function tPuddleOf(g, x, y, seen, keep, max) {
-  var gw = g.gw, st = [y * gw + x], out = [], got = {}, j, cx, cy, dx, dy, q;
+  var gw = g.gw, st = [y * gw + x], out = [], j, cx, cy, dx, dy, q;
+  var G = T_GOT = tMarks(g, T_GOT), got = G.a, gv = G.v, sa = seen ? seen.a : null, sv = seen ? seen.v : 0;
   max = max || TD_PUDDLE;
   while (st.length) {
     j = st.pop();
-    if (got[j] || g.m[j] !== MAT.WATER || (keep && !keep(j % gw))) continue;
-    got[j] = 1; out.push(j);
-    if (seen) seen[j] = 1;
+    if (got[j] === gv || g.m[j] !== MAT.WATER || (keep && !keep(j % gw))) continue;
+    got[j] = gv; out.push(j);
+    if (seen) sa[j] = sv;
     if (out.length > max) {   /* (a pond: and the rest of it is a pond too) */
-      if (seen) while (st.length) seen[st.pop()] = 1;
+      if (seen) while (st.length) sa[st.pop()] = sv;
       return null;
     }
     cx = j % gw; cy = (j / gw) | 0;
     for (dy = -2; dy <= 2; dy++) for (dx = -2; dx <= 2; dx++) {
       if ((!dx && !dy) || cx + dx < 0 || cx + dx >= gw || cy + dy < 0 || cy + dy >= g.gh) continue;
       q = j + dy * gw + dx;
-      if (!got[q] && g.m[q] === MAT.WATER) st.push(q);
+      if (got[q] !== gv && g.m[q] === MAT.WATER) st.push(q);
     }
   }
   return out.length ? out : null;
 }
+/* a set of cells, for a search that would otherwise keep them as the keys of an object: the cells stamped with its
+   number (S.v) in S.a are in it, so a fresh number is an empty set. one to each search that can be going at once
+   (T_GOT: tPuddleOf's; T_SEEN, tGoBail's and T_NEAR, tPuddleNear's, handed down to it as seen; T_BODY: tBodySize's),
+   kept, and used again */
+var T_GOT = null, T_SEEN = null, T_NEAR = null, T_BODY = null;
+function tMarks(g, S) {
+  var n = g.gw * g.gh;
+  if (!S || S.a.length !== n) S = { a: new Uint32Array(n), v: 0 };
+  if (++S.v > 0xfffffff0) { S.a.fill(0); S.v = 1; }
+  return S;
+}
 /* how big the body of water (x, y) is part of is, counted up to max (keep, if given: which columns it may run on into) */
 function tBodySize(g, x, y, keep, max) {
-  var gw = g.gw, st = [y * gw + x], got = {}, n = 0, j, dx, dy, q;
+  var gw = g.gw, st = [y * gw + x], n = 0, j, dx, dy, q, G = T_BODY = tMarks(g, T_BODY), got = G.a, gv = G.v;
   while (st.length && n < max) {
     j = st.pop();
-    if (got[j] || g.m[j] !== MAT.WATER || (keep && !keep(j % gw))) continue;
-    got[j] = 1; n++;
-    for (dy = -1; dy <= 1; dy++) for (dx = -1; dx <= 1; dx++) { q = j + dy * gw + dx; if ((dx || dy) && q >= 0 && q < g.m.length && !got[q]) st.push(q); }
+    if (got[j] === gv || g.m[j] !== MAT.WATER || (keep && !keep(j % gw))) continue;
+    got[j] = gv; n++;
+    for (dy = -1; dy <= 1; dy++) for (dx = -1; dx <= 1; dx++) { q = j + dy * gw + dx; if ((dx || dy) && q >= 0 && q < g.m.length && got[q] !== gv) st.push(q); }
   }
   return n;
 }
@@ -352,14 +364,15 @@ function tHousePuddle(g, s, raw) {
    on the deck or the stair it is in the way of, or else within a few cells of where it was last seen (k.src, k.at).
    not the columns they have lately found they cannot get at. its cells, or null once there is none */
 function tPuddleNear(g, k) {
-  var s = k.of && bSite(g, k.of), x0, x1, y0, y1, x, y, j, c, seen = {}, out = [];
+  var s = k.of && bSite(g, k.of), x0, x1, y0, y1, x, y, j, c, seen, out = [];
   if (s && s.kind === "house") return tHousePuddle(g, s);
+  seen = T_NEAR = tMarks(g, T_NEAR);
   if (s) { x0 = s.x0; x1 = s.x1; y0 = s.y0; y1 = s.y1; }
   else { x0 = Math.min(k.src.x, k.at.x) - 6; x1 = Math.max(k.src.x, k.at.x) + 6; y0 = Math.min(k.src.y, k.at.y) - 6; y1 = Math.max(k.src.y, k.at.y) + 6; }
   x0 = Math.max(0, x0); x1 = Math.min(g.gw - 1, x1); y0 = Math.max(0, y0); y1 = Math.min(g.gh - 1, y1);
   for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
     j = y * g.gw + x;
-    if (g.m[j] !== MAT.WATER || seen[j] || tNo(g, x, true)) continue;
+    if (g.m[j] !== MAT.WATER || seen.a[j] === seen.v || tNo(g, x, true)) continue;
     c = tPuddleOf(g, x, y, seen, null, (k.size || 0) > TD_PUDDLE ? TD_LAKE : TD_PUDDLE);
     /* (only the bits of it inside: a puddle on the floor that runs out under the door is half outside, and that half
        is nobody's floor) */
@@ -603,20 +616,20 @@ function tGoBail(g, p) {
   g.bailT = g.tick + TD_BAIL_GAP;
   /* (the whole village, top to bottom, looked over once in a while: not just what is in front of them. a puddle on the
      floor of the house below is still a puddle) */
-  var seen = {}, seenH = {}, cand = [], gw = g.gw, x, y, j, c, k;
+  var seen = T_SEEN = tMarks(g, T_SEEN), sa = seen.a, sv = seen.v, seenH = {}, cand = [], gw = g.gw, x, y, j, c, k;
   for (x = 1; x < gw - 1; x++) {
     if (tNo(g, x, true) || pAvoid(g, p, x) || !tVillage(g, x)) continue;
     for (y = 1; y < g.gh; y++) {
       j = y * gw + x;
-      if (g.m[j] !== MAT.WATER || seen[j] || !AIRY[g.m[j - gw]] || g.T[j] >= 60) continue;
+      if (g.m[j] !== MAT.WATER || sa[j] === sv || !AIRY[g.m[j - gw]] || g.T[j] >= 60) continue;
       /* (on a floor: the floor's water, all of it, a puddle however much there is) */
       var hs = tHouseAt(g, x, y);
       if (hs) {
-        seen[j] = 1;
+        sa[j] = sv;
         if (seenH[hs.id]) continue;
         seenH[hs.id] = 1;
         var hw = tHousePuddle(g, hs);
-        if (hw) for (k = 0; k < hw.length; k++) seen[hw[k]] = 1;
+        if (hw) for (k = 0; k < hw.length; k++) sa[hw[k]] = sv;
         if (!hw || hw.length < TD_PUDDLE_MIN || tBailers(g, hs) >= tBailCrew(hw) || hs.bailRest > g.tick || tShut(g, hs)) continue;
         cand.push({ d: Math.abs(x - p.x) + Math.abs(y - p.y), cells: hw, of: hs });
         continue;
@@ -820,10 +833,10 @@ function tSpoiled(g, x) {
    either side of it (lev: the row of the lower of the two). anything else that has come up is the ground now: a pile
    on a slope that has slid level, a hollow filled flush, sand that has settled, a dune */
 function tGroundKeep(g) {
-  var gw = g.gw, B = g.tGround, x, G, up, q, cur = [], lumps = [];
+  var gw = g.gw, B = g.tGround, x, G, up, q, cur = [], lumps = [], now = [];
   if (!B || B.length !== gw) { B = g.tGround = new Int16Array(gw); for (x = 0; x < gw; x++) B[x] = mGround(g, x); g.tLumps = []; return; }
   for (x = 0; x < gw; x++) {
-    G = cur[x] = mGround(g, x);
+    G = cur[x] = now[x] = mGround(g, x);   /* (now: the ground as it is, kept for edge: nothing moves while this looks) */
     /* (water over it, or a tree, or it has gone down: that is the ground now. somebody's, or out of the village: not a
        pile, but not the ground as it was either, unless it has only come up a cell or two: a pile tipped half on the
        step of somebody's door is still a pile, the rest of it) */
@@ -833,7 +846,7 @@ function tGroundKeep(g) {
   }
   /* (the ground either side of a pile: the nearest that has not come up, looking out from it) */
   function edge(x, dir) {
-    for (var q = x, Gq; Math.abs(q - x) < 20 && q > 0 && q < gw - 1; q += dir) if ((Gq = mGround(g, q)) >= 0 && B[q] >= 0 && B[q] - Gq <= 0) return Gq;
+    for (var q = x, Gq; Math.abs(q - x) < 20 && q > 0 && q < gw - 1; q += dir) if ((Gq = now[q]) >= 0 && B[q] >= 0 && B[q] - Gq <= 0) return Gq;
     return -1;
   }
   if (!g.tPiled) g.tPiled = {};

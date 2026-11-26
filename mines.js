@@ -272,11 +272,13 @@ function mPlanMine(g, p) {
   /* (anywhere in the valley: what they have not found yet is worth going a long way for) */
   /* (on any floor of it: a shelf of rock over the valley floor has a floor of its own, and so may the valley under it) */
   if (g.mineFar) g.mineFar = g.mineFar.filter(function (f) { return f.t > g.tick; });
+  mColsOn(g, true);   /* (nothing moves while they look: the columns summed once) */
   for (x = rLo(g, 24); x < rHi(g, 24); x++) {   /* (in the village's range: world.js) */
     if (g.mineNo[x] > g.tick) continue;
     var R = mMinePlots(g, x);
     for (k = 0; k < R.length; k++) { r = R[k]; r.sc = r.score - Math.abs(x - fx) * 0.05 - Math.abs(r.ref - p.y) * 0.05; C.push(r); }
   }
+  mColsOn(g, false);
   /* (the best of them they can walk to the top of: a few looks, and the ones across a lake are let be a while) */
   C.sort(function (a, b) { return b.sc - a.sc; });
   for (k = 0; k < C.length && k < 8 && !best; k++) if (mMineReach(g, p, C[k])) best = C[k];
@@ -286,12 +288,14 @@ function mPlanMine(g, p) {
   if (!best && iCount(g, "farm") >= 2) {
     M_FARMOK = true;
     var F = [];
+    mColsOn(g, true);
     for (x = rLo(g, 24); x < rHi(g, 24); x++) {
       if (g.mineNo[x] > g.tick) continue;   /* (given up near here lately) */
       var RF = mMinePlots(g, x);
       /* (and only over a field that can be spared: somewhere else for it to go, or others near enough) */
       for (k = 0; k < RF.length; k++) { r = RF[k]; if (mFieldsUnder(g, x - r.hw - 2, x + r.hw + 2) <= 1 && mFieldSpare(g, x - r.hw - 2, x + r.hw + 2)) F.push(r); }
     }
+    mColsOn(g, false);
     /* (the best of them they can get to: looked for while the field still counts as ground, so its earth is ground) */
     F.sort(function (a, b) { return b.score - a.score; });
     for (k = 0; k < F.length && k < 8 && !best; k++) if (mMineReach(g, p, F[k])) best = F[k];
@@ -380,7 +384,10 @@ function mMinePlot(g, cx, ref) {
     if (M_FARMOK && t.kind === "farm") continue;
     if (cx + hw + 2 >= t.x0 && cx - hw - 2 <= t.x1 && B + 3 >= t.y0 && top - 14 <= t.y1) return null;
   }
-  for (y = top - 14; y <= B + 2; y++) for (x = cx - hw - 3; x <= cx + hw + 3; x++) {
+  if (M_COLON) {   /* (the same box, by the columns' sums: over the top of the world is air, and none of it) */
+    for (x = cx - hw - 3; x <= cx + hw + 3; x++) { k = mCol(g, x); if (M_COLX[k + B + 3] - M_COLX[k + Math.max(0, top - 14)]) return null; }
+  }
+  else for (y = top - 14; y <= B + 2; y++) for (x = cx - hw - 3; x <= cx + hw + 3; x++) {
     c = pCell(g, x, y);
     if (LIQUID[c] || HOT[c] || c === MAT.DRAIN || P_BANG[c]) return null;
   }
@@ -393,9 +400,35 @@ function mMinePlot(g, cx, ref) {
     else if (!ROCK[c] && !AIRY[c]) return null;
   }
   /* what is worth having near enough the bottom to get at, and in the shaft itself */
-  for (y = B - M_ROOF - 3; y <= B + 2; y++) for (x = cx - M_LOOK; x <= cx + M_LOOK; x++) ore += mWorth(g, pCell(g, x, y));
+  /* (by the columns' sums, while there are any: the same halves and wholes, added up the other way, to the same sum.
+     off the side of the world is worth nothing) */
+  if (M_COLON) { for (x = Math.max(0, cx - M_LOOK); x <= cx + M_LOOK && x < gw; x++) { k = mCol(g, x); ore += M_COLW[k + B + 3] - M_COLW[k + B - M_ROOF - 3]; } }
+  else for (y = B - M_ROOF - 3; y <= B + 2; y++) for (x = cx - M_LOOK; x <= cx + M_LOOK; x++) ore += mWorth(g, pCell(g, x, y));
   for (y = S; y < B - M_ROOF - 3; y++) for (x = cx - 1; x <= cx + 1; x++) ore += mWorth(g, pCell(g, x, y));
   return { cx: cx, ref: ref, S: S, B: B, hw: hw, top: top, dig: dig, pick: pick, collar: collar, score: ore - dig.length * 0.05 + (B - S) * 0.5 };
+}
+/* while mPlanMine looks the valley over for a plot (M_COLON), nothing in it moving: each column summed from the top
+   down, once, the first time a plot wants it. M_COLW: what is worth having (mWorth), M_COLX: the wet, hot or touchy
+   (M_BAD), each at [x * (gh + 1) + y], over rows 0 .. y - 1. M_COLT: the looking-over (M_COLN) column x was summed for.
+   (M_COLV: mWorth of each thing, as it is while they look: what has been found so far does not change) */
+var M_COLW = null, M_COLX = null, M_COLT = null, M_COLN = 0, M_COLON = false, M_COLV = new Float64Array(NMAT);
+var M_BAD = LIQUID.map(function (v, c) { return v || HOT[c] || c === MAT.DRAIN || P_BANG[c] ? 1 : 0; });
+function mColsOn(g, on) {
+  M_COLON = on;
+  if (!on) return;
+  var n = g.gw * (g.gh + 1);
+  if (!M_COLW || M_COLW.length !== n || M_COLT.length !== g.gw) { M_COLW = new Float64Array(n); M_COLX = new Int32Array(n); M_COLT = new Uint32Array(g.gw); M_COLN = 0; }
+  if (++M_COLN > 0x7fffffff) { M_COLT.fill(0); M_COLN = 1; }
+  for (var c = 0; c < NMAT; c++) M_COLV[c] = mWorth(g, c);
+}
+/* column x's sums (the index of its row 0) */
+function mCol(g, x) {
+  var gh = g.gh, gw = g.gw, k = x * (gh + 1), m = g.m, W = M_COLW, X = M_COLX, V = M_COLV, y, c, j;
+  if (M_COLT[x] === M_COLN) return k;
+  M_COLT[x] = M_COLN;
+  W[k] = 0; X[k] = 0;
+  for (y = 0, j = x; y < gh; y++, j += gw) { c = m[j]; W[k + y + 1] = W[k + y] + V[c]; X[k + y + 1] = X[k + y] + M_BAD[c]; }
+  return k;
 }
 /* a spadeful of sand out of the head of mine s (cell j), carried up and tipped on the heap beside it: on the downhill
    side, so it does not roll back in, a few steps from the collar, into the air on top of the ground, heat and all.
@@ -457,9 +490,21 @@ function mSeeThrough(g, x, y, c, trees) {
 }
 /* the first row at or under y0 in column x that is not see-through. -1 if there is none */
 function mSurface(g, x, trees, y0) {
-  for (var y = Math.max(0, y0); y < g.gh; y++) if (!mSeeThrough(g, x, y, g.m[y * g.gw + x], trees)) return y;
+  var y = Math.max(0, y0);
+  /* (no fields, in the valley: air or a bush, or a tree that can come down if trees, straight down the column. the
+     same rows mSeeThrough would) */
+  if (!M_FARMOK && x >= 0 && x < g.gw) {
+    for (var m = g.m, gw = g.gw, j = y * gw + x, n = g.gh, c; y < n; y++, j += gw) {
+      c = m[j];
+      if (!M_SEE[c] && !(trees && c === MAT.WOOD && mFellable(g, x, y, c))) return y;
+    }
+    return -1;
+  }
+  for (; y < g.gh; y++) if (!mSeeThrough(g, x, y, g.m[y * g.gw + x], trees)) return y;
   return -1;
 }
+/* (air, or a bush: AIRY or P_LEAF, the see-through that wants nothing but the cell) */
+var M_SEE = AIRY.map(function (v, c) { return v || P_LEAF[c] ? 1 : 0; });
 /* the ground in column x about level with row y (where somebody stands, or a site's floor): under it, if y is in the
    open; the top of it, if y is in the ground itself, and the top is no more than a heap's height up. -1 if not ground.
    (a valley can have floors one over another, a shelf of rock with a cave under it: this is the one y is on) */
@@ -479,7 +524,11 @@ function mFloors(g, x, trees) {
     G = mSurface(g, x, trees, y);
     if (G < 0) break;
     if (G > 0 && mGroundFrom(g, x, trees, G) === G) out.push(G - 1);
-    for (y = G; y < g.gh && !mSeeThrough(g, x, y, g.m[y * g.gw + x], trees); y++);
+    if (!M_FARMOK && x >= 0 && x < g.gw) {   /* (the same, straight down the column: mSurface) */
+      for (var m = g.m, gw = g.gw, j = G * gw + x, c; G < g.gh; G++, j += gw) { c = m[j]; if (M_SEE[c] || (trees && c === MAT.WOOD && mFellable(g, x, G, c))) break; }
+      y = G;
+    }
+    else for (y = G; y < g.gh && !mSeeThrough(g, x, y, g.m[y * g.gw + x], trees); y++);
   }
   return out;
 }
