@@ -484,6 +484,46 @@ function heatRowColdFresh(a, nw) {
   return 1;
 }
 
+/* -------------------------------------------------------------------
+   STEADY CELLS (step 2). a thing changes in step 2 only when it is above
+   its HI or below its LO, or has something soaked up (or given up). so a
+   cell with nothing at all in lat (+0, bit for bit), at a temperature
+   inside every range in a band, does nothing there: no write, no dice.
+   the band is [+0, HEAT_BAND_HI], read off the tables: its top is the
+   lowest HI of the things counted in it, and only things whose LO is at
+   or under +0 are. lava is never counted: where it sets is its own (aux)
+   ------------------------------------------------------------------- */
+/* HEAT_BQ2: both cells of a pair of bytes are counted in the band (null: no band, the tables do not make one).
+   HEAT_BAND_HI32: the band's top, its bits: a temperature at or over +0 is in the band exactly when its bits, unsigned,
+   are at or under these (-0, anything under it and a NaN are not: they go the long way) */
+var HEAT_BQ2 = null, HEAT_BAND_HI32 = 0, heatBandMade = false;
+function heatRangeBand() {
+  var Q = new Uint8Array(256), v, top = Infinity, any = false, f = new Float32Array(1), b = new Uint32Array(f.buffer);
+  heatBandMade = true;
+  /* (counted: not lava, sets or freezes nowhere over +0, and room temperature is under where it melts) */
+  for (v = 0; v < NMAT; v++)
+    if (v !== MAT.LAVA && HEAT_LO[v] <= 0 && HEAT_HI[v] >= AMBIENT) { Q[v] = 1; any = true; if (HEAT_HI[v] < top) top = HEAT_HI[v]; }
+  if (!any || !(top >= 0)) { HEAT_BQ2 = null; return; }
+  f[0] = top === 0 ? 0 : top;
+  HEAT_BAND_HI32 = b[0];
+  /* (every one counted has its HI at or over the top, and its LO at or under +0: the band is inside its range) */
+  for (v = 0; v < NMAT; v++) if (Q[v] && !(HEAT_HI[v] >= f[0] && HEAT_LO[v] <= 0)) { HEAT_BQ2 = null; return; }
+  HEAT_BQ2 = new Uint8Array(65536);
+  for (var a = 0; a < 256; a++) for (var c = 0; c < 256; c++) HEAT_BQ2[a | (c << 8)] = Q[a] & Q[c];
+}
+/* the first i at or after i (a multiple of 4) whose word step 2 must look at, cell by cell; end if none. a word passed
+   over is four things counted in the band, each in it, with nothing soaked up: each would have done nothing. read off
+   the world as it is when the step comes to it, so a change further back that pushed steam or salt into it is seen */
+function heatSteadyScan(T32, L32, M32, BQ2, BH, i, end) {
+  var w;
+  for (; i < end; i += 4) {
+    w = M32[i >> 2];
+    if ((BQ2[w & 0xffff] & BQ2[w >>> 16]) === 0 || (L32[i] | L32[i + 1] | L32[i + 2] | L32[i + 3]) !== 0 ||
+        (T32[i] >>> 0) > BH || (T32[i + 1] >>> 0) > BH || (T32[i + 2] >>> 0) > BH || (T32[i + 3] >>> 0) > BH) return i;
+  }
+  return end;
+}
+
 function heatStep(g) {
   var m = g.m, T = g.T, lat = g.lat, gw = g.gw, gh = g.gh, KP = HEAT_KP, IC = HEAT_IC, SRC = HEAT_SRC, POW = HEAT_POW, BK = HEAT_BK, C = HEAT_C;
   var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL, hm = g.hm;
@@ -652,10 +692,15 @@ function heatStep(g) {
      cold, and nothing in it changes. until something does change: a thing that changes can push steam, salt or a bang
      into any cell, so from then on every row is looked at) */
   var still = true, end;
+  /* (and the steady words in a row looked at are passed over a word at a time: heatSteadyScan. only where every row
+     starts on a word) */
+  if (!heatBandMade) heatRangeBand();
+  var BQ2 = heatM32 !== null ? HEAT_BQ2 : null, BH = HEAT_BAND_HI32, L32 = heatL32;   /* (T32 and M32: step 1's) */
   for (y = 0, i = 0; y < gh; y++) {
     end = i + gw;
     if (still && skip[y] === 1 && (y === gh1 || skip[y + 1] === 1)) { i = end; continue; }
     for (; i < end; i++) {
+      if ((i & 3) === 0 && BQ2 !== null) { i = heatSteadyScan(T32, L32, M32, BQ2, BH, i, end); if (i >= end) break; }
       v = m[i]; t = T[i];
       hi = HI[v]; lo = LO[v];
       if (v === LAVA) { w = aux[i] & 31; lo = LAVA_LO[w]; }
