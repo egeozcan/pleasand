@@ -187,7 +187,48 @@ node harness/bench.js --load save.json --ticks 4000        # any one save
 `--save-out` saves the village where the run ends (`{seed}` becomes the seed; the
 result gives the file, its `hash()` and its `stateHash`). A save loaded plays on
 exactly as the village would have without it. `--late` with no directory looks in
-`$PLEASAND_WARM`, then `harness/warm`.
+`$PLEASAND_WARM`, then `harness/warm`. It takes each seed's `seed<N>-60k.json`, or,
+where there is none, the one `seed<N>-<n>k.json` there is, so a directory of saves
+from tick 150 000 (`seed3-150k.json`...) works the same way.
+
+**The edges of the budget.** Two valleys were still over it at 4x after the round
+that brought the plain one under: the long organ game (seeds 3 and 7 have the steam
+organ finished by tick 150 000, and a builder about it searches for a route every
+tick) and soak.js's leftovers village (snow and ice about it: a fifth of the cells
+off room temperature). `--preset NAME` puts one of soak.js's presets (`plain`,
+`rich`, `chaos`, `leftovers`) on the village before it plays, exactly as `same.js`
+does: after the save, if there is one, before the speed. It goes with `--ticks`,
+`--load`, `--late`, `--save-out` and `--ab --lockstep`.
+```bash
+# the saves, once, from the reference tree
+node harness/bench.js --dir ../base --ticks 150000 --save-out saves/warm150/seed{seed}-150k.json
+node harness/bench.js --dir ../base --preset leftovers --ticks 40000 --save-out saves/warmleft/seed{seed}-40k.json
+# organ150: each 150k save, 10 000 ticks on
+node harness/bench.js --late saves/warm150 --ticks 10000
+# left20k, left60k: the leftovers village from tick 0
+node harness/bench.js --preset leftovers --ticks 20000
+node harness/bench.js --preset leftovers --ticks 60000
+# and A against B, fast: the 150k saves, 4 000 ticks; the leftovers 40k saves, 4 000 ticks
+node harness/bench.js --late saves/warm150 --ticks 4000 --ab ../base ../wip --lockstep --rounds 3
+node harness/bench.js --late saves/warmleft --ticks 4000 --ab ../base ../wip --lockstep --rounds 3
+node harness/bench.js --preset leftovers --ticks 8000 --ab ../base ../wip --lockstep --rounds 2
+```
+`--profile DIR` runs each seed's timed frames, and only those, under V8's sampling
+profiler (every 100 us), writes the `.cpuprofile` to DIR, and tells each update's
+time out by it (`breakdown.perUpdate`, ms): `heatStep0`, `heatStep1`,
+`heatStepMetal` and `heatStep2` (heatStep's own lines by the step they stand in, a
+function it calls by the step that calls it), `sandStepWithoutHeat`, `navFind`
+(all of it, the pGrate inside it too), `pGrateOutsideNav`, `peasantsRest`,
+`partStep`, `ducksStep` and `rest` (gameUpdate's own work, the harness's, the
+garbage collector), with `pGrateAll`, pGrate wherever it is, on the side; and
+`breakdown.slowFrames`, the same per frame over the slowest tenth of the frames
+alone (each sample is put in its frame by its time), which is what a p95 is made
+of. The profiler costs a little, so a profiled run's median and p95 are not the
+bench's.
+```bash
+node harness/bench.js --late saves/warm150 --ticks 10000 --profile prof
+node harness/bench.js --preset leftovers --ticks 20000 --profile prof
+```
 
 **Is it faster than that one?** On a busy machine one run says little: under
 load a seed's median moves by a third. `--ab` takes two checkouts in turns,
@@ -253,6 +294,21 @@ left 30 000 ticks (every 240); and the chaos and rich presets at 1088 to 60 000.
 ```bash
 node harness/same.js --record long-ref.json --set long --dir ../base --warm warm --jobs 9
 node harness/same.js --check long-ref.json --warm warm     # every scenario in the file, unless --only or --set
+```
+`--set edge` is the edges of the budget, all at 1088 at 4x: each 150k save played
+10 000 ticks (every 240); the leftovers village from tick 0 to 60 000 (every 2 000);
+each leftovers 40k save played 10 000 ticks (every 240); and the steam organ
+knocked about while the builders come and go (`edge-organ-3`, `edge-organ-7`, from
+the 150k saves, 16 000 ticks, every 60): a few cells of two pipes erased, mended,
+and the organ finished again in the middle of a tick, its valves and pipe tops
+grates once more; a pipe taken in the hand and let go; stone painted into a pipe
+top; powder set off beside the pipes; the rack erased. The saves are found in
+`--saves DIR` (`$PLEASAND_SAVES`, `harness/saves`): `DIR/warm150/seed<N>-150k.json`
+and `DIR/warmleft/seed<N>-40k.json`, made by the reference tree. About 6 minutes,
+11 at a time, on 0580e71.
+```bash
+node harness/same.js --record edge-ref.json --set edge --dir ../base --saves saves --jobs 11
+node harness/same.js --check edge-ref.json --saves saves
 ``` `--ignore k1,k2` leaves keys of
 `g` out, for scratch a tree has put on `g` on purpose; say so where it is
 reviewed, since an ignored key is not checked.
