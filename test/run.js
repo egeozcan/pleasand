@@ -2722,6 +2722,45 @@ test("a door buried over its lintel is shut, and the heap is full by its height 
   g.tip = null;
 });
 
+test("the village's looks over the whole valley, a row at a time, find the ground and the wet columns a look down each column finds", function () {
+  [[3, 1088], [7, 1088], [1, 272]].forEach(function (sw) {
+    var w = sim.load(sw[0], { gw: sw[1] }), g = w.g, M = w.MAT, gw = g.gw, gh = g.gh, x, y, bad = [];
+    sim.step(w, 300);
+    know(g, ["dig", "bucket", "farm"]);
+    sites(g, "house").forEach(function (s) { sim.build(w, s); });
+    if (!g.bmark || g.bmark.length !== g.m.length) g.bmark = new Uint8Array(g.m.length);
+    /* (and the odd ones: water in the top row (not looked at) and in the bottom one, a lone drop in the sky, a bush, a
+       tree, smoke, a marked cell, water and oil as the first thing down, a column of air all the way down, and the
+       first and last columns) */
+    function put(x, y, c) { if (x >= 0 && x < gw && y >= 0 && y < gh) g.m[y * gw + x] = c; }
+    var X = [1, 5, 6, 9, 13, 17, 21, 22, 30, 31, 40, gw - 1, 0, gw - 2, Math.floor(gw / 2) + 3];
+    put(X[0], 0, M.WATER); put(X[1], gh - 1, M.WATER); put(X[2], 20, M.WATER); put(X[2] + 1, 20, M.WATER);
+    put(X[3], 30, M.PLANT); put(X[3], 31, M.FLOWER); put(X[4], 25, M.WOOD); put(X[5], 10, M.SMOKE); put(X[5], 11, M.STEAM);
+    put(X[6], 40, M.SAND); g.bmark[40 * gw + X[6]] = 1; put(X[7], 35, M.WATER); put(X[8], 35, M.OIL);
+    for (y = 0; y < gh; y++) put(X[9], y, M.EMPTY);
+    put(X[10], 0, M.STONE); put(X[11], 50, M.GLASS); put(X[12], 60, M.WATER); put(X[13], 1, M.WATER); put(X[14], 70, M.SAND);
+    function compare(what) {
+      var out = new Int16Array(gw), wet = w.tWetCols(g);
+      w.mGroundAll(g, out);
+      for (x = 0; x < gw; x++) {
+        var G = w.mGround(g, x), hw = 0;
+        if (out[x] !== G) bad.push(what + " column " + x + ": ground " + out[x] + ", looked down " + G);
+        for (y = 1; y < gh; y++) if (g.m[y * gw + x] === M.WATER) hw = 1;
+        if (wet && wet[x] !== hw) bad.push(what + " column " + x + ": wet " + wet[x] + ", looked down " + hw);
+      }
+    }
+    compare(sw + "");
+    /* (with a field that can be dug up as ground, cell by cell, as ever) */
+    w.eval("M_FARMOK = true");
+    try { compare(sw + " fields"); } finally { w.eval("M_FARMOK = false"); }
+    /* (and a new grid: NEW) */
+    w.gameNew(g);
+    g = w.g;
+    if (g.gw === gw) { gh = g.gh; compare(sw + " new"); }
+    check(!bad.length, bad.slice(0, 6).join("; "));
+  });
+});
+
 /* the great works: the framework (wonders.js), the ones in stone (monuments.js), and the ones for enjoying (pleasures.js) */
 require("./wonders.js")(test, check, sim);
 require("./monuments.js")(test, check, sim);

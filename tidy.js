@@ -617,8 +617,11 @@ function tGoBail(g, p) {
   /* (the whole village, top to bottom, looked over once in a while: not just what is in front of them. a puddle on the
      floor of the house below is still a puddle) */
   var seen = T_SEEN = tMarks(g, T_SEEN), sa = seen.a, sv = seen.v, seenH = {}, cand = [], gw = g.gw, x, y, j, c, k;
+  /* (a column with no water in it at all is passed over: the look down it would find nothing, and nothing in here
+     moves a cell. the same columns, in the same order, the same cells looked at in each) */
+  var wet = tWetCols(g);
   for (x = 1; x < gw - 1; x++) {
-    if (tNo(g, x, true) || pAvoid(g, p, x) || !tVillage(g, x)) continue;
+    if ((wet && !wet[x]) || tNo(g, x, true) || pAvoid(g, p, x) || !tVillage(g, x)) continue;
     for (y = 1; y < g.gh; y++) {
       j = y * gw + x;
       if (g.m[j] !== MAT.WATER || sa[j] === sv || !AIRY[g.m[j - gw]] || g.T[j] >= 60) continue;
@@ -663,6 +666,26 @@ function tGoBail(g, p) {
   if (!dest) return false;
   tStartBail(g, p, found, c0.loose ? null : of, dest);
   return true;
+}
+/* which columns have fresh water anywhere in rows 1 .. gh - 1, the rows tGoBail looks down (1 if so), the valley
+   looked over a row at a time, four cells to a word (a word with no water in it: none in its four columns, that
+   row). null when a row is not a whole number of words (mines.js mWords): then every column is looked down */
+var T_WET = null;
+function tWetCols(g) {
+  var m32 = mWords(g);
+  if (!m32) return null;
+  var gw = g.gw, W = gw >> 2, m = g.m, w = MAT.WATER * 0x01010101, i, v, b, x, n = W * g.gh;
+  if (!T_WET || T_WET.length !== gw) T_WET = new Uint8Array(gw);
+  T_WET.fill(0);
+  for (i = W, x = 0; i < n; i++, x += 4) {
+    if (x === gw) x = 0;
+    v = m32[i] ^ w;
+    /* (a byte of it that is water is a zero byte here: and a word with a zero byte in it, and only such a word, has
+       one of these bits left. which of its four it is, is looked at one by one) */
+    if (((v - 0x01010101) & ~v & 0x80808080) === 0) continue;
+    for (b = 0; b < 4; b++) if (m[(i << 2) + b] === MAT.WATER) T_WET[x + b] = 1;
+  }
+  return T_WET;
 }
 /* off with a bucket to the puddle (cells, in site of's way, if any), to go where dest says */
 function tStartBail(g, p, cells, of, dest) {
@@ -827,6 +850,7 @@ function tSpoiled(g, x) {
   if (!g.tSpoil) g.tSpoil = {};
   for (var q = (x - 4) >> 2; q <= (x + 4) >> 2; q++) g.tSpoil[q] = 1;
 }
+var T_GALL = null;   /* (tGroundKeep's look at the ground, kept and used again) */
 /* every few seconds: the ground as it is now, against the ground as it was (g.tGround), and
    the piles in the village that were not there before (g.tLumps: [{x0, x1, lev}]). a pile is a run of columns come up
    over the ground as it was, TD_LUMP or more somewhere along it, no wider than TD_LUMP_W, standing up over the ground
@@ -834,9 +858,12 @@ function tSpoiled(g, x) {
    on a slope that has slid level, a hollow filled flush, sand that has settled, a dune */
 function tGroundKeep(g) {
   var gw = g.gw, B = g.tGround, x, G, up, q, cur = [], lumps = [], now = [];
-  if (!B || B.length !== gw) { B = g.tGround = new Int16Array(gw); for (x = 0; x < gw; x++) B[x] = mGround(g, x); g.tLumps = []; return; }
+  /* (mGround in every column, all at once: mines.js mGroundAll. nothing here moves anything, or marks it) */
+  if (!B || B.length !== gw) { B = g.tGround = new Int16Array(gw); mGroundAll(g, B); g.tLumps = []; return; }
+  var GA = T_GALL = T_GALL && T_GALL.length === gw ? T_GALL : new Int16Array(gw);
+  mGroundAll(g, GA);
   for (x = 0; x < gw; x++) {
-    G = cur[x] = now[x] = mGround(g, x);   /* (now: the ground as it is, kept for edge: nothing moves while this looks) */
+    G = cur[x] = now[x] = GA[x];   /* (now: the ground as it is, kept for edge: nothing moves while this looks) */
     /* (water over it, or a tree, or it has gone down: that is the ground now. somebody's, or out of the village: not a
        pile, but not the ground as it was either, unless it has only come up a cell or two: a pile tipped half on the
        step of somebody's door is still a pile, the rest of it) */

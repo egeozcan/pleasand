@@ -483,6 +483,51 @@ function mGroundFrom(g, x, trees, y0) {
   if (M_FARMOK && c === MAT.SOIL && mFarmCell(g, x, y)) return y;   /* (a field to be dug up: its ground) */
   return LIQUID[c] || WOODY[c] || P_SOFT[c] || bMarked(g, x, y) ? -1 : y;
 }
+/* mGround(g, x) for every column at once, into out[0 .. gw - 1] (tidy.js tGroundKeep, every few seconds). the same
+   answers: the valley is looked down a row at a time, four cells to a word, and a word of four empty cells is air in
+   all four columns, stepped over; a column is let be once its first cell that is not air or a bush is found, and that
+   cell is then looked at as mGroundFrom would. (cell by cell, column by column, as ever, while a field can be dug up
+   or a row is not a whole number of words) */
+var M_GTODO = null, M_GLEFT = null;
+function mGroundAll(g, out) {
+  var gw = g.gw, gh = g.gh, m = g.m, m32 = mWords(g), x, y, k, w, nt, nw, v, bits, b, i, c;
+  if (M_FARMOK || !m32 || M_SEE[MAT.EMPTY] !== 1) { for (x = 0; x < gw; x++) out[x] = mGround(g, x); return out; }
+  var W = gw >> 2;
+  if (!M_GTODO || M_GTODO.length < W) { M_GTODO = new Int32Array(W); M_GLEFT = new Uint8Array(W); }
+  var todo = M_GTODO, left = M_GLEFT;   /* (the words of a row with a column in them not yet found, and which of its four) */
+  for (w = 0; w < W; w++) { todo[w] = w; left[w] = 15; }
+  for (x = 0; x < gw; x++) out[x] = -1;
+  for (y = 0, nt = W; y < gh && nt > 0; y++) {
+    var base = y * W;
+    for (k = 0, nw = 0; k < nt; k++) {
+      w = todo[k]; v = m32[base + w];
+      if (v !== 0) {
+        bits = left[w]; i = (base + w) << 2;
+        for (b = 0; b < 4; b++) if ((bits >> b) & 1 && !M_SEE[m[i + b]]) { out[(w << 2) + b] = y; bits &= ~(1 << b); }
+        left[w] = bits;
+        if (!bits) continue;
+      }
+      todo[nw++] = w;
+    }
+    nt = nw;
+  }
+  for (x = 0; x < gw; x++) {
+    y = out[x];
+    if (y < 0) continue;
+    c = m[y * gw + x];
+    if (LIQUID[c] || WOODY[c] || P_SOFT[c] || bMarked(g, x, y)) out[x] = -1;
+  }
+  return out;
+}
+/* g.m four cells to a word, for a look over the valley a row at a time (the same cells: a word's four are a row's,
+   left to right, whatever order its bytes are in); null if a row is not a whole number of words */
+var M_M32 = null, M_M32OF = null;
+function mWords(g) {
+  var m = g.m;
+  if ((g.gw & 3) || (m.byteOffset & 3) || m.length !== g.gw * g.gh || m.BYTES_PER_ELEMENT !== 1) return null;
+  if (M_M32OF !== m) { M_M32 = new Int32Array(m.buffer, m.byteOffset, m.length >> 2); M_M32OF = m; }
+  return M_M32;
+}
 /* what the ground is looked for through: air, a bush, a tree that can come down (trees), and the wheat on a field
    that can be dug up */
 function mSeeThrough(g, x, y, c, trees) {
