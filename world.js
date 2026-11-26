@@ -1275,8 +1275,14 @@ function sandTurn(g, i, x, y, v) {
 var STILL2 = new Uint8Array(65536), sandM32 = null, sandM32Of = null;
 (function () { for (var k = 0; k < 65536; k++) STILL2[k] = STILL[k & 255] && STILL[k >> 8] ? 1 : 0; })();
 
+/* a cell at rest, seen to be at rest by the step itself, before it is handed a turn: 1 a grain (sandPowder's first look),
+   2 a pool (sandLiquid's), 3 a plant (sandStatic's). sandTurn sends each of these straight to that function, whose first
+   block is the same test with the same dice and the same vy; a cell that fails it goes to sandTurn, which asks again and
+   finds the same. (g.vy and g.aux are made only with the grid: gameGrid, and a load, never during a step) */
+var REST_KIND = new Uint8Array(NMAT);
+REST_KIND[MAT.SAND] = REST_KIND[MAT.ASH] = REST_KIND[MAT.SNOW] = 1; REST_KIND[MAT.WATER] = REST_KIND[MAT.OIL] = 2; REST_KIND[MAT.PLANT] = 3;
 function sandStep(g) {
-  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, w, row, m32;
+  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, w, row, m32, r, j, vy = g.vy, aux = g.aux;
   g.parity ^= 1;
   g.pressN = 0;
   if (gw > VIEW_GW && T % 300 === 0) vRangeSet(g);   /* (the village's range, now and then: section 7) */
@@ -1297,6 +1303,21 @@ function sandStep(g) {
           v = m[i];
           if (STILL[v]) continue;
           if (st[i] === T) continue;
+          if (REST_KIND[v] === 1) {
+            if (y + 1 < gh) { r = v << 6; j = i + gw;
+              if (SAND_CANT[r | m[j]] && (y === 0 || SAND_NOFLOAT[r | m[i - gw]]) && (x === 0 || SAND_CANT[r | m[j - 1]]) && (x === gw - 1 || SAND_CANT[r | m[j + 1]])) { vy[i] = 0; Math.random(); continue; } }
+          } else if (REST_KIND[v] === 2) {
+            if (y + 1 < gh) { r = v << 6; j = i + gw;
+              if (SAND_CANT[r | m[j]] && (y === 0 || SAND_NOFLOAT[r | m[i - gw]]) &&
+                  (x === 0 || (SAND_NOFLOW[r | m[j - 1]] && SAND_NOFLOW[r | m[i - 1]])) &&
+                  (x === gw - 1 || (SAND_NOFLOW[r | m[j + 1]] && SAND_NOFLOW[r | m[i + 1]]))) {
+                vy[i] = 0; Math.random(); Math.random(); Math.random();
+                if (y > 0 && m[i - gw] === MAT.EMPTY) sandPressureCandidate(g, i);
+                continue;
+              } }
+          } else if (REST_KIND[v] === 3) {
+            if (!aux[i] && !((y > 0 && WET[m[i - gw]]) || (y < gh - 1 && WET[m[i + gw]]) || (x > 0 && WET[m[i - 1]]) || (x < gw - 1 && WET[m[i + 1]]))) continue;
+          }
           sandTurn(g, i, x, y, v);
         }
       } else {
@@ -1309,6 +1330,21 @@ function sandStep(g) {
           v = m[i];
           if (STILL[v]) continue;
           if (st[i] === T) continue;
+          if (REST_KIND[v] === 1) {
+            if (y + 1 < gh) { r = v << 6; j = i + gw;
+              if (SAND_CANT[r | m[j]] && (y === 0 || SAND_NOFLOAT[r | m[i - gw]]) && (x === 0 || SAND_CANT[r | m[j - 1]]) && (x === gw - 1 || SAND_CANT[r | m[j + 1]])) { vy[i] = 0; Math.random(); continue; } }
+          } else if (REST_KIND[v] === 2) {
+            if (y + 1 < gh) { r = v << 6; j = i + gw;
+              if (SAND_CANT[r | m[j]] && (y === 0 || SAND_NOFLOAT[r | m[i - gw]]) &&
+                  (x === 0 || (SAND_NOFLOW[r | m[j - 1]] && SAND_NOFLOW[r | m[i - 1]])) &&
+                  (x === gw - 1 || (SAND_NOFLOW[r | m[j + 1]] && SAND_NOFLOW[r | m[i + 1]]))) {
+                vy[i] = 0; Math.random(); Math.random(); Math.random();
+                if (y > 0 && m[i - gw] === MAT.EMPTY) sandPressureCandidate(g, i);
+                continue;
+              } }
+          } else if (REST_KIND[v] === 3) {
+            if (!aux[i] && !((y > 0 && WET[m[i - gw]]) || (y < gh - 1 && WET[m[i + gw]]) || (x > 0 && WET[m[i - 1]]) || (x < gw - 1 && WET[m[i + 1]]))) continue;
+          }
           sandTurn(g, i, x, y, v);
         }
       }
