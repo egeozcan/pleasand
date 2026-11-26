@@ -233,6 +233,10 @@ function pGr(g, x, y) { return g.wAny && !pGrNone(g) && x >= 0 && x < g.gw && y 
    pNoGr: nothing is a grate, great works or none, and pBody is P_BODYM straight off the grid) */
 function pGrNone(g) { var c = P_GRATE; return c.j === null && c.g === g && c.t === g.tick && c.n === g.sites.length && c.gen === SAVE_GEN; }
 function pNoGr(g) { return !g.wAny || pGrNone(g); }
+/* (pGrate's cache is good for this tick, grates or none: a look at the grates changes nothing. a quick look that passes by
+   the slow looks' pBody calls without pNoGr must have this, or it would leave the cache to be filled later in the tick,
+   by another look, after an organ may have been finished or a site taken away and another put in its place) */
+function pGrFresh(g) { var c = P_GRATE; return c.g === g && c.t === g.tick && c.n === g.sites.length && c.gen === SAVE_GEN; }
 /* what a peasant pushes through, on its own two feet: leaves and flowers (P_LEAF, which nothing stops for, not even a
    peasant flying through the air), and wood and saplings (P_SOFT: a tree trunk, a log, a wooden wall somebody drew).
    it can stand on top of any of it, but not in the middle of it: a soft thing holds them up only with their feet out

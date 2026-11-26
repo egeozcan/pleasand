@@ -165,10 +165,13 @@ function navEdges(g, x, y, add) {
 function navUp(g, x, y) {
   var k, ty;
   if (x >= 0 && x < g.gw && y < g.gh) {
-    /* (nothing soft anywhere in rows y-44 to y-3 of the column: no top of anything to go up onto, whatever else is there) */
+    /* (nothing soft anywhere in rows y-44 to y-3 of the column: no top of anything to go up onto, whatever else is there.
+       but the slow looks' first pBody on air, where there are great works, is what fills pGrate's cache for the tick, if
+       nothing has yet: then they are taken, so that it is filled here, as before, and not at some later look, after an
+       organ has been finished in the same tick) */
     var m = g.m, gw = g.gw, r = Math.max(0, y - 44), b = y - 3, j;
     for (j = b * gw + x; b >= r && !P_SOFT[m[j]]; b--, j -= gw);
-    if (b < r) return -1;
+    if (b < r && (!g.wAny || pGrFresh(g))) return -1;
     /* (no grates, pNoGr: the same looks, straight off the grid. ty is 9 or more, so every row it looks at is in the grid,
        but for the one ten over ty 9, which is air) */
     if (pNoGr(g)) {

@@ -520,6 +520,34 @@ module.exports = function (test, check, sim) {
     check(r.grates > 0 && !r.none && !r.bad.length, "finished the tick after: grates " + r.grates + ", " + r.bad.join("; "));
   });
 
+  test("organ: a route's look up a column with nothing soft over it fills pGrate's cache as the slow looks do, so an organ finished later in the tick is no grate till the next", function () {
+    var O = organ(2), w = O.w, g = O.g, s = O.s, M = O.M;
+    for (var i = 0; i < 200 && !g.wAny; i++) sim.step(w, 1);
+    check(g.wAny && s.done, "(the test wants a finished organ)");
+    /* a column with nothing soft in rows y-44 to y-3 over the ground, and air at y-9: navUp's quick no */
+    var x, y, r, at = null;
+    for (x = 20; x < g.gw - 20 && !at; x++) {
+      y = w.mGround(g, x);
+      if (y < 60) continue;
+      var soft = false;
+      for (r = y - 44; r <= y - 3; r++) if (w.P_SOFT[g.m[r * g.gw + x]]) soft = true;
+      if (!soft && g.m[(y - 9) * g.gw + x] === M.EMPTY) at = [x, y];
+    }
+    check(at, "(the test wants a column with nothing soft over it)");
+    var vx = w.pOPipeX(s, 0), vy = w.pOLid(s.G) - w.P_OH[0];
+    check(g.m[vy * g.gw + vx] === M.EMPTY, "(the test wants air at the top of the first pipe)");
+    /* not finished, a fresh tick, and the route's look the first at the grates. then the organ is finished, by its last
+       builder, later in the same tick: its pipe tops are no grates till the next tick, as at 0580e71 */
+    s.done = false; g.tick++;
+    check(!w.pGrFresh(g), "(a cache from the tick before was taken for this one's)");
+    check(w.navUp(g, at[0], at[1]) === -1, "navUp found a way up at " + at);
+    check(w.pGrFresh(g), "navUp at " + at + " took its quick no and left pGrate's cache for a later look to fill");
+    s.done = true;
+    check(!w.pGr(g, vx, vy) && !w.pSolid(g, vx, vy), "an organ finished after the first look at the grates was a grate in the same tick");
+    g.tick++;
+    check(w.pGr(g, vx, vy) && w.pSolid(g, vx, vy), "the finished organ's pipe top was no grate the tick after");
+  });
+
   /* ---------------------------------------------------------------
      THE DUCK PALACE
      --------------------------------------------------------------- */
