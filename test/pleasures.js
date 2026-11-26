@@ -442,6 +442,83 @@ module.exports = function (test, check, sim) {
     for (var t = 0; t < 4000 && !s.breathe; t += 30) { if (t < 1500) heat(); sim.step(w, 30); }
     check(s.breathe >= 1, "nobody let it breathe (steam " + w.pOrganSteam(g, s) + ", shut since " + s.shutT + ")");
   });
+  test("organ: a route's looks off the grid (pRoom, pHookGeom, navUp, navSink) see its grates, and give the cell-by-cell answers with or without them", function () {
+    var O = organ(2), w = O.w, g = O.g, s = O.s;
+    /* (the slow looks, word for word, cell by cell through pBody: what the quick ones must give, everywhere) */
+    var sweep = w.eval("(function (g) {\n" +
+      "  function room(x, y) { return !pBody(g, x, y) && !pBody(g, x, y - 3) && !pBody(g, x, y - 6) && !pBody(g, x, y - 8); }\n" +
+      "  function hook(x, y, s) {\n" +
+      "    var cx = x + s, k, bottom = -1, top;\n" +
+      "    if (cx < 1 || cx > g.gw - 2 || pBody(g, cx, y) || pBody(g, cx, y - 1)) return null;\n" +
+      "    for (k = 2; k <= P_ROPE; k++) if (pBody(g, cx, y - k)) { bottom = y - k; break; }\n" +
+      "    if (bottom < 0) return null;\n" +
+      "    for (top = bottom; top > 0 && pBody(g, cx, top - 1); top--);\n" +
+      "    var stand = top - 1, h = y - stand;\n" +
+      "    if (h > P_ROPE || h < 5 || stand < 9) return null;\n" +
+      "    for (k = y - 9; k >= stand - 9; k--) if (pBody(g, x, k)) return null;\n" +
+      "    if (!room(cx, stand) || pCell(g, cx, top) === MAT.INERT) return null;\n" +
+      "    return { top: top, stand: stand, h: h };\n" +
+      "  }\n" +
+      "  function up(x, y) {\n" +
+      "    for (var k = 1, ty; k <= P_ROPE; k++) {\n" +
+      "      ty = y - k;\n" +
+      "      if (ty < 9 || pBody(g, x, ty - 8) || navBad(pCell(g, x, ty))) return -1;\n" +
+      "      if (k >= 4 && !P_SOFT[pCell(g, x, ty)] && P_SOFT[pCell(g, x, ty + 1)])\n" +
+      "        return navStand(g, x, ty) === 1 && !pBody(g, x, ty - 9) && !pBody(g, x, ty - 10) ? ty : -1;\n" +
+      "    }\n" +
+      "    return -1;\n" +
+      "  }\n" +
+      "  function sink(x, y) {\n" +
+      "    if (!P_SOFT[pCell(g, x, y + 1)] || pFoot(g, x - 1, y) && !P_SOFT[pCell(g, x - 1, y + 1)] ||\n" +
+      "        pFoot(g, x + 1, y) && !P_SOFT[pCell(g, x + 1, y + 1)]) return -1;\n" +
+      "    for (var d = 1; d <= 76 && y + d < g.gh; d++) {\n" +
+      "      if (pBody(g, x, y + d) || navBad(pCell(g, x, y + d))) return -1;\n" +
+      "      if (d > 1 && navStand(g, x, y + d)) return d < 4 ? -1 : y + d;\n" +
+      "    }\n" +
+      "    return -1;\n" +
+      "  }\n" +
+      "  var bad = [], grates = 0, x, y;\n" +
+      "  function eq(a, b, what) { if (JSON.stringify(a) !== JSON.stringify(b) && bad.length < 8) bad.push(what + ' ' + x + ',' + y + ': ' + JSON.stringify(a) + ' not ' + JSON.stringify(b)); }\n" +
+      "  for (x = -2; x < g.gw + 2; x++) for (y = -2; y < g.gh + 2; y++) {\n" +
+      "    if (pBody(g, x, y) && !P_BODYM[pCell(g, x, y)]) grates++;\n" +
+      "    eq(pRoom(g, x, y), room(x, y), 'pRoom');\n" +
+      "    eq(pHookGeom(g, x, y, 1), hook(x, y, 1), 'pHookGeom east');\n" +
+      "    eq(pHookGeom(g, x, y, -1), hook(x, y, -1), 'pHookGeom west');\n" +
+      "    eq(navUp(g, x, y), up(x, y), 'navUp');\n" +
+      "    eq(navSink(g, x, y), sink(x, y), 'navSink');\n" +
+      "  }\n" +
+      "  return { bad: bad, grates: grates, none: pNoGr(g) };\n" +
+      "})");
+    for (var i = 0; i < 200 && !g.wAny; i++) sim.step(w, 1);   /* (wStep says there are great works, at its next look) */
+    check(g.wAny && s.done, "(the test wants a finished organ)");
+    /* finished: its valves and pipe tops are grates, and the quick looks are not taken */
+    var r = sweep(g);
+    check(r.grates > 0 && !r.none && !r.bad.length, "with the organ: grates " + r.grates + ", no grates said " + r.none + ", " + r.bad.join("; "));
+    /* not finished, the next tick: great works, and no grates. the first look fills pGrate's cache, then the quick looks */
+    s.done = false; g.tick++;
+    check(!w.pNoGr(g), "a cache from the tick before was taken for this one's");
+    r = sweep(g);
+    check(r.grates === 0 && r.none && !r.bad.length, "without it: grates " + r.grates + ", no grates said " + r.none + ", " + r.bad.join("; "));
+    /* finished again in the same tick: pGrate goes by what it found at the start of the tick, and so do the quick looks */
+    s.done = true;
+    r = sweep(g);
+    check(r.grates === 0 && r.none && !r.bad.length, "finished in the tick: grates " + r.grates + ", " + r.bad.join("; "));
+    /* a load (or another count of sites) and the cache is not good: the organ's grates are back */
+    w.saveScratchReset();
+    check(!w.pNoGr(g), "a cache from before a load was taken");
+    r = sweep(g);
+    check(r.grates > 0 && !r.none && !r.bad.length, "after a load: grates " + r.grates + ", " + r.bad.join("; "));
+    s.done = false; g.tick++; sweep(g);
+    check(w.pNoGr(g), "(no grates, the cache filled)");
+    g.sites.push({ kind: "test" });
+    check(!w.pNoGr(g), "a cache from before a site was added was taken");
+    g.sites.pop();
+    /* (and an empty cache from the tick before, the organ finished since: its grates, this tick) */
+    s.done = true; g.tick++;
+    check(!w.pNoGr(g), "an empty cache from the tick before was taken for this one's");
+    r = sweep(g);
+    check(r.grates > 0 && !r.none && !r.bad.length, "finished the tick after: grates " + r.grates + ", " + r.bad.join("; "));
+  });
 
   /* ---------------------------------------------------------------
      THE DUCK PALACE

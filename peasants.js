@@ -226,7 +226,13 @@ function pCell(g, x, y) {
 function pSolid(g, x, y) { var c = pCell(g, x, y); return (SOLID[c] === 1 && !P_PASS[c]) || (c === MAT.EMPTY && pGr(g, x, y)); }
 /* an empty cell that is a grate to a peasant, though not to steam: an organ's valves and pipe tops (pleasures.js pGrate).
    only where there are great works */
-function pGr(g, x, y) { return g.wAny && x >= 0 && x < g.gw && y >= 0 && y < g.gh && pGrate(g, y * g.gw + x); }
+function pGr(g, x, y) { return g.wAny && !pGrNone(g) && x >= 0 && x < g.gw && y >= 0 && y < g.gh && pGrate(g, y * g.gw + x); }
+/* (no grates anywhere, as pGrate already knows for this tick: its cache is good and empty, so pGrate would say no to every
+   cell without looking again. then pGr is false wherever it is asked. it never fills the cache itself: a cache from
+   another tick, before another load or with another count of sites is not good, and the slow looks fill it as before.
+   pNoGr: nothing is a grate, great works or none, and pBody is P_BODYM straight off the grid) */
+function pGrNone(g) { var c = P_GRATE; return c.j === null && c.g === g && c.t === g.tick && c.n === g.sites.length && c.gen === SAVE_GEN; }
+function pNoGr(g) { return !g.wAny || pGrNone(g); }
 /* what a peasant pushes through, on its own two feet: leaves and flowers (P_LEAF, which nothing stops for, not even a
    peasant flying through the air), and wood and saplings (P_SOFT: a tree trunk, a log, a wooden wall somebody drew).
    it can stand on top of any of it, but not in the middle of it: a soft thing holds them up only with their feet out
@@ -251,7 +257,7 @@ function pFoot(g, x, y) {
 function pGround(g, x, y) { return pFoot(g, x, y) || pFoot(g, x - 1, y) || pFoot(g, x + 1, y); }
 /* could a peasant with its feet here stand up straight (pBody: is this cell in the way of a walking one). pStiff: in the
    way of one that is not walking but flying, which goes through leaves but not through a tree */
-/* (P_BODYM: pBody's look at the material, SOLID and not P_PASS and not P_SOFT, by material. with no great works that is
+/* (P_BODYM: pBody's look at the material, SOLID and not P_PASS and not P_SOFT, by material. with no grates (pNoGr) that is
    all there is to pBody, and the looks a route takes read it straight off the grid: pRoom, pHookGeom, paths.js) */
 var P_BODYM = (function () {
   var t = new Uint8Array(NMAT);
@@ -274,7 +280,7 @@ function pStepUp(g, x, y) {
   return f < 0 ? 4 : f;   /* (no proper step: into it, then, and down through it) */
 }
 function pRoom(g, x, y) {
-  if (!g.wAny && x >= 0 && x < g.gw && y >= 8 && y < g.gh) {   /* (all four in the grid, and no great works: the cells alone) */
+  if (pNoGr(g) && x >= 0 && x < g.gw && y >= 8 && y < g.gh) {   /* (all four in the grid, and no grates: the cells alone) */
     var m = g.m, gw = g.gw, j = y * gw + x;
     return !P_BODYM[m[j]] && !P_BODYM[m[j - 3 * gw]] && !P_BODYM[m[j - 6 * gw]] && !P_BODYM[m[j - 8 * gw]];
   }
@@ -1047,8 +1053,8 @@ function pTryClimb(g, p, fx, fy) {
 function pHookGeom(g, x, y, s) {
   var cx = x + s, k, bottom = -1, top;
   if (cx < 1 || cx > g.gw - 2 || pBody(g, cx, y) || pBody(g, cx, y - 1)) return null;   /* a wall: that is pTryClimb's */
-  /* (no great works, and their feet in the grid: the same looks, cell by cell off the grid. over the top of it is air) */
-  var fast = !g.wAny && y < g.gh, m = g.m, gw = g.gw, j;
+  /* (no grates (pNoGr), and their feet in the grid: the same looks, cell by cell off the grid. over the top of it is air) */
+  var fast = pNoGr(g) && y < g.gh, m = g.m, gw = g.gw, j;
   if (fast) { for (k = 2, j = (y - 2) * gw + cx; k <= P_ROPE && k <= y; k++, j -= gw) if (P_BODYM[m[j]]) { bottom = y - k; break; } }
   else for (k = 2; k <= P_ROPE; k++) if (pBody(g, cx, y - k)) { bottom = y - k; break; }
   if (bottom < 0) return null;
