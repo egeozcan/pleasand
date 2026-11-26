@@ -1681,6 +1681,33 @@ test("a save loads into another village and carries on exactly as the first woul
   check(!g.helloP || g.peasants.indexOf(g.helloP) >= 0 || g.ghosts.indexOf(g.helloP) >= 0 || g.helloP.dead, "g.helloP is not one of the peasants any more");
 });
 
+test("the fingerprint sees two small differences in one field, not just one", function () {
+  /* same.js trusts stateHash to tell two worlds apart. two temperatures a last bit off (what reordering a sum does),
+     or two numbers with their signs flipped, must not cancel out */
+  var sh = require("../harness/snapshot.js").stateHash, U = new Uint32Array(1), F = new Float32Array(U.buffer);
+  function ulp(v) { F[0] = v; U[0] += 1; return F[0]; }
+  var a = new Float32Array(2000), s = 1, t, i, j, same = 0, flipped = 0;
+  for (i = 0; i < a.length; i++) { s = (Math.imul(s, 1103515245) + 12345) >>> 0; a[i] = 20 + 5 * (s / 4294967296); }
+  var h0 = sh({ T: a }).fields.T;
+  for (t = 0; t < 400; t++) {
+    var b = a.slice();
+    i = (t * 7919) % a.length; j = (t * 104729 + 13) % a.length; if (i === j) j = (j + 1) % a.length;
+    b[i] = ulp(b[i]); b[j] = ulp(b[j]);
+    if (sh({ T: b }).fields.T === h0) same++;
+    b = a.slice(); b[i] = -b[i]; b[j] = -b[j];
+    if (sh({ T: b }).fields.T === h0) flipped++;
+  }
+  check(!same, "two temperatures a last bit off went unseen " + same + " times in 400");
+  check(!flipped, "two temperatures with their signs flipped went unseen " + flipped + " times in 400");
+  var A = sh({ parts: [{ vx: 0.37 }, { vx: -0.81 }], T: new Float32Array([21.5, 20, -3.75, 20]) });
+  var B = sh({ parts: [{ vx: -0.37 }, { vx: 0.81 }], T: new Float32Array([-21.5, 20, 3.75, 20]) });
+  check(A.fields.parts !== B.fields.parts && A.fields.T !== B.fields.T && A.hash !== B.hash, "two sign flips in a field cancel out");
+  /* and a typed array is hashed by its bits: a NaN that is not the usual NaN is not the usual NaN */
+  var n1 = new Float32Array([1, NaN, 2]), n2 = n1.slice(), u2 = new Uint32Array(n2.buffer);
+  u2[1] ^= 1;
+  check(sh({ T: n1 }).fields.T !== sh({ T: n2 }).fields.T, "two NaNs of different bits hash the same");
+});
+
 test("the save skips what the harness's snapshots skip", function () {
   var skip = require("../harness/snapshot.js").SKIP, h = require("../harness").open({ seed: 1 });
   var mine = h.eval("SAVE_SKIP");

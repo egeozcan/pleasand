@@ -390,6 +390,10 @@ function main() {
   var ref = null;
   if (o.check) {
     ref = JSON.parse(fs.readFileSync(String(o.check), "utf8"));
+    if ((ref.hashing || 1) !== snap.HASH_VERSION) {
+      console.error("same: " + o.check + " was fingerprinted with stateHash " + (ref.hashing || 1) + ", and this is " + snap.HASH_VERSION + ": every checkpoint would differ. record it again from the reference tree");
+      process.exit(2);
+    }
     list = list.filter(function (s) { return ref.scenarios[s.name]; });
     if (!list.length) { console.error("same: none of those scenarios is in " + o.check); process.exit(2); }
   }
@@ -397,7 +401,7 @@ function main() {
   runAll(list, { root: root, ignore: ignore, jobs: jobs, warm: warm }, function (results, wall) {
     var bad = 0, threw = 0;
     if (o.record) {
-      var out = { format: "pleasand-same", version: 1, every: EVERY, commit: commitOf(root), node: process.version, made: new Date().toISOString(),
+      var out = { format: "pleasand-same", version: 1, hashing: snap.HASH_VERSION, every: EVERY, commit: commitOf(root), node: process.version, made: new Date().toISOString(),
                   ignore: Array.from(ignore), scenarios: {} };
       if (list.some(function (s) { return s.load; })) out.warm = warm;
       list.forEach(function (s) { var r = results[s.name]; out.scenarios[s.name] = { spec: s, error: r.error, entries: r.entries }; if (r.error) threw++; });

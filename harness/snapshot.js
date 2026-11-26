@@ -117,10 +117,18 @@ function clone(v, keep) { return cloneValue(v, new Map(), keep || new Set()); }
    way down, each top-level key on its own (so a difference can be named).
    harness.js hash() is the quick one; this one leaves nothing out.
 
-   numbers go in by value, whatever holds them (a Float32Array's 0.1 is
-   the float64 it widens to, so a cell's temperature is exact), so an
-   Array and a typed array of the same numbers come out the same: what
-   is compared is what the world holds, not how. keys go in sorted. an
+   a number in an object or an Array goes in by value (an int as an int,
+   anything else as the bits of its float64). a typed array goes in by
+   its bits: a Float32Array's temperatures as the 32 bits each one is
+   held in, so a last-bit difference, a sign or a NaN's payload counts
+   (and a Float32Array is not the same as an Array of the same numbers).
+   every word is avalanched into the running hash (h ^ x, then murmur3's
+   fmix32), so a difference in a word's top bits reaches all 32 bits at
+   once, and two differences in one field cancel only by a 1 in 2^32
+   chance, not because the top bits never come back down (FNV-1a's
+   multiply alone carries a difference upward only: two temperatures a
+   last bit off went unseen 1 time in 5, two sign flips every time).
+   keys go in sorted. an
    object met a second time goes in as the order it was first met in
    (a held duck is the duck in g.ducks); the game's constant tables (hats,
    duck kinds) as their name and place. opts.skip: more keys of g to
@@ -129,13 +137,20 @@ function clone(v, keep) { return cloneValue(v, new Map(), keep || new Set()); }
    ------------------------------------------------------------------- */
 var HF = new Float64Array(1), HU = new Uint32Array(HF.buffer);
 
+/* murmur3's finaliser: a bijection of 32 bits in which every bit in moves about half the bits out */
+function fmix(h) {
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return h ^ (h >>> 16);
+}
+
 function stateHash(g, opts) {
   opts = opts || {};
   var names = new Map(), memo = new Map(), seen = 0, h = 0, k, i;
   (opts.consts || []).forEach(function (c) {
     if (Array.isArray(c[1])) c[1].forEach(function (o, j) { if (o && typeof o === "object") names.set(o, c[0] + "#" + j); });
   });
-  function mix(x) { h = Math.imul(h ^ (x | 0), 16777619); }
+  function mix(x) { h = fmix(h ^ x); }
   function num(v) {
     if ((v | 0) === v && (v !== 0 || 1 / v > 0)) { mix(1); mix(v); }
     else if (v !== v) mix(3);
@@ -156,7 +171,12 @@ function stateHash(g, opts) {
     memo.set(v, seen++);
     if (isTypedArray(v) || Array.isArray(v)) {
       mix(12); mix(v.length);
-      if (v instanceof Float32Array || v instanceof Float64Array) for (j = 0; j < v.length; j++) num(v[j]);
+      if (v instanceof Float32Array || v instanceof Float64Array) {
+        /* (by the bits: a Float64Array's as its words, low then high) */
+        var w = new Uint32Array(v.buffer, v.byteOffset, v.length * (v instanceof Float64Array ? 2 : 1));
+        mix(v instanceof Float64Array ? 18 : 17);
+        for (j = 0; j < w.length; j++) mix(w[j]);
+      }
       else if (isTypedArray(v)) for (j = 0; j < v.length; j++) { mix(1); mix(v[j]); }
       else for (j = 0; j < v.length; j++) val(v[j]);
       return;
@@ -177,10 +197,14 @@ function stateHash(g, opts) {
     h = 0x811c9dc5;
     val(i < ks.length ? g[k] : opts.extra[k]);
     fields[k] = hex(h);
-    all = Math.imul(all ^ h, 16777619);
-    for (var c = 0; c < k.length; c++) all = Math.imul(all ^ k.charCodeAt(c), 16777619);
+    all = fmix(all ^ h);
+    for (var c = 0; c < k.length; c++) all = fmix(all ^ k.charCodeAt(c));
   }
   return { hash: hex(all), fields: fields };
 }
 
-module.exports = { capture: capture, apply: apply, clone: clone, constantRefs: constantRefs, stateHash: stateHash, SKIP: SKIP };
+/* which stateHash this is: 2 avalanches every word and takes typed arrays by their bits (1 folded words in FNV-1a's
+   way). a fingerprint is only compared with one made the same way */
+var HASH_VERSION = 2;
+
+module.exports = { capture: capture, apply: apply, clone: clone, constantRefs: constantRefs, stateHash: stateHash, SKIP: SKIP, HASH_VERSION: HASH_VERSION };

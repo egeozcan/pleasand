@@ -213,8 +213,14 @@ difference of a few percent only when every round agrees.
 not change, not a cell, a degree or a die. It plays a set of villages and every
 500 sand ticks fingerprints the whole state (`snapshot.js` `stateHash`: every
 key of `g` but the drawing and scratch `SKIP` leaves out, all the way down,
-numbers by their exact value, plus the dice, the side dice, the clock and the
-module variables the rules keep between ticks), each top-level field on its own.
+numbers by their exact value and typed arrays by their bits, plus the dice, the
+side dice, the clock and the module variables the rules keep between ticks), each
+top-level field on its own. Every word is avalanched into the hash (murmur3's
+`fmix32`), so two differences in one field, say two temperatures a last bit off,
+cancel out only by a 1 in 2^32 chance. (Before, each word was folded in
+FNV-1a's way, a multiply that carries a difference only upward: two such
+temperatures went unseen 1 time in 5, and two sign flips every time. A reference
+recorded then cannot be checked against now; record it again.)
 ```bash
 node harness/same.js --record ref.json                 # write this tree's worlds down
 node harness/same.js --check ref.json --dir ../wip     # exit 0: identical, every field, every checkpoint
