@@ -361,17 +361,24 @@ function heatDown(g, i, v) {
 /* quiet: not burning, not metal (metal pairs go on the fast list whatever their heat), not lava (it sets where its aux
    says), and room temperature is inside its range. HEAT_AQ2: two cells at once, as they lie in a pair of bytes */
 var HEAT_AQ = null, HEAT_AQ2 = null, HEAT_AMB32 = new Int32Array(new Float32Array([AMBIENT]).buffer)[0];
-/* (the world's arrays, seen four bytes at a time, and which rows the step passed by. kept here, not on g: a save carries
-   g, and these are nobody's business but the step's. made again whenever the world's arrays are new ones) */
-var heatT32 = null, heatL32 = null, heatM32 = null, heatSkip = null;
+/* (two cells at room temperature side by side, read as one double: an ordinary number, neither zero nor NaN, so it is
+   equal to the pair only when both are room temperature bit for bit) */
+var HEAT_AMB64 = new Float64Array(new Float32Array([AMBIENT, AMBIENT]).buffer)[0];
+/* (the world's arrays, seen four bytes (or eight) at a time, and which rows the step passed by. kept here, not on g: a
+   save carries g, and these are nobody's business but the step's. made again whenever the world's arrays are new ones.
+   heatW: the words can be walked (every row starts on a word, and every view lines up); heatBits: the step's bitsets) */
+var heatT32 = null, heatL32 = null, heatM32 = null, heatSkip = null, heatT64 = null, heatL64 = null, heatW = false, heatBits = null;
 function heatQuietTables() {
   HEAT_AQ = new Uint8Array(256); HEAT_AQ2 = new Uint8Array(65536);
+  /* (and its edge of the room is a sum that comes to nothing at room temperature: (20 - 20) is +0, and +0 times a
+     finite number is zero) */
   for (var v = 0; v < NMAT; v++)
-    HEAT_AQ[v] = !HEAT_SRC[v] && v !== MAT.METAL && v !== MAT.LAVA && HEAT_LO[v] <= AMBIENT && HEAT_HI[v] >= AMBIENT ? 1 : 0;
+    HEAT_AQ[v] = !HEAT_SRC[v] && v !== MAT.METAL && v !== MAT.LAVA && HEAT_LO[v] <= AMBIENT && HEAT_HI[v] >= AMBIENT &&
+                 isFinite(HEAT_BK[v]) && isFinite(HEAT_IC[v]) ? 1 : 0;
   for (var a = 0; a < 256; a++) for (var b = 0; b < 256; b++) HEAT_AQ2[a | (b << 8)] = HEAT_AQ[a] & HEAT_AQ[b];
 }
 function heatViews(g) {
-  var m = g.m, T = g.T, lat = g.lat, n = m.length;
+  var m = g.m, T = g.T, lat = g.lat, n = m.length, nw, NB;
   if (heatT32 === null || heatT32.buffer !== T.buffer || heatT32.byteOffset !== T.byteOffset || heatT32.length !== T.length)
     heatT32 = new Int32Array(T.buffer, T.byteOffset, T.length);
   if (heatL32 === null || heatL32.buffer !== lat.buffer || heatL32.byteOffset !== lat.byteOffset || heatL32.length !== lat.length)
@@ -380,10 +387,22 @@ function heatViews(g) {
   if ((g.gw & 3) !== 0 || (m.byteOffset & 3) !== 0) heatM32 = null;
   else if (heatM32 === null || heatM32.buffer !== m.buffer || heatM32.byteOffset !== m.byteOffset || heatM32.length !== n >> 2)
     heatM32 = new Uint32Array(m.buffer, m.byteOffset, n >> 2);
+  /* (and the walk by words only when the temperatures and what is soaked up line up with them too: two cells to a double) */
+  heatW = heatM32 !== null && (T.byteOffset & 7) === 0 && (lat.byteOffset & 7) === 0 && T.length === n && lat.length === n;
+  if (heatW) {
+    if (heatT64 === null || heatT64.buffer !== T.buffer || heatT64.byteOffset !== T.byteOffset || heatT64.length !== n >> 1)
+      heatT64 = new Float64Array(T.buffer, T.byteOffset, n >> 1);
+    if (heatL64 === null || heatL64.buffer !== lat.buffer || heatL64.byteOffset !== lat.byteOffset || heatL64.length !== n >> 1)
+      heatL64 = new Float64Array(lat.buffer, lat.byteOffset, n >> 1);
+    nw = g.gw >> 2; NB = (nw + 31) >> 5;
+    if (heatBits === null || heatBits.nw !== nw)
+      heatBits = { nw: nw, NB: NB, pad: (nw & 31) === 0 ? 0 : -1 << (nw & 31),
+                   a: new Int32Array(NB), b: new Int32Array(NB), c: new Int32Array(NB), d: new Int32Array(NB), e: new Int32Array(NB) };
+  }
   if (heatSkip === null || heatSkip.length !== g.gh) heatSkip = new Uint8Array(g.gh);
 }
 /* 1 if cells a..b-1 are all quiet, at exactly room temperature (its bits: a NaN or a hair off is not), with exactly
-   nothing soaked up (+0, bit for bit), else 0 */
+   nothing soaked up (+0, bit for bit), else 0. (the walk by words reads rows as bits instead: see COLD WORDS) */
 function heatColdRow(m, a, b) {
   var T32 = heatT32, L32 = heatL32, M32 = heatM32, AQ = HEAT_AQ, AQ2 = HEAT_AQ2, AB = HEAT_AMB32, i, w;
   if (M32 !== null) {
@@ -396,6 +415,72 @@ function heatColdRow(m, a, b) {
     return 1;
   }
   for (i = a; i < b; i++) if (AQ[m[i]] === 0 || T32[i] !== AB || L32[i] !== 0) return 0;
+  return 1;
+}
+/* -------------------------------------------------------------------
+   COLD WORDS. a warmed valley has few cold rows (a few warm cells in
+   every row), but it is still nine words in ten cold: four cells side
+   by side, quiet, at exactly room temperature, nothing soaked up. a heat
+   step does nothing to a cell when it and every cell it looks at are at
+   exactly room temperature (no difference: no heat moves, no air rises,
+   sinks or stirs, no dice; at the edge of the room, BK * (20 - 20) * IC
+   is a zero, and 20 plus a zero is 20), so a quiet word whose own four,
+   the one to its right, the four under it and the six over it are all
+   at room temperature is passed by.
+   the rows are seen as bitsets: bit k of a row's is 1 when word k is
+   cold, as the row stood when it was read. the row under the one being
+   worked is read just before it is; a row's own bits are those read
+   when the row over it was worked, and still hold for a word when the
+   word over it did nothing. a word passes by on the bits alone when the
+   word before it passed by (it wrote nothing into it, nor into the row
+   over it), the three words over it passed by (they wrote nothing down
+   into it or its right-hand neighbour, and are still at room
+   temperature: nothing has been worked since that writes into them),
+   it and the word to its right are cold, and the word under it is.
+   otherwise it is looked at, all fifteen cells, as they stand now; and
+   if that does not pass it by, its cells are worked. bits past the last
+   word of a row are 1. a row is passed by whole, as before, when it and
+   the rows either side of it are all cold (see heatColdRow)
+   ------------------------------------------------------------------- */
+/* cold, for a word: quiet, room temperature bit for bit, and nothing soaked up: as heatColdRow has it, two cells to a
+   double. (one thing reads differently: a pair whose second cell has -0 soaked up reads as nothing soaked up. step 1
+   never reads what is soaked up, and step 2 leaves a -0 as it is, as it does a +0: neither is over or under 0) */
+/* read the bits of the nw words from cell a into Cf */
+function heatSnapBits(Cf, a, nw) {
+  var M32 = heatM32, T64 = heatT64, L64 = heatL64, AQ2 = HEAT_AQ2, A64 = HEAT_AMB64;
+  var b, o, lim, bits, w, s = a >> 1, k = a >> 2, NB = (nw + 31) >> 5;
+  for (b = 0; b < NB; b++) {
+    bits = 0; lim = nw - (b << 5); if (lim > 32) lim = 32;
+    for (o = 0; o < lim; o++, k++, s += 2) {
+      w = M32[k];
+      if (T64[s] === A64 && T64[s + 1] === A64 && L64[s] === 0 && L64[s + 1] === 0 && (AQ2[w & 0xffff] & AQ2[w >>> 16]) !== 0) bits |= 1 << o;
+    }
+    if (lim < 32) bits |= -1 << lim;
+    Cf[b] = bits;
+  }
+}
+/* true if the word at cell i is cold now */
+function heatWordCold(i) {
+  var w = heatM32[i >> 2], s = i >> 1, T64 = heatT64, L64 = heatL64, A64 = HEAT_AMB64;
+  return T64[s] === A64 && T64[s + 1] === A64 && L64[s] === 0 && L64[s + 1] === 0 && (HEAT_AQ2[w & 0xffff] & HEAT_AQ2[w >>> 16]) !== 0;
+}
+/* 1 if the row from cell a is cold now. Cc: its bits as read before the row over it was worked; Sp: the words of the row
+   over it that did nothing (so wrote nothing into it): the bits under those still hold, the rest are read again */
+function heatRowColdNow(Cc, Sp, a, nw) {
+  var NB = (nw + 31) >> 5, b, k, s;
+  for (b = 0; b < NB; b++) if ((Cc[b] | ~Sp[b]) !== -1) return 0;
+  for (b = 0; b < NB; b++) {
+    s = ~Sp[b];
+    while (s !== 0) {
+      k = 31 - Math.clz32(s & -s); s &= s - 1;
+      if (!heatWordCold(a + (((b << 5) + k) << 2))) return 0;
+    }
+  }
+  return 1;
+}
+/* 1 if the row from cell a is cold now, read afresh */
+function heatRowColdFresh(a, nw) {
+  for (var k = 0; k < nw; k++) if (!heatWordCold(a + (k << 2))) return 0;
   return 1;
 }
 
@@ -423,23 +508,76 @@ function heatStep(g) {
   /* 1. make heat, lose heat, move heat */
   /* (a row is passed by when it, the row over it and the row under it are all cold: see heatColdRow. a row worked writes
      only into itself and the rows either side of it, so a row passed by leaves what is known about the next two as it
-     was; a row worked, not. cA, cB, cC: the rows over, at and under this one; 1 cold, 0 not, -1 not looked at yet) */
+     was; a row worked, not. cA, cB, cC: the rows over, at and under this one; 1 cold, 0 not, -1 not looked at yet.
+     with the words: see COLD WORDS. Cc, Cn: the bits of this row and the row under it; Sp, Sc: the words of the row over
+     this one, and of this one, that did nothing; Aw: the words that pass by on the bits, if the one before them did) */
   if (HEAT_AQ === null) heatQuietTables();
   heatViews(g);
-  var skip = heatSkip, cA = 1, cB = -1, cC = -1;
+  var WS = heatW, skip = heatSkip, cA = 1, cB = -1, cC = -1;
+  var M32 = heatM32, T32 = heatT32, T64 = heatT64, AQ2 = HEAT_AQ2, AB = HEAT_AMB32, A64 = HEAT_AMB64;
+  var nw = gw >> 2, NB = 0, PAD = 0, Cc = null, Cn = null, Sp = null, Sc = null, Aw = null, sw, bb, kw, bw, ow, bits, run, prevS = 0, lo2, hi2, i2, wq;
+  if (WS) {
+    NB = heatBits.NB; PAD = heatBits.pad;
+    Cc = heatBits.a; Cn = heatBits.b; Sp = heatBits.c; Sc = heatBits.d; Aw = heatBits.e;
+    Sp.fill(-1);
+    heatSnapBits(Cc, 0, nw);
+  }
   for (y = 0; y < gh; y++) {
     row = y * gw;
-    if (cB < 0) cB = heatColdRow(m, row, row + gw);
-    if (cB === 1) {
-      if (cA < 0) cA = heatColdRow(m, row - gw, row);
-      if (cA === 1) {
-        if (cC < 0) cC = y === gh1 ? 1 : heatColdRow(m, row + gw, row + 2 * gw);
-        if (cC === 1) { skip[y] = 1; cA = 1; cB = 1; cC = -1; continue; }
+    if (WS) {
+      if (y < gh1) heatSnapBits(Cn, row + gw, nw); else Cn.fill(-1);
+      for (bb = 0; bb < NB; bb++) if (Cn[bb] !== -1) break;
+      if (bb === NB && heatRowColdNow(Cc, Sp, row, nw) === 1 && (y === 0 || skip[y - 1] === 1 || heatRowColdFresh(row - gw, nw) === 1)) {
+        /* (passed by: it wrote nothing, so the row under it is as its bits were read) */
+        skip[y] = 1; Sp.fill(-1); sw = Cc; Cc = Cn; Cn = sw; continue;
       }
+      skip[y] = 0;
+      for (bb = 0; bb < NB; bb++) {
+        lo2 = bb > 0 ? Sp[bb - 1] >>> 31 : 1;
+        hi2 = bb + 1 < NB ? Sp[bb + 1] << 31 : -2147483648;
+        bits = Sp[bb] & ((Sp[bb] << 1) | lo2) & ((Sp[bb] >>> 1) | hi2);
+        hi2 = bb + 1 < NB ? Cc[bb + 1] << 31 : -2147483648;
+        Aw[bb] = bits & Cc[bb] & ((Cc[bb] >>> 1) | hi2) & Cn[bb];
+        Sc[bb] = 0;
+      }
+      Sc[NB - 1] = PAD;
+      prevS = 1;
+    } else {
+      if (cB < 0) cB = heatColdRow(m, row, row + gw);
+      if (cB === 1) {
+        if (cA < 0) cA = heatColdRow(m, row - gw, row);
+        if (cA === 1) {
+          if (cC < 0) cC = y === gh1 ? 1 : heatColdRow(m, row + gw, row + 2 * gw);
+          if (cC === 1) { skip[y] = 1; cA = 1; cB = 1; cC = -1; continue; }
+        }
+      }
+      skip[y] = 0; cA = -1; cB = -1; cC = -1;
     }
-    skip[y] = 0; cA = -1; cB = -1; cC = -1;
     for (x = 0; x < gw; x++) {
-      i = row + x; v = m[i]; t = T[i];
+      i = row + x;
+      if (WS && (x & 3) === 0) {
+        kw = x >> 2; bw = kw >> 5; ow = kw & 31;
+        if (prevS === 1 && ((bits = Aw[bw] >>> ow) & 1) !== 0) {
+          /* a run of words that pass by on the bits: as many ones as there are from here, in this int */
+          bits = ~bits;
+          run = bits === 0 ? 32 : 31 - Math.clz32(bits & -bits);
+          if (kw + run > nw) run = nw - kw;
+          Sc[bw] |= run === 32 ? -1 : ((1 << run) - 1) << ow;
+          x += (run << 2) - 1; continue;
+        }
+        /* the fifteen cells, as they stand now: its own four, the one to its right, the four under it, the six over it */
+        wq = M32[i >> 2]; i2 = i >> 1;
+        if ((AQ2[wq & 0xffff] & AQ2[wq >>> 16]) !== 0 && T64[i2] === A64 && T64[i2 + 1] === A64 &&
+            (x + 4 === gw || T32[i + 4] === AB) &&
+            (y === gh1 || (T64[(i + gw) >> 1] === A64 && T64[((i + gw) >> 1) + 1] === A64)) &&
+            (y === 0 || (T64[(i - gw) >> 1] === A64 && T64[((i - gw) >> 1) + 1] === A64 &&
+                         (x === 0 || T32[i - gw - 1] === AB) && (x + 4 === gw || T32[i - gw + 4] === AB)))) {
+          Sc[bw] |= 1 << ow; prevS = 1;
+          x += 3; continue;
+        }
+        prevS = 0;
+      }
+      v = m[i]; t = T[i];
       if (SRC[v]) {
         /* burning: heat from the fuel, a limited amount a tick, up to the flame's own temperature.
            a clean flame (gas, torch) burns hotter than a smoky one */
@@ -493,6 +631,7 @@ function heatStep(g) {
       if (x === 0 || x === gw1 || y === 0 || y === gh1) t += BK[v] * (AMBIENT - t) * IC[v];
       T[i] = t;
     }
+    if (WS) { sw = Sp; Sp = Sc; Sc = sw; sw = Cc; Cc = Cn; Cn = sw; }
   }
   /* metal gets a few more goes, between metal only, so a bar carries heat end to end */
   if (nf) {
