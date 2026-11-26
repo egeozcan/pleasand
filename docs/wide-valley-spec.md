@@ -317,7 +317,14 @@ A peasant or duck may still walk out past the range; the world edges are the onl
   by words that are steady (four things that neither melt, set nor boil between +0 and 100 degrees, in that band,
   nothing soaked up). Not every frame is inside: the longest are one
   of 196 ms on seed 3 after tick 40 000, in both runs (0580e71's longest on that seed, 919 ms), 58-60 ms on seed 7
-  and 30 ms on seed 14, and one such frame is a hitch on screen. A valley older than 80 000 ticks has not been timed.
+  and 30 ms on seed 14, and one such frame is a hitch on screen. Not every valley is inside either, though none is
+  slower than 0580e71 and every world matched. Past about 150 000 ticks, with the organ finished, builders' route
+  searches look for grates cell by cell again: from saves at 150 000, median 3.9-4.2 ms but p95 25.8 on seed 3 and
+  11.7-12.5 on seed 7 (seed 14, 6.0; 0580e71, 45.1, 28.0 and 19.1). A village with snow, ice, a forge or a smelt in
+  it is off room temperature from the start, so the heat step has fewer cold words to pass by: median 5.5-6.8 ms
+  and p95 10.6-11.1 (0580e71, about 20.7 and 33). And a width that is not a multiple of 4, which only
+  `window.PLEASAND_GW` can give, gets no word walks at all, so a warmed 1089- or 1091-wide valley is back near
+  0580e71's cost.
   The world is the same: `harness/same.js` finds all 23 short and all 9 long and warm scenarios identical to
   0580e71, and every run above ends on 0580e71's `hash()` and `stateHash`.
   Measured before any of this, early game, seed 7, node: 0.93 ms/tick at 272 and 3.06 ms/tick at 1088; drawWorld
