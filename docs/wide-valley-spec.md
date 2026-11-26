@@ -305,11 +305,12 @@ A peasant or duck may still walk out past the range; the world edges are the onl
 - The simulation still steps the **whole** world every tick.
 - **Budget**, measured with the harness `--profile` on seeds 3, 7, 14 over 20 000 ticks at 1088: median
   `gameUpdate` <= 4.5 ms, p95 <= 9 ms (node, dev laptop). In the browser (`` ` `` debug readout): 60 fps at 1x and 2x.
-  At 4x a late-game village may fall below 4x real time (the frame loop already caps catch-up at 3 updates a frame:
-  the world slows, the picture does not stutter); that is accepted and noted in the README. Measured before any of
-  this, early game, seed 7, node: 0.93 ms/tick at 272 and 3.06 ms/tick at 1088; drawWorld 0.29 ms at 272, 0.91 ms at
-  1088 unculled. If the budget is missed, the fix is in the simulation (skip rows with nothing to do), not by slowing
-  the world far from the camera.
+  It holds at 4x too, four ticks to a `gameUpdate` (`node harness/bench.js`, three runs: median 2.0-2.2 ms, p95
+  2.4-2.9 ms on each seed, where 0580e71 gave 12.9-13.3 and 14.0-14.9 before the heat and sand steps learned to pass
+  by what is at rest and the route search got cheaper); the frame loop still caps catch-up at 3 updates a frame, so a
+  slower machine slows the world, not the picture. Measured before any of this, early game, seed 7, node: 0.93
+  ms/tick at 272 and 3.06 ms/tick at 1088; drawWorld 0.29 ms at 272, 0.91 ms at 1088 unculled. If the budget is
+  missed, the fix is in the simulation (skip rows with nothing to do), not by slowing the world far from the camera.
 
 ## 8. Saves
 
