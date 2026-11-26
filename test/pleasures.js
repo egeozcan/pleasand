@@ -520,7 +520,7 @@ module.exports = function (test, check, sim) {
     check(r.grates > 0 && !r.none && !r.bad.length, "finished the tick after: grates " + r.grates + ", " + r.bad.join("; "));
   });
 
-  test("organ: a route's quick looks (pRoom, pHookGeom, navUp, navSink, navStand, pFoot, pGround, navHazard, bLadderNear) fill pGrate's cache at the same looks as the slow ones and give their answers, with the organ finished, unfinished, or a site added in the tick", function () {
+  test("organ: a route's quick looks (pRoom, pHookGeom, navUp, navSink, navStand, pFoot, pGround, navHazard, bLadderNear) fill pGrate's cache at the same looks as the slow ones and give their answers, sinking or not, with the organ finished, unfinished, or a site added in the tick", function () {
     var O = organ(2), w = O.w, g = O.g, s = O.s, M = O.M, x, y, k;
     for (var i = 0; i < 200 && !g.wAny; i++) sim.step(w, 1);
     check(g.wAny && s.done, "(the test wants a finished organ)");
@@ -597,9 +597,9 @@ module.exports = function (test, check, sim) {
       "    ['navStand1', function (x, y) { return navStand1(g, x, y); }, stand1], ['pFoot', function (x, y) { return pFoot(g, x, y); }, foot],\n" +
       "    ['pGround', function (x, y) { return pGround(g, x, y); }, ground], ['navHazard', function (x, y) { return navHazard(g, x, y); }, hazard],\n" +
       "    ['bLadderNear', function (x, y) { return bLadderNear(g, x, y); }, lnear]];\n" +
-      "  var bad = [], fills = 0, x, y, k, a, b, fa, fb, hot = NAV_HOTOK;\n" +
-      "  for (var h = 0; h < 2; h++) {\n" +
-      "    NAV_HOTOK = h === 1;\n" +
+      "  var bad = [], fills = 0, x, y, k, a, b, fa, fb, hot = NAV_HOTOK, sink0 = P_SINK;\n" +
+      "  for (var h = 0; h < 4; h++) {\n" +
+      "    NAV_HOTOK = (h & 1) === 1; P_SINK = h >= 2;\n" +
       "    for (x = -2; x < g.gw + 2; x++) for (y = -2; y < g.gh + 2; y++) for (k = 0; k < looks.length; k++) {\n" +
       "      /* (stale: a stale cache each time, and the slow look and the quick one fill it, or leave it, alike. the tick\n" +
       "         moves on, the world does not) */\n" +
@@ -612,7 +612,7 @@ module.exports = function (test, check, sim) {
       "        bad.push(looks[k][0] + ' ' + x + ',' + y + ': ' + JSON.stringify(b) + (fb ? ' filled' : '') + ' not ' + JSON.stringify(a) + (fa ? ' filled' : ''));\n" +
       "    }\n" +
       "  }\n" +
-      "  NAV_HOTOK = hot;\n" +
+      "  NAV_HOTOK = hot; P_SINK = sink0;\n" +
       "  return { bad: bad, fills: fills };\n" +
       "})");
     var r = run(g, true);

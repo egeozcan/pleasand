@@ -73,7 +73,16 @@ function navLethalNear(g, x, y, r) {
   for (var dx = -r; dx <= r; dx++) for (var dy = -9 - r; dy <= 1 + r; dy++) if (navBad(pCell(g, x + dx, y + dy))) return true;
   return false;
 }
+/* (NAV_BADM: navBad, by material) */
+var NAV_BADM = new Uint8Array(NMAT);
+(function () { for (var c = 0; c < NMAT; c++) NAV_BADM[c] = navBad(c) ? 1 : 0; })();
 function navHazard(g, x, y) {
+  /* (all five rows in the grid: the same looks, straight off it, in the same order) */
+  if (x >= 0 && x < g.gw && y >= 7 && y < g.gh - 1) {
+    var m = g.m, gw = g.gw, j = y * gw + x;
+    if (NAV_BADM[m[j + gw]] || NAV_BADM[m[j]] || NAV_BADM[m[j - 4 * gw]] || NAV_BADM[m[j - 7 * gw]]) return true;
+    return !NAV_HOTOK && (g.T[j + gw] > P_SCALD || g.T[j - 3 * gw] > P_SCALD);
+  }
   return navBad(pCell(g, x, y + 1)) || navBad(pCell(g, x, y)) || navBad(pCell(g, x, y - 4)) || navBad(pCell(g, x, y - 7)) ||
          (!NAV_HOTOK && (pHotAt(g, x, y + 1) || pHotAt(g, x, y - 3)));   /* (where a burning peasant starts from may be hot: NAV_HOTOK) */
 }

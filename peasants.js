@@ -269,10 +269,31 @@ var P_THIN = new Uint8Array(NMAT); P_THIN[MAT.PLANK] = 1;
 function pBuriedIn(cf) { return SOLID[cf] && !P_PASS[cf] && !P_SOFT[cf] && !(P_SINK && P_THIN[cf]); }
 /* is there something to stand on, under feet at row y: in this column (pFoot), or one either side (pGround) */
 function pFoot(g, x, y) {
-  var c = pCell(g, x, y + 1);
+  var c;
+  /* (both rows in the grid, and no grate in the column, pNoGrCol: the same looks, straight off the grid) */
+  if (x >= 0 && x < g.gw && y >= 0 && y < g.gh - 1 && pNoGrCol(g, x)) {
+    var j = (y + 1) * g.gw + x;
+    c = g.m[j];
+    return SOLID[c] === 1 && !P_PASS[c] && !(P_SOFT[c] && (P_SINK || P_SOFT[g.m[j - g.gw]])) && !(P_SINK && P_THIN[c]);
+  }
+  c = pCell(g, x, y + 1);
   return (SOLID[c] === 1 && !P_PASS[c] && !(P_SOFT[c] && (P_SINK || P_SOFT[pCell(g, x, y)])) && !(P_SINK && P_THIN[c])) || (c === MAT.EMPTY && pGr(g, x, y + 1));
 }
-function pGround(g, x, y) { return pFoot(g, x, y) || pFoot(g, x - 1, y) || pFoot(g, x + 1, y); }
+function pGround(g, x, y) {
+  /* (not sinking, and all three columns and both rows in the grid: pFoot's looks, straight off the grid, in the same
+     order, and pGr asked of the same empty cells. P_FOOTM: 1 something to stand on, 2 something soft, which holds them up
+     unless they are in it) */
+  if (!P_SINK && x >= 1 && x < g.gw - 1 && y >= 0 && y < g.gh - 1) {
+    var m = g.m, gw = g.gw, j = (y + 1) * gw + x, c, f;
+    c = m[j]; f = P_FOOTM[c];
+    if (f === 1 || (f === 2 && !P_SOFT[m[j - gw]]) || (c === MAT.EMPTY && pGr(g, x, y + 1))) return true;
+    c = m[j - 1]; f = P_FOOTM[c];
+    if (f === 1 || (f === 2 && !P_SOFT[m[j - 1 - gw]]) || (c === MAT.EMPTY && pGr(g, x - 1, y + 1))) return true;
+    c = m[j + 1]; f = P_FOOTM[c];
+    return f === 1 || (f === 2 && !P_SOFT[m[j + 1 - gw]]) || (c === MAT.EMPTY && pGr(g, x + 1, y + 1));
+  }
+  return pFoot(g, x, y) || pFoot(g, x - 1, y) || pFoot(g, x + 1, y);
+}
 /* could a peasant with its feet here stand up straight (pBody: is this cell in the way of a walking one). pStiff: in the
    way of one that is not walking but flying, which goes through leaves but not through a tree */
 /* (P_BODYM: pBody's look at the material, SOLID and not P_PASS and not P_SOFT, by material. with no grates (pNoGr) that is
@@ -280,6 +301,11 @@ function pGround(g, x, y) { return pFoot(g, x, y) || pFoot(g, x - 1, y) || pFoot
 var P_BODYM = (function () {
   var t = new Uint8Array(NMAT);
   for (var c = 0; c < NMAT; c++) t[c] = SOLID[c] === 1 && !P_PASS[c] && !P_SOFT[c] ? 1 : 0;
+  return t;
+})();
+var P_FOOTM = (function () {
+  var t = new Uint8Array(NMAT);
+  for (var c = 0; c < NMAT; c++) t[c] = SOLID[c] === 1 && !P_PASS[c] ? (P_SOFT[c] ? 2 : 1) : 0;
   return t;
 })();
 function pBody(g, x, y) { var c = pCell(g, x, y); return P_BODYM[c] === 1 || (c === MAT.EMPTY && pGr(g, x, y)); }

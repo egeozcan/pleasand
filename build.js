@@ -1361,6 +1361,19 @@ function bLadderMid(g, x, y) {
 }
 /* a ladder that a peasant standing at (fx, fy) is in front of, or in: its middle column, or -1 */
 function bLadderNear(g, fx, fy) {
+  /* (all five columns and both rows in the grid: bLadderMid's looks, straight off it, in the same order: columns fx,
+     fx-1, fx+1, fx-2, fx+2, each at fy and then fy-3) */
+  if (fx >= 2 && fx < g.gw - 2 && fy >= 3 && fy < g.gh) {
+    var m = g.m, aux = g.aux, gw = g.gw, L = MAT.LADDER, j0 = fy * gw + fx, dd, jj, c2;
+    for (var e = 0; e <= 4; e++) {
+      dd = e === 0 ? 0 : e === 1 ? -1 : e === 2 ? 1 : e === 3 ? -2 : 2;
+      jj = j0 + dd;
+      c2 = m[jj] === L ? fx + dd - (aux[jj] - 1) : -1;
+      if (c2 < 0) c2 = m[jj - 3 * gw] === L ? fx + dd - (aux[jj - 3 * gw] - 1) : -1;
+      if (c2 >= 0) return c2;
+    }
+    return -1;
+  }
   for (var d = 0; d <= 2; d++) for (var s = -1; s <= 1; s += 2) {
     var x = fx + d * s, c = bLadderMid(g, x, fy);
     if (c < 0) c = bLadderMid(g, x, fy - 3);
