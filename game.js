@@ -975,18 +975,44 @@ function drawThermal(g, X0, X1) {
 
 function gameDraw(g, c) {
   var PW = VIEW_GW * CELL, PH = PLAY_H, cam = g.camI = clamp(g.camI || 0, 0, camMax(g));
+  /* (with WebGL2 the field, its glow and the bangs are drawn on canvases under this one, and this one has a hole where
+     the field is: glr.js. without, this canvas draws the lot) */
+  var R = GLR;
   rct(c, 0, 0, VW, VH, "#05070c");
+  if (R) c.clearRect(PANEL, PLAY_Y, PW, PH);
   var hot = drawWorld(g);
   /* (only the part in view goes up to the canvas, and only that part is stretched onto the screen) */
   var C = drawCols(g), cw = C[1] - C[0];
-  g.vctx.putImageData(g.img, 0, 0, C[0], 0, cw, GH);
+  if (!R) g.vctx.putImageData(g.img, 0, 0, C[0], 0, cw, GH);
 
   /* the shaking part */
   var sx = 0, sy = 0;
   if (g.shake > 0.25) { sx = (Math.random() * 2 - 1) * g.shake; sy = (Math.random() * 2 - 1) * g.shake; }
+  if (R) { glrDraw(R, g, C[0], cw, cam, sx, sy, !!(hot || g.np)); gameDrawFx(g, sx, sy); }
   c.save();
   c.beginPath(); c.rect(PANEL, PLAY_Y, PW, PH); c.clip();
   c.translate(sx, sy);
+  if (!R) gameDrawField(g, c, C, cam, hot);
+  peasantsBubbles(g, c, 0, 0);
+  ducksBubbles(g, c);
+  c.restore();
+
+  /* the flash of a big bang, over the play area only */
+  if (g.flash > 0.01) {
+    c.fillStyle = "rgba(255,250,235," + Math.min(1, g.flash).toFixed(3) + ")";
+    c.fillRect(PANEL, PLAY_Y, PW, PH);
+  }
+  drawEdgeMarks(g, c);
+  drawCursor(g, c);
+  drawPanel(g, c);
+  drawStrip(g, c);
+  drawOverlays(g, c);
+  drawMore(g, c);
+}
+
+/* the field, its glow and the bangs on the 2D canvas (inside gameDraw's clip and shake): with no WebGL2 */
+function gameDrawField(g, c, C, cam, hot) {
+  var PW = VIEW_GW * CELL, PH = PLAY_H, cw = C[1] - C[0];
   c.imageSmoothingEnabled = false;
   c.drawImage(g.vc, cam, 0, VIEW_GW, GH, PANEL, PLAY_Y, PW, PH);
   c.imageSmoothingEnabled = true;
@@ -1006,21 +1032,27 @@ function gameDraw(g, c) {
     c.globalCompositeOperation = "source-over";
   }
   drawBangs(g, c);
-  peasantsBubbles(g, c, 0, 0);
-  ducksBubbles(g, c);
-  c.restore();
-
-  /* the flash of a big bang, over the play area only */
-  if (g.flash > 0.01) {
-    c.fillStyle = "rgba(255,250,235," + Math.min(1, g.flash).toFixed(3) + ")";
-    c.fillRect(PANEL, PLAY_Y, PW, PH);
-  }
-  drawEdgeMarks(g, c);
-  drawCursor(g, c);
-  drawPanel(g, c);
-  drawStrip(g, c);
-  drawOverlays(g, c);
-  drawMore(g, c);
+}
+/* the bangs, with WebGL2: on their own canvas (fx), which the page adds onto the field (index.html), as the 2D path
+   draws them "lighter" onto it. cleared only when there were some, and hidden while there are none (a layer blended
+   onto the field is a pass over the whole screen for the compositor, every frame, even with nothing on it) */
+var FX_DIRTY = true;
+function gameDrawFx(g, sx, sy) {
+  var f = fxctx;
+  if (!f) return;
+  var on = !!(g.fwGlow || g.rings.length || g.bolts.length), el = f.canvas;
+  if (!on && !FX_DIRTY) return;
+  f.setTransform(1, 0, 0, 1, 0, 0);
+  f.clearRect(0, 0, el.width, el.height);
+  FX_DIRTY = on;
+  el.style.visibility = on ? "visible" : "hidden";
+  if (!on) return;
+  f.setTransform(el.width / VW, 0, 0, el.height / VH, 0, 0);
+  f.save();
+  f.beginPath(); f.rect(PANEL, PLAY_Y, VIEW_GW * CELL, PLAY_H); f.clip();
+  f.translate(sx, sy);
+  drawBangs(g, f);
+  f.restore();
 }
 
 /* lightning bolts, shock rings, the glow of a firework */
@@ -1710,7 +1742,7 @@ function drawOverlays(g, c) {
     txt(c, (g.speed < SPEED_1 ? "SLOW " : "FAST ") + SPEED_NAMES[g.speed], PANEL + 6, PLAY_Y + 12, 8, "#ffd94a", "left", true);
   }
   if (g.debug) {
-    var dbg = (g.fps | 0) + " fps  " + g.ms.toFixed(1) + " ms  particles " + g.np;
+    var dbg = (g.fps | 0) + " fps  " + g.ms.toFixed(1) + " ms  particles " + g.np + "  " + simWho(g) + (GLR ? " gl" : " 2d");
     txt(c, dbg, PANEL + 6, PLAY_B - 4, 7, "#7aff7a", "left", true);
   }
 }
@@ -2006,6 +2038,9 @@ function gameKey(g, k) {
    8. THE SHELL: canvas, loop, events
    ------------------------------------------------------------------- */
 var cv, ctx, vig, g, last = 0, acc = 0;
+/* the canvases under and over cv (index.html): the field on the GPU, the bangs added onto it, the vignette. null where
+   there are none (no WebGL2, the harness) */
+var glcv = null, fxcv = null, fxctx = null, vigcv = null;
 
 function newGame() {
   return { t: 0, mx: VW / 2, my: PLAY_Y + PLAY_H / 2, down: 0, btn: 0, keys: {}, frame: 0, fps: 60, ms: 0, debug: false,
@@ -2035,10 +2070,11 @@ function frame(ts) {
 /* the picture rolls its own dice (rng.js), never the village's */
 var gameDrawSide = rngSide(gameDraw), sandSoundsSide = rngSide(sandSounds0);
 
-/* scanlines and a vignette, because it is 2005. made once per canvas size */
+/* scanlines and a vignette, because it is 2005. made once per canvas size: on a canvas of its own over the rest, where
+   the page has one (index.html #vig), else drawn over the picture every frame */
 function drawChrome() {
   if (!vig) {
-    vig = document.createElement("canvas");
+    vig = vigcv || document.createElement("canvas");
     vig.width = cv.width; vig.height = cv.height;
     var vg = vig.getContext("2d"), W = cv.width, H = cv.height;
     var grd = vg.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 1.0);
@@ -2049,15 +2085,16 @@ function drawChrome() {
     var step = H / VH * CELL;
     for (var y = 0; y < H; y += step) vg.fillRect(0, Math.round(y), W, Math.max(1, Math.round(step * 0.35)));
   }
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(vig, 0, 0); ctx.restore();
+  if (vig !== vigcv) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(vig, 0, 0); ctx.restore(); }
 }
 
 function resize() {
   var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   var S = Math.max(1, Math.min(4, r.width * dpr / VW));
   cv.width = Math.round(VW * S); cv.height = Math.round(VH * S);
+  [glcv, fxcv].forEach(function (e) { if (e) { e.width = cv.width; e.height = cv.height; } });
   ctx.setTransform(cv.width / VW, 0, 0, cv.height / VH, 0, 0);
-  vig = null;
+  vig = null; FX_DIRTY = true;
 }
 
 function toGame(clientX, clientY) {
@@ -2159,7 +2196,19 @@ function cursorVel(g) {
 
 function boot() {
   cv = document.getElementById("cv");
-  ctx = cv.getContext("2d", { alpha: false });
+  /* the field on the GPU, where there is WebGL2 on a GPU (glr.js: ?2d in the address, never; ?gl, even in software). else
+     the 2D canvas draws it all */
+  if (typeof HTMLCanvasElement !== "undefined") {
+    glcv = document.getElementById("gl"); fxcv = document.getElementById("fx"); vigcv = document.getElementById("vig");
+    if (glcv && fxcv && !/[?&]2d(&|=|$)/.test(location.search || "")) GLR = glrInit(glcv, /[?&]gl(&|=|$)/.test(location.search || ""));
+    if (GLR) {
+      fxctx = fxcv.getContext("2d");
+      fxcv.style.mixBlendMode = typeof CSS !== "undefined" && CSS.supports && CSS.supports("mix-blend-mode", "plus-lighter") ? "plus-lighter" : "screen";
+      glcv.style.visibility = "visible";
+      glrOffHook = function () { glcv.style.visibility = fxcv.style.visibility = "hidden"; fxctx = null; };
+    }
+  }
+  ctx = cv.getContext("2d", { alpha: !!GLR });
   g = newGame();
   gameInit(g);
   resize();

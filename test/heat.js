@@ -13,11 +13,21 @@
 "use strict";
 
 module.exports = function (test, check, sim) {
+  /* both walks are played twice: the JS's by words against the JS's by cells, and the WebAssembly step (simwasm.js, which
+     walks by words) against the JS's by cells. the dice are test/sim.js's, which the module asks JS for, one by one */
+  [false, true].forEach(function (wasm) { suite(test, check, sim, wasm); });
+};
+
+function suite(test, check, sim, wasm) {
+  var test0 = test;
+  test = function (name, fn) { test0(name + (wasm ? " (WebAssembly against the JS)" : ""), fn); };
   /* a (by words) and b (cell by cell), gw wide, the same dice */
   function pair(gw) {
     var a = sim.load(5, { gw: gw }), b = sim.load(5, { gw: gw }), gb = b.g, n = gb.T.length;
     var T = new Float32Array(new ArrayBuffer(n * 4 + 8), 4, n);
     T.set(gb.T); gb.T = T;
+    a.eval("SIM_WASM = " + wasm); b.eval("SIM_WASM = false");
+    if (wasm) check(a.eval("SIM_MOD !== null && !SIM_DEAD"), "the WebAssembly step did not load (is simwasm-bin.js built? wasm/build.sh)");
     return { a: a, b: b };
   }
   /* every cell the same in both, and counted as it is */
@@ -34,12 +44,17 @@ module.exports = function (test, check, sim) {
   function stepBoth(p) {
     var ga = p.a.g, gb = p.b.g, n = ga.m.length, i;
     p.a.heatStep(ga); p.b.heatStep(gb);
+    if (wasm) check(p.a.eval("simWho(g)") === "wasm", "the WebAssembly step did not play it");
+    ga = p.a.g;   /* (its arrays are views of the module's memory now: simwasm.js simBind) */
     var Ta = new Int32Array(ga.T.buffer, ga.T.byteOffset, n), Tb = new Int32Array(gb.T.buffer, gb.T.byteOffset, n);
     var La = new Int32Array(ga.lat.buffer, ga.lat.byteOffset, n), Lb = new Int32Array(gb.lat.buffer, gb.lat.byteOffset, n);
+    /* (the WebAssembly against the JS: a NaN is any NaN. which one comes out of a sum of two is not the same in both, and
+       nothing reads it: wasm/src/lib.rs, at the top) */
+    var nan = function (A, B) { return wasm && A[i] !== A[i] && B[i] !== B[i]; };
     for (i = 0; i < n; i++)
-      if (Ta[i] !== Tb[i] || La[i] !== Lb[i] || ga.m[i] !== gb.m[i] || ga.aux[i] !== gb.aux[i])
+      if ((Ta[i] !== Tb[i] && !nan(ga.T, gb.T)) || (La[i] !== Lb[i] && !nan(ga.lat, gb.lat)) || ga.m[i] !== gb.m[i] || ga.aux[i] !== gb.aux[i])
         return "cell " + (i % ga.gw) + "," + ((i / ga.gw) | 0) + " (" + ga.m[i] + "/" + gb.m[i] + "): T " + ga.T[i] + " / " + gb.T[i] +
-               ", lat " + ga.lat[i] + " / " + gb.lat[i];
+               ", lat " + ga.lat[i] + " / " + gb.lat[i] + " (bits " + (Ta[i] >>> 0).toString(16) + " / " + (Tb[i] >>> 0).toString(16) + ")";
     var ra = p.a.eval("Math.random()"), rb = p.b.eval("Math.random()");
     return ra === rb ? null : "the dice: " + ra + " / " + rb;
   }
@@ -132,4 +147,4 @@ module.exports = function (test, check, sim) {
       }
     });
   });
-};
+}

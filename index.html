@@ -9,16 +9,28 @@
 <style>
 html, body { margin:0; height:100%; background:#05070c; overflow:hidden; }
 body { display:flex; align-items:center; justify-content:center; }
-#cv { display:block; cursor:crosshair; touch-action:none;
-      width:min(100vw, 156.1vh); height:min(64.06vw, 100vh); }
+#stage { position:relative; isolation:isolate; width:min(100vw, 156.1vh); height:min(64.06vw, 100vh); }
+#stage canvas { position:absolute; left:0; top:0; width:100%; height:100%; display:block; }
+#cv { cursor:crosshair; touch-action:none; }
+/* the field on the GPU, and the bangs added onto it (glr.js): shown once there is WebGL2 to draw them with */
+#gl, #fx { visibility:hidden; pointer-events:none; }
+#fx { mix-blend-mode:plus-lighter; }
+#vig { pointer-events:none; }
 </style>
 </head>
 <body>
+<div id="stage">
+<canvas id="gl"></canvas>
+<canvas id="fx"></canvas>
 <canvas id="cv" width="640" height="410"></canvas>
+<canvas id="vig"></canvas>
+</div>
 <script src="rng.js"></script>
 <script src="audio.js"></script>
 <script src="world.js"></script>
 <script src="heat.js"></script>
+<script src="simwasm-bin.js"></script>
+<script src="simwasm.js"></script>
 <script src="peasants.js"></script>
 <script src="build.js"></script>
 <script src="paths.js"></script>
@@ -36,6 +48,7 @@ body { display:flex; align-items:center; justify-content:center; }
 <script src="ducks.js"></script>
 <script src="hand.js"></script>
 <script src="save.js"></script>
+<script src="glr.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

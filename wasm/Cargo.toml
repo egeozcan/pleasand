@@ -1,0 +1,24 @@
+[package]
+name = "pleasand-sim"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[features]
+# bounds-check every grid read and write (a trap instead of a quiet out-of-bounds): for testing a change
+checked = []
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = false
+strip = true
+
+[profile.dev]
+panic = "abort"

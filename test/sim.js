@@ -15,7 +15,7 @@
 "use strict";
 var fs = require("fs"), path = require("path"), zlib = require("zlib");
 var ROOT = path.join(__dirname, "..");
-var FILES = require("../harness/loader.js").gameFiles();   /* the same list, and order, index.html loads */
+var FILES = require("../harness/loader.js").gameFiles(), gameSource = require("../harness/loader.js").gameSource;   /* the same list, and order, index.html loads */
 
 function stubCtx() {
   var c = { createImageData: function (w, h) { return { data: new Uint8ClampedArray(w * h * 4), width: w, height: h }; },
@@ -36,7 +36,7 @@ function load(seed, opts) {
   opts = opts || {};
   var s = (seed == null ? 1 : seed) >>> 0 || 1, M = Object.create(Math);
   M.random = function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-  var src = FILES.map(function (f) { return fs.readFileSync(path.join(ROOT, f), "utf8").replace(/^"use strict";/m, ""); }).join("\n;\n");
+  var src = FILES.map(function (f) { return gameSource(ROOT, f); }).join("\n;\n");
   var ev = new Function("window", "document", "requestAnimationFrame", "performance", "Math",
     '"use strict";\n' + src + "\n;return function (expr) { return eval(expr); };")(
     { addEventListener: function () {}, devicePixelRatio: 1, PLEASAND_GW: opts.gw || 272 },

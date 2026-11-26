@@ -22,10 +22,25 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # the sand and heat steps, as WebAssembly (wasm/): the toolchain is the one wasm/rust-toolchain.toml names
+      - name: Build the WebAssembly step
+        run: |
+          (cd wasm && rustup toolchain install)
+          wasm/build.sh
+      # the module must play the very world the JS does, or it does not go out
+      - name: Check the WebAssembly step against the JS
+        run: |
+          node test/run.js wasm
+          node test/run.js heat:
+          node test/run.js shortcuts
       - name: Collect the site
         run: |
           mkdir _site
           cp index.html favicon.gif *.js _site/
+          test -s _site/simwasm-bin.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

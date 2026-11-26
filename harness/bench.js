@@ -234,7 +234,7 @@ var HEAT_CALLEE = { heatRecount: "heat0", heatQuietTables: "heat1", heatViews: "
                     heatRangeBand: "heat2", heatSteadyScan: "heat2", heatQ: "heat2", heatSetQ: "heat2", heatUp: "heat2", heatDown: "heat2", heatLat: "heat2", heatF: "heat2" };
 function heatMarks(dir) {
   var src = require("fs").readFileSync(path.join(dir, "heat.js"), "utf8").split("\n"), at = {}, k;
-  var find = { start: /^function heatStep\(/, s1: /\/\* 1\. make heat/, metal: /\/\* metal gets a few more goes/, s2: /\/\* 2\. anything out of its range/ };
+  var find = { start: /^function heatStep(Js)?\(/, s1: /\/\* 1\. make heat/, metal: /\/\* metal gets a few more goes/, s2: /\/\* 2\. anything out of its range/ };
   for (k = 0; k < src.length; k++) Object.keys(find).forEach(function (q) { if (at[q] == null && find[q].test(src[k]) && (q === "start" || at.start != null)) at[q] = k + 1; });
   return at;
 }
@@ -256,6 +256,9 @@ function breakdown(cpu, dir, ms, at, hr0) {
       if (f === "pGrate") gr = true;
       if (top === null && TOP[f]) top = f;
       if (top !== null && f === "heatStep" && heatAt < 0) heatAt = c;
+      /* (heatStep hands the step to the JS's, heatStepJs, or to the WebAssembly's: simwasm.js. the JS's lines are counted
+         as heatStep's own were; the WebAssembly's, which has no lines here, as heatOther) */
+      if (heatAt === c - 1 && f === "heatStepJs") heatAt = c;
       if (top !== null && f === "navFind" && navAt < 0) navAt = c;
       if (top !== null && f === "pGrate" && grAt < 0) grAt = c;
     }

@@ -620,7 +620,8 @@ function heatAirWord(T, m, i0, gw, KP, IC, rnd) {
   }
 }
 
-function heatStep(g) {
+/* (the JS step: simwasm.js heatStep plays it by WebAssembly where it can, the same world, and this where it cannot) */
+function heatStepJs(g) {
   var m = g.m, T = g.T, lat = g.lat, gw = g.gw, gh = g.gh, KP = HEAT_KP, IC = HEAT_IC, SRC = HEAT_SRC, POW = HEAT_POW, BK = HEAT_BK, C = HEAT_C;
   var x, y, i, j, v, w, t, d, f, row, up, nf = 0, fast = g.fastList, E = MAT.EMPTY, METAL = MAT.METAL, hm = g.hm;
   /* (the hot loops below look these up once, not once a cell: the same dice, the same tables) */

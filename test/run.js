@@ -1883,9 +1883,12 @@ test("the sand step's shortcuts play the world as the plain cell-by-cell walk do
      at rest itself (world.js). the plain walk it stands in for hands every cell that is not still and has not had its turn
      to sandTurn, row by row from the bottom, the way the row's parity says. two villages, the same dice, one of them made
      to take that walk: cell for cell, temperature for temperature and die for die, the same after every tick */
+  /* (and the walk the WebAssembly step takes, simwasm.js, against the same plain walk: the heat step is whichever the
+     village has, the same in both) */
   var snap = require("../harness/snapshot.js");
-  [272, 1088].forEach(function (gw) {
-    var a = sim.load(11, { gw: gw }), b = sim.load(11, { gw: gw }), M = a.MAT;
+  [[272, false], [1088, false], [272, true], [1088, true]].forEach(function (gwW) {
+    var gw = gwW[0], a = sim.load(11, { gw: gw }), b = sim.load(11, { gw: gw }), M = a.MAT;
+    a.eval("SIM_WASM = " + gwW[1]); b.eval("SIM_WASM = " + gwW[1]);
     b.eval("sandStep = function (g) {\n" +
       "  var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, row, flip;\n" +
       "  g.parity ^= 1; g.pressN = 0;\n" +
@@ -1926,6 +1929,7 @@ test("the sand step's shortcuts play the world as the plain cell-by-cell walk do
       check(a.eval("Math.random()") === b.eval("Math.random()"), gw + " wide, tick " + t + ": the dice differ from the plain walk's");
     }
     check(snap.stateHash(a.g).hash === snap.stateHash(b.g).hash, gw + " wide: the whole state differs from the plain walk's after 240 ticks");
+    check(a.eval("simWho(g)") === (gwW[1] ? "wasm" : "js"), gw + " wide: the step played is not the one asked for");
   });
 });
 
@@ -2778,6 +2782,8 @@ require("./picker.js")(test, check, sim);
 require("./hand.js")(test, check, sim);
 /* the heat step's walk by words, against its walk by cells (heat.js) */
 require("./heat.js")(test, check, sim);
+/* the WebAssembly step against the JS, a village at a time (wasm.js) */
+require("./wasm.js")(test, check, sim);
 
 /* one test, its console.log kept rather than printed (so tests side by side do not interleave) */
 function runOne(t) {

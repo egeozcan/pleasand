@@ -227,7 +227,18 @@ grates are in the functions that call pGr); and
 `breakdown.slowFrames`, the same per frame over the slowest tenth of the frames
 alone (each sample is put in its frame by its time), which is what a p95 is made
 of. The profiler costs a little, so a profiled run's median and p95 are not the
-bench's.
+bench's. (The heat step played by WebAssembly, as it is unless `SIM_WASM` is
+off, has no lines of its own here: its time is all `heatStepOther`. To see it
+by its steps, profile the JS's: `h.eval("SIM_WASM = false")`.)
+
+**The WebAssembly step and the JS.** The sand step's walk and the heat step run
+as WebAssembly (`simwasm.js`, `wasm/`) and play the same world as the JS step,
+die for die: the harness's dice are a mulberry32 the module rolls itself
+(`window.PLEASAND_RNG`, loader.js), test/sim.js's are asked of JS one by one.
+`h.eval("SIM_WASM = false")` plays a village with the JS. A rule changed in
+one and not the other is a difference `same.js` finds at once: record the
+reference with the tree from before the change (`--dir`), which is the JS's
+world, then check this one.
 ```bash
 node harness/bench.js --late saves/warm150 --ticks 10000 --profile prof
 node harness/bench.js --preset leftovers --ticks 20000 --profile prof

@@ -2,3 +2,5 @@
 .playwright-cli/
 test/.timings.json
 harness/warm/
+wasm/target/
+simwasm-bin.js

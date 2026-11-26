@@ -1281,7 +1281,8 @@ var STILL2 = new Uint8Array(65536), sandM32 = null, sandM32Of = null;
    finds the same. (g.vy and g.aux are made only with the grid: gameGrid, and a load, never during a step) */
 var REST_KIND = new Uint8Array(NMAT);
 REST_KIND[MAT.SAND] = REST_KIND[MAT.ASH] = REST_KIND[MAT.SNOW] = 1; REST_KIND[MAT.WATER] = REST_KIND[MAT.OIL] = 2; REST_KIND[MAT.PLANT] = 3;
-function sandStep(g) {
+/* (the JS step: simwasm.js sandStep plays it by WebAssembly where it can, the same world, and this where it cannot) */
+function sandStepJs(g) {
   var gw = g.gw, gh = g.gh, m = g.m, st = g.stamp, T = ++g.tick, y, xi, x, i, v, k, w, row, m32, r, j, q, q0, q1, vy = g.vy, aux = g.aux;
   g.parity ^= 1;
   g.pressN = 0;

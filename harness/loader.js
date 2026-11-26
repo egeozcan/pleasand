@@ -29,6 +29,18 @@ function gameFiles(root) {
   return out;
 }
 
+/* a script's source, as the game loads it. the WebAssembly module (simwasm-bin.js) is built, not kept (wasm/build.sh):
+   without it the game plays the JS step, as a browser that has none does */
+var warnedBin = false;
+function gameSource(root, f) {
+  var file = path.join(root || ROOT, f);
+  if (f === "simwasm-bin.js" && !fs.existsSync(file)) {
+    if (!warnedBin) { warnedBin = true; console.warn("pleasand: no simwasm-bin.js (wasm/build.sh makes it): the JS step plays the world"); }
+    return "";
+  }
+  return fs.readFileSync(file, "utf8").replace(/^"use strict";/m, "");
+}
+
 function noop() {}
 
 /* a 2d context that keeps nothing. every method is a no-op, every property
@@ -130,12 +142,15 @@ function loadGame(opts) {
      opts.gw: another, such as the browser's four screens, 1088) */
   var win = {
     PLEASAND_GW: opts.gw || 272,
+    /* (the dice, to the WebAssembly step (simwasm.js): it rolls the same generator itself, from this state, and hands
+       the state back. random: what the game's Math.random is once it is booted) */
+    PLEASAND_RNG: { random: draw, get state() { return rng.state; }, set state(v) { rng.state = v; } },
     devicePixelRatio: 1, innerWidth: 640, innerHeight: 410,
     addEventListener: noop, removeEventListener: noop, requestAnimationFrame: noop
   };
 
   var src = files.map(function (f) {
-    return fs.readFileSync(path.join(root, f), "utf8").replace(/^"use strict";/m, "");
+    return gameSource(root, f);
   }).join("\n;\n");
 
   var factory = new Function("window", "document", "requestAnimationFrame", "performance", "Math", "__h",
@@ -162,4 +177,4 @@ function loadGame(opts) {
   };
 }
 
-module.exports = { loadGame: loadGame, gameFiles: gameFiles, makeRng: makeRng, stubCanvas: stubCanvas, stubCtx: stubCtx, ROOT: ROOT };
+module.exports = { loadGame: loadGame, gameFiles: gameFiles, gameSource: gameSource, makeRng: makeRng, stubCanvas: stubCanvas, stubCtx: stubCtx, ROOT: ROOT };

@@ -628,9 +628,14 @@ and grown from there.
 
 ## Run
 
-No build, no dependencies. Open `index.html`, or serve the folder:
+One build, for the WebAssembly step (Rust, `rustup` fetches the version `wasm/rust-toolchain.toml` names), then open
+`index.html`, or serve the folder:
 
+    wasm/build.sh
     python3 -m http.server
+
+Without the build it still plays, with the JS step (as it does in a browser with no WebAssembly). GitHub's Pages
+workflow (`.github/workflows/pages.yml`) builds it, checks it plays the world the JS does, and only then puts it up.
 
 To check it still works, with node (and still no dependencies): `node test/run.js`
 plays a few villages headless, with some things forced, and checks them (mines,
@@ -642,6 +647,18 @@ and its scenarios run a valley one screen wide (272 columns) unless asked for an
 (`sim.load(seed, { gw: 1088 })`, `open({ seed, gw: 1088 })`, `--gw 1088`, or
 `PLEASAND_GW=1088`), and a valley one screen wide goes exactly as it did before there
 were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is how it works.
+
+Two things are faster than they look. The sand step's walk over the valley and the heat step run as
+WebAssembly (`wasm/src/lib.rs`, a port of `world.js` `sandStepJs` and `heat.js` `heatStepJs`, statement for
+statement), about twice as fast, and play the very same world, die for die. And where there is WebGL2 on a GPU, the field, its glow and
+the bangs are put on the screen by the GPU (`glr.js`); with none, or only a software one, the 2D canvas does it, as
+it always did. `?js` in the address plays the JS step, `?2d` draws with the 2D canvas, and the backquote's line says
+which ones are on.
+
+Changing a rule of the sand or the heat means changing it twice: in the JS and in `wasm/src/lib.rs`. Then
+`wasm/build.sh` (Rust, with `rustup target add wasm32-unknown-unknown`) rebuilds the module, and `node test/run.js
+wasm`, `node test/run.js heat:` and `harness/same.js` (against a checkout from before the change, played with the JS:
+see `harness/README.md`) say whether the two still agree.
 
 ## Controls
 
@@ -772,6 +789,10 @@ were wide ones. `test/valley.js` checks both, and `docs/wide-valley-spec.md` is 
 - `ducks.js`: the ducks
 - `hand.js`: the hand: a lump of the valley lifted, held, carried and let go, set down whole or come down in pieces, with whoever was standing on it; a house set down whole is their house there, and its owner runs after it; and what the village makes of it: who thinks well of it, who hides, the fire it put out and the coal left out for it
 - `save.js`: saving and loading: the village as json (who-is-who kept), plus a journal of what happened, checks, and keyframes for whoever debugs it
+- `simwasm.js`: the sand and heat steps played by WebAssembly where they can be, the JS's where not; the grid's arrays in the module's memory
+- `simwasm-bin.js`: the module, built from `wasm/` by `wasm/build.sh` (not kept in git)
+- `wasm/`: the Rust the module is built from: `sandStep`'s walk and the rules it hands each cell to, and `heatStep`
+- `glr.js`: the field, its glow and the bangs on the GPU (WebGL2), under the 2D canvas
 - `game.js`: rendering, the picker and HUD, input, and the main loop
 - `test/`: the game without a browser (`sim.js`), and some checks that it still works (`run.js`)
 - `harness/`: the game without a screen or a browser, built for agents: deterministic runs,
