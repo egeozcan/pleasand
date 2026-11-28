@@ -109,6 +109,18 @@ function txt(c: CanvasRenderingContext2D, s: any, x: number, y: number, size: nu
   c.fillText(s, x, y);
   c.textAlign = "left";
 }
+/* s broken at spaces into lines no wider than w (in c's font as it is), at most n of them (the last cut short) */
+function wrapText(c, s: string, w: number, n: number) {
+  var words = s.split(" "), L = [], cur = "", k;
+  for (k = 0; k < words.length; k++) {
+    var t = cur ? cur + " " + words[k] : words[k];
+    if (cur && c.measureText(t).width > w) { L.push(cur); cur = words[k]; } else cur = t;
+  }
+  if (cur) L.push(cur);
+  if (L.length > n) { L = L.slice(0, n); L[n - 1] += "..."; }
+  for (k = 0; k < L.length; k++) if (c.measureText(L[k]).width > w) { var t2 = L[k]; while (t2.length > 4 && c.measureText(t2 + "...").width > w) t2 = t2.slice(0, -1); L[k] = t2 + "..."; }
+  return L;
+}
 function rct(c, x: number, y: number, w, h: number, col) { c.fillStyle = col; c.fillRect(x, y, w, h); }
 function box(c, x: number, y: number, w: number, h: number, col: string) {
   c.strokeStyle = col; c.lineWidth = 1;
@@ -1484,12 +1496,18 @@ function drawHeader(g: Game, c, segs) {
     segs = segs.map(function (sg) { return [sg[0], sg[1].replace("PEASANTS", "FOLK").replace("HOUSES", "HOMES").replace("WONDERS", "WONDER").replace("IN SPACE", "SPACE")]; });
     tw = -gap; for (k = 0; k < segs.length; k++) tw += c.measureText(segs[k][1]).width + gap;
   }
+  /* (and smaller, if that is still too wide) */
+  var hs = 8;
+  while (tw > right - lo && hs > 6) {
+    hs--; c.font = "bold " + hs + "px " + UI_FONT;
+    gap = c.measureText("  ").width; tw = -gap; for (k = 0; k < segs.length; k++) tw += c.measureText(segs[k][1]).width + gap;
+  }
   var hx = Math.max(lo, lo + (right - lo - tw) / 2);
   for (k = 0; k < segs.length; k++) {
     var sw = c.measureText(segs[k][1]).width, on = g.pop === segs[k][0];
     var over = g.my < PLAY_Y && g.mx >= hx - 3 && g.mx < hx + sw + 3;
     if (on || over) rct(c, hx - 3, 2, sw + 6, PLAY_Y - 4, on ? "#2a3d5e" : "#17202f");
-    txt(c, segs[k][1], hx, 10, 8, on ? "#ffd94a" : (over ? "#ffffff" : "#d8dde6"), "left", true);
+    txt(c, segs[k][1], hx, 10, hs, on ? "#ffd94a" : (over ? "#ffffff" : "#d8dde6"), "left", true);
     g.hdrHit.push({ key: segs[k][0], x0: hx - 3, x1: hx + sw + 3 });
     hx += sw + gap;
   }
@@ -1808,10 +1826,23 @@ function drawOverlays(g: Game, c) {
     var b = g.banners[0], s = b.t < 0.15 ? 0.6 + b.t / 0.15 * 0.5 : (b.t < 0.3 ? 1.1 - (b.t - 0.15) / 0.15 * 0.1 : 1);
     c.save();
     c.globalAlpha = Math.min(1, (3.5 - b.t) / 0.5);
-    c.translate(cx, PLAY_Y + 58); c.scale(s * fit, s * fit);
+    /* (the title shrunk to fit a narrow field, the line under it broken into lines no wider than a good read, and the
+       two of them under the news, never across it) */
+    var room2 = VW - PANEL - 16, ts = 1, subL, by;
+    c.font = "bold 22px " + UI_FONT; ts = Math.min(1, room2 / c.measureText(b.title).width);
+    c.font = "bold 9px " + UI_FONT; subL = wrapText(c, b.sub || "", Math.min(room2, 420), 3);
+    by = Math.max(PLAY_Y + 58, PLAY_Y + 5 + Math.min(6, g.feed.length) * 10 + 22 * ts + 4);
+    c.translate(cx, by); c.scale(s, s);
+    c.save(); c.scale(ts, ts);
     txt(c, b.title, 1.5, 1.5, 22, "#000000", "center", true);
     txt(c, b.title, 0, 0, 22, "#ffd94a", "center", true);
-    txt(c, b.sub, 0, 14, 9, "#ffffff", "center", true);
+    c.restore();
+    c.font = "bold 9px " + UI_FONT;
+    for (var sl = 0; sl < subL.length; sl++) {
+      c.font = "bold 9px " + UI_FONT;
+      rct(c, -c.measureText(subL[sl]).width / 2 - 3, 14 * Math.max(ts, 0.7) + sl * 11 - 8, c.measureText(subL[sl]).width + 6, 11, "rgba(6,8,14,0.55)");
+      txt(c, subL[sl], 0, 14 * Math.max(ts, 0.7) + sl * 11, 9, "#ffffff", "center", true);
+    }
     c.restore();
   }
   /* the title card, the first few seconds */
@@ -1835,7 +1866,8 @@ function drawOverlays(g: Game, c) {
     txt(c, "PAUSED", cx, PLAY_Y + PLAY_H / 2 + 1, 12, "#ffd94a", "center", true);
     txt(c, tuiOn() ? "STEP = ONE TICK" : ". = ONE STEP", cx, PLAY_Y + PLAY_H / 2 + 10, 7, "#c8d0dc", "center");
   } else if (g.speed !== SPEED_1) {
-    txt(c, (g.speed < SPEED_1 ? "SLOW " : "FAST ") + SPEED_NAMES[g.speed], PANEL + 6, PLAY_Y + 12, 8, "#ffd94a", "left", true);
+    /* (top left, unless the field is narrow enough that the news runs across there: then bottom left) */
+    txt(c, (g.speed < SPEED_1 ? "SLOW " : "FAST ") + SPEED_NAMES[g.speed], PANEL + 6, VW - PANEL < 420 ? PLAY_B - (g.debug ? 14 : 5) : PLAY_Y + 12, 8, "#ffd94a", "left", true);
   }
   if (g.debug) {
     var dbg = (g.fps | 0) + " fps  " + g.ms.toFixed(1) + " ms  particles " + g.np + "  " + simWho(g) + (GLR ? " gl" : " 2d");
