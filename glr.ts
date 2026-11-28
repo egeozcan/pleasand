@@ -98,14 +98,9 @@ function glrInit(el, force: boolean) {
     var R = { gl: gl, el: el, near: glrProgram(gl, GLR_FS_NEAREST), lin: glrProgram(gl, GLR_FS_LINEAR), vao: gl.createVertexArray(),
               texW: 0, field: null, glow: null,
               /* the small two: one screen's worth, halved and halved again, as game.ts gamePicture's gc2 and gc4 */
-              w2: Math.ceil(VIEW_GW / 2), h2: Math.ceil(GH / 2), w4: Math.ceil(VIEW_GW / 4), h4: Math.ceil(GH / 4),
+              w2: 0, h2: 0, w4: 0, h4: 0,
               t2: null, t4: null, f2: null, f4: null, lost: false, proved: false, px: null, gpx: null };
-    R.t2 = glrTex(gl, R.w2, R.h2, gl.LINEAR); R.f2 = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, R.f2); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, R.t2, 0);
-    R.t4 = glrTex(gl, R.w4, R.h4, gl.LINEAR); R.f4 = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, R.f4); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, R.t4, 0);
-    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error("framebuffer incomplete");
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    glrSmall(R);
     gl.bindVertexArray(R.vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
@@ -119,13 +114,26 @@ function glrInit(el, force: boolean) {
     return null;
   }
 }
+/* the small two: one screen's worth (as many columns as are on the screen, SCR_GW), halved and halved again, as game.ts
+   gamePicture's gc2 and gc4. made again when the screen's width changes */
+function glrSmall(R) {
+  var gl = R.gl;
+  if (R.t2) { gl.deleteTexture(R.t2); gl.deleteTexture(R.t4); gl.deleteFramebuffer(R.f2); gl.deleteFramebuffer(R.f4); }
+  R.w2 = Math.ceil(SCR_GW / 2); R.h2 = Math.ceil(GH / 2); R.w4 = Math.ceil(SCR_GW / 4); R.h4 = Math.ceil(GH / 4);
+  R.t2 = glrTex(gl, R.w2, R.h2, gl.LINEAR); R.f2 = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, R.f2); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, R.t2, 0);
+  R.t4 = glrTex(gl, R.w4, R.h4, gl.LINEAR); R.f4 = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, R.f4); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, R.t4, 0);
+  if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error("framebuffer incomplete");
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
 /* (made off, for good: the 2D canvas draws everything from the next frame on) */
 var glrOffHook = null;
 function glrOff() { GLR = null; if (glrOffHook) glrOffHook(); }
 
 /* the textures the field goes up in: as wide as the columns drawWorld works out (drawCols: the view, and two either side) */
 function glrTextures(R, g: Game) {
-  var gl = R.gl, w = Math.min(g.gw, VIEW_GW + 4);
+  var gl = R.gl, w = Math.min(g.gw, SCR_GW + 4);
   if (R.field) gl.deleteTexture(R.field);
   if (R.glow) gl.deleteTexture(R.glow);
   R.field = glrTex(gl, w, GH, gl.NEAREST);
@@ -157,8 +165,9 @@ function glrProve(R, W, H, x: number, y: number) {
 
 /* this frame's field. c0, cw: the columns drawWorld worked out; cam: the first in view; sx, sy: the shake; glow: any */
 function glrDraw(R, g: Game, c0: number, cw: number, cam, sx: number, sy: number, glow: boolean) {
-  var gl = R.gl, W = R.el.width, H = R.el.height, PW = VIEW_GW * CELL, PH = PLAY_H, u, o = cam - c0;
-  if (R.texW !== Math.min(g.gw, VIEW_GW + 4) || R.field === null) glrTextures(R, g);
+  var gl = R.gl, W = R.el.width, H = R.el.height, PW = SCR_GW * CELL, PH = PLAY_H, u, o = cam - c0;
+  if (R.texW !== Math.min(g.gw, SCR_GW + 4) || R.field === null) glrTextures(R, g);
+  if (R.w2 !== Math.ceil(SCR_GW / 2)) glrSmall(R);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.viewport(0, 0, W, H);
   gl.disable(gl.SCISSOR_TEST); gl.disable(gl.BLEND);
@@ -180,7 +189,7 @@ function glrDraw(R, g: Game, c0: number, cw: number, cam, sx: number, sy: number
   gl.uniform1i(u.uTex, 0);
   gl.uniform2i(u.uMax, cw - 1, GH - 1);
   glrRect(gl, u.uDst, PANEL + sx, PLAY_Y + sy, PANEL + sx + PW, PLAY_Y + sy + PH);
-  gl.uniform4f(u.uSrc, o, 0, o + VIEW_GW, GH);
+  gl.uniform4f(u.uSrc, o, 0, o + SCR_GW, GH);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   if (!R.proved && !glrProve(R, W, H, (x0 + x1) >> 1, (H - yb + H - yt) >> 1)) return;
   if (!glow) return;
@@ -196,7 +205,7 @@ function glrDraw(R, g: Game, c0: number, cw: number, cam, sx: number, sy: number
   gl.bindFramebuffer(gl.FRAMEBUFFER, R.f2);
   gl.viewport(0, 0, R.w2, R.h2);
   gl.bindTexture(gl.TEXTURE_2D, R.glow);
-  gl.uniform4f(u.uSrc, o / R.texW, 0, (o + VIEW_GW) / R.texW, 1);
+  gl.uniform4f(u.uSrc, o / R.texW, 0, (o + SCR_GW) / R.texW, 1);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   gl.bindFramebuffer(gl.FRAMEBUFFER, R.f4);
   gl.viewport(0, 0, R.w4, R.h4);

@@ -40,6 +40,11 @@ var VIEW_GW = (VW - PANEL) / CELL, GH = 186, WORLD_GW = 4 * VIEW_GW;
 var PLAY_H = GH * CELL, PLAY_B = PLAY_Y + PLAY_H;
 var MAP_Y = PLAY_B, MAP_H = 10, BAR_Y = MAP_Y + MAP_H;
 var VH = BAR_Y + BAR_H;          /* (and down) */
+/* how many columns are on the screen. VIEW_GW is the world's "screen", what the valley is measured in (four of them
+   wide, as much ore a screen, ...) and never changes; SCR_GW is how much of it the page has room to show, which follows
+   the shape of the screen (game.ts, layoutFit: wider on a phone held sideways, narrower held upright). headless, and
+   until the page says otherwise, the two are the same, and so are VW, VH and PANEL: the game as it always was */
+var SCR_GW = VIEW_GW;
 
 function clamp(v: number, a, b) { return v < a ? a : (v > b ? b : v); }
 function irnd(n: number) { return (Math.random() * n) | 0; }

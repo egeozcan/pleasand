@@ -684,6 +684,12 @@ see `harness/README.md`) say whether the two still agree.
   right edge and the view comes along. A news line about somewhere out of view has a
   little arrow on it: click the arrow to go there. A save from before the valley was
   wide loads one screen wide, as it was; NEW makes a wide one
+- **On a phone or tablet** the game fits itself to the screen: as many columns of the valley as there is room for
+  (a phone held sideways shows half as much again as the desktop window did), with big buttons in place of the
+  picker, down the left held sideways and under the field held upright. **ALL BRUSHES** opens a box of every brush,
+  a finger wide each; the four beside it are the ones used last. One finger paints (or grabs, throws, strikes);
+  **two fingers** look along the valley, and so does dragging the strip. **CLEAR** and **NEW** want a second tap.
+  Add `?desk` to the address for the picker anyway, or `?touch` for the big buttons with a mouse
 - **Left-drag** paints, **right-drag** erases
 - **PEASANT** (V): click to make one and hold it, click one to pick it up,
   drag and let go to throw
@@ -807,6 +813,7 @@ see `harness/README.md`) say whether the two still agree.
 - `simwasm-bin.js`: the module, built from `wasm/` by `wasm/build.sh` (not kept in git)
 - `wasm/`: the Rust the module is built from: `sandStep`'s walk and the rules it hands each cell to, and `heatStep`
 - `glr.ts`: the field, its glow and the bangs on the GPU (WebGL2), under the 2D canvas
+- `touch.ts`: the shape of the screen (how many columns it shows, where the panel goes) and, on a touch screen, the big buttons and the box of brushes
 - `game.ts`: rendering, the picker and HUD, input, and the main loop
 - `globals.d.ts`: what the game finds about it that the DOM's own types do not know of (the module's base64, the harness's hooks on `window`)
 - `vite.config.mts`, `tsconfig.json`: the scripts joined into one module for the browser, and the types checked

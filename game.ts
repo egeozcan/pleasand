@@ -217,13 +217,19 @@ function gamePicture(g: Game) {
   g.gctx = g.gc.getContext("2d");
   g.gimg = g.gctx.createImageData(w, GH);
   g.gpx = new Uint32Array(g.gimg.data.buffer);
-  g.gc2 = document.createElement("canvas"); g.gc2.width = Math.ceil(VIEW_GW / 2); g.gc2.height = Math.ceil(GH / 2);
-  g.gc4 = document.createElement("canvas"); g.gc4.width = Math.ceil(VIEW_GW / 4); g.gc4.height = Math.ceil(GH / 4);
-  g.gc2x = g.gc2.getContext("2d"); g.gc4x = g.gc4.getContext("2d");
+  picSmall(g);
   g.dep = new Uint8Array(w);
   g.haze = new Int8Array(GH);
   g.wave = new Uint8Array(w);
   g.stripC = null;
+}
+/* the glow's small two, one screen's worth (as many columns as the screen shows: SCR_GW), made again when that changes */
+function picSmall(g: Game) {
+  var w2 = Math.ceil(SCR_GW / 2), w4 = Math.ceil(SCR_GW / 4);
+  if (g.gc2 && g.gc2.width === w2) return;
+  g.gc2 = document.createElement("canvas"); g.gc2.width = w2; g.gc2.height = Math.ceil(GH / 2);
+  g.gc4 = document.createElement("canvas"); g.gc4.width = w4; g.gc4.height = Math.ceil(GH / 4);
+  g.gc2x = g.gc2.getContext("2d"); g.gc4x = g.gc4.getContext("2d");
 }
 /* the sky: a dusk gradient, two rows of far hills, a moon, and stars that twinkle. (the moon is in the middle screen,
    where it always was in a valley one screen wide) */
@@ -277,6 +283,7 @@ function gameSkyOwn(g: Game) {
 function gameResize(g: Game, w) {
   w = Math.max(VIEW_GW, Math.round(w));
   gameGrid(g, w);
+  layoutRefit();   /* (the screen shows no more of a valley than there is of it: touch.ts) */
   gamePicture(g);
   gameSkyOwn(g);
   /* (scratch the other modules make for themselves, at the old size: made again at the new one when next wanted) */
@@ -307,7 +314,7 @@ function gameNew(g: Game) {
    when you move it.
    ------------------------------------------------------------------- */
 var CAM_EASE = 0.35, CAM_EDGE = 12, CAM_DWELL = 12, CAM_KEYPAN = [2, 10], CAM_NOTCH = 24;
-function camMax(g: Game) { return Math.max(0, g.gw - VIEW_GW); }
+function camMax(g: Game) { return Math.max(0, g.gw - SCR_GW); }
 function camClamp(g: Game) {
   var M = camMax(g);
   g.camX = clamp(g.camX || 0, 0, M); g.camT = clamp(g.camT == null ? g.camX : g.camT, 0, M);
@@ -326,7 +333,7 @@ function camVillageX(g: Game) {
 }
 /* centre the view on column x: gliding, or (now) at once */
 function camGo(g: Game, x: number, now?: boolean) {
-  g.camT = clamp(x - VIEW_GW / 2, 0, camMax(g));
+  g.camT = clamp(x - SCR_GW / 2, 0, camMax(g));
   if (now) { g.camX = g.camT; g.camI = Math.round(g.camX); }
 }
 function camHome(g: Game, now: boolean) {
@@ -397,7 +404,7 @@ function camStep(g: Game) {
   g.camI = Math.round(g.camX);
   if (g.arrowEnd) { g.arrowEnd = 0; camJournal(g); }   /* (the arrows let go: the view as this update has it) */
   /* (a pan by hand, journalled when the hand lets go: see the wheel and the strip) */
-  if (g.camI !== before && !g.stripDrag && !g.whlAxis && !side && !dir && g.camX === g.camT) camJournal(g);
+  if (g.camI !== before && !g.stripDrag && !g.whlAxis && !side && !dir && g.camX === g.camT && !CAM_HELD) camJournal(g);
 }
 /* after a load: the view the save had (clamped to this valley), or the village if it had none; and the village's range,
    if the save is from before there was one */
@@ -434,7 +441,7 @@ function camWheelGesture(g: Game, dx: number, dy: number, mode, shift: boolean, 
   if (!dx) return 0;
   /* (a trackpad, or a wheel that counts in lines or pages: as far as it says, in the canvas's pixels. Shift and a
      notched wheel: a notch at a time, gliding) */
-  if (!shift) { camPan(g, clamp(dx * scale / CELL, -VIEW_GW, VIEW_GW)); return 0; }
+  if (!shift) { camPan(g, clamp(dx * scale / CELL, -SCR_GW, SCR_GW)); return 0; }
   camNudge(g, (dx > 0 ? 1 : -1) * CAM_NOTCH);
   return 0;
 }
@@ -510,7 +517,7 @@ function cellReadout(g: Game, j: number) {
 }
 function sandBrush(g: Game) { return g.btn === 2 ? MAT.EMPTY : curPick(g).m; }   /* right button always erases */
 /* (the cell under the cursor is one in view: past the edge of it, while a stroke is carried along, the edge's) */
-function sandCell(g: Game) { var c = g.camI || 0; return { x: clamp(g.cx, c, Math.min(g.gw, c + VIEW_GW) - 1), y: clamp(g.cy, 0, g.gh - 1) }; }
+function sandCell(g: Game) { var c = g.camI || 0; return { x: clamp(g.cx, c, Math.min(g.gw, c + SCR_GW) - 1), y: clamp(g.cy, 0, g.gh - 1) }; }
 function inPlay(g: Game) { return g.mx >= PANEL && g.mx < VW && g.my >= PLAY_Y && g.my < PLAY_B && !moreIn(g, g.mx, g.my); }   /* (MORE's flyout is not the field) */
 function painting(g: Game) { var p = curPick(g); return g.btn === 2 || (!p.tool && p.m !== MAT.NUKE); }
 
@@ -576,7 +583,7 @@ function sandEyedrop(g: Game) {
 
 function rowY(k) { return ROW0 + k * ROWH + (k >= FUN_N ? FUN_GAP : 0); }
 function rowAt(x: number, y: number, n?: number) {
-  if (x >= PANEL || y < ROW0) return -1;
+  if (x >= PANEL || y < ROW0 || tuiOn()) return -1;   /* (with the big buttons up, there is no list: touch.ts) */
   for (var k = 0; k < (n == null ? PICK_N : n); k++) if (y >= rowY(k) && y < rowY(k) + ROWH) return k;
   return -1;
 }
@@ -762,7 +769,7 @@ function sandSounds0(g: Game) {
 function drawCols(g: Game, all?) {
   if (all) return [0, g.gw];
   var c = g.camI || 0;
-  return [Math.max(0, c - 2), Math.min(g.gw, c + VIEW_GW + 2)];
+  return [Math.max(0, c - 2), Math.min(g.gw, c + SCR_GW + 2)];
 }
 function drawWorld(g: Game, all?) {
   var m = g.m, sh = g.sh, px = g.px, gp = g.gpx, gw = g.gw, gh = g.gh, dep = g.dep, bg = g.bg, wave = g.wave;
@@ -995,7 +1002,7 @@ function drawThermal(g: Game, X0: number, X1: number) {
 }
 
 function gameDraw(g: Game, c) {
-  var PW = VIEW_GW * CELL, PH = PLAY_H, cam = g.camI = clamp(g.camI || 0, 0, camMax(g));
+  var PW = SCR_GW * CELL, PH = PLAY_H, cam = g.camI = clamp(g.camI || 0, 0, camMax(g));
   /* (with WebGL2 the field, its glow and the bangs are drawn on canvases under this one, and this one has a hole where
      the field is: glr.ts. without, this canvas draws the lot) */
   var R = GLR;
@@ -1029,19 +1036,21 @@ function gameDraw(g: Game, c) {
   drawStrip(g, c);
   drawOverlays(g, c);
   drawMore(g, c);
+  if (tuiOn()) drawPalette(g, c);
 }
 
 /* the field, its glow and the bangs on the 2D canvas (inside gameDraw's clip and shake): with no WebGL2 */
 function gameDrawField(g: Game, c, C: number[], cam, hot: number) {
-  var PW = VIEW_GW * CELL, PH = PLAY_H, cw = C[1] - C[0];
+  var PW = SCR_GW * CELL, PH = PLAY_H, cw = C[1] - C[0];
+  picSmall(g);
   c.imageSmoothingEnabled = false;
-  c.drawImage(g.vc, cam, 0, VIEW_GW, GH, PANEL, PLAY_Y, PW, PH);
+  c.drawImage(g.vc, cam, 0, SCR_GW, GH, PANEL, PLAY_Y, PW, PH);
   c.imageSmoothingEnabled = true;
   if (hot || g.np) {
     g.gctx.putImageData(g.gimg, 0, 0, C[0], 0, cw, GH);
     var c2 = g.gc2x, c4 = g.gc4x;
     c2.clearRect(0, 0, g.gc2.width, g.gc2.height);
-    c2.drawImage(g.gc, cam, 0, VIEW_GW, GH, 0, 0, g.gc2.width, g.gc2.height);
+    c2.drawImage(g.gc, cam, 0, SCR_GW, GH, 0, 0, g.gc2.width, g.gc2.height);
     c4.clearRect(0, 0, g.gc4.width, g.gc4.height);
     c4.drawImage(g.gc2, 0, 0, g.gc4.width, g.gc4.height);
     c.globalCompositeOperation = "lighter";
@@ -1070,7 +1079,7 @@ function gameDrawFx(g: Game, sx: number, sy: number) {
   if (!on) return;
   f.setTransform(el.width / VW, 0, 0, el.height / VH, 0, 0);
   f.save();
-  f.beginPath(); f.rect(PANEL, PLAY_Y, VIEW_GW * CELL, PLAY_H); f.clip();
+  f.beginPath(); f.rect(PANEL, PLAY_Y, SCR_GW * CELL, PLAY_H); f.clip();
   f.translate(sx, sy);
   drawBangs(g, f);
   f.restore();
@@ -1146,7 +1155,7 @@ function drawCursor(g: Game, c) {
   c.save();
   c.lineWidth = 1;
   if (g.ax != null) {
-    c.beginPath(); c.rect(PANEL, PLAY_Y, VIEW_GW * CELL, PLAY_H); c.clip();
+    c.beginPath(); c.rect(PANEL, PLAY_Y, SCR_GW * CELL, PLAY_H); c.clip();
     var p = sandCell(g);
     c.strokeStyle = g.av === MAT.EMPTY ? "#ffffff" : SAND_SHADES[g.av][0];
     c.lineWidth = (g.size * 2 + 1) * CELL; c.lineCap = "round"; c.globalAlpha = 0.35;
@@ -1350,15 +1359,16 @@ function uiCached(c, key: string, sig: string, x: number, y: number, w: number, 
 }
 
 function drawPanel(g: Game, c) {
-  var hov = rowAt(g.mx, g.my), k;
-  var overMore = g.mx >= 0 && g.mx < PANEL && g.my >= MORE_Y && g.my < MORE_Y + ROWH;
+  var hov = rowAt(g.mx, g.my), k, tui = tuiOn();
+  var overMore = !tui && g.mx >= 0 && g.mx < PANEL && g.my >= MORE_Y && g.my < MORE_Y + ROWH;
   var mh = moreAt(g, g.mx, g.my), inMore = moreIn(g, g.mx, g.my);
   /* the picker, size and the buttons: what it shows is what is picked, hovered and set (and, over the buttons, where the
      pointer is exactly: they light up under it) */
   var btns = g.mx >= 0 && g.mx < PANEL && g.my >= SIZE_Y ? g.mx + ":" + g.my : "";
   var psig = [g.sel, hov, overMore ? 1 : 0, g.moreOpen ? 1 : 0, moreSlot(g), g.size, g.paused ? 1 : 0, g.speed, g.thermal ? 1 : 0,
               g.hush ? 1 : 0, btns].join(",");
-  uiCached(c, "panel", psig, 0, PLAY_Y, PANEL, VH - PLAY_Y, function (c) { drawPanelPicker(g, c, hov, overMore); });
+  if (tui) drawTouchPanel(g, c);
+  else uiCached(c, "panel", psig, 0, PLAY_Y, PANEL, VH - PLAY_Y, function (c) { drawPanelPicker(g, c, hov, overMore); });
 
   /* header: the counts, each its own button (click it for a popup of the numbers behind it) */
   var alive = 0, space = 0;
@@ -1374,7 +1384,7 @@ function drawPanel(g: Game, c) {
   if (g.wAny) segs.push(["wonders", "WONDERS " + wCount(g) + "/" + W_TOTAL]);
   if (nd) segs.push(["ducks", "DUCKS " + nd]);
   if (space) segs.push(["peasants", "IN SPACE " + space]);
-  var hsig = segs.map(function (s) { return s[1]; }).join("|") + "|" + MUTED + "|" + g.pop + "|" + (g.my < PLAY_Y ? g.mx : "-");
+  var hsig = segs.map(function (s) { return s[1]; }).join("|") + "|" + MUTED + "|" + g.pop + "|" + (g.my < PLAY_Y ? g.mx : "-") + "|" + VW + LAYOUT;
   /* (g.hdrHit, where the counts are for a click, is made with the header: made again if it is not the one made with it) */
   var hc = UI_CACHE.header;
   if (hc && hc.hit !== g.hdrHit) hc.sig = null;
@@ -1391,21 +1401,24 @@ function drawPanel(g: Game, c) {
   /* description bar */
   var ms = moreSlot(g);
   var info = hov >= 0 ? PICK[hov] : (mh >= 0 ? PICK[mh] : (overMore && ms >= 0 ? PICK[ms] : curPick(g)));
-  var hp = inPlay(g) ? peasantAt(g, g.cx, g.cy, 2) : null, line;
+  var hp = inPlay(g) && !TUI.open ? peasantAt(g, g.cx, g.cy, 2) : null, line, tb = tui && g.down ? tpAt(g.mx, g.my) : null, pk2 = tui ? palAt(g.mx, g.my) : -1;
   var hd = inPlay(g) && !hp ? duckAt(g, g.cx, g.cy, 1) : null;
-  if (hp) line = hp.name + "  " + pMood(g, hp);
+  if (tui && TUI.open) line = pk2 >= 0 && g.down ? PICK[pk2].name + "  " + PICK[pk2].desc : "BRUSHES  tap one to pick it. tap outside to close";
+  else if (tb && tpHint(tb.id)) line = tpHint(tb.id);
+  else if (tui && tpIn(g.mx, g.my)) line = info.name + "  " + info.desc;
+  else if (hp) line = hp.name + "  " + pMood(g, hp);
   else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd, g);
   else if (g.my < PLAY_Y && g.mx >= PANEL) line = iSummary(g);   /* over the header: what the village knows */
   else if (overMore && ms < 0) line = "MORE  THE HAND (Y), and coal, iron ore, gold, rock salt, stonework, concrete, firebrick, stained glass, trestle. click to open";
   else if (overMore) line = info.name + "  " + info.desc;
   else if (inMore && mh < 0) line = "MORE  pick one. a click anywhere else, or Esc, closes it";
-  else if (g.mx < PANEL && hov < 0) line = tipLine(g);
+  else if (g.mx < PANEL && hov < 0 && !tui) line = tipLine(g);
   else if (g.camNote > g.t) line = "G  nobody lives here. this is the middle of the valley";
-  else if (g.mx >= PANEL && ((g.my >= MAP_Y && g.my < BAR_Y) || g.stripDrag)) line = "THE VALLEY  drag to look along it. swipe sideways, Shift-wheel or \u2190/\u2192. G goes home";
+  else if (g.mx >= PANEL && ((g.my >= MAP_Y && g.my < BAR_Y) || g.stripDrag)) line = tui ? "THE VALLEY  drag it to look along. or two fingers on the field. VILLAGE goes home" : "THE VALLEY  drag to look along it. swipe sideways, Shift-wheel or \u2190/\u2192. G goes home";
   else line = info.name + "  " + info.desc;
   /* what is under the cursor, and how hot it is, on the right (over the strip: what is along there) */
-  var rd = inPlay(g) && !hp && !hd ? cellReadout(g, cellAt(g)) : (g.mx >= PANEL && g.my >= MAP_Y && g.my < BAR_Y ? stripReadout(g, stripCol(g, g.mx)) : "");
-  uiCached(c, "bar", line + "\u0001" + rd, PANEL, BAR_Y, VW - PANEL, BAR_H, function (c) { drawBar(c, line, rd); });
+  var rd = TUI.open && tui ? "" : inPlay(g) && !hp && !hd ? cellReadout(g, cellAt(g)) : (g.mx >= PANEL && g.my >= MAP_Y && g.my < BAR_Y ? stripReadout(g, stripCol(g, g.mx)) : "");
+  uiCached(c, "bar", line + "\u0001" + rd + "\u0001" + VW, PANEL, BAR_Y, VW - PANEL, BAR_H, function (c) { drawBar(c, line, rd); });
 }
 function drawPanelPicker(g: Game, c, hov: number, overMore: boolean) {
   var k;
@@ -1442,13 +1455,16 @@ function drawHeader(g: Game, c, segs) {
   var k;
   rct(c, 0, 0, VW, PLAY_Y, "#0a0d16");
   rct(c, 0, PLAY_Y - 1, VW, 1, "#26344e");
-  txt(c, "PLEASAND", 5, 10, 9, "#ffd94a", "left", true);
+  /* (with the big buttons up, SAVE, LOAD and the sound are buttons of their own: the header is the counts, and the name
+     if there is room for it. touch.ts) */
+  var tui = tuiOn(), left = 0;
+  if (!tui || VW >= 520) { txt(c, "PLEASAND", 5, 10, 9, "#ffd94a", "left", true); c.font = "bold 9px " + UI_FONT; left = 5 + c.measureText("PLEASAND").width + 8; }
   g.hdrHit = [];
-  txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
+  if (!tui) txt(c, (MUTED ? "M: SOUND OFF" : "M: SOUND ON"), VW - 5, 10, 7, "#8892a8", "right");
   /* SAVE and LOAD, left of the sound: a file to keep, a file to open (or drop one on the game) */
   c.font = "7px " + UI_FONT;
-  var fx = VW - 5 - c.measureText("M: SOUND OFF").width - 12;
-  ["LOAD", "SAVE"].forEach(function (lb) {
+  var fx = tui ? VW - 5 : VW - 5 - c.measureText("M: SOUND OFF").width - 12;
+  (tui ? [] : ["LOAD", "SAVE"]).forEach(function (lb) {
     c.font = "bold 7px " + UI_FONT;
     var w = c.measureText(lb).width, x0 = fx - w, over = g.my < PLAY_Y && g.mx >= x0 - 3 && g.mx < fx + 3;
     if (over) rct(c, x0 - 3, 2, w + 6, PLAY_Y - 4, "#17202f");
@@ -1458,10 +1474,15 @@ function drawHeader(g: Game, c, segs) {
   });
   /* the counts sit centred in what is left between the panel and LOAD, never under it */
   c.font = "bold 8px " + UI_FONT;
-  var gap = c.measureText("     ").width, tw = -gap;
+  var gap = c.measureText("     ").width, tw = -gap, right = fx + 10 - 3 - gap, lo = Math.max(tui ? 4 : PANEL, left);
   for (k = 0; k < segs.length; k++) tw += c.measureText(segs[k][1]).width + gap;
-  var right = fx + 10 - 3 - gap;
-  var hx = Math.max(PANEL, PANEL + (right - PANEL - tw) / 2);
+  /* (and where they do not fit, closer together, and then in short) */
+  if (tw > right - lo) {
+    gap = c.measureText("  ").width;
+    segs = segs.map(function (sg) { return [sg[0], sg[1].replace("PEASANTS", "FOLK").replace("HOUSES", "HOMES").replace("WONDERS", "WONDER").replace("IN SPACE", "SPACE")]; });
+    tw = -gap; for (k = 0; k < segs.length; k++) tw += c.measureText(segs[k][1]).width + gap;
+  }
+  var hx = Math.max(lo, lo + (right - lo - tw) / 2);
   for (k = 0; k < segs.length; k++) {
     var sw = c.measureText(segs[k][1]).width, on = g.pop === segs[k][0];
     var over = g.my < PLAY_Y && g.mx >= hx - 3 && g.mx < hx + sw + 3;
@@ -1752,7 +1773,7 @@ function drawStatPop(g: Game, c) {
 }
 
 function drawOverlays(g: Game, c) {
-  var cx = PANEL + (VW - PANEL) / 2, k;
+  var cx = PANEL + (VW - PANEL) / 2, k, fit = Math.min(1, (VW - PANEL - 12) / 300);   /* (the title and the milestones, shrunk to a narrow field) */
   /* the news, top right. a line about somewhere out of view has an arrow on it: click it to go there */
   c.font = "bold 7px " + UI_FONT;
   g.feedHit = [];
@@ -1760,8 +1781,9 @@ function drawOverlays(g: Game, c) {
     var f = g.feed[k], a = Math.min(1, (7 - f.t) / 0.8, f.t * 6), yy = PLAY_Y + 5 + k * 10;
     var side = feedSide(g, f), ft = f.text, w = c.measureText(ft).width + 8;
     /* (a line with an arrow keeps room for it in the field: a long one is cut short) */
-    if (side && w > VW - PANEL - 24) {
-      while (ft.length > 8 && c.measureText(ft + "...").width + 8 > VW - PANEL - 24) ft = ft.slice(0, -1);
+    var room = VW - PANEL - (side ? 24 : 10);   /* (and on a narrow screen, any line too long for it) */
+    if (w > room) {
+      while (ft.length > 8 && c.measureText(ft + "...").width + 8 > room) ft = ft.slice(0, -1);
       ft += "..."; w = c.measureText(ft).width + 8;
     }
     c.globalAlpha = Math.max(0, a);
@@ -1784,7 +1806,7 @@ function drawOverlays(g: Game, c) {
     var b = g.banners[0], s = b.t < 0.15 ? 0.6 + b.t / 0.15 * 0.5 : (b.t < 0.3 ? 1.1 - (b.t - 0.15) / 0.15 * 0.1 : 1);
     c.save();
     c.globalAlpha = Math.min(1, (3.5 - b.t) / 0.5);
-    c.translate(cx, PLAY_Y + 58); c.scale(s, s);
+    c.translate(cx, PLAY_Y + 58); c.scale(s * fit, s * fit);
     txt(c, b.title, 1.5, 1.5, 22, "#000000", "center", true);
     txt(c, b.title, 0, 0, 22, "#ffd94a", "center", true);
     txt(c, b.sub, 0, 14, 9, "#ffffff", "center", true);
@@ -1793,6 +1815,8 @@ function drawOverlays(g: Game, c) {
   /* the title card, the first few seconds */
   if (g.intro < 6) {
     var ia = g.intro < 4.5 ? 1 : 1 - (g.intro - 4.5) / 1.5, iy = PLAY_Y + 70;
+    c.save();
+    if (fit < 1) { c.translate(cx, iy); c.scale(fit, fit); c.translate(-cx, -iy); }
     c.globalAlpha = ia;
     rct(c, cx - 150, iy - 30, 300, 62, "rgba(6,8,14,0.72)");
     txt(c, "PLEASAND", cx + 2, iy + 2, 28, "#7a3a12", "center", true);
@@ -1800,13 +1824,14 @@ function drawOverlays(g: Game, c) {
     txt(c, "a falling sand game, with peasants in it", cx, iy + 14, 8, "#ffffff", "center", true);
     txt(c, "they live here. be nice. (or don't)", cx, iy + 25, 7, "#9aa6b8", "center");
     c.globalAlpha = 1;
+    c.restore();
   }
   if (g.thermal) drawThermalKey(c);
   drawStatPop(g, c);
   if (g.paused) {
     rct(c, cx - 50, PLAY_Y + PLAY_H / 2 - 14, 100, 28, "rgba(0,0,0,0.75)");
     txt(c, "PAUSED", cx, PLAY_Y + PLAY_H / 2 + 1, 12, "#ffd94a", "center", true);
-    txt(c, ". = ONE STEP", cx, PLAY_Y + PLAY_H / 2 + 10, 7, "#c8d0dc", "center");
+    txt(c, tuiOn() ? "STEP = ONE TICK" : ". = ONE STEP", cx, PLAY_Y + PLAY_H / 2 + 10, 7, "#c8d0dc", "center");
   } else if (g.speed !== SPEED_1) {
     txt(c, (g.speed < SPEED_1 ? "SLOW " : "FAST ") + SPEED_NAMES[g.speed], PANEL + 6, PLAY_Y + 12, 8, "#ffd94a", "left", true);
   }
@@ -1840,6 +1865,8 @@ function gameTap(g: Game, x: number, y: number, act?) {
   moreNote(g);
   saveInput(g, "tap", { x: saveR(x), y: saveR(y), cell: x >= PANEL && y >= PLAY_Y ? [Math.round(g.cx), Math.round(g.cy)] : null, btn: g.btn, pick: curPick(g).name });
   g.intro = Math.max(g.intro, 4.5);
+  /* the big buttons, and the box of brushes over the field, where they are up (touch.ts) */
+  if (tuiTap(g, x, y)) return;
   /* the counts along the top open (and close) their popups. a click anywhere else closes it; a click on it is eaten */
   if (y < PLAY_Y && x >= PANEL) {
     moreClose(g);   /* (one popup at a time) */
@@ -1920,7 +1947,7 @@ function feedSide(g: Game, f: FeedLine) {
   if (camMax(g) <= 0) return 0;
   var x = feedX(g, f);
   if (x == null) return 0;
-  return x < g.camI ? -1 : (x >= g.camI + VIEW_GW ? 1 : 0);
+  return x < g.camI ? -1 : (x >= g.camI + SCR_GW ? 1 : 0);
 }
 /* the news line whose arrow is at (x, y), as drawn last frame */
 function feedTabAt(g: Game, x: number, y: number) {
@@ -2024,7 +2051,7 @@ function drawEdgeMarks(g: Game, c) {
     var p = g.peasants[k];
     if (p.dead || p.state === "space") continue;
     if (p.x < g.camI && g.camI - p.x < ld) { ld = g.camI - p.x; L = p; }
-    else if (p.x >= g.camI + VIEW_GW && p.x - g.camI - VIEW_GW < rd) { rd = p.x - g.camI - VIEW_GW; R = p; }
+    else if (p.x >= g.camI + SCR_GW && p.x - g.camI - SCR_GW < rd) { rd = p.x - g.camI - SCR_GW; R = p; }
   }
   c.save();
   c.globalAlpha = 0.6;
@@ -2043,7 +2070,7 @@ function drawEdgeMarks(g: Game, c) {
 /* the strip: strip pixel u (0 .. 543) is world column u * gw / 544 */
 var STRIP_W = VW - PANEL;
 function stripCol(g: Game, x: number) { return (x - PANEL) * g.gw / STRIP_W; }
-function stripBox(g: Game) { return { x0: PANEL + g.camX * STRIP_W / g.gw, w: VIEW_GW * STRIP_W / g.gw }; }
+function stripBox(g: Game) { return { x0: PANEL + g.camX * STRIP_W / g.gw, w: SCR_GW * STRIP_W / g.gw }; }
 function stripPress(g: Game, x: number) {
   if (camMax(g) <= 0) return;
   var b = stripBox(g), off;
@@ -2093,14 +2120,14 @@ function gameKey(g: Game, k: string) {
   else if (k === "r") gameNew(g);
   /* looking along the valley: Shift and an arrow is a screen at a time (held, they glide: camStep), Home and End the
      ends of it, G the village */
-  else if ((k === "arrowleft" || k === "arrowright") && g.keys.shift) { camJournal(g); camNudge(g, (k === "arrowleft" ? -1 : 1) * (VIEW_GW - 32)); }
+  else if ((k === "arrowleft" || k === "arrowright") && g.keys.shift) { camJournal(g); camNudge(g, (k === "arrowleft" ? -1 : 1) * (SCR_GW - 32)); }
   else if (k === "home") g.camT = 0;
   else if (k === "end") g.camT = camMax(g);
   else if (k === "g") { if (!camHome(g, false)) g.camNote = g.t + 2; }
   else if (k === "`") g.debug = !g.debug;
   else if (k === "t") g.thermal = !g.thermal;
   else if (k === "b") g.hush = !g.hush;   /* speech bubbles off (and on again) */
-  else if (k === "escape") { moreClose(g); g.pop = null; }   /* (MORE's flyout, or a count's popup, shut) */
+  else if (k === "escape") { moreClose(g); g.pop = null; TUI.open = false; }   /* (MORE's flyout, or a count's popup, shut) */
 }
 
 /* -------------------------------------------------------------------
@@ -2167,13 +2194,34 @@ function drawChrome() {
   if (vig !== vigcv) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(vig, 0, 0); ctx.restore(); }
 }
 
+/* the room the page has for the game (CSS pixels): the window, less the notch and the rounded corners (index.html pads
+   the body by the safe area) */
+function roomFor() {
+  var b = document.body, cs = getComputedStyle(b);
+  var w = b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  var h = b.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  return { w: Math.max(100, w || window.innerWidth), h: Math.max(100, h || window.innerHeight) };
+}
 function resize() {
+  /* the game fitted to the screen (touch.ts): as many columns as there is room for, and the stage the game's shape, as
+     big as it goes */
+  /* (headless, the harness's stubs: the game as it always was, 640 by 410) */
+  var real = typeof HTMLCanvasElement !== "undefined" && cv instanceof HTMLCanvasElement;
+  var stage = real ? document.getElementById("stage") : null, room = real ? roomFor() : null;
+  if (real) layoutFit(room.w, room.h);
+  if (stage) {
+    var k = Math.min(room.w / VW, room.h / VH);
+    stage.style.width = Math.floor(VW * k) + "px"; stage.style.height = Math.floor(VH * k) + "px";
+  }
   var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-  var S = Math.max(1, Math.min(4, r.width * dpr / VW));
+  /* (a touch screen's canvas is kept to three of its pixels a game pixel: past that nobody can see the difference, and
+     the phone pays for every one of them, every frame) */
+  var S = Math.max(1, Math.min(TOUCH_UI ? 3 : 4, r.width * dpr / VW));
   cv.width = Math.round(VW * S); cv.height = Math.round(VH * S);
   [glcv, fxcv].forEach(function (e) { if (e) { e.width = cv.width; e.height = cv.height; } });
   ctx.setTransform(cv.width / VW, 0, 0, cv.height / VH, 0, 0);
   vig = null; FX_DIRTY = true;
+  for (var key in UI_CACHE) delete UI_CACHE[key];
 }
 
 function toGame(clientX, clientY) {
@@ -2209,11 +2257,33 @@ function initInput() {
   });
   window.addEventListener("blur", function () { g.keys = {}; g.ptr = null; if (g.down) { g.down = 0; sandRelease(g); g.btn = 0; } });
   window.addEventListener("resize", resize);
+  /* (a phone turned round, its address bar coming and going, fullscreen: all of them a new shape) */
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", function () { setTimeout(resize, 50); });
+  document.addEventListener("fullscreenchange", resize);
+  document.addEventListener("webkitfullscreenchange", resize);
+  /* (Safari's own pinch, which touch-action does not always stop: the page never zooms, the game has the fingers) */
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+
+  /* the fingers on the screen, and two of them looking along the valley (PAN: where their middle was last) */
+  var touches = {}, nTouch = 0, PAN = null;
+  function touchMid() { var x = 0, n = 0; for (var id in touches) { x += touches[id].x; n++; } return n ? x / n : 0; }
+  function panStart(e) {
+    e.preventDefault();
+    /* (the first finger's press is over: whatever it was doing ends, as if it had let go) */
+    g.ptr = null; TUI.deferred = null;
+    if (g.down) { g.down = 0; sandRelease(g); g.btn = 0; }
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    PAN = { x: touchMid(), n: nTouch }; CAM_HELD = true;
+  }
 
   /* one pointer at a time (mouse, pen or finger), captured so a drag that leaves the
      canvas still ends cleanly, and cancelled cleanly if the browser takes it away */
   function down(e) {
-    if (g.ptr != null) return;
+    if (e.pointerType === "touch" && !touches[e.pointerId]) { touches[e.pointerId] = { x: e.clientX, y: e.clientY }; nTouch++; }
+    if (PAN) { e.preventDefault(); return; }   /* (more fingers on a pan: still a pan) */
+    if (g.ptr != null) { if (e.pointerType === "touch" && touches[g.ptr]) panStart(e); return; }
+    if (e.pointerType === "touch" && nTouch > 1) return;
     e.preventDefault();
     actx();
     g.ptr = e.pointerId;
@@ -2227,20 +2297,41 @@ function initInput() {
     gameTap(g, g.mx, g.my);
   }
   function up(e) {
+    if (touches[e.pointerId]) { delete touches[e.pointerId]; nTouch--; }
+    if (PAN) {
+      if (nTouch <= 0) { PAN = null; nTouch = 0; touches = {}; CAM_HELD = false; camJournal(g); }
+      else PAN.x = touchMid();
+      return;
+    }
     if (e.pointerId !== g.ptr) return;
     toGame(e.clientX, e.clientY);
     cursorSample(g);
     g.ptr = null;
+    /* (a phone lets sound start, and a file be opened, only as a finger lets go) */
+    actx();
     if (!g.down) return;
     g.down = 0;
     sandRelease(g);
     g.btn = 0;
+    tpLetGo(g);
+    /* (a finger lifted is not a mouse left hovering: no brush ring left behind where it was) */
+    if (e.pointerType === "touch") { g.mx = g.my = -50; }
   }
   cv.addEventListener("pointerdown", down);
   window.addEventListener("pointerup", up);
   window.addEventListener("pointercancel", up);
   window.addEventListener("pointermove", function (e) {
+    if (touches[e.pointerId]) { touches[e.pointerId].x = e.clientX; touches[e.pointerId].y = e.clientY; }
+    if (PAN) {
+      /* two fingers: the picture goes with them (a finger more or less: picked up from where they are now) */
+      if (nTouch !== PAN.n) { PAN.n = nTouch; PAN.x = touchMid(); return; }
+      var mx = touchMid(), r = cv.getBoundingClientRect();
+      if (r.width > 0 && nTouch >= 2) camPan(g, -(mx - PAN.x) * VW / r.width / CELL);
+      PAN.x = mx;
+      return;
+    }
     if (g.ptr != null && e.pointerId !== g.ptr) return;
+    if (e.pointerType === "touch" && g.ptr == null) return;   /* (a finger that is not the press) */
     toGame(e.clientX, e.clientY);
     cursorSample(g);
   });
@@ -2290,6 +2381,13 @@ function boot() {
   ctx = cv.getContext("2d", { alpha: !!GLR });
   g = newGame();
   gameInit(g);
+  /* the big buttons on a touch screen (touch.ts): one whose main pointer is a finger, or ?touch in the address. ?desk,
+     the picker, always. and again if that changes (a tablet with a keyboard and trackpad clipped on, say) */
+  var q = typeof location !== "undefined" && location.search || "", mq = typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)") : null;
+  var wantTouch = function () { return /[?&]desk(&|=|$)/.test(q) ? false : (/[?&]touch(&|=|$)/.test(q) || !!(mq && mq.matches)); };
+  TOUCH_UI = wantTouch();
+  if (TOUCH_UI) g.mx = g.my = -50;   /* (no finger on it yet: no brush ring in the middle of the field) */
+  if (mq && mq.addEventListener) mq.addEventListener("change", function () { TOUCH_UI = wantTouch(); TUI.open = false; resize(); });
   resize();
   initInput();
   /* the save journal is for a real browser; the harness keeps its own */
