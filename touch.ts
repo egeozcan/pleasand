@@ -21,7 +21,7 @@ var TP = { x: 0, y: 0, w: 0, h: 0, btns: [] };
 /* the touch panel's own state, none of it the village's (so none of it in a save): the box of brushes open, the four
    brushes kept to hand (slots, with when each was last picked), a CLEAR or NEW waiting to be tapped again, and what is to
    be done when the finger lets go (what a browser lets only a finger's lifting do: fullscreen, a file to open) */
-var TUI = { open: false, slots: [], used: [], lastSel: -1, sure: null, sureT: 0, deferred: null, clock: 0 };
+var TUI = { open: false, slots: [], used: [], lastSel: -1, sure: null, sureT: 0, deferred: null, clock: 0, pan: false, drag: null };
 var LAST_FIT = { w: 0, h: 0 };
 /* two fingers have hold of the view (game.ts): the camera journals where it is when they let go, not every step */
 var CAM_HELD = false;
@@ -81,6 +81,7 @@ function tpRows(): any[] {
   var full = fsOk();
   if (LAYOUT === "side") return [
     [[["brush", 1]], 1.35],
+    [[["draw", 1], ["pan", 1]], 1],
     [[["r0", 1], ["r1", 1]], 1], [[["r2", 1], ["r3", 1]], 1],
     [[["size-", 1], ["sizev", 1], ["size+", 1]], 0.9],
     [[["slower", 1], ["speedv", 1], ["faster", 1]], 0.9],
@@ -94,7 +95,7 @@ function tpRows(): any[] {
     [[["brush", 2], ["r0", 1], ["r1", 1], ["r2", 1], ["r3", 1]], 1.15],
     [[["size-", 1], ["sizev", 1], ["size+", 1], ["slower", 1], ["speedv", 1], ["faster", 1]], 1],
     [[["pause", 1], ["home", 1], ["thermal", 1], ["bubbles", 1], ["sound", 1]].concat(full ? [["full", 1]] : [["step", 1]]), 1],
-    [[["save", 1], ["load", 1], ["clear", 1], ["new", 1]], 0.9]
+    [[["draw", 1], ["pan", 1], ["save", 1], ["load", 1], ["clear", 1], ["new", 1]], 1]
   ];
 }
 function tpLayout() {
@@ -150,7 +151,9 @@ function tpTap(g: Game, x: number, y: number) {
   if (id !== "brush") TUI.open = false;
   if (id !== "clear" && id !== "new") TUI.sure = null;
   if (id === "brush") { TUI.open = !TUI.open; g.pop = null; }
-  else if (id.charAt(0) === "r" && id.length === 2) { var k = tpSlots(g)[+id.charAt(1)]; if (k >= 0) panelDo(g, "row:" + k); }
+  else if (id === "draw") TUI.pan = false;
+  else if (id === "pan") TUI.pan = true;
+  else if (id.charAt(0) === "r" && id.length === 2) { var k = tpSlots(g)[+id.charAt(1)]; if (k >= 0) { panelDo(g, "row:" + k); TUI.pan = false; } }
   else if (TP_DO[id]) panelDo(g, TP_DO[id]);
   else if (id === "clear" || id === "new") {
     /* (a whole valley is a lot to lose to a stray thumb: tapped twice) */
@@ -197,7 +200,7 @@ function drawTouchPanel(g: Game, c) {
   var slots = tpSlots(g), press = g.down ? tpAt(g.mx, g.my) : null, pid = press ? press.id : "";
   if (TUI.sure && g.t - TUI.sureT >= 2.5) TUI.sure = null;
   var sig = [LAYOUT, VW, VH, g.sel, slots.join("."), g.size, g.speed, g.paused ? 1 : 0, g.thermal ? 1 : 0, g.hush ? 1 : 0, MUTED ? 1 : 0,
-             TUI.open ? 1 : 0, TUI.sure, pid, fsOk() && fsOn() ? 1 : 0].join(",");
+             TUI.open ? 1 : 0, TUI.sure, pid, fsOk() && fsOn() ? 1 : 0, TUI.pan ? 1 : 0].join(",");
   uiCached(c, "touch", sig, TP.x, TP.y, TP.w, TP.h, function (c) {
     rct(c, TP.x, TP.y, TP.w, TP.h, "#0a0d16");
     if (LAYOUT === "side") rct(c, TP.x + TP.w - 1, TP.y, 1, TP.h, "#26344e");
@@ -232,8 +235,8 @@ function drawTouchPanel(g: Game, c) {
       } else {
         var lab = { "size-": "−", "size+": "+", slower: "−", faster: "+", pause: g.paused ? "PLAY" : "PAUSE", home: "VILLAGE",
                     thermal: "THERMAL", bubbles: "BUBBLES", sound: "SOUND", full: "FULL\nSCREEN", step: g.paused ? "STEP" : "STEP",
-                    save: "SAVE", load: "LOAD", clear: "CLEAR", new: "NEW" }[id] || id;
-        var on = (id === "pause" && !!g.paused) || (id === "thermal" && !!g.thermal) || (id === "bubbles" && !g.hush) ||
+                    save: "SAVE", load: "LOAD", clear: "CLEAR", new: "NEW", draw: "\u270e DRAW", pan: "\u2194 PAN" }[id] || id;
+        var on = (id === "draw" && !TUI.pan) || (id === "pan" && TUI.pan) || (id === "pause" && !!g.paused) || (id === "thermal" && !!g.thermal) || (id === "bubbles" && !g.hush) ||
                  (id === "sound" && !MUTED) || (id === "full" && fsOn());
         var warn = TUI.sure === id;
         tpButton(c, b, warn ? "SURE?" : lab, on, hot, warn);
@@ -243,7 +246,8 @@ function drawTouchPanel(g: Game, c) {
 }
 /* what the bar says about a touch-panel button a finger is on */
 function tpHint(id: string) {
-  return ({ brush: "BRUSHES  every brush there is, a finger wide each", home: "VILLAGE  back to where they live", pause: "PAUSE  stop time. STEP moves it one tick",
+  return ({ brush: "BRUSHES  every brush there is, a finger wide each", draw: "DRAW  a finger on the field paints, grabs, throws and strikes",
+            pan: "PAN  a finger on the field looks along the valley. flick it to glide", home: "VILLAGE  back to where they live", pause: "PAUSE  stop time. STEP moves it one tick",
             step: "STEP  one tick of the world at a time (it pauses first)", thermal: "THERMAL  how hot everything is. peasants are 37 degrees. mostly",
             bubbles: "BUBBLES  what they are saying, or a quieter village", sound: "SOUND  on or off", full: "FULL SCREEN  the whole screen, no browser",
             save: "SAVE  the village, in a file to keep", load: "LOAD  a village from a file", clear: "CLEAR  everything goes. tap twice",
@@ -300,11 +304,32 @@ function tuiTap(g: Game, x: number, y: number) {
   if (TUI.open) {
     g.eaten = 1;
     var k = palAt(x, y);
-    if (k >= 0) { g.sel = k; moreNote(g); TUI.open = false; TUI.sure = null; return true; }
+    if (k >= 0) { g.sel = k; moreNote(g); TUI.open = false; TUI.sure = null; TUI.pan = false; return true; }   /* (a brush picked is a brush to use) */
     if (tpIn(x, y)) { tpTap(g, x, y); return true; }
     if (!palIn(x, y)) TUI.open = false;   /* (outside it: shut, and the press is used up) */
     return true;
   }
   if (tpIn(x, y)) { g.eaten = 1; tpTap(g, x, y); return true; }
+  /* PAN: a finger on the field takes hold of the view, and nothing else (the press is used up: no tool, no paint) */
+  if (TUI.pan && x >= PANEL && x < VW && y >= PLAY_Y && y < PLAY_B) {
+    g.eaten = 1;
+    TUI.drag = { x: x, cam: g.camX };
+    CAM_HELD = true;
+    return true;
+  }
   return false;
+}
+/* the finger that has hold of the view, moved: the picture stays under it */
+function tpDragMove(g: Game) {
+  var d = TUI.drag;
+  if (!d) return;
+  g.camX = g.camT = clamp(d.cam - (g.mx - d.x) / CELL, 0, camMax(g));
+}
+/* and let go: a flick carries the view on, gliding to a stop (camStep's glide) */
+function tpDragEnd(g: Game) {
+  if (!TUI.drag) return;
+  TUI.drag = null; CAM_HELD = false;
+  var v = cursorVel(g)[0];
+  if (Math.abs(v) > 0.4) g.camT = clamp(g.camX - v * 14, 0, camMax(g));
+  else camJournal(g);
 }

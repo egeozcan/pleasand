@@ -687,8 +687,10 @@ see `harness/README.md`) say whether the two still agree.
 - **On a phone or tablet** the game fits itself to the screen: as many columns of the valley as there is room for
   (a phone held sideways shows half as much again as the desktop window did), with big buttons in place of the
   picker, down the left held sideways and under the field held upright. **ALL BRUSHES** opens a box of every brush,
-  a finger wide each; the four beside it are the ones used last. One finger paints (or grabs, throws, strikes);
-  **two fingers** look along the valley, and so does dragging the strip. **CLEAR** and **NEW** want a second tap.
+  a finger wide each; the four beside it are the ones used last. **DRAW** and **PAN** say what a finger on the field
+  does: in DRAW it paints (or grabs, throws, strikes), in PAN it drags the view along the valley, and a flick glides
+  on. Picking a brush goes back to DRAW. Two fingers look along the valley in either, and so does dragging the strip.
+  **CLEAR** and **NEW** want a second tap.
   Add `?desk` to the address for the picker anyway, or `?touch` for the big buttons with a mouse
 - **Left-drag** paints, **right-drag** erases
 - **PEASANT** (V): click to make one and hold it, click one to pick it up,

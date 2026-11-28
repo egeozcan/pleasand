@@ -1151,6 +1151,7 @@ function drawBangs(g: Game, c) {
 function drawCursor(g: Game, c) {
   /* (a ruled line is drawn even with the pointer out past the side of the field, while the view is carried along) */
   if (!inPlay(g) && g.ax == null) return;
+  if (tuiOn() && TUI.pan) return;   /* (PAN: the finger holds the view, not a brush) */
   var pk = curPick(g), cx = g.mx, cy = g.my;
   c.save();
   c.lineWidth = 1;
@@ -1405,6 +1406,7 @@ function drawPanel(g: Game, c) {
   var hd = inPlay(g) && !hp ? duckAt(g, g.cx, g.cy, 1) : null;
   if (tui && TUI.open) line = pk2 >= 0 && g.down ? PICK[pk2].name + "  " + PICK[pk2].desc : "BRUSHES  tap one to pick it. tap outside to close";
   else if (tb && tpHint(tb.id)) line = tpHint(tb.id);
+  else if (tui && TUI.pan && !tpIn(g.mx, g.my)) line = "PAN  drag to look along the valley. DRAW to paint again";
   else if (tui && tpIn(g.mx, g.my)) line = info.name + "  " + info.desc;
   else if (hp) line = hp.name + "  " + pMood(g, hp);
   else if (hd) line = (hd.baby ? "DUCKLING" : hd.kind.name) + "  " + dMood(hd, g);
@@ -2255,7 +2257,7 @@ function initInput() {
     g.keys.shift = e.shiftKey ? 1 : 0;
     g.keys.alt = e.altKey ? 1 : 0;
   });
-  window.addEventListener("blur", function () { g.keys = {}; g.ptr = null; if (g.down) { g.down = 0; sandRelease(g); g.btn = 0; } });
+  window.addEventListener("blur", function () { g.keys = {}; g.ptr = null; TUI.drag = null; CAM_HELD = false; if (g.down) { g.down = 0; sandRelease(g); g.btn = 0; } });
   window.addEventListener("resize", resize);
   /* (a phone turned round, its address bar coming and going, fullscreen: all of them a new shape) */
   if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
@@ -2271,7 +2273,7 @@ function initInput() {
   function panStart(e) {
     e.preventDefault();
     /* (the first finger's press is over: whatever it was doing ends, as if it had let go) */
-    g.ptr = null; TUI.deferred = null;
+    g.ptr = null; TUI.deferred = null; TUI.drag = null;
     if (g.down) { g.down = 0; sandRelease(g); g.btn = 0; }
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
     PAN = { x: touchMid(), n: nTouch }; CAM_HELD = true;
@@ -2311,6 +2313,7 @@ function initInput() {
     actx();
     if (!g.down) return;
     g.down = 0;
+    tpDragEnd(g);
     sandRelease(g);
     g.btn = 0;
     tpLetGo(g);
@@ -2334,6 +2337,7 @@ function initInput() {
     if (e.pointerType === "touch" && g.ptr == null) return;   /* (a finger that is not the press) */
     toGame(e.clientX, e.clientY);
     cursorSample(g);
+    tpDragMove(g);   /* (PAN: a finger dragging the view. touch.ts) */
   });
   cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   cv.addEventListener("wheel", function (e) {
